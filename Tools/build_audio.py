@@ -64,6 +64,10 @@ clip(os.path.join(rpg, "world", "door.wav"), "hatch", gain=-3, extra="asetrate=4
 synth(["anoisesrc=color=brown:amplitude=0.6:seed=7", "sine=frequency=50", "sine=frequency=100"],
       "[0:a]lowpass=f=220,volume=0.9[n];[1:a]volume=0.20[h1];[2:a]volume=0.07,tremolo=f=0.3:d=0.5[h2];"
       "[n][h1][h2]amix=inputs=3:normalize=0,volume=1.6[o]", "amb_cooler", 12)
+# 路地のざわめき: 遠い換気扇と雨だれ、くぐもった街の低音 (ループ)
+synth(["anoisesrc=color=pink:amplitude=0.5:seed=21", "anoisesrc=color=brown:amplitude=0.7:seed=22", "sine=frequency=72"],
+      "[0:a]highpass=f=1800,lowpass=f=7000,tremolo=f=0.13:d=0.5,volume=0.22[rain];[1:a]lowpass=f=160,volume=1.1[rumble];"
+      "[2:a]tremolo=f=0.21:d=0.7,volume=0.1[hum];[rain][rumble][hum]amix=inputs=3:normalize=0,volume=1.5[o]", "amb_alley", 14)
 # 蛍光灯のジー音 (ループ)
 synth(["sine=frequency=100", "sine=frequency=200", "sine=frequency=4100", "anoisesrc=color=white:amplitude=0.05:seed=3"],
       "[0:a]volume=0.25[a];[1:a]volume=0.12[b];[2:a]volume=0.012[c];[3:a]highpass=f=5000,volume=0.6[d];"

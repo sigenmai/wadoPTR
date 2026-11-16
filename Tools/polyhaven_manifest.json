@@ -453,39 +453,6 @@
     0.0236
    ]
   },
-  "rollershutter_door": {
-   "title": "Rollershutter Door",
-   "authors": [
-    "MP"
-   ],
-   "tris": 1104,
-   "materials": [
-    {
-     "name": "rollershutter_door",
-     "diff": "rollershutter_door_diff.jpg",
-     "nor": "rollershutter_door_nor.jpg",
-     "smoothness": 0.327,
-     "metallic": 0.995
-    },
-    {
-     "name": "rollershutter_door_graffiti",
-     "diff": "rollershutter_door_graffiti_diff.jpg",
-     "nor": "rollershutter_door_graffiti_nor.jpg",
-     "smoothness": 0.327,
-     "metallic": 0.995
-    }
-   ],
-   "min": [
-    -1.54,
-    0.0,
-    -0.15
-   ],
-   "max": [
-    1.54,
-    2.4,
-    0.15
-   ]
-  },
   "WetFloorSign_01": {
    "title": "Wet Floor Sign 01",
    "authors": [
@@ -950,26 +917,322 @@
     1.1037,
     0.5457
    ]
+  },
+  "hanging_industrial_lamp": {
+   "title": "Hanging Industrial Lamp",
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "hanging_industrial_lamp",
+     "diff": "hanging_industrial_lamp_diff.jpg",
+     "nor": "hanging_industrial_lamp_nor.jpg",
+     "smoothness": 0.522,
+     "metallic": 0.278
+    },
+    {
+     "name": "hanging_industrial_lamp_glass",
+     "diff": null,
+     "nor": "hanging_industrial_lamp_glass_nor.jpg",
+     "smoothness": 0.4,
+     "metallic": 0.0
+    }
+   ],
+   "min": [
+    -0.2748,
+    -1.341,
+    -0.2748
+   ],
+   "max": [
+    0.2748,
+    0.0152,
+    0.2748
+   ]
+  },
+  "industrial_wall_lamp": {
+   "title": "Industrial Wall Lamp",
+   "authors": [
+    "Kuutti Siitonen"
+   ],
+   "tris": 4446,
+   "materials": [
+    {
+     "name": "industrial_wall_lamp",
+     "diff": "industrial_wall_lamp_diff.jpg",
+     "nor": "industrial_wall_lamp_nor.jpg",
+     "smoothness": 0.537,
+     "metallic": 0.006
+    },
+    {
+     "name": "industrial_wall_lamp_glass",
+     "diff": "industrial_wall_lamp_glass_diff.jpg",
+     "nor": "industrial_wall_lamp_glass_nor.jpg",
+     "smoothness": 0.383,
+     "metallic": 0.003
+    }
+   ],
+   "min": [
+    -0.1367,
+    -0.215,
+    -0.0702
+   ],
+   "max": [
+    0.1367,
+    0.215,
+    0.0702
+   ]
+  },
+  "security_light": {
+   "title": "Security Light",
+   "authors": [
+    "Maximilian Schuster"
+   ],
+   "tris": 4668,
+   "materials": [
+    {
+     "name": "security_light",
+     "diff": "security_light_diff.jpg",
+     "nor": "security_light_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    },
+    {
+     "name": "security_light_bulb",
+     "diff": "security_light_bulb_diff.jpg",
+     "nor": "security_light_bulb_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    },
+    {
+     "name": "security_light_glass",
+     "diff": "security_light_glass_diff.jpg",
+     "nor": "security_light_glass_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    }
+   ],
+   "min": [
+    -0.1616,
+    -0.2655,
+    -0.2086
+   ],
+   "max": [
+    0.1616,
+    0.2655,
+    0.2086
+   ]
+  },
+  "utility_box_02": {
+   "title": "Utility Box 02",
+   "authors": [
+    "James Ray Cock"
+   ],
+   "tris": 4999,
+   "materials": [
+    {
+     "name": "utility_box_02",
+     "diff": "utility_box_02_diff.jpg",
+     "nor": "utility_box_02_nor.jpg",
+     "smoothness": 0.452,
+     "metallic": 0.146
+    }
+   ],
+   "min": [
+    -0.46,
+    -0.5602,
+    -0.216
+   ],
+   "max": [
+    0.46,
+    0.5602,
+    0.216
+   ]
+  },
+  "propane_tank": {
+   "title": "Propane Tank",
+   "authors": [
+    "Slinc"
+   ],
+   "tris": 4000,
+   "materials": [
+    {
+     "name": "propane_tank",
+     "diff": "propane_tank_diff.jpg",
+     "nor": "propane_tank_nor.jpg",
+     "smoothness": 0.669,
+     "metallic": 0.09
+    }
+   ],
+   "min": [
+    -0.1687,
+    0.0,
+    -0.1687
+   ],
+   "max": [
+    0.1687,
+    0.5538,
+    0.1687
+   ]
+  },
+  "old_tyre": {
+   "title": "Old Tyre",
+   "authors": [
+    "MP"
+   ],
+   "tris": 2880,
+   "materials": [
+    {
+     "name": "old_tyre",
+     "diff": "old_tyre_diff.jpg",
+     "nor": "old_tyre_nor.jpg",
+     "smoothness": 0.188,
+     "metallic": 0.006
+    }
+   ],
+   "min": [
+    -0.3,
+    0.0,
+    -0.0825
+   ],
+   "max": [
+    0.3,
+    0.6,
+    0.0825
+   ]
+  },
+  "boombox": {
+   "title": "Boombox",
+   "authors": [
+    "Thomas Paul Mouilleron"
+   ],
+   "tris": 4999,
+   "materials": [
+    {
+     "name": "boombox",
+     "diff": "boombox_diff.jpg",
+     "nor": "boombox_nor.jpg",
+     "smoothness": 0.523,
+     "metallic": 0.943
+    },
+    {
+     "name": "boombox_speakers",
+     "diff": "boombox_speakers_diff.jpg",
+     "nor": null,
+     "smoothness": 0.747,
+     "metallic": 0.517
+    }
+   ],
+   "min": [
+    -0.3617,
+    0.0,
+    -0.0932
+   ],
+   "max": [
+    0.3617,
+    0.4704,
+    0.0932
+   ]
+  },
+  "wooden_crate_02": {
+   "title": "Wooden Crate 02",
+   "authors": [
+    "James Ray Cock",
+    "Jurita Burger"
+   ],
+   "tris": 5176,
+   "materials": [
+    {
+     "name": "wooden_crate_02",
+     "diff": "wooden_crate_02_diff.jpg",
+     "nor": "wooden_crate_02_nor.jpg",
+     "smoothness": 0.347,
+     "metallic": 0.05
+    }
+   ],
+   "min": [
+    -0.2646,
+    0.0,
+    -0.5832
+   ],
+   "max": [
+    0.2646,
+    0.464,
+    0.5832
+   ]
+  },
+  "modular_industrial_pipes_01": {
+   "title": "Modular Industrial Pipes 01",
+   "authors": [
+    "Jorge Camacho"
+   ],
+   "tris": 6000,
+   "materials": [
+    {
+     "name": "modular_industrial_pipes_01_group01",
+     "diff": "modular_industrial_pipes_01_group01_diff.jpg",
+     "nor": "modular_industrial_pipes_01_group01_nor.jpg",
+     "smoothness": 0.361,
+     "metallic": 0.564
+    },
+    {
+     "name": "modular_industrial_pipes_01_group02",
+     "diff": "modular_industrial_pipes_01_group02_diff.jpg",
+     "nor": "modular_industrial_pipes_01_group02_nor.jpg",
+     "smoothness": 0.343,
+     "metallic": 0.465
+    }
+   ],
+   "min": [
+    -0.7061,
+    -0.9773,
+    -0.1539
+   ],
+   "max": [
+    0.7061,
+    0.9773,
+    0.1539
+   ]
   }
  },
  "textures": {
-  "long_white_tiles": {
-   "diff": "long_white_tiles_diff.jpg",
-   "nor": "long_white_tiles_nor.jpg",
-   "smoothness": 0.758,
-   "title": "Long White Tiles",
+  "concrete_wall_006": {
+   "diff": "concrete_wall_006_diff.jpg",
+   "nor": "concrete_wall_006_nor.jpg",
+   "smoothness": 0.229,
+   "title": "Concrete Wall 006",
    "authors": [
-    "Jenelle van Heerden",
-    "Sergej Majboroda"
+    "Dario Barresi",
+    "Charlotte Baglioni"
    ]
   },
-  "worn_tile_floor": {
-   "diff": "worn_tile_floor_diff.jpg",
-   "nor": "worn_tile_floor_nor.jpg",
-   "smoothness": 0.42,
-   "title": "Worn Tile Floor",
+  "rusty_metal_sheet": {
+   "diff": "rusty_metal_sheet_diff.jpg",
+   "nor": "rusty_metal_sheet_nor.jpg",
+   "smoothness": 0.18,
+   "title": "Rusty Metal Sheet",
    "authors": [
-    "Dimitrios Savva"
+    "Amal Kumar"
+   ]
+  },
+  "rusty_painted_metal": {
+   "diff": "rusty_painted_metal_diff.jpg",
+   "nor": "rusty_painted_metal_nor.jpg",
+   "smoothness": 0.178,
+   "title": "Rusty Painted Metal",
+   "authors": [
+    "Amal Kumar"
+   ]
+  },
+  "concrete_floor_worn_001": {
+   "diff": "concrete_floor_worn_001_diff.jpg",
+   "nor": "concrete_floor_worn_001_nor.jpg",
+   "smoothness": 0.459,
+   "title": "Concrete Floor Worn 001",
+   "authors": [
+    "Dimitrios Savva",
+    "Rico Cilliers"
    ]
   },
   "dirty_concrete": {

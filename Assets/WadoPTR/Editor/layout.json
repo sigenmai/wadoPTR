@@ -22,7 +22,7 @@
    "yaw": 0,
    "mat": "floor",
    "collider": true,
-   "tile": 2.0,
+   "tile": 3.0,
    "group": "Room"
   },
   {
@@ -56,9 +56,9 @@
     0.2
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
@@ -74,27 +74,207 @@
     0.2
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
-   "name": "Wall_Right",
+   "name": "Wall_Right_A",
    "pos": [
     4.6,
     1.6,
-    0
+    1.4
    ],
    "size": [
     0.2,
     3.2,
-    7.0
+    4.2
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
+   "group": "Room"
+  },
+  {
+   "name": "Wall_Right_B",
+   "pos": [
+    4.6,
+    1.6,
+    -3.4
+   ],
+   "size": [
+    0.2,
+    3.2,
+    0.20000000000000018
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": true,
+   "tile": 2.6,
+   "group": "Room"
+  },
+  {
+   "name": "Wall_Right_Top",
+   "pos": [
+    4.6,
+    3.0,
+    -2.0
+   ],
+   "size": [
+    0.2,
+    0.40000000000000036,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": true,
+   "tile": 2.6,
+   "group": "Room"
+  },
+  {
+   "name": "Shutter_Housing",
+   "pos": [
+    4.4,
+    2.9099999999999997,
+    -2.0
+   ],
+   "size": [
+    0.22,
+    0.22,
+    2.8
+   ],
+   "yaw": 0,
+   "mat": "rust_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Shutter_Slab",
+   "pos": [
+    4.52,
+    2.73,
+    -2.0
+   ],
+   "size": [
+    0.04,
+    0.14,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "door",
+   "collider": false,
+   "tile": 1.3,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Post_A",
+   "pos": [
+    4.6,
+    0.55,
+    -3.2399999999999998
+   ],
+   "size": [
+    0.1,
+    1.1,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "hazard",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Post_B",
+   "pos": [
+    4.6,
+    0.55,
+    -0.76
+   ],
+   "size": [
+    0.1,
+    1.1,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "hazard",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Bar_Hi",
+   "pos": [
+    4.6,
+    1.0,
+    -2.0
+   ],
+   "size": [
+    0.05,
+    0.07,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "hazard",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Bar_Lo",
+   "pos": [
+    4.6,
+    0.5,
+    -2.0
+   ],
+   "size": [
+    0.05,
+    0.07,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "hazard",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Blocker",
+   "pos": [
+    4.6,
+    1.4,
+    -2.0
+   ],
+   "size": [
+    0.2,
+    2.8,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "invisible",
+   "collider": true,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Dock_Ramp",
+   "pos": [
+    4.6,
+    0.01,
+    -2.0
+   ],
+   "size": [
+    0.24,
+    0.02,
+    2.5999999999999996
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 0.0,
    "group": "Room"
   },
   {
@@ -110,9 +290,9 @@
     3.95
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
@@ -128,9 +308,9 @@
     2.15
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
@@ -146,9 +326,9 @@
     0.9
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
@@ -164,9 +344,9 @@
     0.9
    ],
    "yaw": 0,
-   "mat": "tile_wall",
+   "mat": "wall",
    "collider": true,
-   "tile": 1.2,
+   "tile": 2.6,
    "group": "Room"
   },
   {
@@ -272,7 +452,7 @@
     1.06
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": true,
    "tile": 0.0,
    "group": "Room"
@@ -290,7 +470,7 @@
     0.08
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": true,
    "tile": 0.0,
    "group": "Room"
@@ -308,7 +488,7 @@
     0.08
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": true,
    "tile": 0.0,
    "group": "Room"
@@ -317,55 +497,1279 @@
    "name": "Kick_Back",
    "pos": [
     0,
-    0.15,
-    3.49
+    0.45,
+    3.488
    ],
    "size": [
     9.0,
-    0.3,
-    0.02
+    0.9,
+    0.024
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
-   "tile": 0.0,
+   "tile": 1.8,
    "group": "Room"
   },
   {
-   "name": "Kick_Front",
+   "name": "Kick_Front_A",
+   "pos": [
+    -2.3,
+    0.2,
+    -3.488
+   ],
+   "size": [
+    4.4,
+    0.4,
+    0.024
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.8,
+   "group": "Room"
+  },
+  {
+   "name": "Kick_Front_B",
+   "pos": [
+    3.0,
+    0.3,
+    -3.488
+   ],
+   "size": [
+    3.0,
+    0.6,
+    0.024
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.8,
+   "group": "Room"
+  },
+  {
+   "name": "Kick_Left",
+   "pos": [
+    -4.488,
+    0.42,
+    -1.7
+   ],
+   "size": [
+    0.024,
+    0.84,
+    3.6
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.8,
+   "group": "Room"
+  },
+  {
+   "name": "Beam_A",
    "pos": [
     0,
-    0.15,
-    -3.49
+    3.08,
+    -1.3
    ],
    "size": [
     9.0,
-    0.3,
-    0.02
+    0.24,
+    0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust_red",
    "collider": false,
-   "tile": 0.0,
+   "tile": 2.0,
    "group": "Room"
   },
   {
-   "name": "Kick_Right",
+   "name": "Beam_B",
    "pos": [
-    4.49,
-    0.15,
+    0,
+    3.08,
+    2.3
+   ],
+   "size": [
+    9.0,
+    0.24,
+    0.18
+   ],
+   "yaw": 0,
+   "mat": "rust_red",
+   "collider": false,
+   "tile": 2.0,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Run0",
+   "pos": [
+    0,
+    2.91,
+    3.25
+   ],
+   "size": [
+    9.0,
+    0.18,
+    0.18
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Run1",
+   "pos": [
+    0,
+    2.92,
+    3.05
+   ],
+   "size": [
+    9.0,
+    0.12,
+    0.12
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Run2",
+   "pos": [
+    0,
+    2.88,
+    -3.2
+   ],
+   "size": [
+    9.0,
+    0.16,
+    0.16
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Run3",
+   "pos": [
+    0,
+    2.89,
+    -0.2
+   ],
+   "size": [
+    9.0,
+    0.1,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Cross0",
+   "pos": [
+    -3.8,
+    2.8600000000000003,
     0
    ],
    "size": [
-    0.02,
-    0.3,
+    0.1,
+    0.1,
     7.0
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "black",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
+  },
+  {
+   "name": "Pipe_Cross1",
+   "pos": [
+    -1.1,
+    2.8600000000000003,
+    0
+   ],
+   "size": [
+    0.1,
+    0.1,
+    7.0
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Cross2",
+   "pos": [
+    2.4,
+    2.8600000000000003,
+    0
+   ],
+   "size": [
+    0.1,
+    0.1,
+    7.0
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Drop_A",
+   "pos": [
+    -4.38,
+    1.9,
+    -0.75
+   ],
+   "size": [
+    0.09,
+    2.6,
+    0.09
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Drop_B",
+   "pos": [
+    4.38,
+    1.6,
+    3.2
+   ],
+   "size": [
+    0.12,
+    3.2,
+    0.12
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Pipe_Drop_C",
+   "pos": [
+    -0.25,
+    1.6,
+    -3.4
+   ],
+   "size": [
+    0.07,
+    3.2,
+    0.07
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
+  },
+  {
+   "name": "Alley_Floor",
+   "pos": [
+    7.0,
+    -0.1,
+    0
+   ],
+   "size": [
+    4.6000000000000005,
+    0.2,
+    26.0
+   ],
+   "yaw": 0,
+   "mat": "floor",
+   "collider": false,
+   "tile": 3.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Far_Wall",
+   "pos": [
+    9.4,
+    8.0,
+    0
+   ],
+   "size": [
+    0.2,
+    16.0,
+    26.0
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": false,
+   "tile": 3.2,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Near_Above",
+   "pos": [
+    4.8,
+    9.7,
+    0
+   ],
+   "size": [
+    0.2,
+    12.600000000000001,
+    26.0
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": false,
+   "tile": 3.2,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Near_N",
+   "pos": [
+    4.8,
+    1.6,
+    8.35
+   ],
+   "size": [
+    0.2,
+    3.6,
+    9.3
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": false,
+   "tile": 3.2,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Near_S",
+   "pos": [
+    4.8,
+    1.6,
+    -8.35
+   ],
+   "size": [
+    0.2,
+    3.6,
+    9.3
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": false,
+   "tile": 3.2,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_End_N",
+   "pos": [
+    7.0,
+    8.0,
+    13.1
+   ],
+   "size": [
+    5.000000000000001,
+    16.0,
+    0.2
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_End_S",
+   "pos": [
+    7.0,
+    8.0,
+    -13.1
+   ],
+   "size": [
+    5.000000000000001,
+    16.0,
+    0.2
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Sky",
+   "pos": [
+    7.0,
+    16.1,
+    0
+   ],
+   "size": [
+    5.000000000000001,
+    0.2,
+    26.0
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Passage_N",
+   "pos": [
+    7.4,
+    1.7,
+    12.98
+   ],
+   "size": [
+    2.6,
+    3.4,
+    0.02
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Passage_S",
+   "pos": [
+    6.7,
+    1.5,
+    -12.98
+   ],
+   "size": [
+    2.2,
+    3.0,
+    0.02
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Bridge_A",
+   "pos": [
+    7.0,
+    4.7,
+    2.2
+   ],
+   "size": [
+    4.6000000000000005,
+    0.45,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "rust_red",
+   "collider": false,
+   "tile": 2.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Bridge_A_Rail",
+   "pos": [
+    7.0,
+    5.35,
+    1.05
+   ],
+   "size": [
+    4.6000000000000005,
+    0.06,
+    0.06
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Bridge_B",
+   "pos": [
+    7.0,
+    8.8,
+    -4.6
+   ],
+   "size": [
+    4.6000000000000005,
+    0.6,
+    3.2
+   ],
+   "yaw": 0,
+   "mat": "wall",
+   "collider": false,
+   "tile": 3.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Bridge_C",
+   "pos": [
+    7.0,
+    12.2,
+    5.5
+   ],
+   "size": [
+    4.6000000000000005,
+    0.5,
+    2.0
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 2.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Balcony_A",
+   "pos": [
+    8.8,
+    3.35,
+    -5.2
+   ],
+   "size": [
+    1.0,
+    0.14,
+    3.6
+   ],
+   "yaw": 0,
+   "mat": "rust_red",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Alley"
+  },
+  {
+   "name": "Balcony_A_Rail",
+   "pos": [
+    8.32,
+    3.9,
+    -5.2
+   ],
+   "size": [
+    0.04,
+    0.05,
+    3.6
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Balcony_B",
+   "pos": [
+    8.9,
+    6.4,
+    0.6
+   ],
+   "size": [
+    0.8,
+    0.12,
+    4.4
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Alley"
+  },
+  {
+   "name": "Awning",
+   "pos": [
+    8.75,
+    2.3,
+    -2.7
+   ],
+   "size": [
+    1.1,
+    0.06,
+    2.8
+   ],
+   "yaw": 0,
+   "mat": "rust_red",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Window",
+   "pos": [
+    9.280000000000001,
+    1.3,
+    -2.7
+   ],
+   "size": [
+    0.02,
+    1.4,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Counter",
+   "pos": [
+    9.0,
+    0.3,
+    -2.7
+   ],
+   "size": [
+    0.5,
+    0.6,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "rust",
+   "collider": false,
+   "tile": 1.5,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Mullion_A",
+   "pos": [
+    9.260000000000002,
+    1.3,
+    -3.3
+   ],
+   "size": [
+    0.04,
+    1.4,
+    0.06
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Mullion_B",
+   "pos": [
+    9.260000000000002,
+    1.3,
+    -2.1
+   ],
+   "size": [
+    0.04,
+    1.4,
+    0.06
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Shelf0",
+   "pos": [
+    9.25,
+    0.95,
+    -2.7
+   ],
+   "size": [
+    0.03,
+    0.03,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Shelf1",
+   "pos": [
+    9.25,
+    1.3,
+    -2.7
+   ],
+   "size": [
+    0.03,
+    0.03,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Shelf2",
+   "pos": [
+    9.25,
+    1.65,
+    -2.7
+   ],
+   "size": [
+    0.03,
+    0.03,
+    2.4
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar0",
+   "pos": [
+    9.24,
+    1.065,
+    -3.7
+   ],
+   "size": [
+    0.04,
+    0.2,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar1",
+   "pos": [
+    9.24,
+    1.4449999999999998,
+    -3.5
+   ],
+   "size": [
+    0.04,
+    0.26,
+    0.12000000000000001
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar2",
+   "pos": [
+    9.24,
+    1.745,
+    -3.25
+   ],
+   "size": [
+    0.04,
+    0.16,
+    0.14
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar3",
+   "pos": [
+    9.24,
+    1.085,
+    -2.9
+   ],
+   "size": [
+    0.04,
+    0.24,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar4",
+   "pos": [
+    9.24,
+    1.405,
+    -2.65
+   ],
+   "size": [
+    0.04,
+    0.18,
+    0.12000000000000001
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar5",
+   "pos": [
+    9.24,
+    1.8050000000000002,
+    -2.45
+   ],
+   "size": [
+    0.04,
+    0.28,
+    0.14
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar6",
+   "pos": [
+    9.24,
+    1.065,
+    -1.95
+   ],
+   "size": [
+    0.04,
+    0.2,
+    0.1
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar7",
+   "pos": [
+    9.24,
+    1.385,
+    -1.75
+   ],
+   "size": [
+    0.04,
+    0.14,
+    0.12000000000000001
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Shop_Jar8",
+   "pos": [
+    9.24,
+    1.79,
+    -1.6
+   ],
+   "size": [
+    0.04,
+    0.25,
+    0.14
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Vending_Body",
+   "pos": [
+    8.9,
+    0.92,
+    0.9
+   ],
+   "size": [
+    0.7,
+    1.84,
+    1.0
+   ],
+   "yaw": 0,
+   "mat": "plastic_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Vending_Front",
+   "pos": [
+    8.540000000000001,
+    1.15,
+    0.9
+   ],
+   "size": [
+    0.02,
+    1.1,
+    0.84
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_white",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Vending_Slot",
+   "pos": [
+    8.540000000000001,
+    0.35,
+    0.9
+   ],
+   "size": [
+    0.02,
+    0.22,
+    0.6
+   ],
+   "yaw": 0,
+   "mat": "black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window0",
+   "pos": [
+    9.290000000000001,
+    5.6,
+    -6.8
+   ],
+   "size": [
+    0.02,
+    0.6,
+    0.9
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window1",
+   "pos": [
+    9.290000000000001,
+    7.9,
+    3.4
+   ],
+   "size": [
+    0.02,
+    0.9,
+    0.7
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window2",
+   "pos": [
+    9.290000000000001,
+    10.6,
+    -1.5
+   ],
+   "size": [
+    0.02,
+    0.5,
+    1.2
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window3",
+   "pos": [
+    9.290000000000001,
+    4.0,
+    6.8
+   ],
+   "size": [
+    0.02,
+    0.8,
+    0.6
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window4",
+   "pos": [
+    9.290000000000001,
+    13.2,
+    7.5
+   ],
+   "size": [
+    0.02,
+    0.5,
+    0.8
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Window5",
+   "pos": [
+    9.290000000000001,
+    9.9,
+    -8.5
+   ],
+   "size": [
+    0.02,
+    0.7,
+    0.5
+   ],
+   "yaw": 0,
+   "mat": "glowpanel_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_A",
+   "pos": [
+    9.24,
+    2.75,
+    -0.85
+   ],
+   "size": [
+    0.1,
+    3.3,
+    0.8
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_A_Glow",
+   "pos": [
+    9.17,
+    2.75,
+    -0.85
+   ],
+   "size": [
+    0.002,
+    4.8,
+    2.3
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_B",
+   "pos": [
+    9.24,
+    3.45,
+    -2.75
+   ],
+   "size": [
+    0.1,
+    1.5,
+    2.3
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_B_Glow",
+   "pos": [
+    9.17,
+    3.45,
+    -2.75
+   ],
+   "size": [
+    0.002,
+    2.6,
+    3.8
+   ],
+   "yaw": 0,
+   "mat": "glow_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_C",
+   "pos": [
+    9.24,
+    3.0,
+    3.9
+   ],
+   "size": [
+    0.1,
+    0.8,
+    1.9
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_C_Glow",
+   "pos": [
+    9.17,
+    3.0,
+    3.9
+   ],
+   "size": [
+    0.002,
+    1.5,
+    3.0
+   ],
+   "yaw": 0,
+   "mat": "glow_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_D",
+   "pos": [
+    9.24,
+    2.75,
+    -4.45
+   ],
+   "size": [
+    0.1,
+    0.55,
+    0.55
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_D_Glow",
+   "pos": [
+    9.17,
+    2.75,
+    -4.45
+   ],
+   "size": [
+    0.002,
+    1.2,
+    1.2
+   ],
+   "yaw": 0,
+   "mat": "glow_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_F",
+   "pos": [
+    9.24,
+    6.3,
+    -3.4
+   ],
+   "size": [
+    0.1,
+    1.8,
+    1.5
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_F_Glow",
+   "pos": [
+    9.17,
+    6.3,
+    -3.4
+   ],
+   "size": [
+    0.002,
+    3.0,
+    2.8
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_E",
+   "pos": [
+    9.24,
+    10.3,
+    2.0
+   ],
+   "size": [
+    0.1,
+    2.6,
+    0.7
+   ],
+   "yaw": 0,
+   "mat": "neonpanel_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_E_Glow",
+   "pos": [
+    9.17,
+    10.3,
+    2.0
+   ],
+   "size": [
+    0.002,
+    3.8,
+    1.9
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Alley"
   },
   {
    "name": "Table_Top",
@@ -470,7 +1874,7 @@
     0.06
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -650,7 +2054,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -668,7 +2072,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -686,7 +2090,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -704,7 +2108,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -722,7 +2126,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -740,7 +2144,7 @@
     0.05
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -758,9 +2162,9 @@
     1.1
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": true,
-   "tile": 0.0,
+   "tile": 1.6,
    "group": "Line"
   },
   {
@@ -884,7 +2288,7 @@
     0.08
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -902,7 +2306,7 @@
     0.35
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Line"
@@ -930,7 +2334,7 @@
    "pos": [
     3.75,
     0.2,
-    -0.45
+    2.35
    ],
    "size": [
     0.8,
@@ -938,9 +2342,9 @@
     0.6
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": true,
-   "tile": 0.0,
+   "tile": 1.6,
    "group": "Line"
   },
   {
@@ -948,7 +2352,7 @@
    "pos": [
     3.75,
     0.45,
-    -0.73
+    2.07
    ],
    "size": [
     0.8,
@@ -966,7 +2370,7 @@
    "pos": [
     3.75,
     0.45,
-    -0.17
+    2.63
    ],
    "size": [
     0.8,
@@ -984,7 +2388,7 @@
    "pos": [
     3.37,
     0.45,
-    -0.45
+    2.35
    ],
    "size": [
     0.04,
@@ -1002,7 +2406,7 @@
    "pos": [
     4.13,
     0.45,
-    -0.45
+    2.35
    ],
    "size": [
     0.04,
@@ -1046,7 +2450,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1064,7 +2468,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1082,7 +2486,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1100,7 +2504,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1118,7 +2522,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1136,7 +2540,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1154,7 +2558,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1172,7 +2576,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1190,7 +2594,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1208,7 +2612,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1226,7 +2630,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1244,7 +2648,7 @@
     0.18
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Room"
@@ -1268,11 +2672,101 @@
    "group": "Boards"
   },
   {
+   "name": "Neon_Money_T",
+   "pos": [
+    0,
+    3.04,
+    3.425
+   ],
+   "size": [
+    3.095,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Money_B",
+   "pos": [
+    0,
+    2.2,
+    3.425
+   ],
+   "size": [
+    3.095,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Money_L",
+   "pos": [
+    -1.53,
+    2.62,
+    3.425
+   ],
+   "size": [
+    0.035,
+    0.84,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Money_R",
+   "pos": [
+    1.53,
+    2.62,
+    3.425
+   ],
+   "size": [
+    0.035,
+    0.84,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Money_Glow",
+   "pos": [
+    0,
+    2.62,
+    3.405
+   ],
+   "size": [
+    4.59,
+    1.344,
+    0.002
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
    "name": "Board_Manual",
    "pos": [
     0,
     1.48,
-    3.48
+    3.46
    ],
    "size": [
     2.5,
@@ -1290,7 +2784,7 @@
    "pos": [
     -3.05,
     1.75,
-    3.47
+    3.455
    ],
    "size": [
     2.1,
@@ -1304,11 +2798,101 @@
    "group": "Boards"
   },
   {
+   "name": "Neon_Market_T",
+   "pos": [
+    -3.05,
+    2.5300000000000002,
+    3.41
+   ],
+   "size": [
+    2.1950000000000003,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Market_B",
+   "pos": [
+    -3.05,
+    0.97,
+    3.41
+   ],
+   "size": [
+    2.1950000000000003,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Market_L",
+   "pos": [
+    -4.13,
+    1.75,
+    3.41
+   ],
+   "size": [
+    0.035,
+    1.56,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Market_R",
+   "pos": [
+    -1.9699999999999998,
+    1.75,
+    3.41
+   ],
+   "size": [
+    0.035,
+    1.56,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Market_Glow",
+   "pos": [
+    -3.05,
+    1.75,
+    3.39
+   ],
+   "size": [
+    3.24,
+    2.4960000000000004,
+    0.002
+   ],
+   "yaw": 0,
+   "mat": "glow_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
    "name": "Board_Lines",
    "pos": [
     3.05,
     1.75,
-    3.47
+    3.455
    ],
    "size": [
     2.1,
@@ -1320,6 +2904,96 @@
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
+  },
+  {
+   "name": "Neon_Lines_T",
+   "pos": [
+    3.05,
+    2.5300000000000002,
+    3.41
+   ],
+   "size": [
+    2.1950000000000003,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Lines_B",
+   "pos": [
+    3.05,
+    0.97,
+    3.41
+   ],
+   "size": [
+    2.1950000000000003,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Lines_L",
+   "pos": [
+    1.9699999999999998,
+    1.75,
+    3.41
+   ],
+   "size": [
+    0.035,
+    1.56,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Lines_R",
+   "pos": [
+    4.13,
+    1.75,
+    3.41
+   ],
+   "size": [
+    0.035,
+    1.56,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Lines_Glow",
+   "pos": [
+    3.05,
+    1.75,
+    3.39
+   ],
+   "size": [
+    3.24,
+    2.4960000000000004,
+    0.002
+   ],
+   "yaw": 0,
+   "mat": "glow_cyan",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
   },
   {
    "name": "Board_Scale",
@@ -1338,6 +3012,96 @@
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
+  },
+  {
+   "name": "Neon_Scale_T",
+   "pos": [
+    4.425,
+    2.38,
+    0.9
+   ],
+   "size": [
+    0.035,
+    0.035,
+    1.395
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Scale_B",
+   "pos": [
+    4.425,
+    1.52,
+    0.9
+   ],
+   "size": [
+    0.035,
+    0.035,
+    1.395
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Scale_L",
+   "pos": [
+    4.425,
+    1.95,
+    0.21999999999999997
+   ],
+   "size": [
+    0.035,
+    0.86,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Scale_R",
+   "pos": [
+    4.425,
+    1.95,
+    1.58
+   ],
+   "size": [
+    0.035,
+    0.86,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Scale_Glow",
+   "pos": [
+    4.405,
+    1.95,
+    0.9
+   ],
+   "size": [
+    0.002,
+    1.3760000000000001,
+    2.04
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
   },
   {
    "name": "Board_Slip",
@@ -1394,6 +3158,96 @@
    "group": "Boards"
   },
   {
+   "name": "Neon_Hatch_T",
+   "pos": [
+    -4.425,
+    2.3899999999999997,
+    0.9
+   ],
+   "size": [
+    0.035,
+    0.035,
+    1.595
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Hatch_B",
+   "pos": [
+    -4.425,
+    1.7099999999999997,
+    0.9
+   ],
+   "size": [
+    0.035,
+    0.035,
+    1.595
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Hatch_L",
+   "pos": [
+    -4.425,
+    2.05,
+    0.12
+   ],
+   "size": [
+    0.035,
+    0.68,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Hatch_R",
+   "pos": [
+    -4.425,
+    2.05,
+    1.6800000000000002
+   ],
+   "size": [
+    0.035,
+    0.68,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Hatch_Glow",
+   "pos": [
+    -4.405,
+    2.05,
+    0.9
+   ],
+   "size": [
+    0.002,
+    1.088,
+    2.34
+   ],
+   "yaw": 0,
+   "mat": "glow_red",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
    "name": "Panel_Call",
    "pos": [
     -4.47,
@@ -1406,9 +3260,9 @@
     0.75
    ],
    "yaw": 0,
-   "mat": "plastic_grey",
+   "mat": "rust",
    "collider": false,
-   "tile": 0.0,
+   "tile": 1.2,
    "group": "Boards"
   },
   {
@@ -1428,6 +3282,96 @@
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
+  },
+  {
+   "name": "Neon_Terminal_T",
+   "pos": [
+    -2.3,
+    2.58,
+    -3.405
+   ],
+   "size": [
+    2.995,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Terminal_B",
+   "pos": [
+    -2.3,
+    0.41999999999999993,
+    -3.405
+   ],
+   "size": [
+    2.995,
+    0.035,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Terminal_L",
+   "pos": [
+    -3.78,
+    1.5,
+    -3.405
+   ],
+   "size": [
+    0.035,
+    2.16,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Terminal_R",
+   "pos": [
+    -0.8199999999999998,
+    1.5,
+    -3.405
+   ],
+   "size": [
+    0.035,
+    2.16,
+    0.035
+   ],
+   "yaw": 0,
+   "mat": "neon_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Neon_Terminal_Glow",
+   "pos": [
+    -2.3,
+    1.5,
+    -3.385
+   ],
+   "size": [
+    4.4399999999999995,
+    3.4560000000000004,
+    0.002
+   ],
+   "yaw": 0,
+   "mat": "glow_pink",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
   },
   {
    "name": "Board_Roster",
@@ -1460,7 +3404,7 @@
     0.06
    ],
    "yaw": 0,
-   "mat": "plastic_grey",
+   "mat": "paper",
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
@@ -1480,7 +3424,7 @@
    "yaw": 0,
    "mat": "door",
    "collider": false,
-   "tile": 0.0,
+   "tile": 1.4,
    "group": "Boards"
   },
   {
@@ -1496,7 +3440,7 @@
     0.1
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
@@ -1514,7 +3458,7 @@
     0.1
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
@@ -1532,7 +3476,7 @@
     0.1
    ],
    "yaw": 0,
-   "mat": "steel",
+   "mat": "rust",
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
@@ -1556,6 +3500,24 @@
    "group": "Boards"
   },
   {
+   "name": "Door_Lamp",
+   "pos": [
+    0.55,
+    2.36,
+    -3.45
+   ],
+   "size": [
+    0.75,
+    0.2,
+    0.06
+   ],
+   "yaw": 0,
+   "mat": "led_black",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Boards"
+  },
+  {
    "name": "Board_Hygiene",
    "pos": [
     -4.485,
@@ -1572,36 +3534,255 @@
    "collider": false,
    "tile": 0.0,
    "group": "Boards"
+  },
+  {
+   "name": "Bulb_Table",
+   "pos": [
+    0,
+    2.42,
+    0.9
+   ],
+   "size": [
+    0.07,
+    0.09,
+    0.07
+   ],
+   "yaw": 0,
+   "mat": "bulb_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Bulb_Terminal",
+   "pos": [
+    -2.3,
+    2.42,
+    -2.2
+   ],
+   "size": [
+    0.07,
+    0.09,
+    0.07
+   ],
+   "yaw": 0,
+   "mat": "bulb_warm",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Neon"
+  },
+  {
+   "name": "Dock_Plate",
+   "pos": [
+    4.57,
+    1.04,
+    -2.0
+   ],
+   "size": [
+    0.02,
+    0.16,
+    1.9
+   ],
+   "yaw": 0,
+   "mat": "hazard",
+   "collider": false,
+   "tile": 0.0,
+   "group": "Room"
   }
  ],
  "props": [
   {
-   "name": "Tube_Table",
-   "model": "mounted_fluorescent_lights",
+   "name": "Alley_Aircon_A",
+   "model": "exterior_aircon_unit",
+   "pos": [
+    9.100000000000001,
+    4.2,
+    6.2
+   ],
+   "yaw": -90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.7,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Aircon_B",
+   "model": "exterior_aircon_unit",
+   "pos": [
+    9.100000000000001,
+    8.6,
+    -7.0
+   ],
+   "yaw": -90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.7,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Cans",
+   "model": "metal_trash_can",
+   "pos": [
+    8.600000000000001,
+    0,
+    -4.6
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.75,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Bag_A",
+   "model": "trashbag",
+   "pos": [
+    8.600000000000001,
+    0,
+    2.2
+   ],
+   "yaw": 40,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Bag_B",
+   "model": "trashbag",
+   "pos": [
+    8.200000000000001,
+    0,
+    2.7
+   ],
+   "yaw": 160,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.9,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Barrel",
+   "model": "barrel_03",
+   "pos": [
+    5.3,
+    0,
+    1.2
+   ],
+   "yaw": 20,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.95,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Tyre",
+   "model": "old_tyre",
+   "pos": [
+    5.2,
+    0,
+    2.2
+   ],
+   "yaw": 75,
+   "pitch": 0,
+   "roll": 12,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Crate",
+   "model": "wooden_crate_02",
+   "pos": [
+    5.3,
+    0,
+    -4.4
+   ],
+   "yaw": 10,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Propane",
+   "model": "propane_tank",
+   "pos": [
+    8.3,
+    0,
+    -0.5
+   ],
+   "yaw": 0,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Pipes",
+   "model": "modular_industrial_pipes_01",
+   "pos": [
+    9.100000000000001,
+    5.6,
+    -1.9
+   ],
+   "yaw": -90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.6,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Alley_Box",
+   "model": "utility_box_02",
+   "pos": [
+    9.05,
+    1.6,
+    2.9
+   ],
+   "yaw": -90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.9,
+   "collider": false,
+   "group": "Alley"
+  },
+  {
+   "name": "Lamp_Table",
+   "model": "hanging_industrial_lamp",
    "pos": [
     0,
-    3.1700000000000004,
+    3.2,
     0.9
    ],
    "yaw": 0,
    "pitch": 0,
    "roll": 0,
-   "scale": 1.6,
+   "scale": 0.62,
    "collider": false,
    "group": "Props"
   },
   {
-   "name": "Tube_Terminal",
-   "model": "mounted_fluorescent_lights",
+   "name": "Lamp_Terminal",
+   "model": "hanging_industrial_lamp",
    "pos": [
-    -2.5,
-    3.1700000000000004,
+    -2.3,
+    3.2,
     -2.2
    ],
    "yaw": 0,
    "pitch": 0,
    "roll": 0,
-   "scale": 1.6,
+   "scale": 0.62,
    "collider": false,
    "group": "Props"
   },
@@ -1621,14 +3802,29 @@
    "group": "Props"
   },
   {
-   "name": "Shutter",
-   "model": "rollershutter_door",
+   "name": "industrial_wall_lamp",
+   "model": "industrial_wall_lamp",
    "pos": [
-    4.34,
-    0,
-    -1.9
+    -4.41,
+    2.6,
+    -2.6
    ],
    "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.2,
+   "collider": false,
+   "group": "Props"
+  },
+  {
+   "name": "security_light",
+   "model": "security_light",
+   "pos": [
+    4.25,
+    2.8,
+    3.0
+   ],
+   "yaw": -120,
    "pitch": 0,
    "roll": 0,
    "scale": 1.0,
@@ -1666,17 +3862,32 @@
    "group": "Props"
   },
   {
+   "name": "boombox",
+   "model": "boombox",
+   "pos": [
+    2.25,
+    0.617,
+    -3.05
+   ],
+   "yaw": 170,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.8,
+   "collider": false,
+   "group": "Props"
+  },
+  {
    "name": "office_notepads",
    "model": "office_notepads",
    "pos": [
-    2.2,
+    1.95,
     0.617,
-    -2.95
+    -2.85
    ],
    "yaw": 20,
    "pitch": 0,
    "roll": 0,
-   "scale": 0.45,
+   "scale": 0.35,
    "collider": false,
    "group": "Props"
   },
@@ -1684,9 +3895,9 @@
    "name": "clipboard",
    "model": "clipboard",
    "pos": [
-    1.85,
+    2.7,
     0.63,
-    -2.9
+    -2.75
    ],
    "yaw": 75,
    "pitch": 90,
@@ -1876,6 +4087,21 @@
    "group": "Props"
   },
   {
+   "name": "trashbag_d",
+   "model": "trashbag",
+   "pos": [
+    4.0,
+    0,
+    -0.35
+   ],
+   "yaw": 140,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.9,
+   "collider": false,
+   "group": "Props"
+  },
+  {
    "name": "WetFloorSign_01",
    "model": "WetFloorSign_01",
    "pos": [
@@ -1924,13 +4150,73 @@
    "name": "hand_truck",
    "model": "hand_truck",
    "pos": [
-    3.95,
+    3.7,
     0,
-    -2.75
+    -2.6
    ],
-   "yaw": -150,
+   "yaw": -110,
    "pitch": 0,
    "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Props"
+  },
+  {
+   "name": "wooden_crate_02",
+   "model": "wooden_crate_02",
+   "pos": [
+    3.9,
+    0,
+    -1.35
+   ],
+   "yaw": 80,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Props"
+  },
+  {
+   "name": "cardboard_box_dock",
+   "model": "cardboard_box_01",
+   "pos": [
+    3.85,
+    0.465,
+    -1.4
+   ],
+   "yaw": 30,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.9,
+   "collider": false,
+   "group": "Props"
+  },
+  {
+   "name": "propane_tank",
+   "model": "propane_tank",
+   "pos": [
+    -0.85,
+    0,
+    3.2
+   ],
+   "yaw": 0,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 1.0,
+   "collider": false,
+   "group": "Props"
+  },
+  {
+   "name": "old_tyre",
+   "model": "old_tyre",
+   "pos": [
+    -0.2,
+    0,
+    3.3
+   ],
+   "yaw": 0,
+   "pitch": 0,
+   "roll": 14,
    "scale": 1.0,
    "collider": false,
    "group": "Props"
@@ -1981,12 +4267,27 @@
    "group": "Props"
   },
   {
+   "name": "utility_box_02",
+   "model": "utility_box_02",
+   "pos": [
+    4.3,
+    1.7,
+    -0.25
+   ],
+   "yaw": -90,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.6,
+   "collider": false,
+   "group": "Props"
+  },
+  {
    "name": "security_camera_01",
    "model": "security_camera_01",
    "pos": [
     4.2,
-    2.85,
-    3.2
+    2.8000000000000003,
+    3.0
    ],
    "yaw": -135,
    "pitch": 0,
@@ -2101,6 +4402,21 @@
    "group": "Props"
   },
   {
+   "name": "Pipes_Front",
+   "model": "modular_industrial_pipes_01",
+   "pos": [
+    -3.3,
+    2.2,
+    -3.3
+   ],
+   "yaw": 180,
+   "pitch": 0,
+   "roll": 0,
+   "scale": 0.9,
+   "collider": false,
+   "group": "Props"
+  },
+  {
    "name": "rusted_hacksaw",
    "model": "rusted_hacksaw",
    "pos": [
@@ -2166,48 +4482,48 @@
    "name": "Light_Table",
    "pos": [
     0,
-    2.75,
+    2.25,
     0.9
    ],
    "color": [
-    0.86,
-    0.95,
-    1.0
+    1.0,
+    0.8,
+    0.58
    ],
-   "intensity": 1.55,
-   "range": 7.5,
+   "intensity": 1.8,
+   "range": 6.0,
+   "kind": "point"
+  },
+  {
+   "name": "Light_Neon_Back",
+   "pos": [
+    0,
+    2.5,
+    2.7
+   ],
+   "color": [
+    1.0,
+    0.22,
+    0.48
+   ],
+   "intensity": 1.7,
+   "range": 7.0,
    "kind": "point"
   },
   {
    "name": "Light_Terminal",
    "pos": [
-    -2.5,
-    2.75,
-    -2.2
+    -2.3,
+    1.9,
+    -2.4
    ],
    "color": [
-    0.86,
-    0.95,
-    1.0
+    1.0,
+    0.3,
+    0.45
    ],
-   "intensity": 1.1,
-   "range": 6.0,
-   "kind": "point"
-  },
-  {
-   "name": "Light_Dock",
-   "pos": [
-    3.2,
-    2.75,
-    -1.6
-   ],
-   "color": [
-    0.9,
-    0.95,
-    1.0
-   ],
-   "intensity": 0.9,
-   "range": 6.0,
+   "intensity": 1.5,
+   "range": 5.5,
    "kind": "point"
   },
   {
@@ -2219,22 +4535,184 @@
    ],
    "color": [
     1.0,
-    0.25,
-    0.15
+    0.16,
+    0.1
    ],
-   "intensity": 1.1,
-   "range": 3.0,
+   "intensity": 1.3,
+   "range": 3.5,
+   "kind": "point"
+  },
+  {
+   "name": "Light_Dock",
+   "pos": [
+    3.2,
+    2.75,
+    -1.6
+   ],
+   "color": [
+    0.7,
+    0.92,
+    1.0
+   ],
+   "intensity": 0.9,
+   "range": 4.5,
+   "kind": "point"
+  },
+  {
+   "name": "Light_Alley",
+   "pos": [
+    7.9,
+    3.0,
+    -1.6
+   ],
+   "color": [
+    1.0,
+    0.25,
+    0.5
+   ],
+   "intensity": 3.0,
+   "range": 12.0,
+   "kind": "point"
+  },
+  {
+   "name": "Light_Alley_Shop",
+   "pos": [
+    8.3,
+    1.4,
+    -2.7
+   ],
+   "color": [
+    1.0,
+    0.62,
+    0.3
+   ],
+   "intensity": 1.4,
+   "range": 5.0,
    "kind": "point"
   }
  ],
  "labels": [
+  {
+   "name": "Sign_A_Text",
+   "text": "精\n肉\n買\n取",
+   "pos": [
+    9.180000000000001,
+    4.25,
+    -0.85
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.6,
+   "width": 0.8,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#3A0612",
+   "align": "center",
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_B_Text",
+   "text": "部材 高価買取\n即日現金 秘密厳守\n内容物 相談可\n二十四時間 搬入可",
+   "pos": [
+    9.180000000000001,
+    4.08,
+    -1.72
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.21,
+   "width": 2.2,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#3A0612",
+   "align": "left",
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_C_Text",
+   "text": "質  金融  身元不問",
+   "pos": [
+    9.180000000000001,
+    3.2,
+    4.78
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.2,
+   "width": 1.8,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#3A0612",
+   "align": "left",
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_D_Text",
+   "text": "薬",
+   "pos": [
+    9.180000000000001,
+    2.98,
+    -4.45
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.4,
+   "width": 0.5,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#06222B",
+   "align": "center",
+   "group": "Alley"
+  },
+  {
+   "name": "Sign_E_Text",
+   "text": "宿\n泊\n休\n憩",
+   "pos": [
+    9.180000000000001,
+    11.45,
+    2.0
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.5,
+   "width": 0.6,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#3A0612",
+   "align": "center",
+   "group": "Alley"
+  },
+  {
+   "name": "Vending_Text",
+   "text": "飲料",
+   "pos": [
+    8.520000000000001,
+    1.95,
+    1.2
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.16,
+   "width": 0.6,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#FFFFFF",
+   "align": "left",
+   "group": "Alley"
+  },
   {
    "name": "Manual_Title",
    "text": "作業標準書  第三版",
    "pos": [
     -1.14,
     2.09,
-    3.465
+    3.445
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2249,11 +4727,11 @@
   },
   {
    "name": "Manual_Sub",
-   "text": "和堂PTR株式会社  第七加工センター  夜間処理室",
+   "text": "和堂PTR  下請第七  夜間処理室",
    "pos": [
     -1.14,
     1.93,
-    3.465
+    3.445
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2262,7 +4740,7 @@
    "width": 2.3,
    "height": 0.0,
    "font": "gothic",
-   "color": "#555555",
+   "color": "#4A4038",
    "align": "left",
    "group": "Signs"
   },
@@ -2272,7 +4750,7 @@
    "pos": [
     -1.14,
     1.82,
-    3.465
+    3.445
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2291,7 +4769,7 @@
    "pos": [
     -1.14,
     0.94,
-    3.465
+    3.445
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2319,7 +4797,7 @@
    "width": 1.2,
    "height": 0.0,
    "font": "dot",
-   "color": "#7A8B8F",
+   "color": "#9A6578",
    "align": "left",
    "group": "Signs"
   },
@@ -2329,7 +4807,7 @@
    "pos": [
     -3.98,
     2.4,
-    3.43
+    3.415
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2338,7 +4816,7 @@
    "width": 1.9,
    "height": 0.0,
    "font": "dot",
-   "color": "#FFD27A",
+   "color": "#FF5C93",
    "align": "left",
    "group": "Signs"
   },
@@ -2348,7 +4826,7 @@
    "pos": [
     -3.98,
     1.12,
-    3.43
+    3.415
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2357,7 +4835,7 @@
    "width": 1.9,
    "height": 0.0,
    "font": "dot",
-   "color": "#7A8B8F",
+   "color": "#9A6578",
    "align": "left",
    "group": "Signs"
   },
@@ -2367,7 +4845,7 @@
    "pos": [
     2.12,
     2.4,
-    3.43
+    3.415
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2376,7 +4854,7 @@
    "width": 1.9,
    "height": 0.0,
    "font": "dot",
-   "color": "#FFD27A",
+   "color": "#6FE3FF",
    "align": "left",
    "group": "Signs"
   },
@@ -2395,7 +4873,7 @@
    "width": 1.1,
    "height": 0.0,
    "font": "dot",
-   "color": "#7A8B8F",
+   "color": "#9A6578",
    "align": "left",
    "group": "Signs"
   },
@@ -2414,7 +4892,7 @@
    "width": 0.6,
    "height": 0.0,
    "font": "gothic",
-   "color": "#DDDDDD",
+   "color": "#E8C9B0",
    "align": "left",
    "group": "Signs"
   },
@@ -2452,7 +4930,7 @@
    "width": 0.8,
    "height": 0.0,
    "font": "gothic",
-   "color": "#DDDDDD",
+   "color": "#E8C9B0",
    "align": "left",
    "group": "Signs"
   },
@@ -2471,7 +4949,7 @@
    "width": 0.5,
    "height": 0.0,
    "font": "gothic",
-   "color": "#1B1B1B",
+   "color": "#E8C9B0",
    "align": "center",
    "group": "Signs"
   },
@@ -2490,7 +4968,7 @@
    "width": 0.5,
    "height": 0.0,
    "font": "gothic",
-   "color": "#1B1B1B",
+   "color": "#E8C9B0",
    "align": "center",
    "group": "Signs"
   },
@@ -2509,7 +4987,7 @@
    "width": 3.0,
    "height": 0.0,
    "font": "dot",
-   "color": "#FFD27A",
+   "color": "#FF5C93",
    "align": "left",
    "group": "Signs"
   },
@@ -2556,17 +5034,17 @@
    "text": "退勤口",
    "pos": [
     0.82,
-    2.33,
-    -3.4
+    2.43,
+    -3.415
    ],
    "yaw": 180,
    "pitch": 0,
    "roll": 0,
-   "size": 0.07,
+   "size": 0.085,
    "width": 0.6,
    "height": 0.0,
    "font": "dot",
-   "color": "#7CFF9B",
+   "color": "#6FE3FF",
    "align": "left",
    "group": "Signs"
   },
@@ -2585,7 +5063,7 @@
    "width": 0.8,
    "height": 0.0,
    "font": "gothic",
-   "color": "#1B1B1B",
+   "color": "#E8C9B0",
    "align": "left",
    "group": "Signs"
   },
@@ -2593,9 +5071,9 @@
    "name": "Shutter_Sign",
    "text": "出 荷 口",
    "pos": [
-    4.16,
-    2.62,
-    -2.55
+    4.285,
+    2.97,
+    -1.5
    ],
    "yaw": 90,
    "pitch": 0,
@@ -2604,7 +5082,26 @@
    "width": 1.4,
    "height": 0.0,
    "font": "gothic",
-   "color": "#DDDDDD",
+   "color": "#E8C9B0",
+   "align": "left",
+   "group": "Signs"
+  },
+  {
+   "name": "Dock_Warn",
+   "text": "部材以外の持ち出しを禁ず",
+   "pos": [
+    4.555,
+    1.085,
+    -1.12
+   ],
+   "yaw": 90,
+   "pitch": 0,
+   "roll": 0,
+   "size": 0.07,
+   "width": 1.9,
+   "height": 0.0,
+   "font": "gothic",
+   "color": "#1B1B1B",
    "align": "left",
    "group": "Signs"
   },
@@ -2614,7 +5111,7 @@
    "pos": [
     3.42,
     0.3,
-    -0.755
+    2.045
    ],
    "yaw": 0,
    "pitch": 0,
@@ -2623,7 +5120,7 @@
    "width": 0.7,
    "height": 0.0,
    "font": "gothic",
-   "color": "#DDDDDD",
+   "color": "#E8C9B0",
    "align": "left",
    "group": "Signs"
   },
@@ -2698,7 +5195,7 @@
    "pos": [
     3.75,
     0.5,
-    -0.45
+    2.35
    ],
    "yaw": 0
   },
@@ -2759,7 +5256,7 @@
   {
    "name": "Slip",
    "pos": [
-    4.44,
+    4.445,
     1.98,
     3.02
    ],
@@ -2877,8 +5374,8 @@
    "name": "Memo5",
    "pos": [
     1.42,
-    1.25,
-    3.465
+    1.3,
+    3.455
    ],
    "yaw": 0
   },
@@ -2899,6 +5396,288 @@
     1.75
    ],
    "yaw": -90
+  }
+ ],
+ "cables": [
+  {
+   "a": [
+    4.82,
+    6.2,
+    -6.0
+   ],
+   "b": [
+    9.25,
+    7.4,
+    -2.0
+   ],
+   "sag": 0.9,
+   "width": 0.05
+  },
+  {
+   "a": [
+    4.82,
+    3.9,
+    -1.0
+   ],
+   "b": [
+    9.25,
+    5.2,
+    4.0
+   ],
+   "sag": 0.7,
+   "width": 0.03
+  },
+  {
+   "a": [
+    4.82,
+    9.5,
+    3.0
+   ],
+   "b": [
+    9.25,
+    10.2,
+    -3.5
+   ],
+   "sag": 1.2,
+   "width": 0.03
+  },
+  {
+   "a": [
+    4.82,
+    4.4,
+    -8.0
+   ],
+   "b": [
+    9.25,
+    3.6,
+    1.0
+   ],
+   "sag": 0.8,
+   "width": 0.05
+  },
+  {
+   "a": [
+    4.82,
+    7.0,
+    6.5
+   ],
+   "b": [
+    9.25,
+    8.2,
+    0.5
+   ],
+   "sag": 1.0,
+   "width": 0.03
+  },
+  {
+   "a": [
+    4.82,
+    12.0,
+    -4.0
+   ],
+   "b": [
+    9.25,
+    11.2,
+    5.0
+   ],
+   "sag": 1.4,
+   "width": 0.03
+  },
+  {
+   "a": [
+    4.82,
+    2.9,
+    1.8
+   ],
+   "b": [
+    9.25,
+    3.3,
+    -1.2
+   ],
+   "sag": 0.35,
+   "width": 0.05
+  },
+  {
+   "a": [
+    4.82,
+    4.0,
+    8.5
+   ],
+   "b": [
+    9.25,
+    4.6,
+    3.5
+   ],
+   "sag": 0.6,
+   "width": 0.03
+  },
+  {
+   "a": [
+    9.180000000000001,
+    5.8,
+    -9.0
+   ],
+   "b": [
+    9.180000000000001,
+    6.1,
+    9.0
+   ],
+   "sag": 0.9,
+   "width": 0.035
+  },
+  {
+   "a": [
+    9.180000000000001,
+    3.5,
+    -6.0
+   ],
+   "b": [
+    9.180000000000001,
+    3.8,
+    6.0
+   ],
+   "sag": 0.5,
+   "width": 0.035
+  },
+  {
+   "a": [
+    9.180000000000001,
+    9.0,
+    -10.0
+   ],
+   "b": [
+    9.180000000000001,
+    9.3,
+    4.0
+   ],
+   "sag": 1.1,
+   "width": 0.035
+  },
+  {
+   "a": [
+    -4.4,
+    3.0,
+    -0.7
+   ],
+   "b": [
+    -2.3,
+    3.05,
+    -2.3
+   ],
+   "sag": 0.35,
+   "width": 0.025
+  },
+  {
+   "a": [
+    -2.3,
+    3.05,
+    -2.3
+   ],
+   "b": [
+    0,
+    3.1,
+    0.9
+   ],
+   "sag": 0.5,
+   "width": 0.025
+  },
+  {
+   "a": [
+    0,
+    3.1,
+    0.9
+   ],
+   "b": [
+    3.2,
+    3.1,
+    -1.6
+   ],
+   "sag": 0.45,
+   "width": 0.025
+  },
+  {
+   "a": [
+    0,
+    3.1,
+    0.9
+   ],
+   "b": [
+    0,
+    3.02,
+    3.4
+   ],
+   "sag": 0.25,
+   "width": 0.025
+  },
+  {
+   "a": [
+    -3.05,
+    2.55,
+    3.44
+   ],
+   "b": [
+    -1.5,
+    2.62,
+    3.44
+   ],
+   "sag": 0.3,
+   "width": 0.02
+  },
+  {
+   "a": [
+    1.5,
+    2.62,
+    3.44
+   ],
+   "b": [
+    2.0,
+    2.5,
+    3.44
+   ],
+   "sag": 0.15,
+   "width": 0.02
+  },
+  {
+   "a": [
+    -4.42,
+    2.4,
+    0.2
+   ],
+   "b": [
+    -4.42,
+    2.9,
+    -2.6
+   ],
+   "sag": 0.4,
+   "width": 0.02
+  },
+  {
+   "a": [
+    -0.85,
+    2.58,
+    -3.4
+   ],
+   "b": [
+    0.2,
+    2.42,
+    -3.4
+   ],
+   "sag": 0.25,
+   "width": 0.02
+  },
+  {
+   "a": [
+    3.2,
+    3.1,
+    -1.6
+   ],
+   "b": [
+    4.8,
+    3.6,
+    -2.0
+   ],
+   "sag": 0.3,
+   "width": 0.025
   }
  ],
  "body": [

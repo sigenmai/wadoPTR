@@ -32,7 +32,8 @@ namespace WadoPTR.EditorTools
         const int LayerIgnoreRaycast = 2;
 
         // ---------------------------------------------------------------- layout.json
-        [Serializable] class Layout { public RoomDef room; public BoxDef[] boxes; public PropDef[] props; public LightDef[] lights; public LabelDef[] labels; public AnchorDef[] anchors; public BodyDef[] body; }
+        [Serializable] class CableDef { public float[] a; public float[] b; public float sag; public float width; }
+        [Serializable] class Layout { public CableDef[] cables; public RoomDef room; public BoxDef[] boxes; public PropDef[] props; public LightDef[] lights; public LabelDef[] labels; public AnchorDef[] anchors; public BodyDef[] body; }
         [Serializable] class RoomDef { public float w, d, h, tableY, tableZ; }
         [Serializable] class BoxDef { public string name; public float[] pos; public float[] size; public float yaw; public string mat; public bool collider; public float tile; public string group; }
         [Serializable] class PropDef { public string name; public string model; public float[] pos; public float yaw, pitch, roll, scale; public bool collider; public string group; }
@@ -91,6 +92,7 @@ namespace WadoPTR.EditorTools
                 foreach (var p in L.props) MakeProp(p);
                 foreach (var l in L.lights) MakeLight(l);
                 foreach (var l in L.labels) MakeLabel(l);
+                if (L.cables != null) for (int i = 0; i < L.cables.Length; i++) MakeCable(L.cables[i], i);
 
                 EditorUtility.DisplayProgressBar("WadoPTR", "処理ライン", 0.6f);
                 BuildGameplay();
@@ -295,6 +297,14 @@ namespace WadoPTR.EditorTools
             return m;
         }
 
+        static Material Glow(string name, Color c, float strength)
+        {
+            var m = Custom(name, "WadoPTR/Glow", c);
+            m.SetFloat("_Strength", strength);
+            m.SetFloat("_Core", 0.42f);
+            return m;
+        }
+
         static Material UnlitTransparent(string name, string texPath)
         {
             string path = Gen + "/Materials/" + Safe(name) + ".mat";
@@ -313,18 +323,44 @@ namespace WadoPTR.EditorTools
         static void BuildMaterials()
         {
             mats = new Dictionary<string, Material>();
-            mats["floor"] = Textured("floor", "worn_tile_floor", 0.5f, 0f);
+            // 濡れた暗いコンクリートと錆。色は暗めに掛けて、ネオンの色が乗るようにする
+            mats["floor"] = Textured("floor", "concrete_floor_worn_001", 0.86f, 0f);
+            mats["floor"].color = new Color(0.5f, 0.46f, 0.46f);
             mats["ceiling"] = Textured("ceiling", "dirty_concrete", 0.1f, 0f);
-            mats["tile_wall"] = Textured("tile_wall", "long_white_tiles", 0.62f, 0f);
-            mats["tile_wall"].color = new Color(0.86f, 0.9f, 0.9f);
-            mats["steel"] = NewMat("steel", new Color(0.66f, 0.69f, 0.7f), 0.68f, 0.9f);
+            mats["ceiling"].color = new Color(0.34f, 0.31f, 0.31f);
+            mats["wall"] = Textured("wall", "concrete_wall_006", 0.28f, 0f);
+            mats["wall"].color = new Color(0.8f, 0.72f, 0.7f);
+            mats["rust"] = Textured("rust", "rusty_metal_sheet", 0.35f, 0.4f);
+            mats["rust"].color = new Color(0.7f, 0.62f, 0.58f);
+            mats["rust_red"] = Textured("rust_red", "rusty_painted_metal", 0.35f, 0.3f);
+            mats["rust_red"].color = new Color(0.75f, 0.6f, 0.58f);
             mats["door"] = Textured("door", "painted_metal_shutter", 0.35f, 0.5f);
-            mats["black"] = NewMat("black", new Color(0.01f, 0.01f, 0.012f), 0.1f, 0f);
-            mats["rubber"] = NewMat("rubber", new Color(0.03f, 0.03f, 0.035f), 0.25f, 0f);
-            mats["led_black"] = NewMat("led_black", new Color(0.015f, 0.02f, 0.022f), 0.55f, 0f);
-            mats["paper"] = NewMat("paper", new Color(0.78f, 0.76f, 0.68f), 0.05f, 0f);
-            mats["note"] = NewMat("note", new Color(0.93f, 0.84f, 0.36f), 0.05f, 0f);
-            mats["plastic_grey"] = NewMat("plastic_grey", new Color(0.42f, 0.44f, 0.44f), 0.4f, 0f);
+            mats["door"].color = new Color(0.6f, 0.55f, 0.55f);
+            mats["steel"] = NewMat("steel", new Color(0.3f, 0.3f, 0.31f), 0.7f, 0.9f);
+            mats["black"] = NewMat("black", new Color(0.008f, 0.007f, 0.008f), 0.1f, 0f);
+            mats["rubber"] = NewMat("rubber", new Color(0.02f, 0.02f, 0.022f), 0.25f, 0f);
+            mats["led_black"] = NewMat("led_black", new Color(0.012f, 0.01f, 0.012f), 0.6f, 0f);
+            mats["paper"] = NewMat("paper", new Color(0.36f, 0.31f, 0.23f), 0.05f, 0f);
+            mats["note"] = NewMat("note", new Color(0.72f, 0.62f, 0.24f), 0.05f, 0f);
+            mats["plastic_red"] = NewMat("plastic_red", new Color(0.35f, 0.04f, 0.05f), 0.5f, 0f);
+            mats["hazard"] = NewMat("hazard", new Color(0.75f, 0.55f, 0.05f), 0.4f, 0f);
+            // ネオン管・看板・窓明かり (光って見えるよう Unlit)
+            mats["neon_pink"] = Unlit("neon_pink", new Color(1f, 0.38f, 0.62f));
+            mats["neon_red"] = Unlit("neon_red", new Color(1f, 0.22f, 0.24f));
+            mats["neon_cyan"] = Unlit("neon_cyan", new Color(0.45f, 0.92f, 1f));
+            mats["neonpanel_pink"] = Unlit("neonpanel_pink", new Color(0.95f, 0.2f, 0.45f));
+            mats["neonpanel_red"] = Unlit("neonpanel_red", new Color(0.9f, 0.13f, 0.16f));
+            mats["neonpanel_cyan"] = Unlit("neonpanel_cyan", new Color(0.35f, 0.88f, 1f));
+            mats["glowpanel_warm"] = Unlit("glowpanel_warm", new Color(0.85f, 0.5f, 0.22f));
+            mats["glowpanel_pink"] = Unlit("glowpanel_pink", new Color(0.8f, 0.18f, 0.38f));
+            mats["glowpanel_cyan"] = Unlit("glowpanel_cyan", new Color(0.25f, 0.7f, 0.85f));
+            mats["glowpanel_white"] = Unlit("glowpanel_white", new Color(0.85f, 0.95f, 1f));
+            mats["bulb_warm"] = Unlit("bulb_warm", new Color(1f, 0.86f, 0.6f));
+            mats["cable"] = Unlit("cable", new Color(0.012f, 0.011f, 0.012f));
+            mats["glow_pink"] = Glow("glow_pink", new Color(1f, 0.15f, 0.45f), 0.5f);
+            mats["glow_red"] = Glow("glow_red", new Color(1f, 0.08f, 0.1f), 0.45f);
+            mats["glow_cyan"] = Glow("glow_cyan", new Color(0.15f, 0.75f, 1f), 0.4f);
+            mats["plastic_grey"] = NewMat("plastic_grey", new Color(0.16f, 0.16f, 0.17f), 0.4f, 0f);
             mats["button_green"] = NewMat("button_green", new Color(0.10f, 0.55f, 0.22f), 0.6f, 0f);
             SetEmission(mats["button_green"], new Color(0.02f, 0.25f, 0.06f));
             mats["button_red"] = NewMat("button_red", new Color(0.65f, 0.08f, 0.06f), 0.6f, 0f);
@@ -333,7 +369,7 @@ namespace WadoPTR.EditorTools
             SetEmission(mats["button_amber"], new Color(0.3f, 0.16f, 0.0f));
             mats["button_grey"] = NewMat("button_grey", new Color(0.55f, 0.57f, 0.58f), 0.5f, 0f);
             mats["lamp_off"] = NewMat("lamp_off", new Color(0.08f, 0.1f, 0.08f), 0.5f, 0f);
-            mats["lamp_on"] = Unlit("lamp_on", new Color(0.35f, 1f, 0.5f));
+            mats["lamp_on"] = Unlit("lamp_on", new Color(0.44f, 0.92f, 1f));
             mats["mark"] = Custom("mark", "WadoPTR/Guide", new Color(1f, 0.32f, 0.08f));
             mats["gash"] = Custom("gash", "WadoPTR/Guide", new Color(0.2f, 0.01f, 0.02f));
             mats["mosaic"] = Custom("mosaic", "WadoPTR/Mosaic", Color.white);
@@ -488,7 +524,36 @@ namespace WadoPTR.EditorTools
         static void MakeBox(BoxDef b)
         {
             Vector3 size = V(b.size);
+            if (b.mat == "invisible")
+            {
+                // 見えない壁 (出荷口の柵の向こうへ出られないようにする)
+                var wall = new GameObject(b.name);
+                wall.transform.SetParent(Group(b.group), false);
+                wall.transform.position = V(b.pos);
+                wall.transform.rotation = Quaternion.Euler(0, b.yaw, 0);
+                wall.AddComponent<BoxCollider>().size = size;
+                wall.isStatic = true;
+                return;
+            }
             Material m = mats.TryGetValue(b.mat, out var found) ? found : mats["plastic_grey"];
+            if (b.mat.StartsWith("glow_"))
+            {
+                // にじみは 1 枚の板で描く (箱だと側面に細い光の筋が出る)。いちばん薄い軸が板の向き
+                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                q.name = b.name;
+                UnityEngine.Object.DestroyImmediate(q.GetComponent<Collider>());
+                q.transform.SetParent(Group(b.group), false);
+                q.transform.position = V(b.pos);
+                bool facesX = size.x < size.z;
+                q.transform.rotation = Quaternion.Euler(0, b.yaw + (facesX ? 90f : 0f), 0);
+                q.transform.localScale = new Vector3(facesX ? size.z : size.x, size.y, 1f);
+                var qr = q.GetComponent<MeshRenderer>();
+                qr.sharedMaterial = m;
+                qr.shadowCastingMode = ShadowCastingMode.Off;
+                qr.receiveShadows = false;
+                q.isStatic = true;
+                return;
+            }
             if (b.tile > 0f)
             {
                 // 面積の大きい 2 辺で繰り返す
@@ -502,6 +567,39 @@ namespace WadoPTR.EditorTools
             var go = Cube(b.name, Group(b.group), Vector3.zero, size, m, b.collider);
             go.transform.position = V(b.pos);
             go.transform.rotation = Quaternion.Euler(0, b.yaw, 0);
+            go.isStatic = true;
+            if (b.mat.StartsWith("glow_") || b.mat.StartsWith("neon") || b.mat.StartsWith("glowpanel") || b.mat == "bulb_warm")
+            {
+                var mr = go.GetComponent<MeshRenderer>();
+                mr.shadowCastingMode = ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+            }
+        }
+
+        /// <summary>たるんだ配線。LineRenderer で描く(当たり判定なし)。</summary>
+        static void MakeCable(CableDef c, int index)
+        {
+            var go = new GameObject("Cable" + index);
+            go.transform.SetParent(Group("Cables"), false);
+            var lr = go.AddComponent<LineRenderer>();
+            const int n = 14;
+            lr.useWorldSpace = true;
+            lr.positionCount = n + 1;
+            Vector3 a = V(c.a), b = V(c.b);
+            for (int k = 0; k <= n; k++)
+            {
+                float t = k / (float)n;
+                Vector3 p = Vector3.Lerp(a, b, t);
+                p.y -= c.sag * 4f * t * (1f - t);
+                lr.SetPosition(k, p);
+            }
+            lr.startWidth = c.width;
+            lr.endWidth = c.width;
+            lr.numCapVertices = 0;
+            lr.sharedMaterial = mats["cable"];
+            lr.shadowCastingMode = ShadowCastingMode.Off;
+            lr.receiveShadows = false;
+            lr.alignment = LineAlignment.View;
             go.isStatic = true;
         }
 
@@ -538,7 +636,11 @@ namespace WadoPTR.EditorTools
             var m = NewMat(key, Color.white, def.smoothness, def.metallic);
             string dir = Root + "/Models/" + model + "/";
             SetTextures(m, string.IsNullOrEmpty(def.diff) ? null : dir + def.diff, string.IsNullOrEmpty(def.nor) ? null : dir + def.nor);
-            if (def.name.Contains("glass") && model.Contains("fluorescent")) SetEmission(m, new Color(0.85f, 0.95f, 1f) * 2.2f);
+            if (def.name.Contains("glass") || def.name.Contains("bulb"))
+            {
+                if (model.Contains("fluorescent")) SetEmission(m, new Color(0.85f, 0.95f, 1f) * 2.2f);
+                else if (model.Contains("lamp") || model.Contains("light")) SetEmission(m, new Color(1f, 0.78f, 0.5f) * 1.8f);
+            }
             mats[key] = m;
             return m;
         }
@@ -990,11 +1092,11 @@ namespace WadoPTR.EditorTools
         }
 
         // ---------------------------------------------------------------- 表示・端末・掲示
-        static readonly Color Amber = new Color(1f, 0.72f, 0.26f);
-        static readonly Color LedWhite = new Color(0.91f, 0.92f, 0.9f);
-        static readonly Color LedDim = new Color(0.48f, 0.55f, 0.56f);
-        static readonly Color LedGreen = new Color(0.49f, 1f, 0.61f);
-        static readonly Color LedRed = new Color(1f, 0.42f, 0.37f);
+        static readonly Color Amber = new Color(1f, 0.48f, 0.66f);        // 残高。桃色のネオン
+        static readonly Color LedWhite = new Color(0.98f, 0.86f, 0.9f);
+        static readonly Color LedDim = new Color(0.6f, 0.4f, 0.47f);
+        static readonly Color LedGreen = new Color(0.44f, 0.89f, 1f);     // 「良」の色は水色のネオン
+        static readonly Color LedRed = new Color(1f, 0.3f, 0.3f);
         static readonly Color Ink = new Color(0.1f, 0.1f, 0.1f);
 
         static Transform Panel(string anchorName)
@@ -1088,7 +1190,7 @@ namespace WadoPTR.EditorTools
             string[] memo = {
                 "刃は線に沿って。\n迷うと手が止まる。\n手が止まると鮮度が落ちる。\n　　　　　　――前の人",
                 "補助員は申請すれば来る。\nどこから来るのかは\n聞かないほうがいい。",
-                "搬入元の欄、\nたまに「社内」って出る。\n人事部って書いてあった。",
+                "搬入元の欄、\nたまに「社内」って出る。\n人事部って書いてあった。\n向かいの質屋も知ってる。",
                 "名簿、先週より\n一人減ってる。\n「異動した」って聞いた。",
                 "鮮度「特」は褒められる。\n早く切るほど、\nまだあたたかい。",
                 "異動した人から\n連絡が来たこと、ある？\nわたしは、ない。",
@@ -1104,7 +1206,7 @@ namespace WadoPTR.EditorTools
                 go.transform.position = V(a.pos);
                 go.transform.rotation = Quaternion.Euler(i == 0 ? 90f : 0f, a.yaw, i % 2 == 0 ? 3f : -4f);
                 Cube("paper", go.transform, new Vector3(0.15f, -0.15f, 0.004f), new Vector3(0.32f, 0.32f, 0.004f), mats["note"], false);
-                Text("text", go.transform, new Vector3(0.02f, -0.025f, 0), 0.024f, 0.29f, fontHand, new Color(0.08f, 0.08f, 0.2f), "left", memo[i]);
+                Text("text", go.transform, new Vector3(0.02f, -0.025f, 0), 0.024f, 0.29f, fontHand, new Color(0.05f, 0.04f, 0.08f), "left", memo[i]);
                 memoObjs[i] = go;
             }
             game.memos = memoObjs;
@@ -1147,6 +1249,8 @@ namespace WadoPTR.EditorTools
 
             // 空調と蛍光灯
             Audio("Amb_Cooler", sys, new Vector3(0, 2.6f, 0), false, 30f, Clip("amb_cooler"), 0.3f);
+            Audio("Amb_Alley", sys, new Vector3(L.room.w / 2 + 2.5f, 2f, -2f), true, 14f, Clip("amb_alley"), 0.6f);
+            Audio("Amb_Neon", sys, new Vector3(0, 2.6f, L.room.d / 2 - 0.2f), true, 5f, Clip("amb_buzz"), 0.25f);
             Vector3 tube = propObjects.TryGetValue("Tube_Dock", out var tubeGo) ? tubeGo.transform.position : new Vector3(3.2f, 3.1f, -1.6f);
             Audio("Amb_Buzz", sys, tube, true, 6f, Clip("amb_buzz"), 0.5f);
 
@@ -1176,14 +1280,14 @@ namespace WadoPTR.EditorTools
             amb.dripPoints = drips.ToArray();
             EditorUtility.SetDirty(amb);
 
-            // 描画設定: 外光なし・冷えた薄暗さ
+            // 描画設定: 外光なし。暗がりにネオンの色だけが回る
             RenderSettings.skybox = null;
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.17f, 0.2f, 0.215f);
+            RenderSettings.ambientLight = new Color(0.075f, 0.055f, 0.065f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.03f;
-            RenderSettings.fogColor = new Color(0.035f, 0.045f, 0.05f);
+            RenderSettings.fogDensity = 0.05f;
+            RenderSettings.fogColor = new Color(0.07f, 0.03f, 0.045f);
             RenderSettings.reflectionIntensity = 0.4f;
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
 
@@ -1193,7 +1297,8 @@ namespace WadoPTR.EditorTools
             var probe = probeGo.AddComponent<ReflectionProbe>();
             probe.mode = ReflectionProbeMode.Realtime;
             probe.refreshMode = ReflectionProbeRefreshMode.OnAwake;
-            probe.size = new Vector3(L.room.w, L.room.h + 0.4f, L.room.d);
+            probe.size = new Vector3(L.room.w + 0.4f, L.room.h + 0.4f, L.room.d + 0.4f);
+            probe.intensity = 1.2f;
             probe.center = Vector3.zero;
             probe.resolution = 128;
             probe.boxProjection = true;

@@ -42,7 +42,7 @@ public class WadoBody : UdonSharpBehaviour
 
     void Start()
     {
-        origins = new string[] { "提携医療法人 ■■会", "■■区 福祉課", "■■葬祭 委託分", "所有者不明", "社内 (人事部)", "■■物流 経由" };
+        origins = new string[] { "■■金融 回収分", "下層区 路上", "■■医院 裏口", "所有者不明", "社内 (人事部)", "■■宿 未精算" };
         cls = new string[] { "成人・男", "成人・女", "成人・不詳" };
         SaveDoor();
         HideAll();

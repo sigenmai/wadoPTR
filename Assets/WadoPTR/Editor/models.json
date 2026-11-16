@@ -228,25 +228,6 @@
    ]
   },
   {
-   "key": "rollershutter_door",
-   "materials": [
-    {
-     "name": "rollershutter_door",
-     "diff": "rollershutter_door_diff.jpg",
-     "nor": "rollershutter_door_nor.jpg",
-     "smoothness": 0.327,
-     "metallic": 0.995
-    },
-    {
-     "name": "rollershutter_door_graffiti",
-     "diff": "rollershutter_door_graffiti_diff.jpg",
-     "nor": "rollershutter_door_graffiti_nor.jpg",
-     "smoothness": 0.327,
-     "metallic": 0.995
-    }
-   ]
-  },
-  {
    "key": "WetFloorSign_01",
    "materials": [
     {
@@ -484,6 +465,156 @@
      "nor": "lambert1_nor.jpg",
      "smoothness": 0.63,
      "metallic": 0.588
+    }
+   ]
+  },
+  {
+   "key": "hanging_industrial_lamp",
+   "materials": [
+    {
+     "name": "hanging_industrial_lamp",
+     "diff": "hanging_industrial_lamp_diff.jpg",
+     "nor": "hanging_industrial_lamp_nor.jpg",
+     "smoothness": 0.522,
+     "metallic": 0.278
+    },
+    {
+     "name": "hanging_industrial_lamp_glass",
+     "diff": null,
+     "nor": "hanging_industrial_lamp_glass_nor.jpg",
+     "smoothness": 0.4,
+     "metallic": 0.0
+    }
+   ]
+  },
+  {
+   "key": "industrial_wall_lamp",
+   "materials": [
+    {
+     "name": "industrial_wall_lamp",
+     "diff": "industrial_wall_lamp_diff.jpg",
+     "nor": "industrial_wall_lamp_nor.jpg",
+     "smoothness": 0.537,
+     "metallic": 0.006
+    },
+    {
+     "name": "industrial_wall_lamp_glass",
+     "diff": "industrial_wall_lamp_glass_diff.jpg",
+     "nor": "industrial_wall_lamp_glass_nor.jpg",
+     "smoothness": 0.383,
+     "metallic": 0.003
+    }
+   ]
+  },
+  {
+   "key": "security_light",
+   "materials": [
+    {
+     "name": "security_light",
+     "diff": "security_light_diff.jpg",
+     "nor": "security_light_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    },
+    {
+     "name": "security_light_bulb",
+     "diff": "security_light_bulb_diff.jpg",
+     "nor": "security_light_bulb_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    },
+    {
+     "name": "security_light_glass",
+     "diff": "security_light_glass_diff.jpg",
+     "nor": "security_light_glass_nor.jpg",
+     "smoothness": 0.35,
+     "metallic": 0.403
+    }
+   ]
+  },
+  {
+   "key": "utility_box_02",
+   "materials": [
+    {
+     "name": "utility_box_02",
+     "diff": "utility_box_02_diff.jpg",
+     "nor": "utility_box_02_nor.jpg",
+     "smoothness": 0.452,
+     "metallic": 0.146
+    }
+   ]
+  },
+  {
+   "key": "propane_tank",
+   "materials": [
+    {
+     "name": "propane_tank",
+     "diff": "propane_tank_diff.jpg",
+     "nor": "propane_tank_nor.jpg",
+     "smoothness": 0.669,
+     "metallic": 0.09
+    }
+   ]
+  },
+  {
+   "key": "old_tyre",
+   "materials": [
+    {
+     "name": "old_tyre",
+     "diff": "old_tyre_diff.jpg",
+     "nor": "old_tyre_nor.jpg",
+     "smoothness": 0.188,
+     "metallic": 0.006
+    }
+   ]
+  },
+  {
+   "key": "boombox",
+   "materials": [
+    {
+     "name": "boombox",
+     "diff": "boombox_diff.jpg",
+     "nor": "boombox_nor.jpg",
+     "smoothness": 0.523,
+     "metallic": 0.943
+    },
+    {
+     "name": "boombox_speakers",
+     "diff": "boombox_speakers_diff.jpg",
+     "nor": null,
+     "smoothness": 0.747,
+     "metallic": 0.517
+    }
+   ]
+  },
+  {
+   "key": "wooden_crate_02",
+   "materials": [
+    {
+     "name": "wooden_crate_02",
+     "diff": "wooden_crate_02_diff.jpg",
+     "nor": "wooden_crate_02_nor.jpg",
+     "smoothness": 0.347,
+     "metallic": 0.05
+    }
+   ]
+  },
+  {
+   "key": "modular_industrial_pipes_01",
+   "materials": [
+    {
+     "name": "modular_industrial_pipes_01_group01",
+     "diff": "modular_industrial_pipes_01_group01_diff.jpg",
+     "nor": "modular_industrial_pipes_01_group01_nor.jpg",
+     "smoothness": 0.361,
+     "metallic": 0.564
+    },
+    {
+     "name": "modular_industrial_pipes_01_group02",
+     "diff": "modular_industrial_pipes_01_group02_diff.jpg",
+     "nor": "modular_industrial_pipes_01_group02_nor.jpg",
+     "smoothness": 0.343,
+     "metallic": 0.465
     }
    ]
   }

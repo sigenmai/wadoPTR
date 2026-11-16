@@ -70,23 +70,58 @@ def flat(name, rgb, rough=0.6, metal=0.0, emit=0.0):
 
 
 T = os.path.join(A, "Textures")
+
+
+def tex(name, scale, rough, metal=0.0, tint=None):
+    m = img_mat(name, os.path.join(T, name, name + "_diff.jpg"), scale, rough=rough, metal=metal)
+    if tint:
+        b = m.node_tree.nodes["Principled BSDF"]
+        t = [n for n in m.node_tree.nodes if n.type == "TEX_IMAGE"][0]
+        mx = m.node_tree.nodes.new("ShaderNodeMix")
+        mx.data_type = "RGBA"
+        mx.blend_type = "MULTIPLY"
+        mx.inputs[0].default_value = 1.0
+        m.node_tree.links.new(t.outputs["Color"], mx.inputs[6])
+        mx.inputs[7].default_value = (*tint, 1)
+        m.node_tree.links.new(mx.outputs[2], b.inputs["Base Color"])
+    return m
+
+
+# WadoWorldBuilder.cs の BuildMaterials と同じ名前・同じ意図
 MATS = {
-    "floor": img_mat("floor", os.path.join(T, "worn_tile_floor", "worn_tile_floor_diff.jpg"), 0.5, rough=0.5),
-    "ceiling": img_mat("ceiling", os.path.join(T, "dirty_concrete", "dirty_concrete_diff.jpg"), 0.35),
-    "tile_wall": img_mat("tile_wall", os.path.join(T, "long_white_tiles", "long_white_tiles_diff.jpg"), 0.8, rough=0.35),
-    "steel": flat("steel", (0.4, 0.43, 0.45), 0.38, 0.85),
-    "door": img_mat("door", os.path.join(T, "painted_metal_shutter", "painted_metal_shutter_diff.jpg"), 1.0),
-    "black": flat("black", (0.01, 0.01, 0.012), 0.9),
-    "rubber": flat("rubber", (0.03, 0.03, 0.035), 0.8),
-    "led_black": flat("led_black", (0.015, 0.02, 0.022), 0.4),
-    "paper": flat("paper", (0.78, 0.76, 0.68), 0.9),
-    "plastic_grey": flat("plastic_grey", (0.42, 0.44, 0.44), 0.6),
+    "floor": tex("concrete_floor_worn_001", 0.35, 0.12, tint=(0.55, 0.5, 0.5)),
+    "ceiling": tex("dirty_concrete", 0.35, 0.9, tint=(0.35, 0.32, 0.32)),
+    "wall": tex("concrete_wall_006", 0.4, 0.75, tint=(0.8, 0.72, 0.7)),
+    "rust": tex("rusty_metal_sheet", 0.8, 0.7, 0.4, tint=(0.7, 0.62, 0.58)),
+    "rust_red": tex("rusty_painted_metal", 0.6, 0.65, 0.3, tint=(0.75, 0.6, 0.58)),
+    "door": tex("painted_metal_shutter", 1.0, 0.6, 0.5, tint=(0.6, 0.55, 0.55)),
+    "steel": flat("steel", (0.2, 0.2, 0.21), 0.32, 0.85),
+    "black": flat("black", (0.008, 0.007, 0.008), 0.9),
+    "rubber": flat("rubber", (0.02, 0.02, 0.022), 0.8),
+    "led_black": flat("led_black", (0.012, 0.01, 0.012), 0.35),
+    "paper": flat("paper", (0.3, 0.26, 0.19), 0.9),
+    "plastic_grey": flat("plastic_grey", (0.16, 0.16, 0.17), 0.6),
+    "plastic_red": flat("plastic_red", (0.35, 0.04, 0.05), 0.5),
+    "hazard": flat("hazard", (0.75, 0.55, 0.05), 0.6),
+    "neon_pink": flat("neon_pink", (1.0, 0.12, 0.42), 0.5, emit=14.0),
+    "neon_red": flat("neon_red", (1.0, 0.06, 0.08), 0.5, emit=12.0),
+    "neon_cyan": flat("neon_cyan", (0.1, 0.8, 1.0), 0.5, emit=9.0),
+    "neonpanel_pink": flat("neonpanel_pink", (1.0, 0.14, 0.4), 0.5, emit=7.0),
+    "neonpanel_red": flat("neonpanel_red", (1.0, 0.07, 0.1), 0.5, emit=6.0),
+    "neonpanel_cyan": flat("neonpanel_cyan", (0.15, 0.85, 1.0), 0.5, emit=6.0),
+    "glowpanel_warm": flat("glowpanel_warm", (1.0, 0.62, 0.28), 0.5, emit=2.2),
+    "glowpanel_pink": flat("glowpanel_pink", (1.0, 0.2, 0.45), 0.5, emit=2.0),
+    "glowpanel_cyan": flat("glowpanel_cyan", (0.3, 0.85, 1.0), 0.5, emit=2.0),
+    "glowpanel_white": flat("glowpanel_white", (0.85, 0.95, 1.0), 0.5, emit=4.0),
+    "bulb_warm": flat("bulb_warm", (1.0, 0.75, 0.4), 0.5, emit=30.0),
 }
 skin = img_mat("skin", os.path.join(A, "Models", "body", "body_skin.jpg"))
 cut = flat("cut", (0.22, 0.02, 0.03), 0.35)
 
 
 def add_box(b):
+    if b["mat"] == "invisible" or b["mat"].startswith("glow_"):
+        return      # 当たり判定だけの箱と、ネオンのにじみ(後処理で再現する)
     bpy.ops.mesh.primitive_cube_add(size=1)
     o = bpy.context.object
     o.name = b["name"]
@@ -131,6 +166,27 @@ for p in L["props"]:
     s = p["scale"]
     for o in objs:
         o.matrix_world = Mi @ trs(p["pos"], p["yaw"], p["pitch"], p["roll"], (s, s, s)) @ M @ o.matrix_world
+
+# 配線 (たるんだケーブル)
+cable_mat = flat("cable", (0.006, 0.006, 0.007), 0.7)
+for c in L.get("cables", []):
+    a_, b_ = Vector(c["a"]), Vector(c["b"])
+    cu = bpy.data.curves.new("cable", "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth = c["width"] / 2
+    cu.bevel_resolution = 1
+    sp = cu.splines.new("POLY")
+    n = 14
+    sp.points.add(n)
+    for k in range(n + 1):
+        t = k / n
+        p = a_.lerp(b_, t)
+        p.y -= c["sag"] * 4 * t * (1 - t)
+        bp = Mi @ p
+        sp.points[k].co = (bp.x, bp.y, bp.z, 1)
+    o = bpy.data.objects.new("cable", cu)
+    sc.collection.objects.link(o)
+    o.data.materials.append(cable_mat)
 
 # 原体(処理台の上)
 anch = {a["name"]: a for a in L["anchors"]}
@@ -192,22 +248,22 @@ def add_text(text, pos, yaw, size, font, color, align="left", emit=0.0, pitch=0,
 
 for lb in L["labels"]:
     led = lb["font"] == "dot" and lb["color"] not in ("#1B1B1B",)
-    add_text(lb["text"], lb["pos"], lb["yaw"], lb["size"], lb["font"], lb["color"], lb["align"], 2.5 if led else 0.0, lb["pitch"], lb["roll"])
+    add_text(lb["text"], lb["pos"], lb["yaw"], lb["size"], lb["font"], lb["color"], lb["align"], 3.0 if led else 0.0, lb["pitch"], lb["roll"])
 # 動的表示のダミー (実機ではスクリプトが書き換える)
-add_text("¥12万3,400", anch["Money"]["pos"], 0, 0.3, "dot", "#FFB43C", emit=4)
-add_text("頭部  105%  ▲\n上肢   85%  ▼\n下肢  120%  ▲\n体幹   95%  →\n―――  取扱不可", anch["Market"]["pos"], 0, 0.1, "dot", "#E8E8E8", emit=2.5)
+add_text("¥12万3,400", anch["Money"]["pos"], 0, 0.3, "dot", "#FF7AA8", emit=5)
+add_text("頭部  105%  ▲\n上肢   85%  ▼\n下肢  120%  ▲\n体幹   95%  →\n―――  取扱不可", anch["Market"]["pos"], 0, 0.1, "dot", "#FADCE6", emit=2.5)
 a = anch["Terminal"]
 for i in range(10):
     p = [a["pos"][0] - 0.24, a["pos"][1] - i * 0.175, a["pos"][2]]
-    add_text("刃物研磨 申請  Lv.0", p, 180, 0.075, "dot", "#E8E8E8", emit=2.5)
+    add_text("刃物研磨 申請  Lv.0", p, 180, 0.075, "dot", "#FADCE6", emit=2.5)
     p2 = [p[0], p[1] - 0.092, p[2]]
     add_text("¥3,000  一振りの切断深度", p2, 180, 0.05, "dot", "#FFE27A", emit=2.5)
 add_text("原体 No.7-04101\n区分 成人・不詳", anch["HatchText"]["pos"], -90, 0.1, "dot", "#FF6A5E", emit=3)
-add_text("体幹\n29.51 kg  鮮度 A\n¥2,140", anch["Scale"]["pos"], 90, 0.085, "dot", "#7CFF9B", emit=3)
+add_text("体幹\n29.51 kg  鮮度 A\n¥2,140", anch["Scale"]["pos"], 90, 0.085, "dot", "#6FE3FF", emit=3)
 
 for lt in L["lights"]:
     d = bpy.data.lights.new(lt["name"], "POINT")
-    d.energy = lt["intensity"] * 260
+    d.energy = lt["intensity"] * 150
     d.color = lt["color"]
     d.shadow_soft_size = 0.25
     o = bpy.data.objects.new(lt["name"], d)
@@ -221,7 +277,8 @@ VIEWS = {
     "work": ((0.1, 1.62, -0.05), (-0.3, 0.95, 0.95), 78),
     "terminal": ((-1.6, 1.6, -0.3), (-2.6, 1.4, -3.5), 66),
     "hatch": ((-1.2, 1.6, -1.0), (-4.5, 1.3, 0.7), 62),
-    "dock": ((0.4, 1.6, -1.2), (4.5, 1.3, -0.2), 70),
+    "dock": ((0.6, 1.6, 0.2), (6.5, 2.2, -2.2), 78),
+    "alley": ((2.2, 1.6, -1.2), (9.0, 2.6, -2.2), 80),
     "back": ((0.5, 1.6, 2.6), (0.6, 1.3, -3.5), 75),
     "corner": ((4.1, 2.9, -3.1), (-0.6, 0.7, 0.9), 78),
     "rail": ((-3.6, 1.55, -0.4), (1.5, 0.95, 1.0), 72),
@@ -246,16 +303,17 @@ cam.data.angle = math.radians(fov)
 cam.data.clip_start = 0.05
 sc.camera = cam
 if view == "top":
-    for n in ("Ceiling",):
-        bpy.data.objects[n].hide_render = True
+    for o in bpy.data.objects:
+        if o.name in ("Ceiling", "Alley_Sky") or o.name.startswith(("Beam_", "Pipe_Run", "Pipe_Cross", "Bridge_", "Balcony_", "Awning", "cable", "Lamp_", "model")) and o.location.z > 2.9:
+            o.hide_render = True
     for o in bpy.data.objects:
         if o.name.startswith("Tube_") or o.name.startswith("mounted_fluorescent"):
             o.hide_render = True
 
 w = bpy.data.worlds.new("w")
 w.use_nodes = True
-w.node_tree.nodes["Background"].inputs[0].default_value = (0.02, 0.03, 0.035, 1)
-w.node_tree.nodes["Background"].inputs[1].default_value = 1.0 if view != "top" else 6.0
+w.node_tree.nodes["Background"].inputs[0].default_value = (0.03, 0.02, 0.025, 1)
+w.node_tree.nodes["Background"].inputs[1].default_value = 0.6 if view != "top" else 8.0
 sc.world = w
 sc.render.engine = "CYCLES"
 sc.cycles.device = "CPU"
@@ -297,5 +355,12 @@ block = max(4, int(round(0.034 / max(dist, 0.3) * focal)))
 small = img.resize((max(1, img.width // block), max(1, img.height // block)), Image.BOX)
 mosaic = small.resize(img.size, Image.NEAREST)
 img.paste(mosaic, (0, 0), mask)
+# ネオンのにじみ (Unity 側では WadoPTR/Glow の板で出している) と霧を後処理で近似する
+from PIL import ImageFilter, ImageChops
+bright = img.point(lambda v: 0 if v < 190 else int((v - 190) * 3.2))
+halo = bright.filter(ImageFilter.GaussianBlur(img.width / 55))
+halo2 = bright.filter(ImageFilter.GaussianBlur(img.width / 16))
+img = ImageChops.screen(img, halo.point(lambda v: int(v * 0.8)))
+img = ImageChops.screen(img, halo2.point(lambda v: int(v * 0.55)))
 img.save(out_png)
 print("SAVED", out_png, "block", block)

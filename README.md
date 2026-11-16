@@ -2,22 +2,21 @@
 
 VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だけで組んだ、人を捌いて売るインクリメンタルゲームです。
 
-あなたは夜勤の処理員として打刻されます。搬入口から「原体」が届き、切取線に沿って刃物を入れ、外れた「部材」を計量口へ運ぶ。残高は発注端末で設備と人員に替わり、やがて手を動かさなくても出荷額は増えていきます。
+巨大構造体の底、配線と配管に埋もれた路地裏。濡れたコンクリートに桃色と赤のネオンが滲む一角に、下請けの解体屋があります。あなたはそこの夜勤として打刻されます。搬入口から「原体」が届き、切取線に沿って刃物を入れ、外れた「部材」を計量口へ運ぶ。残高は発注端末で設備と人員に替わり、やがて手を動かさなくても出荷額は増えていきます。出荷口の柵の向こうには、看板と窓明かりの路地が見えます。出ることはできません。
+
 ゲームとしての説明文は世界のどこにもありません。あるのは作業標準書、衛生掲示、相場表、伝票、名簿、そして前任者の走り書きだけです。
 
 ![スポーン地点から](Docs/preview_spawn.jpg)
 
-| 処理台 | 搬入口 |
+| 天井の隅から | 出荷口と外の路地 |
 |---|---|
+| ![隅から](Docs/preview_corner.jpg) | ![路地](Docs/preview_alley.jpg) |
+| 処理台(原体は修整モザイクで覆われる) | 搬入口 |
 | ![処理台](Docs/preview_work.jpg) | ![搬入口](Docs/preview_hatch.jpg) |
 | 発注端末 | 上から |
 | ![発注端末](Docs/preview_terminal.jpg) | ![上から](Docs/preview_top.jpg) |
-| 天井の隅から | 搬入レール側から |
-| ![隅から](Docs/preview_corner.jpg) | ![レール側](Docs/preview_rail.jpg) |
-| 処理台の奥から(低い目線) | 計量口の奥から |
-| ![低い目線](Docs/preview_low.jpg) | ![計量口側](Docs/preview_chute.jpg) |
 
-(画像は `Tools/preview_layout.py` による Blender での確認用描画です。表示器の数字は仮のもの、ボタン・扉・付箋などスクリプトが作る部品は写っていません)
+(画像は `Tools/preview_layout.py` による Blender での確認用描画です。表示器の数字は仮のもの、ボタン・扉・付箋などスクリプトが作る部品は写っていません。ネオンのにじみと霧は後処理で近似しています)
 
 ## 開き方
 
@@ -54,6 +53,7 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 - **説明を世界の内側に置く** — 手順は「作業標準書」、数値は表示器と伝票、操作の動詞は VRChat 標準のツールチップ(「搬入呼出」「発注」「切る」)に載せています。
 - **押す・持つ・切るの 3 操作だけ** — すべてのボタンは `Interact`、部材と刃物は `VRCPickup`。uGUI は使っていないので、デスクトップと VR で挙動が変わりません。
 - **修整モザイク** — 原体の 6 部位には、同じメッシュを少し膨らませて重ね、`WadoPTR/Mosaic` シェーダーでブロック状に塗りつぶしています(付いている間も、切り離して運ぶ間も)。ローポリの素体でも「映してはいけないもの」に見え、細部は見る側が補います。格子は画面ではなくワールド空間に固定してあるので、VR で左右の目のブロックがずれません。切取線は `WadoPTR/Guide` でモザイクの上に描きます。ブロックの大きさは生成された `Generated/Materials/mosaic.mat` の Block Size で変えられます。
+- **ネオンと暗がり** — 光源は裸電球 2 つ、切れかけの蛍光灯 1 本、あとはネオンの色のライトだけです(計 7 灯、すべてリアルタイム・影なし)。ネオン管と看板は Unlit、にじみは `WadoPTR/Glow` の加算の板、濡れた床の映り込みはリアルタイムの Reflection Probe、奥行きは霧で出しています。ポストプロセスのパッケージには依存していません(Bloom を足せばさらに近づきます)。
 - **切断判定は物理に頼らない** — 刃の位置・速度と切取線の距離を毎フレーム計算します(`WadoBlade` / `WadoBody`)。レイヤーやトリガーの設定ずれで切れなくなることがありません。
 - **進行はローカル、保存は PlayerData** — VRChat 公式の Persistent Idle Game サンプルと同じ方式(`OnPlayerRestored` を待ってから読み書き)。同期オブジェクトはありません。
 
@@ -81,6 +81,7 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 - モザイクシェーダーの実機での見え方(GrabPass を使うので PC 専用。VR のシングルパス描画には対応する書き方をしていますが、実機未確認です)。
 - TextMesh Pro の文字の実寸(大きすぎる/小さすぎる場合は `WadoWorldBuilder.cs` の `TextScale` を変えて建て直す)。
 - 刃物を持ったときの向き、ボタンの押しやすさ、音量バランスなどの手触り。
+- 明るさと色の実機での見え方。暗すぎる場合は `WadoWorldBuilder.cs` の `ambientLight` と `Tools/gen_layout.py` の `light(...)` の強さを上げてください。
 - ライトはすべてリアルタイム(ベイクなし)です。重い場合や質感を上げたい場合は、生成後にライトマップをベイクしてください。
 
 ## 素材を作り直す
@@ -93,9 +94,10 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 | `Tools/build_body.py` | CC0 の人体メッシュを 6 部位に分割し、切断面を付ける |
 | `Tools/build_audio.py` | CC0 効果音の切り出しと、環境音・チャイム等の合成 |
 | `Tools/build_stains.py` | 汚れのテクスチャを生成 |
-| `Tools/gen_layout.py` | 部屋の設計図 `layout.json` と材質表 `models.json` を書き出す |
+| `Tools/gen_layout.py` | 部屋と路地の設計図 `layout.json` と材質表 `models.json` を書き出す |
+| `Tools/gen_credits.py` | `CREDITS.md` の素材表を作り直す |
 | `Tools/gen_metas.py` | U# スクリプトの `.meta` と Program Asset を書き出す |
-| `Tools/preview_layout.py` | 設計図を Blender で描画する。視点は名前(`spawn` `work` `corner` `rail` `chute` `low` `top` …)か、`"目x,y,z:注視x,y,z:画角"` で自由に指定できる |
+| `Tools/preview_layout.py` | 設計図を Blender で描画する。視点は名前(`spawn` `work` `corner` `alley` `dock` `hatch` `terminal` `top` …)か、`"目x,y,z:注視x,y,z:画角"` で自由に指定できる |
 | `Tools/extract_udon_externs.py` → `lint_udon.py` | SDK の DLL から Udon 公開 API の一覧を抜き出し、構文と API 名を検査 |
 
 部屋の配置を変えたいときは `Tools/gen_layout.py` を編集して実行し、Unity で建て直してください。

@@ -518,13 +518,13 @@ public class WadoGame : UdonSharpBehaviour
             bool maxed = level[i] >= upMax[i];
             double cost = CostOf(i);
             string head = upName[i];
-            if (upMax[i] == 1) head += level[i] > 0 ? "  <color=#7CFF9B>済</color>" : "";
+            if (upMax[i] == 1) head += level[i] > 0 ? "  <color=#6FE3FF>済</color>" : "";
             else if (i >= UpGenFirst) head += "  ×" + level[i].ToString("N0");
             else head += "  Lv." + level[i].ToString();
             if (Utilities.IsValid(rowName[i])) rowName[i].text = head;
 
             string info;
-            if (maxed) info = "<color=#7CFF9B>承認済</color>  " + upNote[i];
+            if (maxed) info = "<color=#6FE3FF>承認済</color>  " + upNote[i];
             else
             {
                 string c = money >= cost ? "<color=#FFE27A>" : "<color=#FF6A5E>";
@@ -559,7 +559,7 @@ public class WadoGame : UdonSharpBehaviour
             }
             string arrow = "<color=#AAAAAA>→</color>";
             if (market[i] > marketPrev[i] + 0.01f) arrow = "<color=#FF6A5E>▲</color>";
-            else if (market[i] < marketPrev[i] - 0.01f) arrow = "<color=#6AB8FF>▼</color>";
+            else if (market[i] < marketPrev[i] - 0.01f) arrow = "<color=#6FE3FF>▼</color>";
             s += catName[i] + "  " + Mathf.RoundToInt(market[i] * 100f).ToString() + "%  " + arrow + "\n";
         }
         txtMarket.text = s;
@@ -579,7 +579,7 @@ public class WadoGame : UdonSharpBehaviour
         }
         else if (gain >= 1)
         {
-            s += "<color=#7CFF9B>いま提出すると 評価 +" + gain.ToString("N0") + " 点</color>";
+            s += "<color=#6FE3FF>いま提出すると 評価 +" + gain.ToString("N0") + " 点</color>";
         }
         else
         {

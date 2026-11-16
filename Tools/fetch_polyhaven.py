@@ -32,7 +32,6 @@ MODELS = {
     "security_camera_01": (5000, 512, "center"),
     "clipboard": (3000, 512, "center"),
     "wall_clock": (3700, 512, "center"),
-    "rollershutter_door": (1200, 1024, "base"),
     "WetFloorSign_01": (300, 512, "base"),
     "bleach_bottle": (3000, 512, "base"),
     "rubber_boots": (6000, 512, "base"),
@@ -49,11 +48,22 @@ MODELS = {
     "office_notepads": (700, 512, "base"),
     "exterior_aircon_unit": (7000, 1024, "center"),
     "wheelchair_01": (12000, 1024, "base"),
+    "hanging_industrial_lamp": (5000, 512, "keep"),
+    "industrial_wall_lamp": (4500, 512, "center"),
+    "security_light": (4700, 512, "center"),
+    "utility_box_02": (5000, 512, "center"),
+    "propane_tank": (4000, 512, "base"),
+    "old_tyre": (2900, 512, "base"),
+    "boombox": (5000, 512, "base"),
+    "wooden_crate_02": (5200, 512, "base"),
+    "modular_industrial_pipes_01": (6000, 1024, "center"),
 }
 # 床・壁などのタイリング素材: name: px
 TEXTURES = {
-    "long_white_tiles": 1024,
-    "worn_tile_floor": 1024,
+    "concrete_wall_006": 1024,
+    "rusty_metal_sheet": 1024,
+    "rusty_painted_metal": 1024,
+    "concrete_floor_worn_001": 1024,
     "dirty_concrete": 1024,
     "painted_metal_shutter": 1024,
 }
