@@ -1,0 +1,491 @@
+{
+ "list": [
+  {
+   "key": "machete",
+   "materials": [
+    {
+     "name": "machete",
+     "diff": "machete_diff.jpg",
+     "nor": "machete_nor.jpg",
+     "smoothness": 0.485,
+     "metallic": 0.244
+    }
+   ]
+  },
+  {
+   "key": "hatchet",
+   "materials": [
+    {
+     "name": "hatchet",
+     "diff": "hatchet_diff.jpg",
+     "nor": "hatchet_nor.jpg",
+     "smoothness": 0.543,
+     "metallic": 0.493
+    }
+   ]
+  },
+  {
+   "key": "rusted_hacksaw",
+   "materials": [
+    {
+     "name": "rusted_hacksaw",
+     "diff": "rusted_hacksaw_diff.jpg",
+     "nor": "rusted_hacksaw_nor.jpg",
+     "smoothness": 0.501,
+     "metallic": 0.218
+    }
+   ]
+  },
+  {
+   "key": "fish_knife",
+   "materials": [
+    {
+     "name": "fish_knife",
+     "diff": "fish_knife_diff.jpg",
+     "nor": "fish_knife_nor.jpg",
+     "smoothness": 0.497,
+     "metallic": 0.321
+    }
+   ]
+  },
+  {
+   "key": "metal_office_desk",
+   "materials": [
+    {
+     "name": "metal_office_desk",
+     "diff": "metal_office_desk_diff.jpg",
+     "nor": "metal_office_desk_nor.jpg",
+     "smoothness": 0.734,
+     "metallic": 0.1
+    }
+   ]
+  },
+  {
+   "key": "Television_01",
+   "materials": [
+    {
+     "name": "Television_01",
+     "diff": "Television_01_diff.jpg",
+     "nor": "Television_01_nor.jpg",
+     "smoothness": 0.55,
+     "metallic": 0.096
+    }
+   ]
+  },
+  {
+   "key": "steel_frame_shelves_01",
+   "materials": [
+    {
+     "name": "steel_frame_shelves_01",
+     "diff": "steel_frame_shelves_01_diff.jpg",
+     "nor": "steel_frame_shelves_01_nor.jpg",
+     "smoothness": 0.567,
+     "metallic": 0.532
+    }
+   ]
+  },
+  {
+   "key": "plastic_crate_02",
+   "materials": [
+    {
+     "name": "plastic_crate_02",
+     "diff": "plastic_crate_02_diff.jpg",
+     "nor": "plastic_crate_02_nor.jpg",
+     "smoothness": 0.341,
+     "metallic": 0.004
+    }
+   ]
+  },
+  {
+   "key": "cardboard_box_01",
+   "materials": [
+    {
+     "name": "cardboard_box_01",
+     "diff": "cardboard_box_01_diff.jpg",
+     "nor": "cardboard_box_01_nor.jpg",
+     "smoothness": 0.416,
+     "metallic": 0.002
+    }
+   ]
+  },
+  {
+   "key": "industrial_pastic_container",
+   "materials": [
+    {
+     "name": "industrial_pastic_container",
+     "diff": "industrial_pastic_container_diff.jpg",
+     "nor": "industrial_pastic_container_nor.jpg",
+     "smoothness": 0.684,
+     "metallic": 0.008
+    }
+   ]
+  },
+  {
+   "key": "metal_trash_can",
+   "materials": [
+    {
+     "name": "metal_trash_can",
+     "diff": "metal_trash_can_diff.jpg",
+     "nor": "metal_trash_can_nor.jpg",
+     "smoothness": 0.204,
+     "metallic": 0.416
+    },
+    {
+     "name": "metal_trash_can_rust",
+     "diff": "metal_trash_can_rust_diff.jpg",
+     "nor": "metal_trash_can_rust_nor.jpg",
+     "smoothness": 0.133,
+     "metallic": 0.25
+    },
+    {
+     "name": "metal_trash_can_rust.001",
+     "diff": "metal_trash_can_rust_001_diff.jpg",
+     "nor": "metal_trash_can_rust_001_nor.jpg",
+     "smoothness": 0.133,
+     "metallic": 0.25
+    }
+   ]
+  },
+  {
+   "key": "trashbag",
+   "materials": [
+    {
+     "name": "trashbag",
+     "diff": "trashbag_diff.jpg",
+     "nor": "trashbag_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.004
+    }
+   ]
+  },
+  {
+   "key": "mounted_fluorescent_lights",
+   "materials": [
+    {
+     "name": "mounted_fluorescent_lights",
+     "diff": "mounted_fluorescent_lights_diff.jpg",
+     "nor": "mounted_fluorescent_lights_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.035
+    },
+    {
+     "name": "mounted_fluorescent_lights_glass",
+     "diff": "mounted_fluorescent_lights_glass_diff.jpg",
+     "nor": "mounted_fluorescent_lights_glass_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.035
+    }
+   ]
+  },
+  {
+   "key": "security_camera_01",
+   "materials": [
+    {
+     "name": "security_camera_01",
+     "diff": "security_camera_01_diff.jpg",
+     "nor": "security_camera_01_nor.jpg",
+     "smoothness": 0.682,
+     "metallic": 0.011
+    },
+    {
+     "name": "security_camera_01_glass",
+     "diff": "security_camera_01_glass_diff.jpg",
+     "nor": "security_camera_01_glass_nor.jpg",
+     "smoothness": 0.682,
+     "metallic": 0.011
+    }
+   ]
+  },
+  {
+   "key": "clipboard",
+   "materials": [
+    {
+     "name": "clipboard",
+     "diff": "clipboard_diff.jpg",
+     "nor": "clipboard_nor.jpg",
+     "smoothness": 0.505,
+     "metallic": 0.215
+    }
+   ]
+  },
+  {
+   "key": "wall_clock",
+   "materials": [
+    {
+     "name": "wall_clock",
+     "diff": "wall_clock_diff.jpg",
+     "nor": "wall_clock_nor.jpg",
+     "smoothness": 0.629,
+     "metallic": 0.438
+    },
+    {
+     "name": "wall_clock_glass",
+     "diff": null,
+     "nor": null,
+     "smoothness": 0.948,
+     "metallic": 0.002
+    }
+   ]
+  },
+  {
+   "key": "rollershutter_door",
+   "materials": [
+    {
+     "name": "rollershutter_door",
+     "diff": "rollershutter_door_diff.jpg",
+     "nor": "rollershutter_door_nor.jpg",
+     "smoothness": 0.327,
+     "metallic": 0.995
+    },
+    {
+     "name": "rollershutter_door_graffiti",
+     "diff": "rollershutter_door_graffiti_diff.jpg",
+     "nor": "rollershutter_door_graffiti_nor.jpg",
+     "smoothness": 0.327,
+     "metallic": 0.995
+    }
+   ]
+  },
+  {
+   "key": "WetFloorSign_01",
+   "materials": [
+    {
+     "name": "WetFloorSign_01",
+     "diff": "WetFloorSign_01_diff.jpg",
+     "nor": "WetFloorSign_01_nor.jpg",
+     "smoothness": 0.812,
+     "metallic": 0.004
+    }
+   ]
+  },
+  {
+   "key": "bleach_bottle",
+   "materials": [
+    {
+     "name": "bleach_bottle",
+     "diff": "bleach_bottle_diff.jpg",
+     "nor": "bleach_bottle_nor.jpg",
+     "smoothness": 0.594,
+     "metallic": 0.003
+    }
+   ]
+  },
+  {
+   "key": "rubber_boots",
+   "materials": [
+    {
+     "name": "rubber_boots",
+     "diff": "rubber_boots_diff.jpg",
+     "nor": "rubber_boots_nor.jpg",
+     "smoothness": 0.999,
+     "metallic": 0.001
+    },
+    {
+     "name": "rubber_boots_dirty",
+     "diff": "rubber_boots_dirty_diff.jpg",
+     "nor": "rubber_boots_dirty_nor.jpg",
+     "smoothness": 0.57,
+     "metallic": 0.003
+    }
+   ]
+  },
+  {
+   "key": "medical_box",
+   "materials": [
+    {
+     "name": "medical_box",
+     "diff": "medical_box_diff.jpg",
+     "nor": "medical_box_nor.jpg",
+     "smoothness": 0.723,
+     "metallic": 0.308
+    }
+   ]
+  },
+  {
+   "key": "hand_truck",
+   "materials": [
+    {
+     "name": "hand_truck",
+     "diff": "hand_truck_diff.jpg",
+     "nor": "hand_truck_nor.jpg",
+     "smoothness": 0.372,
+     "metallic": 0.211
+    }
+   ]
+  },
+  {
+   "key": "korean_fire_extinguisher_01",
+   "materials": [
+    {
+     "name": "korean_fire_extinguisher_01_body",
+     "diff": "korean_fire_extinguisher_01_body_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_body_nor.jpg",
+     "smoothness": 0.707,
+     "metallic": 0.143
+    },
+    {
+     "name": "korean_fire_extinguisher_01_glass",
+     "diff": "korean_fire_extinguisher_01_glass_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_glass_nor.jpg",
+     "smoothness": 0.937,
+     "metallic": 0.989
+    },
+    {
+     "name": "korean_fire_extinguisher_01_paper",
+     "diff": "korean_fire_extinguisher_01_paper_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_paper_nor.jpg",
+     "smoothness": 0.566,
+     "metallic": 0.01
+    }
+   ]
+  },
+  {
+   "key": "fire_alarm",
+   "materials": [
+    {
+     "name": "fire_alarm",
+     "diff": "fire_alarm_diff.jpg",
+     "nor": "fire_alarm_nor.jpg",
+     "smoothness": 0.703,
+     "metallic": 0.094
+    }
+   ]
+  },
+  {
+   "key": "utility_box_01",
+   "materials": [
+    {
+     "name": "utility_box_01",
+     "diff": "utility_box_01_diff.jpg",
+     "nor": "utility_box_01_nor.jpg",
+     "smoothness": 0.466,
+     "metallic": 0.133
+    }
+   ]
+  },
+  {
+   "key": "metal_stool_01",
+   "materials": [
+    {
+     "name": "metal_stool_01",
+     "diff": "metal_stool_01_diff.jpg",
+     "nor": "metal_stool_01_nor.jpg",
+     "smoothness": 0.55,
+     "metallic": 0.55
+    }
+   ]
+  },
+  {
+   "key": "plastic_broom",
+   "materials": [
+    {
+     "name": "plastic_broom",
+     "diff": "plastic_broom_diff.jpg",
+     "nor": "plastic_broom_nor.jpg",
+     "smoothness": 0.571,
+     "metallic": 0.007
+    },
+    {
+     "name": "plastic_broom_bristles",
+     "diff": "plastic_broom_bristles_diff.jpg",
+     "nor": "plastic_broom_bristles_nor.jpg",
+     "smoothness": 0.571,
+     "metallic": 0.007
+    }
+   ]
+  },
+  {
+   "key": "old_bed_frame",
+   "materials": [
+    {
+     "name": "old_bed_frame",
+     "diff": "old_bed_frame_diff.jpg",
+     "nor": "old_bed_frame_nor.jpg",
+     "smoothness": 0.283,
+     "metallic": 0.088
+    }
+   ]
+  },
+  {
+   "key": "barrel_03",
+   "materials": [
+    {
+     "name": "barrel_03",
+     "diff": "barrel_03_diff.jpg",
+     "nor": "barrel_03_nor.jpg",
+     "smoothness": 0.526,
+     "metallic": 0.04
+    }
+   ]
+  },
+  {
+   "key": "water_manhole_cover",
+   "materials": [
+    {
+     "name": "water_manhole_cover",
+     "diff": "water_manhole_cover_diff.jpg",
+     "nor": "water_manhole_cover_nor.jpg",
+     "smoothness": 0.22,
+     "metallic": 0.286
+    }
+   ]
+  },
+  {
+   "key": "office_notepads",
+   "materials": [
+    {
+     "name": "office_notepads",
+     "diff": "office_notepads_diff.jpg",
+     "nor": "office_notepads_nor.jpg",
+     "smoothness": 0.289,
+     "metallic": 0.002
+    }
+   ]
+  },
+  {
+   "key": "exterior_aircon_unit",
+   "materials": [
+    {
+     "name": "exterior_aircon_unit_01",
+     "diff": "exterior_aircon_unit_01_diff.jpg",
+     "nor": "exterior_aircon_unit_01_nor.jpg",
+     "smoothness": 0.196,
+     "metallic": 0.012
+    },
+    {
+     "name": "exterior_aircon_unit_02",
+     "diff": null,
+     "nor": "exterior_aircon_unit_02_nor.jpg",
+     "smoothness": 0.276,
+     "metallic": 0.144
+    },
+    {
+     "name": "exterior_aircon_unit_rusted_01",
+     "diff": "exterior_aircon_unit_rusted_01_diff.jpg",
+     "nor": "exterior_aircon_unit_rusted_01_nor.jpg",
+     "smoothness": 0.18,
+     "metallic": 0.012
+    },
+    {
+     "name": "exterior_aircon_unit_rusted_02",
+     "diff": null,
+     "nor": "exterior_aircon_unit_rusted_02_nor.jpg",
+     "smoothness": 0.256,
+     "metallic": 0.146
+    }
+   ]
+  },
+  {
+   "key": "wheelchair_01",
+   "materials": [
+    {
+     "name": "lambert1",
+     "diff": "lambert1_diff.jpg",
+     "nor": "lambert1_nor.jpg",
+     "smoothness": 0.63,
+     "metallic": 0.588
+    }
+   ]
+  }
+ ]
+}

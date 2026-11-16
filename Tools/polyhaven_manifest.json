@@ -1,0 +1,996 @@
+{
+ "models": {
+  "machete": {
+   "title": "Machete",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 3032,
+   "materials": [
+    {
+     "name": "machete",
+     "diff": "machete_diff.jpg",
+     "nor": "machete_nor.jpg",
+     "smoothness": 0.485,
+     "metallic": 0.244
+    }
+   ],
+   "min": [
+    -0.0222,
+    -0.2136,
+    -0.0194
+   ],
+   "max": [
+    0.0222,
+    0.5412,
+    0.0417
+   ]
+  },
+  "hatchet": {
+   "title": "Hatchet",
+   "authors": [
+    "James Ray Cock",
+    "Ulan Cabanilla"
+   ],
+   "tris": 5250,
+   "materials": [
+    {
+     "name": "hatchet",
+     "diff": "hatchet_diff.jpg",
+     "nor": "hatchet_nor.jpg",
+     "smoothness": 0.543,
+     "metallic": 0.493
+    }
+   ],
+   "min": [
+    -0.0128,
+    -0.0618,
+    -0.0271
+   ],
+   "max": [
+    0.0132,
+    0.2269,
+    0.0771
+   ]
+  },
+  "rusted_hacksaw": {
+   "title": "Rusted Hacksaw",
+   "authors": [
+    "Dabou Master"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "rusted_hacksaw",
+     "diff": "rusted_hacksaw_diff.jpg",
+     "nor": "rusted_hacksaw_nor.jpg",
+     "smoothness": 0.501,
+     "metallic": 0.218
+    }
+   ],
+   "min": [
+    -0.2532,
+    -0.0425,
+    -0.0164
+   ],
+   "max": [
+    0.2431,
+    0.0669,
+    0.0164
+   ]
+  },
+  "fish_knife": {
+   "title": "Fish Knife",
+   "authors": [
+    "Mateusz Sadek"
+   ],
+   "tris": 2736,
+   "materials": [
+    {
+     "name": "fish_knife",
+     "diff": "fish_knife_diff.jpg",
+     "nor": "fish_knife_nor.jpg",
+     "smoothness": 0.497,
+     "metallic": 0.321
+    }
+   ],
+   "min": [
+    -0.0145,
+    -0.1103,
+    -0.0081
+   ],
+   "max": [
+    0.0145,
+    0.1054,
+    0.0081
+   ]
+  },
+  "metal_office_desk": {
+   "title": "Metal Office Desk",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 6898,
+   "materials": [
+    {
+     "name": "metal_office_desk",
+     "diff": "metal_office_desk_diff.jpg",
+     "nor": "metal_office_desk_nor.jpg",
+     "smoothness": 0.734,
+     "metallic": 0.1
+    }
+   ],
+   "min": [
+    -1.0,
+    0.0,
+    -0.4736
+   ],
+   "max": [
+    1.0,
+    0.7875,
+    0.4736
+   ]
+  },
+  "Television_01": {
+   "title": "Television 01",
+   "authors": [
+    "Gabriel Radić"
+   ],
+   "tris": 1918,
+   "materials": [
+    {
+     "name": "Television_01",
+     "diff": "Television_01_diff.jpg",
+     "nor": "Television_01_nor.jpg",
+     "smoothness": 0.55,
+     "metallic": 0.096
+    }
+   ],
+   "min": [
+    -0.3,
+    0.0,
+    -0.2354
+   ],
+   "max": [
+    0.3,
+    0.4568,
+    0.2354
+   ]
+  },
+  "steel_frame_shelves_01": {
+   "title": "Steel Frame Shelves 01",
+   "authors": [
+    "James Ray Cock"
+   ],
+   "tris": 4348,
+   "materials": [
+    {
+     "name": "steel_frame_shelves_01",
+     "diff": "steel_frame_shelves_01_diff.jpg",
+     "nor": "steel_frame_shelves_01_nor.jpg",
+     "smoothness": 0.567,
+     "metallic": 0.532
+    }
+   ],
+   "min": [
+    -5.4871,
+    0.0,
+    -2.5106
+   ],
+   "max": [
+    5.4871,
+    21.405,
+    2.5106
+   ]
+  },
+  "plastic_crate_02": {
+   "title": "Plastic Crate 02",
+   "authors": [
+    "Fabi_G"
+   ],
+   "tris": 5840,
+   "materials": [
+    {
+     "name": "plastic_crate_02",
+     "diff": "plastic_crate_02_diff.jpg",
+     "nor": "plastic_crate_02_nor.jpg",
+     "smoothness": 0.341,
+     "metallic": 0.004
+    }
+   ],
+   "min": [
+    -0.2528,
+    0.0,
+    -0.2028
+   ],
+   "max": [
+    0.2528,
+    0.2541,
+    0.2028
+   ]
+  },
+  "cardboard_box_01": {
+   "title": "Cardboard Box 01",
+   "authors": [
+    "Rahul Chaudhary"
+   ],
+   "tris": 2999,
+   "materials": [
+    {
+     "name": "cardboard_box_01",
+     "diff": "cardboard_box_01_diff.jpg",
+     "nor": "cardboard_box_01_nor.jpg",
+     "smoothness": 0.416,
+     "metallic": 0.002
+    }
+   ],
+   "min": [
+    -0.1935,
+    0.0,
+    -0.2579
+   ],
+   "max": [
+    0.1935,
+    0.3415,
+    0.2579
+   ]
+  },
+  "industrial_pastic_container": {
+   "title": "Industrial Plastic Container",
+   "authors": [
+    "Galo Benivegna"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "industrial_pastic_container",
+     "diff": "industrial_pastic_container_diff.jpg",
+     "nor": "industrial_pastic_container_nor.jpg",
+     "smoothness": 0.684,
+     "metallic": 0.008
+    }
+   ],
+   "min": [
+    -0.2286,
+    0.0,
+    -0.3157
+   ],
+   "max": [
+    0.2286,
+    0.4188,
+    0.3157
+   ]
+  },
+  "metal_trash_can": {
+   "title": "Metal Trash Can",
+   "authors": [
+    "GurJas Studios"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "metal_trash_can",
+     "diff": "metal_trash_can_diff.jpg",
+     "nor": "metal_trash_can_nor.jpg",
+     "smoothness": 0.204,
+     "metallic": 0.416
+    },
+    {
+     "name": "metal_trash_can_rust",
+     "diff": "metal_trash_can_rust_diff.jpg",
+     "nor": "metal_trash_can_rust_nor.jpg",
+     "smoothness": 0.133,
+     "metallic": 0.25
+    },
+    {
+     "name": "metal_trash_can_rust.001",
+     "diff": "metal_trash_can_rust_001_diff.jpg",
+     "nor": "metal_trash_can_rust_001_nor.jpg",
+     "smoothness": 0.133,
+     "metallic": 0.25
+    }
+   ],
+   "min": [
+    -0.8894,
+    0.0,
+    -0.2778
+   ],
+   "max": [
+    0.8894,
+    0.9063,
+    0.2778
+   ]
+  },
+  "trashbag": {
+   "title": "Trashbag",
+   "authors": [
+    "Benny Weimer"
+   ],
+   "tris": 4482,
+   "materials": [
+    {
+     "name": "trashbag",
+     "diff": "trashbag_diff.jpg",
+     "nor": "trashbag_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.004
+    }
+   ],
+   "min": [
+    -0.264,
+    0.0,
+    -0.2314
+   ],
+   "max": [
+    0.264,
+    0.575,
+    0.2314
+   ]
+  },
+  "mounted_fluorescent_lights": {
+   "title": "Mounted Fluorescent Lights",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "mounted_fluorescent_lights",
+     "diff": "mounted_fluorescent_lights_diff.jpg",
+     "nor": "mounted_fluorescent_lights_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.035
+    },
+    {
+     "name": "mounted_fluorescent_lights_glass",
+     "diff": "mounted_fluorescent_lights_glass_diff.jpg",
+     "nor": "mounted_fluorescent_lights_glass_nor.jpg",
+     "smoothness": 0.821,
+     "metallic": 0.035
+    }
+   ],
+   "min": [
+    -0.4561,
+    -0.0177,
+    -0.3227
+   ],
+   "max": [
+    0.4561,
+    0.0177,
+    0.3227
+   ]
+  },
+  "security_camera_01": {
+   "title": "Security Camera 01",
+   "authors": [
+    "Alexander Otterbeck",
+    "Yann Kervran"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "security_camera_01",
+     "diff": "security_camera_01_diff.jpg",
+     "nor": "security_camera_01_nor.jpg",
+     "smoothness": 0.682,
+     "metallic": 0.011
+    },
+    {
+     "name": "security_camera_01_glass",
+     "diff": "security_camera_01_glass_diff.jpg",
+     "nor": "security_camera_01_glass_nor.jpg",
+     "smoothness": 0.682,
+     "metallic": 0.011
+    }
+   ],
+   "min": [
+    -0.0848,
+    -0.143,
+    -0.2768
+   ],
+   "max": [
+    0.0848,
+    0.143,
+    0.2768
+   ]
+  },
+  "clipboard": {
+   "title": "Clipboard",
+   "authors": [
+    "ProgrammerOnCoffee"
+   ],
+   "tris": 2999,
+   "materials": [
+    {
+     "name": "clipboard",
+     "diff": "clipboard_diff.jpg",
+     "nor": "clipboard_nor.jpg",
+     "smoothness": 0.505,
+     "metallic": 0.215
+    }
+   ],
+   "min": [
+    -0.1143,
+    -0.021,
+    -0.1682
+   ],
+   "max": [
+    0.1143,
+    0.021,
+    0.1682
+   ]
+  },
+  "wall_clock": {
+   "title": "Wall Clock",
+   "authors": [
+    "PierreB3D"
+   ],
+   "tris": 3658,
+   "materials": [
+    {
+     "name": "wall_clock",
+     "diff": "wall_clock_diff.jpg",
+     "nor": "wall_clock_nor.jpg",
+     "smoothness": 0.629,
+     "metallic": 0.438
+    },
+    {
+     "name": "wall_clock_glass",
+     "diff": null,
+     "nor": null,
+     "smoothness": 0.948,
+     "metallic": 0.002
+    }
+   ],
+   "min": [
+    -0.1602,
+    -0.1602,
+    -0.0236
+   ],
+   "max": [
+    0.1602,
+    0.1602,
+    0.0236
+   ]
+  },
+  "rollershutter_door": {
+   "title": "Rollershutter Door",
+   "authors": [
+    "MP"
+   ],
+   "tris": 1104,
+   "materials": [
+    {
+     "name": "rollershutter_door",
+     "diff": "rollershutter_door_diff.jpg",
+     "nor": "rollershutter_door_nor.jpg",
+     "smoothness": 0.327,
+     "metallic": 0.995
+    },
+    {
+     "name": "rollershutter_door_graffiti",
+     "diff": "rollershutter_door_graffiti_diff.jpg",
+     "nor": "rollershutter_door_graffiti_nor.jpg",
+     "smoothness": 0.327,
+     "metallic": 0.995
+    }
+   ],
+   "min": [
+    -1.54,
+    0.0,
+    -0.15
+   ],
+   "max": [
+    1.54,
+    2.4,
+    0.15
+   ]
+  },
+  "WetFloorSign_01": {
+   "title": "Wet Floor Sign 01",
+   "authors": [
+    "Fran Calvente"
+   ],
+   "tris": 228,
+   "materials": [
+    {
+     "name": "WetFloorSign_01",
+     "diff": "WetFloorSign_01_diff.jpg",
+     "nor": "WetFloorSign_01_nor.jpg",
+     "smoothness": 0.812,
+     "metallic": 0.004
+    }
+   ],
+   "min": [
+    -0.15,
+    0.0,
+    -0.1793
+   ],
+   "max": [
+    0.15,
+    0.6295,
+    0.1793
+   ]
+  },
+  "bleach_bottle": {
+   "title": "Bleach Bottle",
+   "authors": [
+    "James Ray Cock"
+   ],
+   "tris": 3000,
+   "materials": [
+    {
+     "name": "bleach_bottle",
+     "diff": "bleach_bottle_diff.jpg",
+     "nor": "bleach_bottle_nor.jpg",
+     "smoothness": 0.594,
+     "metallic": 0.003
+    }
+   ],
+   "min": [
+    -0.0442,
+    0.0,
+    -0.0306
+   ],
+   "max": [
+    0.0442,
+    0.2937,
+    0.0306
+   ]
+  },
+  "rubber_boots": {
+   "title": "Rubber Boots",
+   "authors": [
+    "L"
+   ],
+   "tris": 6000,
+   "materials": [
+    {
+     "name": "rubber_boots",
+     "diff": "rubber_boots_diff.jpg",
+     "nor": "rubber_boots_nor.jpg",
+     "smoothness": 0.999,
+     "metallic": 0.001
+    },
+    {
+     "name": "rubber_boots_dirty",
+     "diff": "rubber_boots_dirty_diff.jpg",
+     "nor": "rubber_boots_dirty_nor.jpg",
+     "smoothness": 0.57,
+     "metallic": 0.003
+    }
+   ],
+   "min": [
+    -0.4452,
+    0.0,
+    -0.133
+   ],
+   "max": [
+    0.4452,
+    0.3728,
+    0.133
+   ]
+  },
+  "medical_box": {
+   "title": "Medical Box",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 3718,
+   "materials": [
+    {
+     "name": "medical_box",
+     "diff": "medical_box_diff.jpg",
+     "nor": "medical_box_nor.jpg",
+     "smoothness": 0.723,
+     "metallic": 0.308
+    }
+   ],
+   "min": [
+    -0.2627,
+    0.0,
+    -0.1751
+   ],
+   "max": [
+    0.2627,
+    0.0975,
+    0.1751
+   ]
+  },
+  "hand_truck": {
+   "title": "Hand Truck",
+   "authors": [
+    "Mutanzom3D"
+   ],
+   "tris": 6000,
+   "materials": [
+    {
+     "name": "hand_truck",
+     "diff": "hand_truck_diff.jpg",
+     "nor": "hand_truck_nor.jpg",
+     "smoothness": 0.372,
+     "metallic": 0.211
+    }
+   ],
+   "min": [
+    -0.2966,
+    0.0,
+    -0.3462
+   ],
+   "max": [
+    0.2966,
+    1.4033,
+    0.3462
+   ]
+  },
+  "korean_fire_extinguisher_01": {
+   "title": "Korean Fire Extinguisher 01",
+   "authors": [
+    "UM JOORIN"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "korean_fire_extinguisher_01_body",
+     "diff": "korean_fire_extinguisher_01_body_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_body_nor.jpg",
+     "smoothness": 0.707,
+     "metallic": 0.143
+    },
+    {
+     "name": "korean_fire_extinguisher_01_glass",
+     "diff": "korean_fire_extinguisher_01_glass_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_glass_nor.jpg",
+     "smoothness": 0.937,
+     "metallic": 0.989
+    },
+    {
+     "name": "korean_fire_extinguisher_01_paper",
+     "diff": "korean_fire_extinguisher_01_paper_diff.jpg",
+     "nor": "korean_fire_extinguisher_01_paper_nor.jpg",
+     "smoothness": 0.566,
+     "metallic": 0.01
+    }
+   ],
+   "min": [
+    -0.14,
+    0.0,
+    -0.1837
+   ],
+   "max": [
+    0.14,
+    0.6592,
+    0.1837
+   ]
+  },
+  "fire_alarm": {
+   "title": "Fire Alarm",
+   "authors": [
+    "Slinc"
+   ],
+   "tris": 2705,
+   "materials": [
+    {
+     "name": "fire_alarm",
+     "diff": "fire_alarm_diff.jpg",
+     "nor": "fire_alarm_nor.jpg",
+     "smoothness": 0.703,
+     "metallic": 0.094
+    }
+   ],
+   "min": [
+    -0.0497,
+    -0.0718,
+    -0.0132
+   ],
+   "max": [
+    0.0497,
+    0.0718,
+    0.0132
+   ]
+  },
+  "utility_box_01": {
+   "title": "Utility Box 01",
+   "authors": [
+    "James Ray Cock"
+   ],
+   "tris": 4404,
+   "materials": [
+    {
+     "name": "utility_box_01",
+     "diff": "utility_box_01_diff.jpg",
+     "nor": "utility_box_01_nor.jpg",
+     "smoothness": 0.466,
+     "metallic": 0.133
+    }
+   ],
+   "min": [
+    -0.26,
+    -0.5602,
+    -0.216
+   ],
+   "max": [
+    0.26,
+    0.5602,
+    0.216
+   ]
+  },
+  "metal_stool_01": {
+   "title": "Metal Stool 01",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "metal_stool_01",
+     "diff": "metal_stool_01_diff.jpg",
+     "nor": "metal_stool_01_nor.jpg",
+     "smoothness": 0.55,
+     "metallic": 0.55
+    }
+   ],
+   "min": [
+    -0.176,
+    0.0,
+    -0.1773
+   ],
+   "max": [
+    0.176,
+    0.8827,
+    0.1773
+   ]
+  },
+  "plastic_broom": {
+   "title": "Plastic Broom",
+   "authors": [
+    "L"
+   ],
+   "tris": 5000,
+   "materials": [
+    {
+     "name": "plastic_broom",
+     "diff": "plastic_broom_diff.jpg",
+     "nor": "plastic_broom_nor.jpg",
+     "smoothness": 0.571,
+     "metallic": 0.007
+    },
+    {
+     "name": "plastic_broom_bristles",
+     "diff": "plastic_broom_bristles_diff.jpg",
+     "nor": "plastic_broom_bristles_nor.jpg",
+     "smoothness": 0.571,
+     "metallic": 0.007
+    }
+   ],
+   "min": [
+    -0.2077,
+    0.0,
+    -0.2831
+   ],
+   "max": [
+    0.2077,
+    1.1982,
+    0.2831
+   ]
+  },
+  "old_bed_frame": {
+   "title": "Old Bed Frame",
+   "authors": [
+    "Luca B"
+   ],
+   "tris": 8999,
+   "materials": [
+    {
+     "name": "old_bed_frame",
+     "diff": "old_bed_frame_diff.jpg",
+     "nor": "old_bed_frame_nor.jpg",
+     "smoothness": 0.283,
+     "metallic": 0.088
+    }
+   ],
+   "min": [
+    -0.4523,
+    0.0,
+    -1.0009
+   ],
+   "max": [
+    0.4523,
+    1.2042,
+    1.0009
+   ]
+  },
+  "barrel_03": {
+   "title": "Barrel 03",
+   "authors": [
+    "Serhii Khromov"
+   ],
+   "tris": 1473,
+   "materials": [
+    {
+     "name": "barrel_03",
+     "diff": "barrel_03_diff.jpg",
+     "nor": "barrel_03_nor.jpg",
+     "smoothness": 0.526,
+     "metallic": 0.04
+    }
+   ],
+   "min": [
+    -0.317,
+    0.0,
+    -0.3193
+   ],
+   "max": [
+    0.317,
+    0.9305,
+    0.3193
+   ]
+  },
+  "water_manhole_cover": {
+   "title": "Water Manhole Cover",
+   "authors": [
+    "Raunox"
+   ],
+   "tris": 2999,
+   "materials": [
+    {
+     "name": "water_manhole_cover",
+     "diff": "water_manhole_cover_diff.jpg",
+     "nor": "water_manhole_cover_nor.jpg",
+     "smoothness": 0.22,
+     "metallic": 0.286
+    }
+   ],
+   "min": [
+    -0.3454,
+    0.0,
+    -0.3454
+   ],
+   "max": [
+    0.3454,
+    0.0679,
+    0.3454
+   ]
+  },
+  "office_notepads": {
+   "title": "Office Notepads",
+   "authors": [
+    "Ulan Cabanilla"
+   ],
+   "tris": 666,
+   "materials": [
+    {
+     "name": "office_notepads",
+     "diff": "office_notepads_diff.jpg",
+     "nor": "office_notepads_nor.jpg",
+     "smoothness": 0.289,
+     "metallic": 0.002
+    }
+   ],
+   "min": [
+    -0.5514,
+    0.0,
+    -0.3299
+   ],
+   "max": [
+    0.5514,
+    0.022,
+    0.3299
+   ]
+  },
+  "exterior_aircon_unit": {
+   "title": "Exterior Aircon Unit",
+   "authors": [
+    "Monsta3D"
+   ],
+   "tris": 6999,
+   "materials": [
+    {
+     "name": "exterior_aircon_unit_01",
+     "diff": "exterior_aircon_unit_01_diff.jpg",
+     "nor": "exterior_aircon_unit_01_nor.jpg",
+     "smoothness": 0.196,
+     "metallic": 0.012
+    },
+    {
+     "name": "exterior_aircon_unit_02",
+     "diff": null,
+     "nor": "exterior_aircon_unit_02_nor.jpg",
+     "smoothness": 0.276,
+     "metallic": 0.144
+    },
+    {
+     "name": "exterior_aircon_unit_rusted_01",
+     "diff": "exterior_aircon_unit_rusted_01_diff.jpg",
+     "nor": "exterior_aircon_unit_rusted_01_nor.jpg",
+     "smoothness": 0.18,
+     "metallic": 0.012
+    },
+    {
+     "name": "exterior_aircon_unit_rusted_02",
+     "diff": null,
+     "nor": "exterior_aircon_unit_rusted_02_nor.jpg",
+     "smoothness": 0.256,
+     "metallic": 0.146
+    }
+   ],
+   "min": [
+    -0.9,
+    -0.464,
+    -0.1874
+   ],
+   "max": [
+    0.9,
+    0.464,
+    0.1874
+   ]
+  },
+  "wheelchair_01": {
+   "title": "Wheelchair 01",
+   "authors": [
+    "Garreth Dean"
+   ],
+   "tris": 11999,
+   "materials": [
+    {
+     "name": "lambert1",
+     "diff": "lambert1_diff.jpg",
+     "nor": "lambert1_nor.jpg",
+     "smoothness": 0.63,
+     "metallic": 0.588
+    }
+   ],
+   "min": [
+    -0.4121,
+    0.0,
+    -0.5457
+   ],
+   "max": [
+    0.4121,
+    1.1037,
+    0.5457
+   ]
+  }
+ },
+ "textures": {
+  "long_white_tiles": {
+   "diff": "long_white_tiles_diff.jpg",
+   "nor": "long_white_tiles_nor.jpg",
+   "smoothness": 0.758,
+   "title": "Long White Tiles",
+   "authors": [
+    "Jenelle van Heerden",
+    "Sergej Majboroda"
+   ]
+  },
+  "worn_tile_floor": {
+   "diff": "worn_tile_floor_diff.jpg",
+   "nor": "worn_tile_floor_nor.jpg",
+   "smoothness": 0.42,
+   "title": "Worn Tile Floor",
+   "authors": [
+    "Dimitrios Savva"
+   ]
+  },
+  "dirty_concrete": {
+   "diff": "dirty_concrete_diff.jpg",
+   "nor": "dirty_concrete_nor.jpg",
+   "smoothness": 0.137,
+   "title": "Dirty Concrete",
+   "authors": [
+    "Rob Tuytel"
+   ]
+  },
+  "painted_metal_shutter": {
+   "diff": "painted_metal_shutter_diff.jpg",
+   "nor": "painted_metal_shutter_nor.jpg",
+   "smoothness": 0.367,
+   "title": "Painted Metal Shutter",
+   "authors": [
+    "Dario Barresi",
+    "Rico Cilliers",
+    "Charlotte Baglioni"
+   ]
+  }
+ }
+}
