@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """layout.json を Blender (Cycles/CPU) で描画して、Unity を開かずに部屋の見た目を確かめる。
 
-  python Tools/preview_layout.py -- <out.png> [view]     view = spawn | top | table | terminal | hatch
+  python Tools/preview_layout.py -- <out.png> [view]
+      view = spawn | top | table | work | terminal | hatch | dock | back | corner | rail | chute | low
+      または任意のカメラ:  "目x,目y,目z:注視x,注視y,注視z:画角"   例  "3.5,2.6,-2.8:0,0.9,0.9:70"
+
+原体にかかる修整モザイク (WadoPTR/Mosaic シェーダー) は、原体だけのマスクを別に描いて後処理で再現する。
 
 Unity(x, y, z) = Blender(-x, z, -y)。左手系→右手系の読み替えなので、見た目は Unity と同じ向きになる。
 要: pip install bpy pillow
 """
 import bpy, json, math, os, sys
 from mathutils import Matrix, Vector
+from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 A = os.path.join(ROOT, "Assets", "WadoPTR")
@@ -130,11 +135,13 @@ for p in L["props"]:
 # 原体(処理台の上)
 anch = {a["name"]: a for a in L["anchors"]}
 tp = anch["Table"]["pos"]
+body_objs = []
 for part in L["body"]:
     objs = add_fbx(os.path.join(A, "Models", "body", part["name"] + ".fbx"), lambda n, i: skin if i == 0 else cut)
     pos = [tp[k] + part["offset"][k] for k in range(3)]
     for o in objs:
         o.matrix_world = Mi @ trs(pos) @ M @ o.matrix_world
+        body_objs.append(o)
     # 切取線 (WadoWorldBuilder.cs の MakeBodyPart と同じ形)
     c = list(part["cut"])
     along_x = part["name"] in ("arm_l", "arm_r", "torso")
@@ -148,7 +155,7 @@ for part in L["body"]:
         ln, top = 0.44, 0.256
     bpy.ops.mesh.primitive_cube_add(size=1)
     mk = bpy.context.object
-    mk.matrix_world = Mi @ trs((tp[0] + c[0], tp[1] + (top + 0.04) / 2, tp[2] + c[2]), 90 if along_x else 0, 0, 0, (0.006, top - 0.04, ln)) @ M
+    mk.matrix_world = Mi @ trs((tp[0] + c[0], tp[1] + top - 0.0275, tp[2] + c[2]), 90 if along_x else 0, 0, 0, (0.006, 0.055, ln)) @ M
     mk.data.materials.append(flat("mark_" + part["name"], (1.0, 0.25, 0.05), 0.5, emit=3.0))
 
 # 刃物
@@ -216,8 +223,18 @@ VIEWS = {
     "hatch": ((-1.2, 1.6, -1.0), (-4.5, 1.3, 0.7), 62),
     "dock": ((0.4, 1.6, -1.2), (4.5, 1.3, -0.2), 70),
     "back": ((0.5, 1.6, 2.6), (0.6, 1.3, -3.5), 75),
+    "corner": ((4.1, 2.9, -3.1), (-0.6, 0.7, 0.9), 78),
+    "rail": ((-3.6, 1.55, -0.4), (1.5, 0.95, 1.0), 72),
+    "chute": ((3.3, 1.65, 2.4), (-0.4, 0.9, 0.7), 72),
+    "low": ((-0.9, 1.15, 2.1), (0.1, 0.98, 0.9), 70),
 }
-eye, tgt, fov = VIEWS[view]
+if view in VIEWS:
+    eye, tgt, fov = VIEWS[view]
+else:
+    e_, t_, f_ = view.split(":")
+    eye = tuple(float(x) for x in e_.split(","))
+    tgt = tuple(float(x) for x in t_.split(","))
+    fov = float(f_)
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
 sc.collection.objects.link(cam)
 e = Mi @ Vector(eye)
@@ -249,4 +266,36 @@ sc.render.resolution_y = int(os.environ.get("RESY", "720"))
 sc.view_settings.view_transform = "Filmic" if "Filmic" in [i.identifier for i in sc.view_settings.bl_rna.properties["view_transform"].enum_items] else sc.view_settings.view_transform
 sc.render.filepath = out_png
 bpy.ops.render.render(write_still=True)
-print("SAVED", out_png)
+
+# ---- 修整モザイクの再現: 原体だけ白く光らせたマスクを描き、その範囲をブロック化する
+white = flat("mask_white", (1, 1, 1), 1.0, emit=1.0)
+black = flat("mask_black", (0, 0, 0), 1.0)
+black.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
+for o in sc.objects:
+    if o.type in ("MESH", "FONT"):
+        m = white if o in body_objs else black
+        if len(o.material_slots) == 0:
+            o.data.materials.append(m)
+        for sl in o.material_slots:
+            sl.material = m
+    elif o.type == "LIGHT":
+        o.hide_render = True
+w.node_tree.nodes["Background"].inputs[1].default_value = 0.0
+sc.cycles.samples = 4
+sc.cycles.use_denoising = False
+sc.view_settings.view_transform = "Standard"
+mask_png = out_png + ".mask.png"
+sc.render.filepath = mask_png
+bpy.ops.render.render(write_still=True)
+
+img = Image.open(out_png).convert("RGB")
+mask = Image.open(mask_png).convert("L").point(lambda v: 255 if v > 90 else 0)
+os.remove(mask_png)
+dist = (Vector(eye) - Vector(tp)).length
+focal = (img.width / 2) / math.tan(math.radians(fov) / 2)
+block = max(4, int(round(0.034 / max(dist, 0.3) * focal)))
+small = img.resize((max(1, img.width // block), max(1, img.height // block)), Image.BOX)
+mosaic = small.resize(img.size, Image.NEAREST)
+img.paste(mosaic, (0, 0), mask)
+img.save(out_png)
+print("SAVED", out_png, "block", block)

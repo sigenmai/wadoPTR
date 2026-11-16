@@ -277,6 +277,24 @@ namespace WadoPTR.EditorTools
             return m;
         }
 
+        /// <summary>このリポジトリ同梱のシェーダーを使う素材。</summary>
+        static Material Custom(string name, string shaderName, Color c)
+        {
+            var sh = Shader.Find(shaderName);
+            if (sh == null) throw new Exception("シェーダーが見つかりません: " + shaderName + " (Assets/WadoPTR/Shaders のインポートを確認してください)");
+            string path = Gen + "/Materials/" + Safe(name) + ".mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                m = new Material(sh);
+                AssetDatabase.CreateAsset(m, path);
+            }
+            m.shader = sh;
+            if (m.HasProperty("_Color")) m.color = c;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
         static Material UnlitTransparent(string name, string texPath)
         {
             string path = Gen + "/Materials/" + Safe(name) + ".mat";
@@ -316,11 +334,14 @@ namespace WadoPTR.EditorTools
             mats["button_grey"] = NewMat("button_grey", new Color(0.55f, 0.57f, 0.58f), 0.5f, 0f);
             mats["lamp_off"] = NewMat("lamp_off", new Color(0.08f, 0.1f, 0.08f), 0.5f, 0f);
             mats["lamp_on"] = Unlit("lamp_on", new Color(0.35f, 1f, 0.5f));
-            mats["mark"] = Unlit("mark", new Color(1f, 0.32f, 0.08f));
-            mats["gash"] = NewMat("gash", new Color(0.16f, 0.01f, 0.02f), 0.7f, 0f);
+            mats["mark"] = Custom("mark", "WadoPTR/Guide", new Color(1f, 0.32f, 0.08f));
+            mats["gash"] = Custom("gash", "WadoPTR/Guide", new Color(0.2f, 0.01f, 0.02f));
+            mats["mosaic"] = Custom("mosaic", "WadoPTR/Mosaic", Color.white);
+            mats["mosaic"].SetFloat("_Cell", 0.034f);
+            mats["mosaic"].SetFloat("_Inflate", 0.012f);
             mats["cut"] = NewMat("cut", new Color(0.30f, 0.03f, 0.04f), 0.72f, 0f);
             mats["organ"] = NewMat("organ", new Color(0.36f, 0.05f, 0.07f), 0.85f, 0f);
-            mats["skin"] = NewMat("skin", new Color(0.86f, 0.88f, 0.92f), 0.28f, 0f);
+            mats["skin"] = NewMat("skin", new Color(0.95f, 0.93f, 0.92f), 0.34f, 0f);
             SetTextures(mats["skin"], Root + "/Models/body/body_skin.jpg", null);
             for (int i = 0; i < 4; i++) mats["stain" + i] = UnlitTransparent("stain" + i, Root + "/Textures/stains/stain" + i + ".png");
             var spray = AssetDatabase.LoadAssetAtPath<Material>(Gen + "/Materials/spray.mat");
@@ -910,13 +931,25 @@ namespace WadoPTR.EditorTools
                 r.sharedMaterials = dst;
             }
 
+            // 修整: 同じメッシュをもう一枚重ね、モザイクで覆う。visual の子なので、表示・非表示は部位と一緒に切り替わる
+            var censor = PlaceModel("body", def.name, visual.transform.parent, "censor");
+            censor.transform.SetParent(visual.transform, true);
+            foreach (var r in censor.GetComponentsInChildren<Renderer>(true))
+            {
+                var all = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < all.Length; i++) all[i] = mats["mosaic"];
+                r.sharedMaterials = all;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
+
             Vector3 size = V(def.size);
             Vector3 cutLocal = V(def.cut) - V(def.offset);
             var cp = new GameObject("cutPoint").transform;
             cp.SetParent(go.transform, false);
             cp.localPosition = cutLocal;
 
-            // 切取線: 関節を貫く薄い板。肌と交わるところが線として見え、上端がわずかに肌から出る。
+            // 切取線: 関節の肌のすぐ下に埋めた細い帯。肌と交わるところが線として見え、上端がわずかに肌から出る。
             // 腕と体幹は体の軸に沿い、頭と脚は体を横切る。top は原体ルート基準の肌の高さ(Tools で実測)
             bool alongBody = def.name.StartsWith("arm") || def.name == "torso";
             float len = 0.21f, top = 0.218f;
@@ -924,7 +957,7 @@ namespace WadoPTR.EditorTools
             if (def.name == "head") { len = 0.16f; top = 0.186f; }
             else if (def.name.StartsWith("arm")) { len = 0.15f; top = 0.176f; c.x += 0.025f; }
             else if (def.name == "torso") { len = 0.44f; top = 0.256f; }
-            float bottom = 0.04f;
+            float bottom = top - 0.055f;    // 肌のすぐ下までの帯。横から見ても板に見えない高さ
             Vector3 fin = new Vector3(c.x, (top + bottom) / 2f, c.z) - V(def.offset);
             Quaternion rot = Quaternion.Euler(0, alongBody ? 90f : 0f, 0);
             var mark = Cube("cutMark", go.transform, fin, new Vector3(0.006f, top - bottom, len), mats["mark"], false);

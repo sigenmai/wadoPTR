@@ -12,6 +12,10 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 | ![処理台](Docs/preview_work.jpg) | ![搬入口](Docs/preview_hatch.jpg) |
 | 発注端末 | 上から |
 | ![発注端末](Docs/preview_terminal.jpg) | ![上から](Docs/preview_top.jpg) |
+| 天井の隅から | 搬入レール側から |
+| ![隅から](Docs/preview_corner.jpg) | ![レール側](Docs/preview_rail.jpg) |
+| 処理台の奥から(低い目線) | 計量口の奥から |
+| ![低い目線](Docs/preview_low.jpg) | ![計量口側](Docs/preview_chute.jpg) |
 
 (画像は `Tools/preview_layout.py` による Blender での確認用描画です。表示器の数字は仮のもの、ボタン・扉・付箋などスクリプトが作る部品は写っていません)
 
@@ -49,6 +53,7 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 
 - **説明を世界の内側に置く** — 手順は「作業標準書」、数値は表示器と伝票、操作の動詞は VRChat 標準のツールチップ(「搬入呼出」「発注」「切る」)に載せています。
 - **押す・持つ・切るの 3 操作だけ** — すべてのボタンは `Interact`、部材と刃物は `VRCPickup`。uGUI は使っていないので、デスクトップと VR で挙動が変わりません。
+- **修整モザイク** — 原体の 6 部位には、同じメッシュを少し膨らませて重ね、`WadoPTR/Mosaic` シェーダーでブロック状に塗りつぶしています(付いている間も、切り離して運ぶ間も)。ローポリの素体でも「映してはいけないもの」に見え、細部は見る側が補います。格子は画面ではなくワールド空間に固定してあるので、VR で左右の目のブロックがずれません。切取線は `WadoPTR/Guide` でモザイクの上に描きます。ブロックの大きさは生成された `Generated/Materials/mosaic.mat` の Block Size で変えられます。
 - **切断判定は物理に頼らない** — 刃の位置・速度と切取線の距離を毎フレーム計算します(`WadoBlade` / `WadoBody`)。レイヤーやトリガーの設定ずれで切れなくなることがありません。
 - **進行はローカル、保存は PlayerData** — VRChat 公式の Persistent Idle Game サンプルと同じ方式(`OnPlayerRestored` を待ってから読み書き)。同期オブジェクトはありません。
 
@@ -73,6 +78,7 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 **未確認(Unity で初めて分かること)**
 
 - **UdonSharp での実コンパイルと、実機での動作。** 型の不一致など、上の検査では拾えない誤りが残っている可能性があります。エラーが出たら Console の内容をそのまま教えてください。
+- モザイクシェーダーの実機での見え方(GrabPass を使うので PC 専用。VR のシングルパス描画には対応する書き方をしていますが、実機未確認です)。
 - TextMesh Pro の文字の実寸(大きすぎる/小さすぎる場合は `WadoWorldBuilder.cs` の `TextScale` を変えて建て直す)。
 - 刃物を持ったときの向き、ボタンの押しやすさ、音量バランスなどの手触り。
 - ライトはすべてリアルタイム(ベイクなし)です。重い場合や質感を上げたい場合は、生成後にライトマップをベイクしてください。
@@ -89,7 +95,7 @@ VRChat ワールド(PC / デスクトップ・VR 両対応)。フリー素材だ
 | `Tools/build_stains.py` | 汚れのテクスチャを生成 |
 | `Tools/gen_layout.py` | 部屋の設計図 `layout.json` と材質表 `models.json` を書き出す |
 | `Tools/gen_metas.py` | U# スクリプトの `.meta` と Program Asset を書き出す |
-| `Tools/preview_layout.py` | 設計図を Blender で描画する |
+| `Tools/preview_layout.py` | 設計図を Blender で描画する。視点は名前(`spawn` `work` `corner` `rail` `chute` `low` `top` …)か、`"目x,y,z:注視x,y,z:画角"` で自由に指定できる |
 | `Tools/extract_udon_externs.py` → `lint_udon.py` | SDK の DLL から Udon 公開 API の一覧を抜き出し、構文と API 名を検査 |
 
 部屋の配置を変えたいときは `Tools/gen_layout.py` を編集して実行し、Unity で建て直してください。

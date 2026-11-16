@@ -118,15 +118,15 @@ for n, o in objs.items():
         path_mode="STRIP", embed_textures=False, bake_anim=False, mesh_smooth_type="FACE")
     print("OK", n, manifest[n], flush=True)
 
-# 肌テクスチャ: 血の気を抜いた冷蔵色へ
+# 肌テクスチャ: 血の気の引いた肌色へ (細部はモザイクが隠す前提)
 im = Image.open(tex).convert("RGB").resize((512, 512), Image.LANCZOS)
-im = ImageEnhance.Color(im).enhance(0.28)
+im = ImageEnhance.Color(im).enhance(0.62)
 r, g, b = im.split()
-r = r.point(lambda v: int(v * 0.90))
-g = g.point(lambda v: int(v * 0.96))
-b = b.point(lambda v: min(255, int(v * 1.08)))
+r = r.point(lambda v: int(v * 0.97))
+g = g.point(lambda v: int(v * 0.98))
+b = b.point(lambda v: min(255, int(v * 1.06)))
 im = Image.merge("RGB", (r, g, b))
-im = ImageEnhance.Brightness(im).enhance(1.12)
+im = ImageEnhance.Brightness(im).enhance(1.04)
 im.save(os.path.join(OUT, "body_skin.jpg"), quality=88, optimize=True)
 
 # 切取線の位置(原体ルート基準・Unity 座標)。立位の (x, z) から求める
