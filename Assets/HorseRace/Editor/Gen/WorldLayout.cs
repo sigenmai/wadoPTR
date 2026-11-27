@@ -40,6 +40,19 @@ namespace HorseRace.EditorTools
             return pts[pts.Length - 1];
         }
 
+        /// <summary>
+        /// 弧長 a0 → a1 のコースの中心を step m ごとに取った折れ線（両端を含む。system-r3-13：Checkpoint.pathIn、順位を道のりで決める）。
+        /// </summary>
+        public static Vector3[] ArcPolyline(Vector3[] pts, float a0, float a1, float step)
+        {
+            if (step <= 0.01f) step = 10f;
+            if (a1 < a0) { float t = a0; a0 = a1; a1 = t; }
+            int n = Mathf.Max(1, Mathf.CeilToInt((a1 - a0) / step));
+            var r = new Vector3[n + 1];
+            for (int i = 0; i <= n; i++) r[i] = PointAtArc(pts, i == n ? a1 : a0 + i * step);
+            return r;
+        }
+
         /// <summary>弧長 arc での進行方向（x/z、正規化、y = 0）。前後 window m の差分。</summary>
         public static Vector3 TangentAtArc(Vector3[] pts, float arc, float window = 4f)
         {

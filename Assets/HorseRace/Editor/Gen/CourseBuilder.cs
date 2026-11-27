@@ -78,6 +78,8 @@ namespace HorseRace.EditorTools
                 cp.stageIndex = st;
                 cp.isGoal = goal;
                 cp.next = null;
+                // 前の CP（最初はスタートライン）からこの CP までの中心の折れ線（10m ごと、system-r3-13）
+                cp.pathIn = WorldLayout.ArcPolyline(c, k == 0 ? StageDefinitions.START_ARC_M + 3f : arcs[k - 1], arcs[k], PATH_SAMPLE_M);
                 if (prev != null) prev.next = cp;
                 prev = cp;
                 sb.checkpoints.Add(cp);
@@ -114,6 +116,9 @@ namespace HorseRace.EditorTools
         /// 急カーブの合図（course-r2-08）：頂点の 110・70・35m 手前の外側に札（丸太の柱に手配書の紙、赤い ››› ›› ›、曲がる向き）、
         /// 頂点の内側に干し草の山（2 段）、外側に街灯（橙の灯り 10m）。出口の先の目印（塔）は DressingPlan.GuideTowers。位置は CourseMarks と同じ。
         /// </summary>
+        /// <summary>Checkpoint.pathIn の点の間隔（m）。</summary>
+        public const float PATH_SAMPLE_M = 10f;
+
         static void CornerBoards(Transform root, StageBuild sb)
         {
             var g = GenUtil.Child(root, "CornerBoards", Vector3.zero).transform;

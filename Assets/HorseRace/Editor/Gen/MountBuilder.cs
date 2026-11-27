@@ -14,6 +14,8 @@ namespace HorseRace.EditorTools
     ///     CharmPouch [CharmPouch]（袋・光・刻印 3 個）
     ///     Revolver [VRCPickup(Auto Hold = Yes, Exact Gun), Rigidbody(kinematic), RevolverHolder] → Revolver.fbx（部品そのまま）
     ///     DustCloud / Lasso / RockWall（壁 3 枚、Block）/ IronBall ×3 / Haze（AbilityCaster の見た目。起動時に親から外れる）
+    ///     MirageDouble ×2（蜃気楼の身代わり：同じ BuildVisual の馬・ラクダ・骨の馬の写し、乗り手なし）/ PowderKeg ×2（FarmProps_15 ×0.6 の火薬樽）
+    ///     蹄の音（Hooves、空間音 2〜35m）と蹄の砂ぼこり（HoofDust）は Visual の下（system-r3-09）
     /// MountPicker（柵の馬）用の見た目だけの馬も BuildVisual で作る。
     /// </summary>
     public static class MountBuilder
@@ -87,6 +89,7 @@ namespace HorseRace.EditorTools
             vr.mount = mc;
             vr.seatAnchor = seat;
             mc.vrInput = vr;
+            mc.visual.hapticReins = vr;   // 疾走の蹄ごとの軽い振動（system-r3-16）
 
             var hit = GenUtil.Child(t, "RiderHitbox", new Vector3(0f, 2.3f, -0.1f));
             var cap = hit.AddComponent<CapsuleCollider>();
@@ -116,6 +119,14 @@ namespace HorseRace.EditorTools
             caster.balls = balls;
             caster.haze = BuildHaze(t);
             BuildAimMarker(t, caster);
+            caster.fizzleSound = GenUtil.Audio(sounds, false, false, SfxBuilder.Clip(SfxMath.CLICK));   // 投げ縄の相手なし（system-r3-05）
+            caster.rockWall.caster = caster;                                                          // 崩れた 1 枚を全員へ（system-r3-06）
+            var doubles = new MirageDouble[2];
+            for (int i = 0; i < doubles.Length; i++) doubles[i] = BuildMirageDouble(t, caster, i);
+            caster.doubles = doubles;
+            var kegs = new PowderKeg[2];
+            for (int i = 0; i < kegs.Length; i++) kegs[i] = BuildKeg(t, i);
+            caster.kegs = kegs;
 
             root.layer = WorldLayers.Mount;
             ctx.casters.Add(caster);
@@ -241,6 +252,11 @@ namespace HorseRace.EditorTools
                 mv.earRight = GenUtil.FindDeep(mv.horseModel.transform, "EarR");
             }
             mv.bodyPivot = pivot;
+            // 蜃気楼のちらつき（system-r3-10）：3 つのモデルの体の Renderer
+            var fl = new System.Collections.Generic.List<Renderer>();
+            foreach (var mdl in new[] { mv.horseModel, mv.camelModel, mv.skeletonModel })
+                if (mdl != null) fl.AddRange(mdl.GetComponentsInChildren<Renderer>(true));
+            mv.flickerRenderers = fl.ToArray();
             var fb = GenUtil.Prim(PrimitiveType.Capsule, "FallbackPrimitive", pivot, new Vector3(0f, 1.1f, 0f), new Vector3(0.9f, 1.2f, 0.9f), Leather);
             fb.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             fb.SetActive(mv.horseModel == null);
@@ -249,6 +265,7 @@ namespace HorseRace.EditorTools
             mv.breathAudio = GenUtil.Audio(breath, false, true, SfxBuilder.Clip(SfxMath.BREATH));
             if (mv.camelModel != null) mv.camelModel.SetActive(false);
             if (mv.skeletonModel != null) mv.skeletonModel.SetActive(false);
+            BuildHooves(mv, visualGo.transform);   // 蹄の音と砂ぼこり（system-r3-09）：レース用・練習用・身代わり・柵の馬のすべて
             return mv;
         }
 
@@ -270,6 +287,86 @@ namespace HorseRace.EditorTools
                 new Vector2(2.6f, 0.6f), TextStyle.Sign, true);
             tag.gameObject.SetActive(false);
             mv.spentTag = tag.gameObject;
+        }
+
+        /// <summary>
+        /// 蹄（system-r3-09）：蹄の音（SfxMath.HOOF、空間音 2〜35m：後ろから迫る相手が聞こえる）と、足元の蹄の砂ぼこり
+        /// （ワールド空間、後ろ向きの円錐、色はステージの道の土 ArtPalette.Trail の 3 つの平均）。量は MountVisual が歩様・砂で決める。パーティクルだけ。
+        /// </summary>
+        static void BuildHooves(MountVisual mv, Transform visual)
+        {
+            var hoofGo = GenUtil.Child(visual, "Hooves", new Vector3(0f, 0.2f, 0f));
+            var a = GenUtil.Audio(hoofGo, false, false, SfxBuilder.Clip(SfxMath.HOOF));
+            a.minDistance = 2f;
+            a.maxDistance = 35f;
+            mv.hooves = a;
+            Color t0 = ArtPalette.Trail(0), t1 = ArtPalette.Trail(1), t2 = ArtPalette.Trail(2);
+            var dustColor = new Color((t0.r + t1.r + t2.r) / 3f, (t0.g + t1.g + t2.g) / 3f, (t0.b + t1.b + t2.b) / 3f, 0.7f);
+            var ps = GenUtil.Particles(visual, "HoofDust", new Vector3(0f, 0.15f, -0.6f), dustColor, 0.45f, 1.6f, 0.9f, true, 0f, 0.3f);
+            var sh = ps.shape;
+            sh.shapeType = ParticleSystemShapeType.Cone;
+            sh.angle = 25f;
+            sh.radius = 0.3f;
+            sh.rotation = new Vector3(-15f, 180f, 0f);   // 後ろ・少し上へ
+            mv.hoofDust = ps;
+        }
+
+        /// <summary>
+        /// 蜃気楼の身代わり（system-r3-10）：乗り物と同じ BuildVisual（Horse / Camel / SkeletonHorse の FBX と毛色、同じ Mount.controller）の写し。
+        /// 乗り手なし。投げ縄・リボルバー・鉄球に当たる Is Trigger の箱（Rider レイヤー = targetMask）。消えるときはばてたときと同じ砂ぼこり。
+        /// 代用のカプセル（プリミティブ）は外す（息の音・蹄の音は残す：本物らしく聞こえる）。
+        /// </summary>
+        static MirageDouble BuildMirageDouble(Transform t, AbilityCaster caster, int i)
+        {
+            var go = GenUtil.Child(t, "MirageDouble_" + (i + 1), new Vector3((i == 0 ? 1f : -1f) * 3f, 0f, 0f));
+            var body = GenUtil.Child(go.transform, "Body", Vector3.zero);
+            var mv = BuildVisual(body, 0);
+            if (mv.fallbackPrimitive != null) Object.DestroyImmediate(mv.fallbackPrimitive);
+            mv.fallbackPrimitive = null;
+            var box = go.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(1.0f, 2.4f, 2.6f);
+            box.center = new Vector3(0f, 1.3f, 0f);
+            var md = GenUtil.AddU<MirageDouble>(go);
+            md.caster = caster;
+            md.index = i;
+            md.visual = mv;
+            md.body = body;
+            md.hitBox = box;
+            md.groundMask = WorldLayers.GroundMask;
+            md.popDust = GenUtil.Particles(go.transform, "PopDust", new Vector3(0f, 0.6f, 0f), Sand, 1.3f, 2.2f, 1.4f, false, 0f, 0.9f);
+            GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
+            body.SetActive(false);
+            box.enabled = false;
+            return md;
+        }
+
+        /// <summary>
+        /// 火薬樽（system-r3-11）：素材の樽 FarmProps_15 を ×0.6、導火線の小さな火花、爆発の砂ぼこり、SHOT と THUD の音。当たり判定は持たない
+        /// （近づいた乗り物は PowderKeg が mountMask で調べる）。
+        /// </summary>
+        static PowderKeg BuildKeg(Transform t, int i)
+        {
+            var go = GenUtil.Child(t, "PowderKeg_" + (i + 1), new Vector3(0.6f * (i == 0 ? -1f : 1f), 0f, -3f));
+            var keg = GenUtil.AddU<PowderKeg>(go);
+            var barrel = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_15", go.transform, go.transform.position, 0f, 0.6f,
+                new Vector3(0.5f, 0.7f, 0.5f), new Color(0.45f, 0.3f, 0.18f));
+            barrel.name = "Barrel";
+            barrel.transform.SetParent(go.transform, true);
+            foreach (var c in barrel.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            keg.visual = barrel;
+            keg.fuse = GenUtil.Particles(go.transform, "Fuse", new Vector3(0f, 0.5f, 0f), new Color(1f, 0.7f, 0.25f), 0.05f, 0.8f, 0.3f, true, 25f, 0.03f);
+            keg.fuse.transform.SetParent(barrel.transform, true);
+            var fm = keg.fuse.main;
+            fm.playOnAwake = false;
+            keg.blast = GenUtil.Particles(go.transform, "Blast", new Vector3(0f, 0.6f, 0f), Sand, 1.6f, 5f, 1.2f, false, 0f, 1.2f);
+            keg.blastShot = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.SHOT));
+            keg.blastThud = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
+            keg.groundMask = WorldLayers.GroundMask;
+            keg.mountMask = WorldLayers.MountMask;
+            keg.targetMask = WorldLayers.TargetMask;
+            barrel.SetActive(false);
+            return keg;
         }
 
         static GameObject Model(string path, Transform parent, string name, RuntimeAnimatorController ctrl, out Animator anim)
@@ -297,7 +394,8 @@ namespace HorseRace.EditorTools
         // お守り袋・リボルバー・能力の見た目
         // ------------------------------------------------------------------
 
-        static readonly string[] AbilityCards = { "Wanted_Dust", "Wanted_Lasso", "Wanted_Wall", "Wanted_Ball" };
+        /// <summary>能力の番号の順（0..6、system-r3-10/11）。4（恐竜）はまだ無いので Wanted_Original、5 火薬樽・6 蜃気楼も Wanted_Original に名前を書く。</summary>
+        static readonly string[] AbilityCards = { "Wanted_Dust", "Wanted_Lasso", "Wanted_Wall", "Wanted_Ball", "Wanted_Original", "Wanted_Original", "Wanted_Original" };
 
         /// <summary>
         /// 能力の札（ui-r1-04）：首の札の右隣（乗り物の首の上、乗っている本人だけに見える）に、その能力の手配書（WantedPosters_02 に Wanted_&lt;能力&gt;.png）。
@@ -321,6 +419,10 @@ namespace HorseRace.EditorTools
                 ready[i] = GenUtil.ToonTextureTint(tex, "Pouch_" + AbilityCards[i], Color.white);
                 idle[i] = GenUtil.ToonTextureTint(tex, "Pouch_" + AbilityCards[i], new Color(0.35f, 0.35f, 0.35f));
             }
+            // 絵の無い能力（火薬樽・蜃気楼）の名前：手配書の真ん中に墨で（CharmPouch.caption、HudMath.AbilityCardCaption）
+            var caption = GenUtil.Text(cardRoot.transform, "Caption", new Vector3(0f, CH * 0.05f, -0.004f), Quaternion.identity, "", 0.32f,
+                UiStyle.InkFace, new Vector2(CW * 0.9f, 0.03f), TextStyle.Ink, true);
+            caption.fontStyle = TMPro.FontStyles.Bold;
             var cooldown = GenUtil.Text(cardRoot.transform, "Cooldown", new Vector3(0f, -0.015f, -0.004f), Quaternion.identity, "", 0.3f,
                 UiStyle.BrassFace, new Vector2(CW, 0.035f), TextStyle.Brass, true);
             cooldown.fontStyle = TMPro.FontStyles.Bold;
@@ -344,6 +446,7 @@ namespace HorseRace.EditorTools
             cp.sparks = sparks;
             cp.hitSparks = hitSparks;
             cp.cooldownText = cooldown;
+            cp.caption = caption;
             cp.levelMarks = marks;
             cp.levelMarksUnlit = unlit;
             cp.readySound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CHIME));
@@ -527,6 +630,9 @@ namespace HorseRace.EditorTools
             rw.obstacleMask = WorldLayers.ObstacleMask;   // 道の空いている幅を測る（見えない柵・岩、system-r2-10）
             rw.mountMask = WorldLayers.MountMask;         // 乗り物の足元に立てない
             rw.riseSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
+            // 崩れる（system-r3-06）：岩の砂ぼこりと鈍い音（パーティクルだけ）
+            rw.crumbleDust = GenUtil.Particles(go.transform, "CrumbleDust", new Vector3(0f, 2f, 0f), new Color(0.6f, 0.45f, 0.35f, 0.85f), 1.4f, 3f, 1.3f, false, 0f, 2.5f);
+            rw.crumbleSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
             return rw;
         }
 

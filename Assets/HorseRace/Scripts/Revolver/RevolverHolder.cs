@@ -406,6 +406,10 @@ namespace HorseRace
                 {
                     caster.foundDummy.Wobble();
                 }
+                else if (caster.foundDouble != null)
+                {
+                    caster.PopDoubleForAll(caster.foundDouble);   // 蜃気楼の身代わり（system-r3-10）：撃つと砂ぼこりで消える
+                }
             }
             else
             {

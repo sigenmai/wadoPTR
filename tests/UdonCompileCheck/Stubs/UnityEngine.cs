@@ -88,6 +88,7 @@ namespace UnityEngine
         public static float Sin(float v) => (float)Math.Sin(v);
         public static float Cos(float v) => (float)Math.Cos(v);
         public static float Atan(float v) => (float)Math.Atan(v);
+        public static float Tan(float v) => (float)Math.Tan(v);
         public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
         public static float Sqrt(float v) => (float)Math.Sqrt(v);
         public static float Floor(float v) => (float)Math.Floor(v);
@@ -287,6 +288,20 @@ namespace UnityEngine
         public void Stop() { }
         public void Clear() { }
         public void Emit(int count) { }
+
+        public struct MinMaxCurve
+        {
+            public MinMaxCurve(float constant) { }
+            public static implicit operator MinMaxCurve(float constant) => new MinMaxCurve(constant);
+        }
+
+        public struct EmissionModule
+        {
+            public bool enabled { get; set; }
+            public MinMaxCurve rateOverTime { get; set; }
+        }
+
+        public EmissionModule emission => default(EmissionModule);
     }
 
     public partial class RuntimeAnimatorController : Object
@@ -328,6 +343,13 @@ namespace UnityEngine
         public void ResetTrigger(string name) { }
         public int GetInteger(string name) => 0;
         public static int StringToHash(string name) => 0;
+        public AnimatorStateInfo GetCurrentAnimatorStateInfo(int layerIndex) => default(AnimatorStateInfo);
+    }
+
+    public struct AnimatorStateInfo
+    {
+        public float normalizedTime => 0f;
+        public float length => 0f;
     }
 
     public partial class AudioClip : Object { }

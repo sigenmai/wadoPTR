@@ -136,6 +136,8 @@ namespace HorseRace
         public PosterCard[] pickCards;
         [Tooltip("予想の札の上の紙：自分の予想・前回の結果・通算")]
         public TextMeshPro pickStatusText;
+        [Tooltip("サルーンの掲示板「あなたの戦績」（system-r3-15、ローカルの PlayerData）")]
+        public TextMeshPro recordText;
 
         [Header("Local selection (このクライアントだけ、同期しない)")]
         public int localMount = MountMath.MOUNT_HORSE;
@@ -162,6 +164,17 @@ namespace HorseRace
         private bool orderDirty;
         private int lastLobbyEntrants = -1;
         private bool recordDirty;
+
+        // ---- 戦績（ローカル、system-r3-15：VRChat Persistence の PlayerData、自分の分だけ書ける）----
+        public const string WINS_KEY = "hr_wins";
+        public const string PODIUMS_KEY = "hr_podiums";
+        public const string RACES_KEY = "hr_races";
+        public const string BEST_KEY_PREFIX = "hr_best_s";
+        private int recWins, recPodiums, recRaces;
+        private float[] recBest;
+        private bool recLoaded;
+        private int recordedStageSeq = -1;
+        private int recordedFinalSeq = -1;
 
         // ---- 予想（ローカル、system-r2-15）----
         public const string PICK_KEY = "hr_pick_total";
@@ -335,7 +348,7 @@ namespace HorseRace
             return (float)(Networking.GetServerTimeInSeconds() - stageStartServer);
         }
 
-        /// <summary>ステージの残り秒数。RACING 中は終了条件の早いほうまで、COUNTDOWN 中は 330。それ以外は -1。</summary>
+        /// <summary>ステージの残り秒数。RACING 中は終了条件の早いほうまで、COUNTDOWN 中は 300。それ以外は -1。</summary>
         public float GetRemainingSeconds()
         {
             if (state == RaceMath.STATE_RACING)
@@ -437,7 +450,7 @@ namespace HorseRace
 
         public void SelectAbility(int ability)
         {
-            if (ability < 0 || ability > MAX_ABILITY_PHASE1) return;
+            if (!AbilityMath.IsImplemented(ability)) return;
             localAbility = ability;
             localTookCard = true;
             RefreshLobbyLocal();
@@ -482,7 +495,7 @@ namespace HorseRace
             VRCPlayerApi caller = GetCaller();
             if (caller == null || !caller.IsValid()) return;
             if (mount != MountMath.MOUNT_HORSE && mount != MountMath.MOUNT_CAMEL) return;
-            if (ability < 0 || ability > MAX_ABILITY_PHASE1) return;
+            if (!AbilityMath.IsImplemented(ability)) return;
             if (mount == MountMath.MOUNT_CAMEL) coat = 0;
             else if (coat < 0 || coat > MountVisual.COAT_SKELETON) return;
 
@@ -1278,6 +1291,7 @@ namespace HorseRace
                 }
                 InvokeStageResetHooks();
                 ScorePickLocal();
+                if (lm != null && prev == RaceMath.STATE_RACING) RecordStageLocal(lm);
             }
             else if (state == RaceMath.STATE_FINAL_RESULT)
             {
@@ -1286,6 +1300,7 @@ namespace HorseRace
                     lm.InputLocked = true;
                     lm.SetRaceActive(false);
                 }
+                if (localSlot >= 0 && prev >= 0 && prev != RaceMath.STATE_FINAL_RESULT) RecordFinalLocal();
             }
             else if (state == RaceMath.STATE_LOBBY)
             {
@@ -1480,6 +1495,8 @@ namespace HorseRace
             if (ability == AbilityMath.ABILITY_LASSO) return "投げ縄";
             if (ability == AbilityMath.ABILITY_WALL) return "岩壁";
             if (ability == AbilityMath.ABILITY_BALL) return "鉄球";
+            if (ability == AbilityMath.ABILITY_BOMB) return "火薬樽";
+            if (ability == AbilityMath.ABILITY_MIRAGE) return "蜃気楼";
             return "？";
         }
 
@@ -1593,6 +1610,102 @@ namespace HorseRace
             EnsurePickLoaded();
             pickLoaded = true;
             RefreshPicksLocal();
+            recLoaded = false;
+            EnsureRecordLoaded();
+            RefreshRecordLocal();
+        }
+
+        // =====================================================================
+        // 戦績（system-r3-15）：優勝・表彰台・出走の回数とステージの自己ベスト（PlayerData）。サルーンの掲示板に自分の分、黒板に勝ち頭
+        // =====================================================================
+
+        private void EnsureRecordLoaded()
+        {
+            if (recBest == null) recBest = new float[STAGE_COUNT];
+            if (recLoaded) return;
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null) return;
+            int v;
+            float f;
+            if (PlayerData.TryGetInt(local, WINS_KEY, out v)) recWins = v;
+            if (PlayerData.TryGetInt(local, PODIUMS_KEY, out v)) recPodiums = v;
+            if (PlayerData.TryGetInt(local, RACES_KEY, out v)) recRaces = v;
+            for (int i = 0; i < STAGE_COUNT; i++)
+                if (PlayerData.TryGetFloat(local, BEST_KEY_PREFIX + i.ToString(), out f)) recBest[i] = f;
+            recLoaded = true;
+        }
+
+        /// <summary>STAGE_RESULT に入ったとき：自分がゴールしていれば、そのステージのタイムで自己ベストを更新する。</summary>
+        private void RecordStageLocal(MountController lm)
+        {
+            if (recordedStageSeq == stageSeq) return;
+            recordedStageSeq = stageSeq;
+            if (lm.syncFinishAt < 0.0 || lm.syncFinishAt < stageStartServer) return;
+            if (stage < 0 || stage >= STAGE_COUNT) return;
+            EnsureRecordLoaded();
+            float secs = (float)(lm.syncFinishAt - stageStartServer);
+            if (!HudMath.IsNewBest(recBest[stage], secs)) return;
+            recBest[stage] = secs;
+            PlayerData.SetFloat(BEST_KEY_PREFIX + stage.ToString(), secs);
+            RefreshRecordLocal();
+        }
+
+        /// <summary>FINAL_RESULT に入ったとき（走った人だけ）：出走 +1、総合 1 位なら優勝 +1、3 位までなら表彰台 +1。</summary>
+        private void RecordFinalLocal()
+        {
+            if (recordedFinalSeq == stageSeq) return;
+            recordedFinalSeq = stageSeq;
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null) return;
+            EnsureRecordLoaded();
+            int rank = GetOverallRankOf(local.playerId);
+            recRaces++;
+            if (rank == 1) recWins++;
+            if (rank >= 1 && rank <= 3) recPodiums++;
+            PlayerData.SetInt(RACES_KEY, recRaces);
+            PlayerData.SetInt(WINS_KEY, recWins);
+            PlayerData.SetInt(PODIUMS_KEY, recPodiums);
+            RefreshRecordLocal();
+        }
+
+        private void RefreshRecordLocal()
+        {
+            if (recordText == null) return;
+            EnsureRecordLoaded();
+            if (recBest == null) return;
+            recordText.text = HudMath.RecordPage(recRaces, recWins, recPodiums, recBest[0], STAGE_COUNT > 1 ? recBest[1] : 0f, STAGE_COUNT > 2 ? recBest[2] : 0f);
+        }
+
+        /// <summary>前回レースの黒板の「勝ち頭」（system-r3-15）：このインスタンスにいる人の優勝の回数（PlayerData）の上位 3 人。</summary>
+        public string WinMastersText()
+        {
+            int count = VRCPlayerApi.GetPlayerCount();
+            if (count <= 0) return "";
+            VRCPlayerApi[] players = new VRCPlayerApi[count];
+            players = VRCPlayerApi.GetPlayers(players);
+            int[] best = new int[] { 0, 0, 0 };
+            string[] names = new string[] { "", "", "" };
+            for (int i = 0; i < players.Length; i++)
+            {
+                VRCPlayerApi p = players[i];
+                if (p == null || !p.IsValid()) continue;
+                int v;
+                if (!PlayerData.TryGetInt(p, WINS_KEY, out v) || v <= 0) continue;
+                string n = p.displayName;
+                for (int k = 0; k < 3; k++)
+                {
+                    if (v <= best[k]) continue;
+                    for (int j = 2; j > k; j--) { best[j] = best[j - 1]; names[j] = names[j - 1]; }
+                    best[k] = v;
+                    names[k] = n;
+                    break;
+                }
+            }
+            if (best[0] <= 0) return "";
+            string s = "<b>勝ち頭</b>\n";
+            for (int k = 0; k < 3; k++)
+                if (best[k] > 0) s += HudMath.Row2((k + 1).ToString() + "位", HudMath.DisplayName(names[k], HudMath.SHORT_NAME_MAX) + "  " + best[k].ToString() + "勝") + "\n";
+            return s;
         }
 
         /// <summary>STAGE_RESULT に入ったとき：このステージの予想を着順で採点（1 着 3 点・2〜3 着 1 点）して通算に足す。</summary>

@@ -634,16 +634,20 @@ namespace HorseRace.EditorTools
             var title = GenUtil.Text(wall.transform, "Title", new Vector3(0f, panelY + 1.55f * WS / 1.2f, cz - 0.05f), Quaternion.identity, titleText, 2.2f * WS / 1.2f,
                 UiStyle.SignFace, new Vector2(6f, 0.5f), TextStyle.Sign, true);
 
-            // kind 0 = 乗り物（0 馬 / 1 ラクダ）、kind 1 = 能力（0 砂塵 / 1 投げ縄 / 2 岩壁 / 3 鉄球）
+            // kind 0 = 乗り物（0 馬 / 1 ラクダ）、kind 1 = 能力（0 砂塵 / 1 投げ縄 / 2 岩壁 / 3 鉄球 / 5 火薬樽 / 6 蜃気楼）
+            // 火薬樽・蜃気楼（system-r3-10/11）は自前の絵が無いので Wanted_Original に名前を書く（HudMath.AbilityCardCaption）
             var cards = new (string tex, int kind, int value, string label)[]
             {
                 ("Wanted_Horse", 0, 0, "馬"), ("Wanted_Camel", 0, 1, "ラクダ"),
                 ("Wanted_Dust", 1, 0, "砂塵"), ("Wanted_Lasso", 1, 1, "投げ縄"), ("Wanted_Wall", 1, 2, "岩壁"), ("Wanted_Ball", 1, 3, "鉄球"),
+                ("Wanted_Original", 1, AbilityMath.ABILITY_BOMB, "火薬樽"), ("Wanted_Original", 1, AbilityMath.ABILITY_MIRAGE, "蜃気楼"),
             };
+            int abilityCards = cards.Length - 2;
+            float step = abilityCards > 4 ? 0.75f : 1.0f;
             for (int i = 0; i < cards.Length; i++)
             {
-                // 上段：乗り物 2 枚、下段：能力 4 枚
-                float x = i < 2 ? -1.0f + i * 2.0f : -1.5f + (i - 2) * 1.0f;
+                // 上段：乗り物 2 枚、下段：能力 6 枚（0.75m 間隔）
+                float x = i < 2 ? -1.0f + i * 2.0f : -(abilityCards - 1) * step * 0.5f + (i - 2) * step;
                 float y = i < 2 ? panelY + 0.15f : panelY - 0.85f;   // 板の真ん中の上下 2 段（紙の原点は下の辺）
                 var go = GenUtil.Child(wall.transform, "Card_" + cards[i].label, new Vector3(x, y, cz));
                 var col = go.AddComponent<BoxCollider>();
@@ -652,6 +656,10 @@ namespace HorseRace.EditorTools
                 var tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + cards[i].tex + ".png");
                 if (tex == null) GenUtil.Warn("手配書のカードが見つかりません: " + cards[i].tex);
                 var poster = Poster(go.transform, "WantedPosters_01", tex, "Poster");
+                string capText = cards[i].kind == 1 ? HudMath.AbilityCardCaption(cards[i].value) : "";
+                if (capText.Length > 0)
+                    GenUtil.Text(go.transform, "Caption", new Vector3(0f, 0.32f, -0.012f), Quaternion.identity, "<b>" + capText + "</b>", 0.6f, UiStyle.InkFace,
+                        new Vector2(0.4f, 0.12f), TextStyle.Ink, true);
                 var taken = Poster(go.transform, "WantedPosters_05", OriginalCard(), "Taken");
                 taken.SetActive(false);
                 var pc = GenUtil.AddU<PosterCard>(go);
@@ -669,8 +677,9 @@ namespace HorseRace.EditorTools
                 ctx.posterCards.Add(pc);
             }
             // 飾りの手配書（取れない）
-            Poster(wall.transform, "WantedPosters_01", OriginalCard(), "Decor_L").transform.localPosition = new Vector3(-2.05f, panelY - 0.6f, cz);
-            Poster(wall.transform, "WantedPosters_02", OriginalCard(), "Decor_R").transform.localPosition = new Vector3(2.05f, panelY - 0.1f, cz);
+            // 下段が 6 枚になったので、飾りは上段の外側（乗り物の札と重ならない）
+            Poster(wall.transform, "WantedPosters_01", OriginalCard(), "Decor_L").transform.localPosition = new Vector3(-2.05f, panelY + 0.15f, cz);
+            Poster(wall.transform, "WantedPosters_02", OriginalCard(), "Decor_R").transform.localPosition = new Vector3(2.05f, panelY + 0.15f, cz);
         }
 
         /// <summary>
@@ -925,6 +934,9 @@ namespace HorseRace.EditorTools
             }
             // 前回のレースの黒板（焚き火の西。焚き火の側から西を見て読む。文字は yaw の方向を見ている人に読める）
             ctx.rankBoards.Add(CourseBuilder.ChalkBoardAt(h, P(LobbyLayout.LAST_RACE_BOARD), -90f, "LastRaceBoard", true));
+            // あなたの戦績（system-r3-15）：掲示板の模型 ×0.6 の紙に、自分の優勝・表彰台・出走とステージの自己ベスト（RaceManager が PlayerData から書く）
+            ctx.recordText = NoticeSign(h, "RecordBoard", P(LobbyLayout.RECORD_BOARD), -90f, 0.6f,
+                HudMath.RecordPage(0, 0, 0, 0f, 0f, 0f), 1.0f, UiStyle.InkFace, TextStyle.Ink, Paper);
             // 掲示板 3 枚は焚き火の北に東西に並べて南（焚き火）を向ける。新聞売りは焚き火の東で西を向く
             ShowBuilder.BuildBoards(h, ctx, P(LobbyLayout.NOTICE_BOARDS), Vector3.back, P(LobbyLayout.TOWN_CRIER), -90f);
             // 薪の山（焚き火の南西）

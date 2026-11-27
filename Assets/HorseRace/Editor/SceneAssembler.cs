@@ -321,6 +321,7 @@ namespace HorseRace.EditorTools
             rm.practiceArea = ctx.practiceArea;
             rm.pickCards = ctx.pickCards.ToArray();
             rm.pickStatusText = ctx.pickStatus;
+            rm.recordText = ctx.recordText;   // system-r3-15
             // 観客の予想の結果（ui-r3-16）：新聞売りの声で鈴／鈍い音、予想の紙が跳ねる
             rm.crier = ctx.crier;
             if (ctx.crier != null) ctx.crier.pickPaper = ctx.pickStatus;

@@ -25,7 +25,8 @@ namespace HorseRace
         public const int THUD = 9;     // 岩壁・鉄球・カカシ：220ms 下がる低音
         public const int BREATH = 10;  // 馬の息（ループ）：1.2s ゆっくりふくらむノイズ
         public const int SPARKLE = 11; // 遺物：400ms 高い倍音のきらめき
-        public const int KIND_COUNT = 12;
+        public const int HOOF = 12;    // 蹄の音（system-r3-09）：45ms 140Hz の低いサイン＋短いノイズ
+        public const int KIND_COUNT = 13;
 
         public static string Name(int kind)
         {
@@ -41,6 +42,7 @@ namespace HorseRace
             if (kind == THUD) return "Thud";
             if (kind == BREATH) return "Breath";
             if (kind == SPARKLE) return "Sparkle";
+            if (kind == HOOF) return "Hoof";
             return "";
         }
 
@@ -59,6 +61,7 @@ namespace HorseRace
             if (kind == THUD) return 0.22f;
             if (kind == BREATH) return 1.2f;
             if (kind == SPARKLE) return 0.4f;
+            if (kind == HOOF) return 0.045f;
             return 0f;
         }
 
@@ -176,10 +179,53 @@ namespace HorseRace
                         v += Mathf.Sin(twoPi * f * t0) * Envelope(t0, len - k * 0.06f, 0.002f, 14f);
                     }
                 }
+                else if (kind == HOOF)
+                {
+                    // 地面を打つ低い音（140Hz から少し下がる）＋最初の 8ms だけの土のノイズ
+                    float f = 140f * (1f - 0.25f * Mathf.Clamp01(t / len));
+                    float burst = t < 0.008f ? Noise(i, 29) * (1f - t / 0.008f) : 0f;
+                    v = (Mathf.Sin(twoPi * f * t) + 0.6f * burst) * Envelope(t, len, 0.001f, 60f);
+                }
                 buf[i] = v;
             }
             Normalize(buf, PEAK);
             return buf;
+        }
+
+        // ---- 蹄のリズム（system-r3-09）----
+
+        /// <summary>
+        /// 歩様（MountMath.GAIT_WALK..GAIT_SPRINT）の 1 歩の周期（アニメの 1 周）の中の足音の位置（0..1）。
+        /// 常歩 4 拍・速歩 2 拍・駆歩 3 拍（0, 0.3, 0.45）・襲歩 4 拍。
+        /// </summary>
+        public static float[] HoofBeats(int gait)
+        {
+            if (gait <= 0) return new float[] { 0f, 0.25f, 0.5f, 0.75f };
+            if (gait == 1) return new float[] { 0f, 0.5f };
+            if (gait == 2) return new float[] { 0f, 0.3f, 0.45f };
+            return new float[] { 0f, 0.12f, 0.36f, 0.48f };
+        }
+
+        /// <summary>周期の位置が prev → now（0..1、1 周すると小さくなる）に進む間に beat を通ったか。</summary>
+        public static bool BeatCrossed(float prev, float now, float beat)
+        {
+            if (now >= prev) return beat > prev && beat <= now;
+            return beat > prev || beat <= now;   // 1 周した
+        }
+
+        /// <summary>拍 i の音の高さ（0.9..1.1）。</summary>
+        public static float HoofPitch(int beatIndex, int beats)
+        {
+            if (beats <= 1) return 1f;
+            return 0.9f + 0.2f * beatIndex / (beats - 1);
+        }
+
+        /// <summary>蹄の砂ぼこり（粒/秒）：常歩 0・速歩 4・駆歩 10・襲歩 22、砂の上 ×1.6、空中 0。</summary>
+        public static float HoofDustRate(int gait, bool onSand, bool air)
+        {
+            if (air || gait <= 0) return 0f;
+            float r = gait == 1 ? 4f : (gait == 2 ? 10f : 22f);
+            return onSand ? r * 1.6f : r;
         }
 
         /// <summary>山（|最大|）を peak にそろえる。全部 0 ならそのまま。</summary>

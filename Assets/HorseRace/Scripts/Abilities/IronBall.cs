@@ -7,8 +7,10 @@ namespace HorseRace
     /// 鉄球 1 個（1 つの AbilityCaster に 3 個）。全クライアントで同じ初速から同じように動かす（Rigidbody は使わない）。
     /// 水平の速度は 1m 進むごとに curveDegPerM 度だけ曲がる（照準のロール角から AbilityCaster が計算）。
     /// 地面（groundMask）で AbilityMath.BALL_BOUNCES 回はねて、その次に着地したら消える。maxLife 秒でも消える。
-    /// 発動者のクライアントだけ detect = true で OverlapSphere を見て、当たった相手を AbilityCaster.ReportBallHit で知らせる。
-    /// 他のクライアントも乗り物に触れたら消す（見た目を合わせるため、効果は送らない）。Start で親から外す。
+    /// 当たり（system-r3-03）：被害者が決める。どのクライアントも OverlapSphere を見るが、乗り物は「自分が乗っている乗り物」だけを調べ、
+    /// 触れたら自分の AbilityCaster.HitBallLocal（減速・はじき・全員に FxHitConfirm）。ほかの人の乗り物は描かれた位置が遅れているので素通り
+    /// （当たったかはその人の画面が決める）。練習のカカシは発動者（detect = true）だけが揺らす。蜃気楼の間の乗り物は素通り、身代わりに当たったら消す。
+    /// Start で親から外す。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class IronBall : UdonSharpBehaviour
@@ -33,6 +35,7 @@ namespace HorseRace
         private int bounces;
         private float life;
         private bool detect;
+        private int level = 1;
         private AbilityCaster owner;
         private bool started;
 
@@ -51,6 +54,13 @@ namespace HorseRace
 
         public void Launch(Vector3 origin, Vector3 velocity, float curveDegPerM, bool detectHits, AbilityCaster caster)
         {
+            Launch(origin, velocity, curveDegPerM, detectHits, caster, 1);
+        }
+
+        /// <summary>lv = 発動者の能力 Lv（よろけの秒数。FxBall の個数 = Lv から全員が同じ値を知る）。</summary>
+        public void Launch(Vector3 origin, Vector3 velocity, float curveDegPerM, bool detectHits, AbilityCaster caster, int lv)
+        {
+            level = lv;
             EnsureInit();
             pos = origin;
             vel = velocity;
@@ -118,13 +128,23 @@ namespace HorseRace
             for (int i = 0; i < cs.Length; i++)
             {
                 if (cs[i] == null) continue;
+                MirageDouble md = cs[i].GetComponentInParent<MirageDouble>();
+                if (md != null)
+                {
+                    if (md.caster == owner || !md.IsShown()) continue;
+                    md.Pop();
+                    if (hitSound != null) hitSound.Play();
+                    Stop();
+                    return;
+                }
                 MountController m = cs[i].GetComponentInParent<MountController>();
                 if (m != null)
                 {
                     if (m == owner.mount || m.riderPlayerId < 0) continue;
-                    if (detect) owner.ReportBallHit(m, vel);
-                    SpectatorDirector sd = owner.Spectator();
-                    if (sd != null) sd.NotifyHitSlot(owner.RaceSlotOf(m));
+                    if (!m.IsLocalRider()) continue;   // ほかの人の乗り物はその人の画面が決める
+                    if (m.IsMirage()) continue;        // 蜃気楼の間は素通り
+                    AbilityCaster tc = m.GetComponent<AbilityCaster>();
+                    if (tc != null) tc.HitBallLocal(vel, level, owner);
                     if (hitSound != null) hitSound.Play();
                     Stop();
                     return;

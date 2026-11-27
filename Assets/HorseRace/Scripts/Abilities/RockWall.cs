@@ -14,6 +14,8 @@ namespace HorseRace
     ///    隙間がひと続きで片側に残るよう AbilityMath.WallOffsetFor で寄せ、入らない壁は外側から外す。
     ///  - 乗り物の足元（mountMask の箱）には立てない。地面が狙った点より 3m 以上低い（橋の下・溝）所にも立てない。
     ///  - 発動者は最初の 2 秒、自分の壁に当たらない（IgnoresFor）。
+    /// 崩れる（system-r3-06）：乗り物が 1 枚に当たると、当たった本人のクライアントがその 1 枚を崩し（Crumble：隠して砂ぼこり）、
+    ///   AbilityCaster.FxCrumble で全員の画面でも崩す。1 枚で遅れるのは 1 人・約 10m まで。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class RockWall : UdonSharpBehaviour
@@ -35,6 +37,11 @@ namespace HorseRace
         public LayerMask mountMask = 0;
         public float groundProbe = 40f;
         public AudioSource riseSound;
+        [Tooltip("この壁を出す AbilityCaster（FxCrumble を全員に送る）。MountBuilder が入れる")]
+        public AbilityCaster caster;
+        [Tooltip("崩れたときの砂ぼこり（ワールド空間のパーティクル）")]
+        public ParticleSystem crumbleDust;
+        public AudioSource crumbleSound;
 
         /// <summary>この壁を出した乗り物（Show で入れる）。</summary>
         [HideInInspector] public MountController OwnerMount;
@@ -134,6 +141,35 @@ namespace HorseRace
             endTime = Time.time + seconds;
             active = true;
             if (riseSound != null) riseSound.Play();
+        }
+
+        /// <summary>c が今出ている壁の何枚目か（-1 = この壁ではない）。</summary>
+        public int SegmentOf(Collider c)
+        {
+            if (!active || c == null || segments == null) return -1;
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (segments[i] == null || !used[i]) continue;
+                if (c.transform == segments[i].transform || c.transform.IsChildOf(segments[i].transform)) return i;
+            }
+            return -1;
+        }
+
+        /// <summary>壁の 1 枚を崩す（隠して砂ぼこり）。何度呼んでもよい（全員に届く FxCrumble と、当たった本人の即時の呼び出し）。</summary>
+        public void Crumble(int seg)
+        {
+            EnsureInit();
+            if (segments == null || seg < 0 || seg >= segments.Length || segments[seg] == null) return;
+            if (!used[seg]) return;
+            used[seg] = false;
+            Vector3 p = segments[seg].transform.position + Vector3.up * (height * 0.5f);
+            segments[seg].SetActive(false);
+            if (crumbleDust != null)
+            {
+                crumbleDust.transform.position = p;
+                crumbleDust.Emit(40);
+            }
+            if (crumbleSound != null) crumbleSound.Play();
         }
 
         /// <summary>発動者の乗り物が出してから 2 秒の間、自分の壁の当たりを無視するか（MountController の正面の障害物の判定）。</summary>

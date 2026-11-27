@@ -219,6 +219,7 @@ namespace HorseRace
             if (kind == AbilityMath.ABILITY_LASSO) return "投げ縄に掛かった";
             if (kind == AbilityMath.ABILITY_DUST) return "砂塵で減速";
             if (kind == AbilityMath.ABILITY_BALL) return "鉄球を受けた";
+            if (kind == AbilityMath.ABILITY_BOMB) return "火薬樽で吹き飛んだ";
             if (kind == HIT_REVOLVER) return "撃たれた";
             return "被弾";
         }
@@ -328,6 +329,10 @@ namespace HorseRace
                 return "岩壁 " + AbilityMath.WallCount(level).ToString() + "枚・幅" + AbilityMath.WallWidth(level).ToString() + "m";
             if (ability == AbilityMath.ABILITY_BALL)
                 return "鉄球 " + AbilityMath.BallCount(level).ToString() + "個";
+            if (ability == AbilityMath.ABILITY_BOMB)
+                return "火薬樽 " + AbilityMath.BombCount(level).ToString() + "個・半径" + Mathf.RoundToInt(AbilityMath.BombRadius(level)).ToString() + "m";
+            if (ability == AbilityMath.ABILITY_MIRAGE)
+                return "蜃気楼 " + AbilityMath.MirageSeconds(level).ToString() + "秒・身代わり" + AbilityMath.MirageDecoys(level).ToString();
             return "";
         }
 
@@ -483,7 +488,64 @@ namespace HorseRace
                     + Mathf.RoundToInt(AbilityMath.WALL_SECONDS).ToString() + "秒）" + cd;
             if (ability == AbilityMath.ABILITY_BALL)
                 return "鉄球：転がる鉄球 " + AbilityMath.BALL_BOUNCES.ToString() + " 回はねる、当たると減速" + cd;
+            if (ability == AbilityMath.ABILITY_BOMB)
+                return "火薬樽：後ろに樽を置く。" + Mathf.RoundToInt(AbilityMath.BOMB_FUSE).ToString() + "秒か近づくと爆発、跳ね上げてよろけ" + cd;
+            if (ability == AbilityMath.ABILITY_MIRAGE)
+                return "蜃気楼：身代わりを走らせ、" + AbilityMath.MirageSeconds(1).ToString() + "秒狙われない（守りの能力）" + cd;
             return "？";
+        }
+
+        // ---- system-r3-04/05/10/11 ----
+        /// <summary>自前の絵が無い能力の手配書（Wanted_Original）の上に書く名前。絵のある能力は ""。</summary>
+        public static string AbilityCardCaption(int ability)
+        {
+            if (ability == AbilityMath.ABILITY_BOMB) return "火薬樽";
+            if (ability == AbilityMath.ABILITY_MIRAGE) return "蜃気楼";
+            return "";
+        }
+
+        /// <summary>能力の手配書の絵（Wanted_*.png の名前）。</summary>
+        public static string AbilityCardTexture(int ability)
+        {
+            if (ability == AbilityMath.ABILITY_DUST) return "Wanted_Dust";
+            if (ability == AbilityMath.ABILITY_LASSO) return "Wanted_Lasso";
+            if (ability == AbilityMath.ABILITY_WALL) return "Wanted_Wall";
+            if (ability == AbilityMath.ABILITY_BALL) return "Wanted_Ball";
+            return "Wanted_Original";
+        }
+
+        /// <summary>Lv3 で遺物を拾った（溢れ）：お守り袋の札と首の札の知らせ。</summary>
+        public static string SurgeNote() { return "溢れ：再装填"; }
+
+        /// <summary>投げ縄の相手がいない（照準の 10° 以内・届く距離に誰もいない）。</summary>
+        public static string LassoFizzleNote() { return "届かない"; }
+
+        // ---- system-r3-15：あなたの戦績 ----
+        /// <summary>自己ベスト（秒）。0 以下は「―」。</summary>
+        public static string BestCell(float seconds)
+        {
+            return seconds > 0f ? FormatClockTenths(seconds) : "―";
+        }
+
+        /// <summary>サルーンの掲示板「あなたの戦績」のページ。</summary>
+        public static string RecordPage(int races, int wins, int podiums, float best0, float best1, float best2)
+        {
+            string s = "<b>あなたの戦績</b>\n";
+            s += Row2("出走", races.ToString() + "回") + "\n";
+            s += Row2("優勝", wins.ToString() + "回") + "\n";
+            s += Row2("表彰台", podiums.ToString() + "回") + "\n";
+            s += "<size=80%><b>ステージの自己ベスト</b></size>\n";
+            s += Row2("荒野", BestCell(best0)) + "\n";
+            s += Row2("砂漠", BestCell(best1)) + "\n";
+            s += Row2("境目", BestCell(best2));
+            return s;
+        }
+
+        /// <summary>自己ベストを更新するか（0 以下はまだ記録なし）。</summary>
+        public static bool IsNewBest(float best, float seconds)
+        {
+            if (seconds <= 0f) return false;
+            return best <= 0f || seconds < best;
         }
 
         /// <summary>乗り物の説明。</summary>
@@ -517,7 +579,7 @@ namespace HorseRace
             return t;
         }
 
-        /// <summary>ui-r3-02：懐中時計の文字盤の 1 周の長さ。先頭がゴールしたら 60 秒の新しい 1 周、それまではステージの全体（330 秒）。</summary>
+        /// <summary>ui-r3-02：懐中時計の文字盤の 1 周の長さ。先頭がゴールしたら 60 秒の新しい 1 周、それまではステージの全体（300 秒、system-r3-14）。</summary>
         public static float DialTotal(bool lobby, bool leaderFinished)
         {
             if (lobby) return RaceMath.LOBBY_WAIT_SECONDS;

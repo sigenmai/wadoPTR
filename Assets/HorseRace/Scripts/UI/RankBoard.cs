@@ -69,6 +69,8 @@ namespace HorseRace
                 {
                     string masters = rm.PickMastersText();   // system-r2-15：観客の予想の通算（PlayerData）
                     if (masters.Length > 0) s += "\n" + masters;
+                    string winners = rm.WinMastersText();   // system-r3-15：優勝の回数（PlayerData）
+                    if (winners.Length > 0) s += "\n" + winners;
                 }
             }
             else if (st == RaceMath.STATE_COUNTDOWN)

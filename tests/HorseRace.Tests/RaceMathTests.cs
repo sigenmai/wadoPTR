@@ -5,7 +5,7 @@ namespace HorseRace.Tests
 {
     public class RaceMathTests
     {
-        [Test] public void HardLimit() { Assert.IsFalse(RaceMath.ShouldEndStage(1329.9, 1000, -1)); Assert.IsTrue(RaceMath.ShouldEndStage(1330, 1000, -1)); }
+        [Test] public void HardLimit() { Assert.IsFalse(RaceMath.ShouldEndStage(1299.9, 1000, -1)); Assert.IsTrue(RaceMath.ShouldEndStage(1300, 1000, -1)); }
         [Test] public void AfterFirst() { Assert.IsFalse(RaceMath.ShouldEndStage(1259, 1000, 1200)); Assert.IsTrue(RaceMath.ShouldEndStage(1260, 1000, 1200)); }
         [Test] public void LargeServerTime() => Assert.IsTrue(RaceMath.ShouldEndStage(5_000_330.0, 5_000_000.0, -1));
         [Test] public void Order() => CollectionAssert.AreEqual(new[]{3,2,1,0}, RaceMath.ComputeOrder(new[]{5,9,9,7}, new[]{10f,50f,20f,0f}, new[]{-1.0,-1.0,-1.0,300.0}, new[]{true,true,true,true}));
@@ -151,10 +151,10 @@ namespace HorseRace.Tests
             Assert.IsTrue(RaceMath.AllFinished(new[] { 100.0, 105.0 }, new[] { true, true }));
             Assert.IsFalse(RaceMath.AllFinished(new[] { -1.0, -1.0 }, new[] { false, false }));
         }
-        [Test] public void RemainingHardLimit() { Assert.AreEqual(330f, RaceMath.RemainingSeconds(1000, 1000, -1), 1e-3f); Assert.AreEqual(138f, RaceMath.RemainingSeconds(1192, 1000, -1), 1e-3f); }
-        [Test] public void RemainingAfterFirstFinish() { Assert.AreEqual(50f, RaceMath.RemainingSeconds(1210, 1000, 1200), 1e-3f); Assert.AreEqual(30f, RaceMath.RemainingSeconds(1300, 1000, 1290), 1e-3f); }
+        [Test] public void RemainingHardLimit() { Assert.AreEqual(300f, RaceMath.RemainingSeconds(1000, 1000, -1), 1e-3f); Assert.AreEqual(108f, RaceMath.RemainingSeconds(1192, 1000, -1), 1e-3f); }
+        [Test] public void RemainingAfterFirstFinish() { Assert.AreEqual(50f, RaceMath.RemainingSeconds(1210, 1000, 1200), 1e-3f); Assert.AreEqual(10f, RaceMath.RemainingSeconds(1290, 1000, 1280), 1e-3f); }
         [Test] public void RemainingClampsAtZero() { Assert.AreEqual(0f, RaceMath.RemainingSeconds(1400, 1000, -1)); Assert.AreEqual(0f, RaceMath.RemainingSeconds(1300, 1000, 1200)); }
-        [Test] public void RemainingLargeServerTime() => Assert.AreEqual(30f, RaceMath.RemainingSeconds(5_000_300.0, 5_000_000.0, -1), 1e-3f);
+        [Test] public void RemainingLargeServerTime() => Assert.AreEqual(30f, RaceMath.RemainingSeconds(5_000_270.0, 5_000_000.0, -1), 1e-3f);
         [Test] public void Clock() { Assert.AreEqual("3:12", RaceMath.FormatClock(192f)); Assert.AreEqual("0:05", RaceMath.FormatClock(4.2f)); Assert.AreEqual("5:30", RaceMath.FormatClock(330f)); Assert.AreEqual("0:00", RaceMath.FormatClock(-3f)); }
         [Test] public void Reset() { Assert.IsTrue(RaceMath.NeedsReset(-2.1f, 0, 0)); Assert.IsFalse(RaceMath.NeedsReset(0, 70, 2.9f)); Assert.IsTrue(RaceMath.NeedsReset(0, 70, 3f)); Assert.IsTrue(RaceMath.NeedsReset(0, 41, 3f)); Assert.IsFalse(RaceMath.NeedsReset(0, 39, 10f)); }
     }

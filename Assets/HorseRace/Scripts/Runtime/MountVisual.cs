@@ -9,6 +9,10 @@ namespace HorseRace
     /// Animator（全モデル共通の Mount.controller）に歩様 "Gait"、"Jump"/"Stagger" トリガー、"Stamp" を渡し、
     /// speed = 実速度 / アニメの基準速度（MountMath.AnimRefSpeed）。クロスフェード 0.2 秒はコントローラ側（MountAnimatorBuilder）。
     /// スタミナは息づかい音（低スタミナで荒く）と耳を伏せる動きで見せる。
+    /// 蹄（system-r3-09）：Animator の 1 周（normalizedTime % 1）の中の足音の位置（SfxMath.HoofBeats：常歩 4・速歩 2・駆歩 3・襲歩 4 拍）を
+    ///   通るたびに hooves で蹄の音（高さ 0.9〜1.1）。蹄の砂ぼこり（hoofDust）は歩様ごとに 0/4/10/22 粒/秒、砂の上 ×1.6、空中 0。
+    ///   ほかの人の乗り物も同期した歩様（syncGait）で鳴るので、後ろから迫る相手が聞こえる。自分が疾走中は拍ごとに手も軽く振るわせる（r3-16）。
+    /// 蜃気楼（system-r3-10）：SetFlickerHidden で体の Renderer を消す／戻す（AbilityCaster が 8 Hz で切り替える）。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class MountVisual : UdonSharpBehaviour
@@ -62,6 +66,22 @@ namespace HorseRace
         public float spentTagRange = 25f;
         /// <summary>MountController が毎フレーム入れる：ほかの人が乗っている乗り物（自分の画面では相手）。</summary>
         [HideInInspector] public bool remoteRider;
+
+        [Header("蹄（system-r3-09）")]
+        [Tooltip("蹄の音（SfxMath.HOOF、空間音 2〜35m）")]
+        public AudioSource hooves;
+        [Tooltip("蹄の砂ぼこり（ワールド空間・後ろ向きの円錐）")]
+        public ParticleSystem hoofDust;
+        [Tooltip("自分が乗っているときの手の振動（疾走の拍ごと、system-r3-16）")]
+        public MountInputVR hapticReins;
+        /// <summary>MountController が毎フレーム入れる：このクライアントの乗り手が乗っている。</summary>
+        [HideInInspector] public bool localRider;
+        [Tooltip("蜃気楼でちらつかせる体の Renderer（3 つのモデルすべて）")]
+        public Renderer[] flickerRenderers;
+        private float[] beats;
+        private int beatsGait = -1;
+        private float lastPhase = -1f;
+        private float lastDustRate = -1f;
         private bool lastSpent;
         private bool tagShown;
         private bool sweatOn;
@@ -174,12 +194,62 @@ namespace HorseRace
                 activeAnim.speed = animSpeed;
             }
             lastFlags = flags;
+            UpdateHooves(gait, flags);
 
             bool spent = MountMath.IsSpent(gaitWithFlags);
             if (spent && !lastSpent && exhaustPuff != null) exhaustPuff.Emit(36);   // ばてた瞬間：みんなに見える砂ぼこり
             lastSpent = spent;
             UpdateSpentTag(spent);
             UpdateStaminaFeedback(gait, stamina);
+        }
+
+        /// <summary>
+        /// 蹄の音と砂ぼこり（system-r3-09）。gait = アニメの歩様（ANIM_IDLE..ANIM_GALLOP）、flags = AIR/STUN/SAND。
+        /// 周期の位置は Animator の今のステートの normalizedTime % 1（再生速度は速さに合わせてある）。
+        /// </summary>
+        private void UpdateHooves(int gait, int flags)
+        {
+            bool air = (flags & MountController.GAIT_FLAG_AIR) != 0;
+            bool sand = (flags & MountController.GAIT_FLAG_SAND) != 0;
+            int g = gait - 1;   // MountMath.GAIT_*（-1 = 止まっている）
+            if (hoofDust != null)
+            {
+                float rate = g < 0 ? 0f : SfxMath.HoofDustRate(g, sand, air);
+                if (rate != lastDustRate)
+                {
+                    lastDustRate = rate;
+                    ParticleSystem.EmissionModule em = hoofDust.emission;
+                    em.rateOverTime = rate;
+                    if (rate > 0f && !hoofDust.isPlaying) hoofDust.Play();
+                }
+            }
+            if (g < 0 || air || activeAnim == null) { lastPhase = -1f; return; }
+            if (g != beatsGait) { beats = SfxMath.HoofBeats(g); beatsGait = g; lastPhase = -1f; }
+            float phase = activeAnim.GetCurrentAnimatorStateInfo(0).normalizedTime % 1f;
+            if (phase < 0f) phase += 1f;
+            if (lastPhase >= 0f && beats != null)
+            {
+                for (int i = 0; i < beats.Length; i++)
+                {
+                    if (!SfxMath.BeatCrossed(lastPhase, phase, beats[i])) continue;
+                    if (hooves != null && hooves.clip != null && hooves.gameObject.activeInHierarchy)
+                    {
+                        hooves.pitch = SfxMath.HoofPitch(i, beats.Length);
+                        hooves.PlayOneShot(hooves.clip);
+                    }
+                    if (localRider && g == MountMath.GAIT_SPRINT && hapticReins != null)
+                        hapticReins.PulseHands(MountInputVR.PULSE_HOOF_S, MountInputVR.PULSE_HOOF_AMP);
+                }
+            }
+            lastPhase = phase;
+        }
+
+        /// <summary>蜃気楼のちらつき（system-r3-10）：hide = true で体の Renderer を消す（シェーダーは変えない）。</summary>
+        public void SetFlickerHidden(bool hide)
+        {
+            if (flickerRenderers == null) return;
+            for (int i = 0; i < flickerRenderers.Length; i++)
+                if (flickerRenderers[i] != null) flickerRenderers[i].enabled = !hide;
         }
 
         /// <summary>金の火花（きれいな着地・カーブの立ち上がり：system-r2-14）。</summary>

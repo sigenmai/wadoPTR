@@ -355,6 +355,216 @@ namespace HorseRace
             return dist / seconds;
         }
 
+        // =====================================================================
+        // round 3（system-r3-01/02/06/07/08）
+        // =====================================================================
+
+        // ---- r3-01：跳ねても速さの決まりを抜けられない ----
+        /// <summary>跳ぶたびに払う持久力。</summary>
+        public const float JUMP_STAMINA = 8f;
+        /// <summary>着地してから次に跳べるまでの秒数。</summary>
+        public const float JUMP_COOLDOWN = 0.9f;
+        /// <summary>空中でも疾走を押していれば持久力を減らす（回復はしない）。</summary>
+        public const bool AIR_DRAIN_WHEN_SPRINT = true;
+        /// <summary>空中のカーブの上限は地上より少しゆるい（+2 m/s）。</summary>
+        public const float AIR_CORNER_SLACK = 2f;
+
+        /// <summary>跳べるか：着地から JUMP_COOLDOWN 秒たち、持久力が JUMP_STAMINA 以上。</summary>
+        public static bool CanJump(float secondsSinceLand, float stamina)
+        {
+            return secondsSinceLand >= JUMP_COOLDOWN && stamina >= JUMP_STAMINA;
+        }
+
+        /// <summary>空中の速さ：入ったときの速さを保つが、カーブの上限 + AIR_CORNER_SLACK は超えない。</summary>
+        public static float AirSpeed(float speed, float yawRateDeg)
+        {
+            return Mathf.Min(speed, CornerSpeedCap(yawRateDeg) + AIR_CORNER_SLACK);
+        }
+
+        /// <summary>着地の瞬間：地上で出せる速さ（groundTarget = 目標 × 倍率、カーブの上限込み）より速ければそこまで落とす。</summary>
+        public static float LandingSpeed(float speed, float groundTarget)
+        {
+            return Mathf.Min(speed, Mathf.Max(groundTarget, 0f));
+        }
+
+        /// <summary>空中の持久力の回復の倍率（空中は回復しない）。</summary>
+        public static float AirRefillMul(bool grounded, float refillMul)
+        {
+            return grounded ? refillMul : 0f;
+        }
+
+        /// <summary>
+        /// 疾走を押したまま、hopEvery 秒ごとに跳ぼうとして distance m を走る（hop = false なら地上だけ）。MountController.SimulateOwner と同じ決まり：
+        /// 跳ぶと JUMP_STAMINA、着地から JUMP_COOLDOWN は跳べない、空中は速さを保つが回復しない、着地で地上の目標まで落とす。平均の速さ（m/s）。
+        /// </summary>
+        public static float HopRunAverage(int mount, bool onSand, float distance, float hopEvery, bool hop, float jumpSpeed, float gravity)
+        {
+            const float dt = 0.01f;
+            float stamina = STAMINA_MAX;
+            bool exhausted = false;
+            float speed = TargetSpeed(mount, GAIT_SPRINT, 0f, false, onSand);
+            float dist = 0f, t = 0f, nextHop = 0f, lastLand = -10f;
+            bool grounded = true;
+            float y = 0f, vy = 0f;
+            int guard = 0;
+            while (dist < distance && guard++ < 1000000)
+            {
+                float target = TargetSpeed(mount, GAIT_SPRINT, 0f, exhausted, onSand);
+                if (grounded && hop && t >= nextHop && CanJump(t - lastLand, stamina))
+                {
+                    stamina -= JUMP_STAMINA;
+                    grounded = false;
+                    vy = jumpSpeed;
+                    nextHop = t + hopEvery;
+                }
+                bool sprinting = !exhausted && speed > 0.5f;
+                stamina = StepStamina(mount, stamina, sprinting, exhausted, GAIT_SPRINT, dt, AirRefillMul(grounded, 1f));
+                exhausted = IsExhausted(stamina, exhausted);
+                if (grounded) speed = Approach(speed, target, dt);
+                else
+                {
+                    vy -= gravity * dt;
+                    y += vy * dt;
+                    if (vy <= 0f && y <= 0f)
+                    {
+                        y = 0f;
+                        vy = 0f;
+                        grounded = true;
+                        lastLand = t;
+                        speed = LandingSpeed(speed, target);
+                    }
+                }
+                dist += speed * dt;
+                t += dt;
+            }
+            return t > 0f ? dist / t : 0f;
+        }
+
+        // ---- r3-02：跳んだ弧そのものはきれいな着地の高さに数えない ----
+        /// <summary>きれいな着地に要る高さ（m）。踏み切った所より 2m 以上下（本物の段・崖）。</summary>
+        public const float CLEAN_LANDING_MIN_M = 2f;
+
+        /// <summary>きれいな着地の高さ：跳んだなら踏み切りの高さ − 着地点、崖から落ちたなら落ち始め（頂点）− 着地点。</summary>
+        public static float BoostHeight(bool jumpedThisAir, float takeoffY, float fallStartY, float groundY)
+        {
+            return jumpedThisAir ? takeoffY - groundY : fallStartY - groundY;
+        }
+
+        /// <summary>きれいな着地の加速を出すか（高さ hBoost が 2〜10m、着地の 0.25 秒前までに疾走）。</summary>
+        public static bool GrantsCleanLanding(float hBoost, float secondsSinceSprintPress)
+        {
+            return hBoost >= CLEAN_LANDING_MIN_M && CleanLanding(hBoost, secondsSinceSprintPress);
+        }
+
+        /// <summary>平らな坂（slopeDeg、下りが正）を speed で走りながら跳んだときの、踏み切りから着地点までの落差（m）。</summary>
+        public static float HopDropOnSlope(float speed, float downSlopeDeg, float jumpSpeed, float gravity)
+        {
+            float k = Mathf.Tan(downSlopeDeg * Mathf.Deg2Rad) * speed;   // 地面が 1 秒に下がる量
+            float tLand = 2f * (jumpSpeed + k) / gravity;                 // jumpSpeed·t − g t²/2 = −k t
+            return k * tLand;
+        }
+
+        // ---- r3-06：正面から壁に当たっても止まらない ----
+        /// <summary>
+        /// 正面から当たったときに残す速さ。レビューの案は WallScrapeFactor(1) = 0.25 だったが、18 m/s で 16.6m 遅れ「12m 以下」を満たさないので 0.4
+        /// （18 → 7.2 m/s、ACCEL で戻るまで 10.6m）。
+        /// </summary>
+        public const float WALL_HEAD_ON_KEEP = 0.4f;
+        /// <summary>壁に当たった後、この秒数は当たっても削らない。</summary>
+        public const float WALL_GUARD_SECONDS = 1f;
+        /// <summary>はじかれて空いている側へ回す最大の角度（度）と、回す速さ（度/秒、視点がいきなり回らない）。</summary>
+        public const float WALL_DEFLECT_DEG = 35f;
+        public const float WALL_DEFLECT_RATE = 90f;
+        /// <summary>空いている側を探すレイの角度（±度）と、はじく速さ（m/s）。</summary>
+        public const float WALL_PROBE_DEG = 60f;
+        public const float WALL_KNOCK = 2f;
+        /// <summary>段差で滑れなかったとき（TrySlide の失敗）に残す速さ。</summary>
+        public const float STEP_BLOCK_KEEP = 0.4f;
+
+        /// <summary>速さ speed で正面から当たって WALL_HEAD_ON_KEEP まで落ち、ACCEL で戻るまでに遅れる距離（m）。</summary>
+        public static float WallHeadOnLossMeters(float speed)
+        {
+            float dv = speed * (1f - WALL_HEAD_ON_KEEP);
+            return dv * dv / (2f * ACCEL);
+        }
+
+        /// <summary>空いている側（左右のレイの届いた距離）：右が広ければ +1、左なら −1。</summary>
+        public static float DeflectSide(float freeLeft, float freeRight)
+        {
+            return freeRight >= freeLeft ? 1f : -1f;
+        }
+
+        // ---- r3-07：キーボードは「この速さで曲がれるいっぱい」まで ----
+        /// <summary>キーボードのハンドルを入れる速さ・戻す速さ（/秒）。</summary>
+        public const float KB_STEER_IN = 4f;
+        public const float KB_STEER_OUT = 8f;
+        /// <summary>上限ぴったりで曲がると丸めで少し落ちるので 2% 手前。</summary>
+        public const float KB_STEER_MARGIN = 0.98f;
+
+        /// <summary>キーボードのハンドル（-1..1）を input へ近づける（入れるとき 4/秒、0 へ戻すとき 8/秒）。</summary>
+        public static float SlewSteer(float current, float input, float dt)
+        {
+            bool releasing = Mathf.Abs(input) < Mathf.Abs(current) || input * current < 0f;
+            float rate = releasing ? KB_STEER_OUT : KB_STEER_IN;
+            return Mathf.MoveTowards(current, input, rate * dt);
+        }
+
+        /// <summary>
+        /// キーボードのハンドルの上限：曲がる速さが CornerSpeedCap ≥ target を保てるいっぱい（0..1）。
+        /// steerMax = (LAT_ACCEL_MAX / max(target, 1) × Rad2Deg) / TurnRateDeg(mount, speed)。ブレーキ（S）を押している間は呼ばない（1）。
+        /// </summary>
+        public static float KeyboardSteerLimit(int mount, float speed, float target)
+        {
+            float rate = TurnRateDeg(mount, speed);
+            if (rate <= 0.001f) return 1f;
+            float maxDeg = LAT_ACCEL_MAX / Mathf.Max(target, 1f) * Mathf.Rad2Deg * KB_STEER_MARGIN;
+            return Mathf.Clamp01(maxDeg / rate);
+        }
+
+        // ---- r3-08：VR の手綱（リボルバーの手は数えない）----
+        public const int REIN_BOTH = 0;
+        /// <summary>右手でリボルバーを持っている：左手だけで手綱。</summary>
+        public const int REIN_LEFT_ONLY = 1;
+        /// <summary>左手でリボルバーを持っている：右手だけで手綱。</summary>
+        public const int REIN_RIGHT_ONLY = 2;
+        public const float REIN_DIFF_DEADZONE = 0.1f;
+        public const float REIN_DIFF_RANGE = 0.15f;
+        public const float REIN_LATERAL_DEADZONE = 0.06f;
+        public const float REIN_LATERAL_RANGE = 0.15f;
+        /// <summary>片手のときのブレーキ（引き量 0..1）。</summary>
+        public const float REIN_ONE_HAND_BRAKE = 0.7f;
+        /// <summary>手綱の休める位置をゆっくり今の手に寄せる速さ（/秒）。</summary>
+        public const float REIN_RECENTER_RATE = 0.15f;
+
+        /// <summary>
+        /// 手綱のハンドル（-1..1、右が正）。両手：pullL / pullR（m、手前に引いた量）の差、不感帯 0.1m・幅 0.15m。
+        /// 片手：その手の横のずれ lateral（m、右が正）、不感帯 0.06m・幅 0.15m。
+        /// </summary>
+        public static float ReinSteer(float pullL, float pullR, int oneHandMode, float lateral)
+        {
+            float diff, dead, range;
+            if (oneHandMode == REIN_BOTH) { diff = pullR - pullL; dead = REIN_DIFF_DEADZONE; range = REIN_DIFF_RANGE; }
+            else { diff = lateral; dead = REIN_LATERAL_DEADZONE; range = REIN_LATERAL_RANGE; }
+            float mag = Mathf.Abs(diff) - dead;
+            if (mag <= 0f) return 0f;
+            float s = Mathf.Clamp01(mag / range);
+            return diff > 0f ? s : -s;
+        }
+
+        /// <summary>手綱のブレーキ。両手：両方 threshold 超え。片手：空いている手の引き（0..1）が 0.7 超え。</summary>
+        public static bool ReinBrake(float pullLNorm, float pullRNorm, int oneHandMode, float threshold)
+        {
+            if (oneHandMode == REIN_LEFT_ONLY) return pullLNorm > REIN_ONE_HAND_BRAKE;
+            if (oneHandMode == REIN_RIGHT_ONLY) return pullRNorm > REIN_ONE_HAND_BRAKE;
+            return pullLNorm > threshold && pullRNorm > threshold;
+        }
+
+        /// <summary>ゆっくり休める位置を直してよいか（ハンドルほぼ 0・ブレーキなし・1 秒振っていない）。</summary>
+        public static bool ReinMayRecenter(float steer, bool brake, float secondsSinceSwing)
+        {
+            return Mathf.Abs(steer) < 0.1f && !brake && secondsSinceSwing >= 1f;
+        }
+
         public static float SmoothAngle(float current, float target, float dt)
         {
             float k = 1f - Mathf.Exp(-dt / 0.25f);

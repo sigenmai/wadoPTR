@@ -21,6 +21,11 @@ namespace HorseRace
         public bool isGoal;
         /// <summary>次の CP。ゴールは null。</summary>
         public Checkpoint next;
+        /// <summary>
+        /// system-r3-13（レビューでは pathToNext）：前の CP（最初の CP はスタート）からこの CP までのコースの中心の折れ線（約 10m ごと、ワールド座標）。
+        /// MountController が「この CP までの残りの道のり」（RaceMath.RemainingAlong）で順位を決める。ビルドで自動設定。
+        /// </summary>
+        public Vector3[] pathIn;
         [Tooltip("首の札の合図用（ビルドで自動設定）")]
         public RaceManager raceManager;
         [Tooltip("練習場の往復タイムの門（stageIndex = -1）のとき：計測する PracticeLap")]

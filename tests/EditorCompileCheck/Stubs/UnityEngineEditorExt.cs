@@ -295,6 +295,8 @@ namespace UnityEngine
     {
         public bool playOnAwake { get; set; }
         public float spatialBlend { get; set; }
+        public float minDistance { get; set; }
+        public float maxDistance { get; set; }
     }
 
     public enum AnimatorCullingMode { AlwaysAnimate = 0, CullUpdateTransforms = 1, CullCompletely = 2 }
@@ -337,12 +339,6 @@ namespace UnityEngine
 
     public partial class ParticleSystem
     {
-        public struct MinMaxCurve
-        {
-            public MinMaxCurve(float constant) { }
-            public static implicit operator MinMaxCurve(float constant) => new MinMaxCurve(constant);
-        }
-
         public struct MinMaxGradient
         {
             public MinMaxGradient(Color color) { mode = ParticleSystemGradientMode.Color; }
@@ -362,12 +358,6 @@ namespace UnityEngine
             public MinMaxGradient startColor { get; set; }
             public int maxParticles { get; set; }
             public ParticleSystemSimulationSpace simulationSpace { get; set; }
-        }
-
-        public struct EmissionModule
-        {
-            public bool enabled { get; set; }
-            public MinMaxCurve rateOverTime { get; set; }
         }
 
         public struct ShapeModule
@@ -399,7 +389,6 @@ namespace UnityEngine
         public VelocityOverLifetimeModule velocityOverLifetime => default(VelocityOverLifetimeModule);
         public SizeOverLifetimeModule sizeOverLifetime => default(SizeOverLifetimeModule);
         public MainModule main => default(MainModule);
-        public EmissionModule emission => default(EmissionModule);
         public ShapeModule shape => default(ShapeModule);
     }
 
@@ -448,7 +437,6 @@ namespace UnityEngine
     public static partial class Mathf
     {
         public static float Pow(float f, float p) => (float)Math.Pow(f, p);
-        public static float Tan(float f) => (float)Math.Tan(f);
     }
 }
 

@@ -97,6 +97,8 @@ namespace HorseRace.EditorTools
         /// <summary>予想の札（system-r2-15、電報の掲示板の下、value = スロット）と札の上の紙の文字。</summary>
         public readonly List<PosterCard> pickCards = new List<PosterCard>();
         public TMPro.TextMeshPro pickStatus;
+        /// <summary>サルーンの掲示板「あなたの戦績」（system-r3-15）。</summary>
+        public TMPro.TextMeshPro recordText;
         public TownCrier crier;
         public Starter starter;
         public Podium podium;

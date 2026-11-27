@@ -7,6 +7,7 @@ namespace UnityEngine
         public static float Clamp(float v, float min, float max) => v < min ? min : (v > max ? max : v);
         public static int Clamp(int v, int min, int max) => v < min ? min : (v > max ? max : v);
         public static float Clamp01(float v) => Clamp(v, 0f, 1f);
+        public static float MoveTowards(float current, float target, float maxDelta) => Math.Abs(target - current) <= maxDelta ? target : current + Math.Sign(target - current) * maxDelta;
         public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
         public static float Exp(float p) => (float)Math.Exp(p);
         public static float Min(float a, float b) => a < b ? a : b;

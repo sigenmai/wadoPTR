@@ -1,9 +1,11 @@
+using UnityEngine;
+
 namespace HorseRace
 {
     /// <summary>Pure race rules: ranking, points, stage end, late join, reset. Static only (UdonSharp-safe).</summary>
     public class RaceMath : UdonSharp.UdonSharpBehaviour
     {
-        public const float STAGE_HARD_LIMIT = 330f;
+        public const float STAGE_HARD_LIMIT = 300f;   // system-r3-14：ステージ約 200〜215 秒、いちばん遅いラクダの約 1.4 倍
         public const float AFTER_FIRST_FINISH = 60f;
 
         public const int STATE_LOBBY = 0;
@@ -379,6 +381,40 @@ namespace HorseRace
         public static bool MissedCheckpoint(int lastCp, int cpIndex)
         {
             return cpIndex > lastCp + 1 + MAX_CP_SKIP;
+        }
+    
+        // ---- 道のりで順位を決める（system-r3-13）----
+        /// <summary>
+        /// コースの中心の折れ線 points（前の CP → 次の CP、約 10m ごと）で、pos を最も近い線分へ投影した点から終点までの道のりの長さ（m、水平）。
+        /// 点が 2 つ未満なら終点（または pos）までの直線距離。
+        /// </summary>
+        public static float RemainingAlong(Vector3[] points, Vector3 pos)
+        {
+            if (points == null || points.Length == 0) return 0f;
+            if (points.Length == 1) return FlatDist(pos, points[0]);
+            int best = 0;
+            float bestT = 0f;
+            float bestD = 1e30f;
+            for (int i = 0; i + 1 < points.Length; i++)
+            {
+                Vector3 a = points[i], b = points[i + 1];
+                float abx = b.x - a.x, abz = b.z - a.z;
+                float len2 = abx * abx + abz * abz;
+                float t = 0f;
+                if (len2 > 0.0001f) t = Mathf.Clamp01(((pos.x - a.x) * abx + (pos.z - a.z) * abz) / len2);
+                float dx = pos.x - (a.x + abx * t), dz = pos.z - (a.z + abz * t);
+                float d = dx * dx + dz * dz;
+                if (d < bestD) { bestD = d; best = i; bestT = t; }
+            }
+            float rest = FlatDist(points[best], points[best + 1]) * (1f - bestT);
+            for (int i = best + 1; i + 1 < points.Length; i++) rest += FlatDist(points[i], points[i + 1]);
+            return rest;
+        }
+
+        static float FlatDist(Vector3 a, Vector3 b)
+        {
+            float dx = a.x - b.x, dz = a.z - b.z;
+            return Mathf.Sqrt(dx * dx + dz * dz);
         }
     }
 }

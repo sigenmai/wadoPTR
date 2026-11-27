@@ -64,6 +64,8 @@ namespace HorseRace.EditorTools
         public static readonly Vector3 NOTICE_BOARDS = new Vector3(-25f, 0f, 80f);     // 掲示板 3 枚（東西に 6m ずつ、南＝焚き火を向く）
         public static readonly Vector3 LAST_RACE_BOARD = new Vector3(-33.5f, 0f, 72.5f); // 前回レースの黒板（焚き火から西を見て読む）
         public static readonly Vector3 TOWN_CRIER = new Vector3(-17.5f, 0f, 71.5f);    // 新聞売り（西＝焚き火を向く）
+        /// <summary>「あなたの戦績」の掲示板（system-r3-15、掲示板 ×0.6）：前回レースの黒板の 6m 南、同じく焚き火から西を見て読む。</summary>
+        public static readonly Vector3 RECORD_BOARD = new Vector3(-33.5f, 0f, 66.5f);
         public static readonly Vector3 SPARE_POOL = new Vector3(-32.5f, 0f, 125f);     // 予備の遺物 ×4（北へ 4m ずつ、普段は出ていない）
         /// <summary>厩舎（背景専用）：町の奥の柵（z 140）の北、見えない壁の向こう。14m × 6m、正面は南。</summary>
         public static readonly Vector3 STABLE = new Vector3(-29f, 0f, 148.5f);
@@ -128,6 +130,7 @@ namespace HorseRace.EditorTools
             Add("Campfire+Benches", HANGOUT_FIRE, 4f);
             for (int i = -1; i <= 1; i++) Add("NoticeBoard_" + (i + 1), NOTICE_BOARDS + new Vector3(i * 6f, 0f, 0f), 2.3f);
             Add("LastRaceBoard", LAST_RACE_BOARD, 1.5f);
+            Add("RecordBoard", RECORD_BOARD, 1.4f);   // system-r3-15
             Add("TownCrier", TOWN_CRIER, 0.6f);
             for (int i = 0; i < 4; i++) Add("SpareRelic_" + i, SPARE_POOL + new Vector3(0f, 0f, -6f + i * 4f), 0.8f);
             for (int i = 0; i < 2; i++)
