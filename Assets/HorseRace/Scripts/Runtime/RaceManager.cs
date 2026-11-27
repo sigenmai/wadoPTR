@@ -88,6 +88,8 @@ namespace HorseRace
         public UdonSharpBehaviour[] stageResetTargets;
         [Tooltip("同じタイミングで \"Refill\" を送る（リボルバー）")]
         public UdonSharpBehaviour[] refillTargets;
+        [Tooltip("任意（Task 10）。中継カメラ。AbilityCaster / RevolverHolder が命中の場面を知らせる先（乗り物ごとの設定がなければこれ）")]
+        public SpectatorDirector spectator;
 
         [Header("Lobby / UI")]
         public EntryLedger[] ledgers;

@@ -408,7 +408,8 @@ namespace HorseRace
 
             VRCPlayerApi local = Networking.LocalPlayer;
             if (local != null && IsLocalHeld()) local.PlayHapticEventInHand(pickup.currentHand, 0.12f, 1f, 200f);
-            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxShot), origin, end, ammo);
+            int hitSlot = (hit && caster.foundMount != null) ? caster.RaceSlotOf(caster.foundMount) : -1;
+            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxShot), origin, end, ammo, hitSlot);
         }
 
         // =====================================================================
@@ -416,7 +417,7 @@ namespace HorseRace
         // =====================================================================
 
         [NetworkCallable(10)]
-        public void FxShot(Vector3 origin, Vector3 end, int ammoLeft)
+        public void FxShot(Vector3 origin, Vector3 end, int ammoLeft, int hitSlot)
         {
             EnsureInit();
             ammo = Mathf.Clamp(ammoLeft, 0, RevolverMath.AMMO_PER_STAGE);
@@ -433,8 +434,12 @@ namespace HorseRace
             if (muzzleFlash != null) muzzleFlash.Play();
             if (smoke != null) smoke.Play();
             if (gunshot != null) gunshot.Play();
-            // 中継カメラ（Task 10）：着弾点のすぐ近くに乗り物がいれば命中の場面とみなす（ローカルのみ）
-            if (caster != null && caster.spectator != null) caster.spectator.NotifyHitNear(end, caster.mount);
+            // 中継カメラ（Task 10）：撃った側が判定した命中相手（レース用の乗り物のスロット、外れは -1）。見た目だけ
+            if (hitSlot >= 0 && caster != null)
+            {
+                SpectatorDirector sd = caster.Spectator();
+                if (sd != null) sd.NotifyHitSlot(hitSlot);
+            }
             if (tracer != null)
             {
                 tracer.SetPosition(0, origin);

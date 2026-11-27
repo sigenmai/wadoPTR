@@ -55,7 +55,7 @@ namespace HorseRace
         public GameObject haze;
         public AudioSource castSound;
         public AudioSource relicSound;
-        [Tooltip("任意（Task 10）。命中の場面を中継カメラに知らせる（全員向けの見た目イベントからローカルに呼ぶだけ）")]
+        [Tooltip("任意（Task 10）。未設定なら RaceManager.spectator を使う。命中の場面を中継カメラに知らせる（全員向けの見た目イベントからローカルに呼ぶだけ）")]
         public SpectatorDirector spectator;
 
         [Header("判定")]
@@ -285,7 +285,7 @@ namespace HorseRace
                 }
                 else if (foundDummy != null) foundDummy.Wobble();
             }
-            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxLasso), foundPoint, hit);
+            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxLasso), foundPoint, hit, hit ? RaceSlotOf(foundMount) : -1);
         }
 
         private void CastWall()
@@ -359,6 +359,22 @@ namespace HorseRace
 
         // ---- 見た目オブジェクトから（発動者のクライアントだけ）----
 
+        /// <summary>中継カメラ（Task 10）：この乗り物専用の設定、なければ RaceManager の共通の設定。</summary>
+        public SpectatorDirector Spectator()
+        {
+            if (spectator != null) return spectator;
+            return raceManager != null ? raceManager.spectator : null;
+        }
+
+        /// <summary>m がレース用の乗り物ならそのスロット番号、そうでなければ（練習用・カカシ・null）-1。見た目イベントの引数用。</summary>
+        public int RaceSlotOf(MountController m)
+        {
+            if (m == null || raceManager == null || raceManager.mounts == null) return -1;
+            int s = m.slotIndex;
+            if (s < 0 || s >= raceManager.mounts.Length || raceManager.mounts[s] != m) return -1;
+            return s;
+        }
+
         public void ReportDustHit(MountController m)
         {
             if (m == null) return;
@@ -385,11 +401,12 @@ namespace HorseRace
         }
 
         [NetworkCallable(10)]
-        public void FxLasso(Vector3 end, bool hit)
+        public void FxLasso(Vector3 end, bool hit, int hitSlot)
         {
             EnsureInit();
             if (lasso != null) lasso.Show(mount, end, hit, hit ? AbilityMath.LASSO_SELF_SECONDS : 0f);
-            if (hit && spectator != null) spectator.NotifyHitNear(end, mount);
+            SpectatorDirector sd = Spectator();
+            if (hitSlot >= 0 && sd != null) sd.NotifyHitSlot(hitSlot);
         }
 
         [NetworkCallable(10)]

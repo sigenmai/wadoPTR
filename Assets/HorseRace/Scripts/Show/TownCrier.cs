@@ -90,7 +90,7 @@ namespace HorseRace
                 }
             }
             if (lines == 0) s += "（出走者なし）\n";
-            s += "― 宿場町 新聞売り";
+            s += "― 町の新聞売り";
             return s;
         }
     }

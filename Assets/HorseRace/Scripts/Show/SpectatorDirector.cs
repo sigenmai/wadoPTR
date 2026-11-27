@@ -14,7 +14,11 @@ namespace HorseRace
     ///   ゴール済みの馬は中継の対象から外す（全員ゴールしたらゴール済みも含める）。
     /// - 追従は後方斜め上からなめらかに。切り替え時だけ 0.3 秒で素早くブレンドする。
     /// - 掲示板下の木札（DirectorTag）で「○位を追う」「おまかせ」をローカルに切り替える（押した本人の画面だけ）。
-    /// - 「命中」は AbilityCaster / IronBall / RevolverHolder の全員向けの見た目イベントから NotifyHitMount / NotifyHitNear で受け取る（ローカルのみ）。
+    /// - ゴールした馬はゴール後 (FINISH_PEN_DELAY - 0.5) 秒だけ映し続けてから切り替える（囲いへ移る瞬間は映さない）。
+    /// - 「○位を追う」は順位の入れ替わりに 1.5 秒の猶予を置いてから切り替える。その順位の人がいなければ「おまかせ」と同じ。
+    /// - 「命中」は撃った側が判定した相手のスロットを全員向けの見た目イベント（FxShot / FxLasso）の引数で受け取り、
+    ///   鉄球は全クライアントで動く当たり判定から、NotifyHitSlot でローカルに知らされる。
+    /// - RenderTexture（Target Texture）が無いカメラは描画しない（観戦者の画面に直接映らないように）。
     /// 同期しない。プレイヤーのカメラ（視点）には一切触れない。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -22,7 +26,9 @@ namespace HorseRace
     {
         public const float DECIDE_INTERVAL = 0.5f;
         public const float CUT_BLEND_SECONDS = 0.3f;
-        public const float HIT_NEAR_RADIUS = 2f;
+        public const float OVERRIDE_HYSTERESIS = 1.5f;
+        /// <summary>ゴールした馬を映し続ける秒数（囲いへ移されるより前に切る）。</summary>
+        public const float FINISH_HOLD_SECONDS = RaceManager.FINISH_PEN_DELAY - 0.5f;
         public const int MAX_RANK = 8;
 
         public RaceManager raceManager;
@@ -49,6 +55,12 @@ namespace HorseRace
         // ---- ローカル状態 ----
         private bool live;
         private int overrideRank;          // 0 = おまかせ、1..8 = その順位を追う
+        private bool overrideFresh;        // 木札を押した直後はすぐ切り替える
+        private bool overrideActive;       // 今「○位を追う」で動いている（その順位の人がいる）
+        private int overrideCandidate = -1;
+        private float overrideCandidateSince;
+        private bool warnedNoTexture;
+        private double serverNow;
         private int target = -1;
         private float shotStart;
         private float nextDecide;
@@ -116,41 +128,21 @@ namespace HorseRace
         {
             if (rank < 0 || rank > MAX_RANK) return;
             overrideRank = rank;
+            overrideFresh = true;
+            overrideCandidate = -1;
             nextDecide = 0f;
             RefreshTags();
         }
 
-        /// <summary>能力・弾が当たった乗り物（ローカルの見た目イベントから）。レース用の乗り物でなければ無視。</summary>
-        public void NotifyHitMount(MountController m)
+        /// <summary>
+        /// 能力・弾が当たったレース用の乗り物のスロット（撃った側が判定し、全員向けの見た目イベントの引数で届く）。
+        /// -1・範囲外・空きスロットは無視。ローカルのみ。
+        /// </summary>
+        public void NotifyHitSlot(int slot)
         {
-            if (m == null || raceManager == null || raceManager.mounts == null) return;
-            int s = m.slotIndex;
-            if (s < 0 || s >= raceManager.SlotCount() || raceManager.mounts[s] != m) return;
-            if (raceManager.slotPlayerId[s] < 0) return;
-            lastHitSlot = s;
-            lastHitTime = Time.time;
-        }
-
-        /// <summary>当たった地点しかわからないとき（弾・縄）。exclude（撃った側）以外で最も近いレース用の乗り物を命中とみなす。</summary>
-        public void NotifyHitNear(Vector3 point, MountController exclude)
-        {
-            if (raceManager == null || raceManager.mounts == null) return;
-            int n = raceManager.SlotCount();
-            int best = -1;
-            float bestSq = HIT_NEAR_RADIUS * HIT_NEAR_RADIUS;
-            for (int i = 0; i < n; i++)
-            {
-                MountController m = raceManager.mounts[i];
-                if (m == null || m == exclude || raceManager.slotPlayerId[i] < 0) continue;
-                float d = (m.transform.position - point).sqrMagnitude;
-                if (d <= bestSq)
-                {
-                    bestSq = d;
-                    best = i;
-                }
-            }
-            if (best < 0) return;
-            lastHitSlot = best;
+            if (raceManager == null || slot < 0 || slot >= raceManager.SlotCount()) return;
+            if (raceManager.slotPlayerId[slot] < 0) return;
+            lastHitSlot = slot;
             lastHitTime = Time.time;
         }
 
@@ -186,7 +178,18 @@ namespace HorseRace
             if (raceManager == null || broadcastCamera == null) return false;
             int st = raceManager.state;
             if (st != RaceMath.STATE_COUNTDOWN && st != RaceMath.STATE_RACING) return false;
-            return !raceManager.IsLocalEntered();
+            if (raceManager.IsLocalEntered()) return false;
+            if (broadcastCamera.targetTexture == null)
+            {
+                // Target Texture が無いカメラは観戦者の画面に直接描画してしまうので使わない
+                if (!warnedNoTexture)
+                {
+                    warnedNoTexture = true;
+                    Debug.LogWarning("[HorseRace] SpectatorDirector: 中継カメラに RenderTexture（Target Texture）がないので描画しません");
+                }
+                return false;
+            }
+            return true;
         }
 
         private void Decide()
@@ -223,19 +226,66 @@ namespace HorseRace
             fullOrder = RaceMath.ComputeOrder(cp, dist, fin, act);
             int[] order = running > 0 ? RaceMath.ComputeOrder(cp, dist, fin, actRunning) : fullOrder;
 
+            serverNow = Networking.GetServerTimeInSeconds();
             int next = -1;
-            if (overrideRank > 0) next = DirectorMath.SlotAtRank(fullOrder, overrideRank);
-            if (next < 0)
+            bool usedOverride = false;
+            if (overrideRank > 0)
             {
-                bool currentValid = target >= 0 && Contains(order, target);
-                float shotTime = Time.time - shotStart;
-                // 追っていた馬がいなくなった・ゴールした → すぐに選び直す
-                if (!currentValid && shotTime < DirectorMath.MIN_SHOT) shotTime = DirectorMath.MIN_SHOT;
-                float[] gaps = DirectorMath.GapsXZ(order, px, pz);
-                next = DirectorMath.ChooseTarget(currentValid ? target : -1, shotTime, order, gaps, lastHitSlot, Time.time - lastHitTime);
+                // その順位の人がいない（エントリー数を超える）・ゴールして囲いへ向かう馬なら「おまかせ」と同じ
+                int want = DirectorMath.SlotAtRank(fullOrder, overrideRank);
+                if (want >= 0 && Usable(want))
+                {
+                    usedOverride = true;
+                    if (want == target)
+                    {
+                        overrideCandidate = -1;
+                        next = target;
+                    }
+                    else if (overrideFresh || !Usable(target))
+                    {
+                        next = want;
+                    }
+                    else
+                    {
+                        // 順位の入れ替わりは少し待ってから（抜きつ抜かれつで切り替えが連発しないように）
+                        if (overrideCandidate != want)
+                        {
+                            overrideCandidate = want;
+                            overrideCandidateSince = Time.time;
+                        }
+                        next = Time.time - overrideCandidateSince >= OVERRIDE_HYSTERESIS ? want : target;
+                    }
+                }
+            }
+            overrideFresh = false;
+            overrideActive = usedOverride;
+            if (!usedOverride)
+            {
+                overrideCandidate = -1;
+                if (target >= 0 && act[target] && fin[target] >= 0.0 && Usable(target))
+                {
+                    next = target; // ゴールした直後の馬はもう少し映す
+                }
+                else
+                {
+                    bool currentValid = target >= 0 && Contains(order, target);
+                    float shotTime = Time.time - shotStart;
+                    // 追っていた馬がいなくなった・ゴールして映す時間が過ぎた → すぐに選び直す
+                    if (!currentValid && shotTime < DirectorMath.MIN_SHOT) shotTime = DirectorMath.MIN_SHOT;
+                    float[] gaps = DirectorMath.GapsXZ(order, px, pz);
+                    next = DirectorMath.ChooseTarget(currentValid ? target : -1, shotTime, order, gaps, lastHitSlot, Time.time - lastHitTime);
+                }
             }
             if (next != target) CutTo(next);
             UpdateCaption();
+        }
+
+        /// <summary>映してよい馬か：エントリー中で、まだゴールしていないか、ゴールして FINISH_HOLD_SECONDS 以内。</summary>
+        private bool Usable(int slot)
+        {
+            if (slot < 0 || slot >= RaceManager.MAX_SLOTS || !act[slot]) return false;
+            if (fin[slot] < 0.0) return true;
+            return serverNow - fin[slot] < FINISH_HOLD_SECONDS;
         }
 
         private static bool Contains(int[] arr, int v)
@@ -310,7 +360,7 @@ namespace HorseRace
             int rank = 0;
             for (int k = 0; k < fullOrder.Length; k++) if (fullOrder[k] == target) { rank = k + 1; break; }
             string who = RaceManager.PlayerName(raceManager.slotPlayerId[target]);
-            string mode = overrideRank > 0 ? overrideRank.ToString() + "位を追う" : "おまかせ";
+            string mode = overrideActive ? overrideRank.ToString() + "位を追う" : "おまかせ";
             captionText.text = "中継：" + who + "（" + rank.ToString() + "位）［" + mode + "］";
         }
 

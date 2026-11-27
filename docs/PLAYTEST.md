@@ -165,12 +165,12 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
   - 中継用マテリアル `M_Broadcast`（Unlit/Texture、Main Texture = BroadcastRT）
   - 羊皮紙マテリアル `M_Parchment`（`Packs/WantedPosters` の紙のテクスチャを流用、Unlit 推奨）
 - **SpectatorDirector**（たまり場のどこか、空の GameObject）
-  - 子に Camera を 1 台（Target Texture = BroadcastRT、FOV 50 前後、Far Clip 400 程度、Audio Listener は**付けない**、**初期状態でコンポーネントを無効**）。`Broadcast Camera` にこの Camera、`Render Texture` に BroadcastRT、`Race Manager` を設定
+  - 子に Camera を 1 台（Target Texture = BroadcastRT ※必須。無いとカメラは描画せず警告ログ、FOV 50 前後、Far Clip 400 程度、Audio Listener は**付けない**、**初期状態でコンポーネントを無効**）。`Broadcast Camera` にこの Camera、`Render Texture` に BroadcastRT、`Race Manager` を設定
   - `Follow Distance` 9 / `Follow Height` 4.5 / `Look Height` 1.2 を目安に調整
   - `Caption Text`（任意）: 掲示板の下の小さな札の TextMeshPro（「中継：名前（2位）［おまかせ］」と出る）
   - `Tags`: 下の木札 9 枚
 - **木札（DirectorTag）×9**: 掲示板の下に吊るす小さな板（`Packs/WoodLogs` か Cube）＋ Collider。`Director` = SpectatorDirector、`Follow Rank` = 1〜8（「1位を追う」…「8位を追う」）と 0（「おまかせ」）。Interaction Text に同じ文言。`Selected Mark`（任意）に選択中の印
-- **AbilityCaster**（Task 9 の 10 個すべて）: `Spectator` に SpectatorDirector を設定（命中の場面に切り替えるため。未設定でも動く）
+- **RaceManager**: `Spectator` に SpectatorDirector を設定（AbilityCaster / RevolverHolder が命中の場面を知らせる先。AbilityCaster ごとの `Spectator` は空のままでよい＝個別に上書きしたいときだけ）
 - **掲示板（NoticeBoard.fbx）×3 程度**: たまり場に置き、それぞれに `NoticeBoardDisplay`
   - `Panel Renderer` = 子の `NoticeBoard_Panel`、`Broadcast Material` = M_Broadcast、`Parchment Material` = M_Parchment、`Race Manager` を設定
   - `Board Text`: Panel の少し手前に重ねた TextMeshPro（古い活字風の日本語フォント、黒っぽい茶色）
@@ -190,7 +190,10 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] ロビーにいる人（エントリーしていない人）の掲示板（Mode 0）に、カウントダウン〜レース中だけ中継が映る。レースが無いときは羊皮紙に「レースが始まるとここに映ります」
 - [ ] 中継は基本先頭を追い、2 頭が 8m 以内で競り合うとそちら、能力（鉄球・投げ縄・リボルバー）が当たると数秒その場面に切り替わる。1 カットは最短 5 秒・最長 15 秒（ストップウォッチで確認）
 - [ ] 追従はなめらか（後方斜め上）。カットが変わるときだけ 0.3 秒ほどで素早く移る
-- [ ] 木札「2位を追う」を押すと自分の掲示板だけ 2 位の馬に切り替わる（別のクライアントの中継は変わらない）。「おまかせ」で自動に戻る。順位が入れ替わると追う馬も替わる
+- [ ] 木札「2位を追う」を押すと自分の掲示板だけ 2 位の馬に切り替わる（別のクライアントの中継は変わらない）。「おまかせ」で自動に戻る。順位が入れ替わると約 1.5 秒後に追う馬も替わる（抜きつ抜かれつで連発しない）
+- [ ] 出走人数より大きい「○位を追う」を押すと、札の表示は「おまかせ」になり自動で切り替わる
+- [ ] 追っていた馬がゴールすると、ゴール後 2.5 秒ほど映してから次の馬へ切り替わる（囲いへ移る瞬間は映らない。「○位を追う」でも同じ）
+- [ ] 命中の場面は実際に当たった相手に切り替わる（リボルバー・投げ縄・鉄球。外れ・カカシでは切り替わらない）
 - [ ] レース参加者のクライアントではカメラが無効（掲示板には「出走中の方には映りません」）。フレームレートが落ちない
 - [ ] 順位表（Mode 1）: レース中は順位・名前・能力・残り時間が 0.5 秒ごとに更新。ステージ結果で着順の電報、総合結果で合計点
 - [ ] エントリー一覧（Mode 2）: 台帳にサインすると名前・乗り物・能力が増える。レース中は合計点も出る
@@ -201,6 +204,6 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] ステージで最初のゴールのときだけ教会の鐘が鳴る（全員、どこにいても聞こえる、1 ステージ 1 回）
 - [ ] ステージ結果に入ると新聞売りの呼び声が鳴り、Mode 1 の掲示板に「電報 第Nステージ 着順 … 1着 名前 +10点（計…）」が貼られる（1 ステージ 1 回）
 - [ ] 総合結果: 上位 3 人が乗り物から降りて表彰台の 1〜3 位の段に移る（各自のクライアントで自分だけ）。花火は全員に見える。4 位以下とロビーの人はそのまま
-- [ ] ロビーに戻ると花火が止まり、表彰台の人もロビーに戻る（Task 8 の動き）
+- [ ] 総合結果が終わる（ロビーなど総合結果以外になる）と花火が止まり、表彰台の人もロビーに戻る（Task 8 の動き）
 - [ ] 途中参加: 結果表示の途中で入った人には呼び声・鐘が鳴らない（電報だけ見える）
 - [ ] 被弾・演出で誰のカメラ（視点）も強制的に回らない

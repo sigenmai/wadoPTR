@@ -8,7 +8,7 @@ namespace HorseRace
     /// ゴールの町の表彰台（Podium.fbx）。総合結果（FINAL_RESULT）に入ったら：
     ///   - 各クライアントが自分のプレイヤーだけ見る：総合 3 位以内なら乗り物から降りて、その順位の段（steps[0..2]）へ TeleportTo
     ///   - 花火（ParticleSystem）と任意のファンファーレは全員
-    /// ロビーに戻ったら花火を止めるだけ（プレイヤーは RaceManager がロビーへ戻す／歩いて降りる）。
+    /// 総合結果以外の状態になったら花火を止めるだけ（プレイヤーは RaceManager がロビーへ戻す／歩いて降りる）。
     /// RaceManager の同期状態を毎フレーム比べて、stageSeq ごとに 1 回だけ（ローカル）。同期しない。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -35,14 +35,13 @@ namespace HorseRace
             if (rm == null) return;
             int st = rm.state;
             if (st == appliedState) return;
-            int prev = appliedState;
             appliedState = st;
             if (st == RaceMath.STATE_FINAL_RESULT && doneSeq != rm.stageSeq)
             {
                 doneSeq = rm.stageSeq;
                 EnterFinal(rm);
             }
-            else if (st == RaceMath.STATE_LOBBY && prev == RaceMath.STATE_FINAL_RESULT)
+            else if (st != RaceMath.STATE_FINAL_RESULT)
             {
                 StopFireworks();
             }
