@@ -748,7 +748,7 @@ namespace HorseRace.EditorTools
             var w = new Work
             {
                 course = null, h = null, sizeM = 0f, budget = MAX_LOBBY,
-                minX = -195f, maxX = 195f, minZ = -140f, maxZ = 255f,
+                minX = -175f, maxX = 175f, minZ = -115f, maxZ = 235f,   // ロビーの見えない壁（外周から 32m）の内側
                 rng = new System.Random(seed), hasRect = true,
                 rectMin = new Vector2(townMin.x - 1f, townMin.y - 1f), rectMax = new Vector2(townMax.x + 1f, townMax.y + 1f),
             };
@@ -813,6 +813,51 @@ namespace HorseRace.EditorTools
             p = new Vector3(mn.x - outM, 0f, mx.y - Mathf.Min(d, dep)); yaw = 90f;
         }
 
+        // ------------------------------------------------------------------
+        // 背景の山並み
+        // ------------------------------------------------------------------
+
+        static readonly string[] BackdropCliffs = { "Cliffs_01", "Cliffs_02", "Cliffs_03", "Cliffs_04", "Cliffs_05" };
+
+        /// <summary>
+        /// ワールド全体を囲む遠景の山並み（ワールド座標）。遊べる範囲の外接長方形の外側 BACKDROP_OFFSET_M m 以上に、
+        /// BACKDROP_SPACING_M m ごとにメサ・崖を 4〜8 倍で置く（Collider なし、静的）。山の足元は遊べる範囲から BACKDROP_CLEAR_M m 以上離す。
+        /// </summary>
+        public static List<Placement> Backdrop(int seed)
+        {
+            var rng = new System.Random(seed);
+            var list = new List<Placement>();
+            Vector4 u = WorldBounds.Union();
+            float w = u.z - u.x, d = u.w - u.y;
+            float perim = 2f * (w + d);
+            int n = Mathf.FloorToInt(perim / WorldBounds.BACKDROP_SPACING_M);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (i + (float)rng.NextDouble() * 0.5f) * perim / n;
+                int k = i % 3;
+                string asset = k == 0 ? MESA : (k == 1 ? MESAB : CLIFFS);
+                string part = k == 2 ? BackdropCliffs[rng.Next(BackdropCliffs.Length)] : null;
+                float scale = 4f + (float)rng.NextDouble() * 4f;
+                Size sz = SizeOf(asset, part);
+                float r = sz.r * scale;
+                float outM = Mathf.Max(WorldBounds.BACKDROP_OFFSET_M, r + WorldBounds.BACKDROP_CLEAR_M) + (float)rng.NextDouble() * 60f;
+                // 外接長方形の周上の点 → 外向きの法線方向へ outM
+                Vector3 p; Vector3 nrm;
+                if (t < w) { p = new Vector3(u.x + t, 0f, u.y); nrm = new Vector3(0f, 0f, -1f); }
+                else if (t < w + d) { p = new Vector3(u.z, 0f, u.y + (t - w)); nrm = new Vector3(1f, 0f, 0f); }
+                else if (t < 2f * w + d) { p = new Vector3(u.z - (t - w - d), 0f, u.w); nrm = new Vector3(0f, 0f, 1f); }
+                else { p = new Vector3(u.x, 0f, u.w - (t - 2f * w - d)); nrm = new Vector3(-1f, 0f, 0f); }
+                p = p + nrm * outM;
+                list.Add(new Placement
+                {
+                    group = "Backdrop", asset = asset, part = part, position = new Vector3(p.x, WorldBounds.FILLER_Y - 2f * scale, p.z),
+                    yawDeg = (float)rng.NextDouble() * 360f, scale = scale, radius = r, height = sz.h * scale,
+                    collider = false, shape = SHAPE_NONE, background = false,
+                });
+            }
+            return list;
+        }
+
         /// <summary>素材（FBX）ごとの個数。</summary>
         public static Dictionary<string, int> CountByAsset(List<Placement> list)
         {
@@ -824,6 +869,58 @@ namespace HorseRace.EditorTools
                 r[p.asset] = n + 1;
             }
             return r;
+        }
+    }
+
+    /// <summary>
+    /// ワールド全体の範囲（UnityEditor に依存しない）。遊べる範囲 = 3 ステージの Terrain とロビーの地面。
+    /// その外側に背景の山並み（DressingPlan.Backdrop）、全体の下に地面の板（FillerRect、y = FILLER_Y）。
+    /// 長方形は Vector4(minX, minZ, maxX, maxZ)。
+    /// </summary>
+    public static class WorldBounds
+    {
+        public static readonly Vector3 LOBBY_CENTER = new Vector3(0f, 0f, -820f);
+        public const float LOBBY_SIZE = 420f;
+        public const float LOBBY_SOUTH = 150f;             // ロビーの地面の南端 = 中心 − 150m
+        public const float BACKDROP_OFFSET_M = 320f;       // 遊べる範囲の外側、この距離から山並み
+        public const float BACKDROP_SPACING_M = 170f;
+        public const float BACKDROP_CLEAR_M = 80f;         // 山の足元と遊べる範囲の間はこれ以上空ける
+        public const float FILLER_MARGIN_M = 800f;         // 地面の板は遊べる範囲よりこれだけ広く（山並みの外まで）
+        public const float FILLER_Y = -3f;                 // ロビーの地面（最低 -2m）より下
+
+        public static Vector4[] PlayableRects()
+        {
+            var r = new List<Vector4>();
+            foreach (var s in StageDefinitions.All)
+            {
+                Vector3 o = s.Origin;
+                r.Add(new Vector4(o.x, o.z, o.x + StageDefinitions.SIZE, o.z + StageDefinitions.SIZE));
+            }
+            float lz = LOBBY_CENTER.z - LOBBY_SOUTH;
+            r.Add(new Vector4(LOBBY_CENTER.x - LOBBY_SIZE * 0.5f, lz, LOBBY_CENTER.x + LOBBY_SIZE * 0.5f, lz + LOBBY_SIZE));
+            return r.ToArray();
+        }
+
+        public static Vector4 Union()
+        {
+            var rs = PlayableRects();
+            var u = rs[0];
+            foreach (var r in rs) u = new Vector4(Mathf.Min(u.x, r.x), Mathf.Min(u.y, r.y), Mathf.Max(u.z, r.z), Mathf.Max(u.w, r.w));
+            return u;
+        }
+
+        public static Vector4 FillerRect()
+        {
+            var u = Union();
+            return new Vector4(u.x - FILLER_MARGIN_M, u.y - FILLER_MARGIN_M, u.z + FILLER_MARGIN_M, u.w + FILLER_MARGIN_M);
+        }
+
+        /// <summary>点と長方形の x/z 距離（中なら 0）。</summary>
+        public static float DistToRect(Vector3 p, Vector4 r)
+        {
+            float dx = Mathf.Max(0f, Mathf.Max(r.x - p.x, p.x - r.z));
+            float dz = Mathf.Max(0f, Mathf.Max(r.y - p.z, p.z - r.w));
+            return Mathf.Sqrt(dx * dx + dz * dz);
         }
     }
 

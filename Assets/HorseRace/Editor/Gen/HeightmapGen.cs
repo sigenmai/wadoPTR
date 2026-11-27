@@ -126,6 +126,57 @@ namespace HorseRace.EditorTools
             return m;
         }
 
+        // ---- 外周の尾根（地形の端を見せない）----
+        public const float RIM_WIDTH_M = 55f;        // 外周から内側へこの幅で盛り上げる（コースは端から 60m 以上内側）
+        public const float RIM_MIN_M = 25f;          // 端での盛り上げの最小（m）
+        public const float RIM_MAX_M = 60f;          // 端での盛り上げの最大（m、ノイズで 25〜60m）
+        public const float RIM_COURSE_KEEP_M = 25f;  // コースからこの距離までは触らない（2 倍の距離までなめらかに戻す）
+
+        /// <summary>
+        /// 外周 rimWidthM の帯を盛り上げて尾根・崖の壁にする（h を書き換える）。端では元の地形より rimMinM〜rimMaxM 高く
+        /// （ノイズで高さが変わるので一直線の壁に見えない）、内側へなめらかに 0 へ戻る。coursePointsNormalized を渡すと
+        /// コースから RIM_COURSE_KEEP_M m 以内は変えない（本コースの勾配は変わらない）。
+        /// </summary>
+        public static void ApplyRim(float[,] h, float terrainSizeM, float heightM, float rimWidthM, float rimMinM, float rimMaxM,
+            int seed, Vector3[] coursePointsNormalized)
+        {
+            int n = h.GetLength(0);
+            float cell = terrainSizeM / (n - 1);
+            Vector3[] course = null;
+            if (coursePointsNormalized != null && coursePointsNormalized.Length > 0)
+            {
+                int step = Mathf.Max(1, coursePointsNormalized.Length / 400);
+                course = new Vector3[(coursePointsNormalized.Length + step - 1) / step];
+                for (int i = 0, k = 0; i < coursePointsNormalized.Length; i += step, k++)
+                    course[k] = coursePointsNormalized[i] * terrainSizeM;
+            }
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    float px = x * cell, pz = z * cell;
+                    float d = Mathf.Min(Mathf.Min(px, pz), Mathf.Min(terrainSizeM - px, terrainSizeM - pz));
+                    if (d >= rimWidthM) continue;
+                    float w = Smooth(0f, 1f, 1f - d / rimWidthM);
+                    if (course != null)
+                    {
+                        float dc = float.MaxValue;
+                        for (int i = 0; i < course.Length; i++)
+                        {
+                            float dx = course[i].x - px, dz = course[i].z - pz;
+                            float dd = dx * dx + dz * dz;
+                            if (dd < dc) dc = dd;
+                        }
+                        dc = Mathf.Sqrt(dc);
+                        w *= Smooth(RIM_COURSE_KEEP_M, RIM_COURSE_KEEP_M * 2f, dc);
+                        if (w <= 0f) continue;
+                    }
+                    float big = Noise(px / 140f, pz / 140f, seed, 21);
+                    float fine = Noise(px / 35f, pz / 35f, seed, 22);
+                    float rise = rimMinM + (rimMaxM - rimMinM) * Mathf.Clamp01(0.8f * big + 0.2f * fine);
+                    h[z, x] = Mathf.Clamp01(h[z, x] + w * rise / heightM);
+                }
+        }
+
         // ---- internals ----
 
         static float Smooth(float a, float b, float v)
