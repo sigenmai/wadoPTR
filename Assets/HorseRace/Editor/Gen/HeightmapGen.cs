@@ -12,6 +12,8 @@ namespace HorseRace.EditorTools
         public const float TERRAIN_SIZE_M = 1000f;
         public const float HEIGHT_M = 200f;
         public const float RUNWAY_M = 12f;     // fully flattened distance from the course
+        public const float FLOOR_H = 0.28f;    // canyon height (0-1) at/below which sand may lie
+        public const float WALL_H = 0.40f;     // canyon height at/above which sand is 0
         public const float FALLOFF_M = 90f;    // blend back to raw terrain by this distance
 
         public static float[,] Generate(int resolution, int kind, int seed, Vector3[] coursePointsNormalized)
@@ -87,7 +89,8 @@ namespace HorseRace.EditorTools
             return max;
         }
 
-        public static float[,] SandMask(int resolution, int kind, int seed)
+        /// <summary>Sand coverage [0,1]. For CANYON, pass the generated heights to confine sand to the valley floor.</summary>
+        public static float[,] SandMask(int resolution, int kind, int seed, float[,] heights = null)
         {
             int n = resolution;
             var m = new float[n, n];
@@ -105,6 +108,12 @@ namespace HorseRace.EditorTools
                     {
                         float q = Noise(u * 6f, v * 6f, seed, 3);
                         val = Smooth(0.55f, 0.68f, q);
+                        if (heights != null)
+                        {
+                            int hz = Mathf.Clamp(Mathf.FloorToInt(v * (heights.GetLength(0) - 1) + 0.5f), 0, heights.GetLength(0) - 1);
+                            int hx = Mathf.Clamp(Mathf.FloorToInt(u * (heights.GetLength(1) - 1) + 0.5f), 0, heights.GetLength(1) - 1);
+                            val *= 1f - Smooth(FLOOR_H, WALL_H, heights[hz, hx]);
+                        }
                     }
                     else
                     {
@@ -128,7 +137,29 @@ namespace HorseRace.EditorTools
         static float Noise(float x, float y, int seed, int salt)
         {
             float o = seed * 17.31f + salt * 5.7f;
-            return Mathf.PerlinNoise(x + o, y - o * 0.61f + salt);
+            return ValueNoise(x + o, y - o * 0.61f + salt);
+        }
+
+        // Private deterministic value noise in [0,1]; identical in Unity and the test project.
+        static float ValueNoise(float x, float y)
+        {
+            int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y);
+            float fx = x - xi, fy = y - yi;
+            float u = fx * fx * (3f - 2f * fx), v = fy * fy * (3f - 2f * fy);
+            float a = Hash(xi, yi), b = Hash(xi + 1, yi), c = Hash(xi, yi + 1), d = Hash(xi + 1, yi + 1);
+            float top = a + (b - a) * u, bot = c + (d - c) * u;
+            return Mathf.Clamp01(top + (bot - top) * v);
+        }
+
+        static float Hash(int x, int y)
+        {
+            unchecked
+            {
+                uint h = (uint)(x * 374761393 + y * 668265263);
+                h = (h ^ (h >> 13)) * 1274126177u;
+                h ^= h >> 16;
+                return (h & 0xFFFFFF) / (float)0x1000000;
+            }
         }
 
         static float Fbm(float u, float v, int seed, float freq)

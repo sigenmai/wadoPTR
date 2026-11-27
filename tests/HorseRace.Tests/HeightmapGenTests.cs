@@ -50,5 +50,24 @@ namespace HorseRace.Tests
             float a = Mean(HeightmapGen.SandMask(129, HeightmapGen.KIND_CANYON, 1));
             Assert.That(a, Is.InRange(0.05f, 0.4f));
         }
+
+        [Test] public void CanyonSandOnFloorOnly()
+        {
+            var h = HeightmapGen.Generate(257, HeightmapGen.KIND_CANYON, 1, Course());
+            var m = HeightmapGen.SandMask(257, HeightmapGen.KIND_CANYON, 1, h);
+            double wall = 0; int nw = 0;
+            for (int z = 0; z < 257; z++) for (int x = 0; x < 257; x++)
+                if (h[z, x] > HeightmapGen.WALL_H) { wall += m[z, x]; nw++; }
+            Assert.Greater(nw, 0);
+            Assert.Less(wall / nw, 0.05);
+            Assert.That(Mean(m), Is.InRange(0.05f, 0.4f));
+        }
+
+        // Band just below each terrace edge: documented coverage 10%-50% of the map.
+        [Test] public void MesaHasBorderBand()
+        {
+            float a = Mean(HeightmapGen.SandMask(129, HeightmapGen.KIND_MESA, 1));
+            Assert.That(a, Is.InRange(0.1f, 0.5f));
+        }
     }
 }
