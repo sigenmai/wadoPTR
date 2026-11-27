@@ -19,6 +19,8 @@
     <Compile Include="../../Assets/HorseRace/Editor/Gen/SetPieces.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/DressingPlan.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LobbyLayout.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/LightingPlan.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/ArtPalette.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LayoutOverrides.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/CourseBarrier.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/RidePose.cs" />

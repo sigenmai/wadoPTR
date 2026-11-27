@@ -63,6 +63,7 @@ namespace HorseRace.EditorTools
 
         // ロビー
         public Transform lobbyRoot;
+        public Terrain lobbyTerrain;
         public Transform lobbySpawn;
         public Vector3 lobbyCenter;
         public readonly List<EntryLedger> ledgers = new List<EntryLedger>();

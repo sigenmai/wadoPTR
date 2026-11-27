@@ -1,6 +1,6 @@
 // 荒野横断ホースレース用トゥーンシェーダー（Built-in Render Pipeline / VRChat ワールド用）
 // - リアル寄りのテクスチャを「平らに」して手描き風に寄せる（_Flatten）
-// - 2〜3段の陰影（セル）、影色、リムライト、アウトライン
+// - 2〜3段の陰影（セル）、影色（影の段にも太陽の半分を足して真っ黒にしない）、リムライト、アウトライン
 // - GPU インスタンシング対応（全パス multi_compile_instancing、Build World がマテリアルの enableInstancing を ON）
 // - 色相・彩度・明るさで毛色を変える（暗いたてがみ・蹄はあまり変わらない）
 Shader "HorseRace/Toon"
@@ -21,7 +21,8 @@ Shader "HorseRace/Toon"
         _Flatten ("Flatten Texture Detail", Range(0,1)) = 0.7
         _FlattenMip ("Flatten Blur (mip bias)", Range(0,8)) = 4
         _Posterize ("Posterize Steps (0=off)", Range(0,16)) = 6
-        _ShadowColor ("Shadow Color", Color) = (0.55,0.42,0.48,1)
+        _ShadowColor ("Shadow Color", Color) = (0.70,0.52,0.54,1)
+        _ShadowLightFloor ("Sun in shadow (0-1)", Range(0,1)) = 0.5
         [IntRange] _ShadeSteps ("Shade Steps (2 or 3)", Range(2,3)) = 2
         _ShadeThreshold ("Shade Threshold", Range(-1,1)) = 0.05
         _ShadeSoftness ("Shade Softness", Range(0.001,0.3)) = 0.03
@@ -96,7 +97,7 @@ Shader "HorseRace/Toon"
             #include "AutoLight.cginc"
 
             fixed4 _ShadowColor, _RimColor;
-            float _ShadeSteps, _ShadeThreshold, _ShadeSoftness, _RimPower, _RimStrength;
+            float _ShadeSteps, _ShadeThreshold, _ShadeSoftness, _RimPower, _RimStrength, _ShadowLightFloor;
 
             struct v2f
             {
@@ -144,7 +145,8 @@ Shader "HorseRace/Toon"
 
                 float3 lightCol = _LightColor0.rgb;
                 float3 ambient = ShadeSH9(float4(n, 1));
-                float3 shadowed = albedo * _ShadowColor.rgb * (ambient + lightCol * 0.35);
+                // 影の段にも太陽の半分を足す（影は「暗く」ではなく「色を変える」：LightingPlan.SHADOW_LIGHT_FLOOR）
+                float3 shadowed = albedo * _ShadowColor.rgb * (ambient + lightCol * _ShadowLightFloor);
                 float3 litCol = albedo * (ambient * 0.5 + lightCol);
                 float3 col = lerp(shadowed, litCol, shade);
 

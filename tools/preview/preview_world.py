@@ -176,19 +176,7 @@ for st in W["stages"]:
         q = U(p) + off
         bpy.ops.mesh.primitive_ico_sphere_add(radius=3, location=q + Vector((0, 0, 4)))
         bpy.context.active_object.data.materials.append(RELIC)
-    s0, s1 = U(st["course"][1]) + off, U(st["course"][-1]) + off
-    box("StartLine", s0 + Vector((0, 0, 0.5)), (28, 3, 1), START)
-    box("GoalGate", s1 + Vector((0, 0, 6)), (30, 2, 12), GOAL)
-    if st["bridge"]:
-        p = U(st["bridge"]["p"]) + off
-        t = st["bridge"]["t"]
-        yaw = math.atan2(t[2], t[0])
-        box("RockBridge", p + Vector((0, 0, 0.5)), (26, 26, 2), BRIDGE, yaw)
-    if st["jump"]:
-        p = U(st["jump"]["p"]) + off
-        t = st["jump"]["t"]
-        yaw = math.atan2(t[2], t[0])
-        box("DuneJump", p + Vector((0, 0, 1.5)), (16, 20, 3), JUMP, yaw)
+    # スタート・ゴール・岩橋・ジャンプは Build World と同じ素材で置く（world.json の extras、下の place）
     if st["shortcut"]:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
         polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
@@ -249,6 +237,9 @@ def place(plan, origin, ground=None):
             o.rotation_euler = (Euler((0, math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix() @ src.rotation_euler.to_matrix()).to_euler()
             s_ = q["s"]
             o.scale = (src.scale[0] * s_, src.scale[1] * s_, src.scale[2] * s_)
+            if q.get("sv"):   # 引き伸ばし（Unity のローカル x, y, z）→ 取り込んだ部品の軸（x, z, y）
+                sv = q["sv"]
+                o.scale = (src.scale[0] * sv[0], src.scale[1] * sv[2], src.scale[2] * sv[1])
             n += 1
     return n
 
@@ -256,18 +247,18 @@ S = {st["index"]: st for st in W["stages"]}
 for st in W["stages"]:
     org = (st["center"][0] - 500, 0, st["center"][2] - 500)
     print("PLACED stage", st["index"], place(st["dress"], org))
+    print("PLACED extras", st["index"], place(st.get("extras", []), org))
 
-# ロビー（町）：柵の外は外へ向かって上り（0.6 の勾配で最大 12m）、外周 30m は尾根
-lob = Vector((0, -820, 0))
+# ロビー（町）：地面は LobbyBuilder と同じ式（LobbyLayout.GroundHeight：ゆるい盛り上がり・低い尾根・北は高い・見晴らしの切れ目）を書き出した lobby.bin
+LC = W["lobbyCenter"]
+lob = Vector((LC[0], LC[2], 0))
 FR = tuple(W['fenceRect']); GR = tuple(W['groundRect'])
+_ld = open(os.path.join(ex, "lobby.bin"), "rb").read()
+LNX, LNZ = struct.unpack("<ii", _ld[:8])
+LH = np.frombuffer(_ld[8:], dtype="<f4").reshape(LNZ, LNX)
 def lobby_h(x, z):
-    dx = max(FR[0] - x, 0, x - FR[2]); dz = max(FR[1] - z, 0, z - FR[3])
-    d = math.hypot(dx, dz)
-    h = min(12.0, 0.6 * d)
-    if -39.6 < x < 39.6 and 26 < z < 188.4: return -1.0   # 町の足元は 1m 下げる（LobbyBuilder と同じ。通りとちらつかない）
-    e = min(x - GR[0], GR[2] - x, z - GR[1], GR[3] - z)
-    if e < 30: h += (1 - e / 30) * 22
-    return h
+    i = min(max(int(round(x - GR[0])), 0), LNX - 1); j = min(max(int(round(z - GR[1])), 0), LNZ - 1)
+    return float(LH[j, i])
 nx, nz = 106, 106
 verts = []; faces = []
 for j in range(nz):
@@ -315,11 +306,21 @@ for a_, b_ in W.get("fence", []):
     A_ = Vector((lob.x + a_[0], lob.y + a_[2], 0)); B_ = Vector((lob.x + b_[0], lob.y + b_[2], 0))
     mid = (A_ + B_) / 2; d = B_ - A_
     box("FencePiece", mid + Vector((0, 0, 0.8)), (d.length, 0.12, 1.57), FENCE, math.atan2(d.y, d.x))
-print("PLACED belt", place(W.get("belt", []), (0, 0, -820), lobby_h))
-print("PLACED lobby", place(W["lobby"], (0, 0, -820)))
+LOBO = (LC[0], 0, LC[2])
+print("PLACED belt", place(W.get("belt", []), LOBO))
+print("PLACED crown", place(W.get("crown", []), LOBO))
+print("PLACED lobby", place(W["lobby"], LOBO))
 print("PLACED backdrop", place(W["backdrop"], (0, 0, 0)))
-bpy.ops.mesh.primitive_plane_add(size=9000, location=(0, 0, -6))
-bpy.context.active_object.data.materials.append(mat_color("Filler", srgb2lin((0.80, 0.62, 0.44))))
+# 外の地面（TerrainBuilder.BuildFiller と同じ考え方の高さ：filler.bin）
+_fd = open(os.path.join(ex, "filler.bin"), "rb").read()
+FN = struct.unpack("<i", _fd[:4])[0]; FX0, FZ0, FX1, FZ1 = struct.unpack("<ffff", _fd[4:20])
+FH = np.frombuffer(_fd[20:], dtype="<f4").reshape(FN, FN)
+fv = [(FX0 + (FX1 - FX0) * i / (FN - 1), FZ0 + (FZ1 - FZ0) * j / (FN - 1), float(FH[j, i])) for j in range(FN) for i in range(FN)]
+ff = [(j * FN + i, j * FN + i + 1, (j + 1) * FN + i + 1, (j + 1) * FN + i) for j in range(FN - 1) for i in range(FN - 1)]
+fme = bpy.data.meshes.new("OuterGround"); fme.from_pydata(fv, [], ff)
+fo = bpy.data.objects.new("OuterGround", fme); sc.collection.objects.link(fo)
+fo.data.materials.append(mat_color("Filler", srgb2lin((0.86, 0.72, 0.52))))
+for p_ in fme.polygons: p_.use_smooth = True
 
 # 空と光
 world = bpy.data.worlds.new("W"); sc.world = world
@@ -328,7 +329,7 @@ world.node_tree.nodes["Background"].inputs[0].default_value = (*srgb2lin((0.62, 
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
 sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
 sun.data.energy = 5.0
-sun.rotation_euler = (math.radians(50), math.radians(10), math.radians(-35))
+sun.rotation_euler = (math.radians(28), math.radians(0), math.radians(160))   # LightingPlan.SUN_EULER（高さ 62°）に近い向き
 sc.collection.objects.link(sun)
 
 engine = "BLENDER_EEVEE"
@@ -355,7 +356,10 @@ sc.collection.objects.link(cam)
 sc.camera = cam
 cam.data.clip_end = 20000
 
+SHOTS = [x for x in os.environ.get("SHOTS", "").split(",") if x]   # 例 SHOTS=7_rider_1,8_near_1_3 で一部だけ描く
 def shot(name, loc, target, lens=35):
+    if SHOTS and not any(name.startswith(x) for x in SHOTS):
+        return
     cam.location = Vector(loc)
     cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
@@ -365,16 +369,17 @@ def shot(name, loc, target, lens=35):
 
 world.mist_settings.start = 3000
 if os.environ.get("LOBBY_ONLY"):
-    for name, eye, tgt, lens in (("L1_aerial", (-150, -900, 150), (0, -720, 0), 26),
-                                 ("L2_top", (0, -713, 300), (0, -712.9, 0), 30),
-                                 ("L3_plaza_spawn_north", (-11.5, -790, 1.7), (-11.5, -700, 2), 24),
-                                 ("L4_plaza_overview", (5, -812, 14), (-18, -780, 0), 24),
-                                 ("L5_west_strip", (-33, -803, 9), (-24, -740, 0), 24),
-                                 ("L6_practice_lane", (25, -738, 3.2), (28, -680, 2), 24),
-                                 ("L7_practice_from_above", (55, -760, 40), (27, -706, 0), 26),
-                                 ("L8_south_outward", (-11.5, -792, 1.7), (-11.5, -1100, 3), 24),
-                                 ("L9_east_outward", (30, -720, 3.2), (400, -720, 3), 24)):
-        shot(name, eye, tgt, lens)
+    _o = (lob.x, lob.y)
+    for name, eye, tgt, lens in (("L1_aerial", (-150, -80, 150), (0, 100, 0), 26),
+                                 ("L2_top", (0, 107, 300), (0, 107.1, 0), 30),
+                                 ("L3_plaza_spawn_north", (-11.5, 30, 1.7), (-11.5 + 90 * math.sin(math.radians(W["spawnYaw"])), 30 + 90 * math.cos(math.radians(W["spawnYaw"])), 2), 24),
+                                 ("L4_plaza_overview", (5, 8, 14), (-18, 40, 0), 24),
+                                 ("L5_west_strip", (-33, 17, 9), (-24, 80, 0), 24),
+                                 ("L6_practice_lane", (25, 82, 3.2), (28, 140, 2), 24),
+                                 ("L7_practice_from_above", (55, 60, 40), (27, 114, 0), 26),
+                                 ("L8_south_outward", (-11.5, 28, 1.7), (-11.5, -280, 3), 24),
+                                 ("L9_east_outward", (30, 100, 3.2), (400, 100, 3), 24)):
+        shot(name, (_o[0] + eye[0], _o[1] + eye[1], eye[2]), (_o[0] + tgt[0], _o[1] + tgt[1], tgt[2]), lens)
     raise SystemExit
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
 world.mist_settings.start = 1200; world.mist_settings.depth = 1500   # ステージ全景は霧を薄く（外周の尾根ごしでも見える）
@@ -382,14 +387,17 @@ for st in W["stages"]:
     c = st["center"]
     shot(f"{st['index'] + 1}_stage_{st['index'] + 1}", (c[0] - 500, c[2] - 900, 900), (c[0], c[2], 40), 30)
 world.mist_settings.start = 350; world.mist_settings.depth = 750
-lob_t = (0, -820, 5)
-shot("4_lobby_town", (140, -1000, 70), lob_t, 30)
+lob_t = (lob.x, lob.y, 5)
+shot("4_lobby_town", (lob.x + 140, lob.y - 180, 70), lob_t, 30)
 # 見どころの近景
 b = S[0]["bridge"]
 if b:
     off = Vector((S[0]["center"][0] - 500, S[0]["center"][2] - 500, 0))
     p = U(b["p"]) + off
-    q = p + Vector((110, -140, 0)); q.z = max(p.z, ground_at(S[0], q.x, q.y)) + 90   # 峡谷の壁の中に入らない
+    t3 = Vector((b["t"][0], b["t"][2], 0)).normalized(); r3 = Vector((t3.y, -t3.x, 0))
+    # 溝の縁（橋の手前 10m・溝の端の外 38m）から 30° 見下ろす
+    q = p + t3 * 10 + r3 * 38
+    q.z = max(p.z + math.tan(math.radians(30)) * (q - p).length, ground_at(S[0], q.x, q.y) + 3)
     shot("5_rock_bridge", q, p, 32)
 j = S[1]["jump"]
 if j:
@@ -433,7 +441,7 @@ for st in W["stages"]:
             ang = a.angle(b)
             if ang > best: best, bk = ang, i
     rider_eye(st, bk - 4, 8, f"7_rider_{sid}_b_corner")
-    sp = st["bridge"] or st["jump"]
+    sp = st["bridge"] or st["jump"] or st.get("pass")
     if sp:
         k = nearest_k(st, U(sp["p"]) + off)
         rider_eye(st, k - 6, 6, f"7_rider_{sid}_c_setpiece")
@@ -446,9 +454,33 @@ for st in W["stages"]:
         q = U(st["shortcut"]["b"]) + off
         shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), 22)
     rider_eye(st, n - 9, 8, f"7_rider_{sid}_d_finish")
-# 町の中（柵の内側 x ±48、z -803〜-623）から：スポーンから北、町の奥から南、通りから東西
-for name, eye, tgt in (("9_lobby_eye_N", (-11.5, -789, 1.7), (-11.5, -560, 3)), ("9_lobby_eye_S", (0, -650, 1.7), (0, -1100, 3)),
-                       ("9_lobby_eye_E", (-30, -720, 1.7), (400, -720, 3)), ("9_lobby_eye_W", (30, -740, 1.7), (-400, -740, 3)),
-                       ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4))):
-    shot(name, eye, tgt, 24)
+# 町の中（ロビー中心からの相対）から。目の前 8m に物があれば、町の通りの向き（北）へずらして最初に当たる物が 12m より遠くなる所から撮る
+from mathutils import Vector as _V
+def eye_shot(name, rel_eye, rel_tgt, lens=24):
+    e = lob + _V((rel_eye[0], rel_eye[1], 0)); e.z = rel_eye[2]
+    tg = lob + _V((rel_tgt[0], rel_tgt[1], 0)); tg.z = rel_tgt[2]
+    dg = bpy.context.evaluated_depsgraph_get()
+    for _ in range(12):
+        d = (tg - e).normalized()
+        hit, loc, *_r = sc.ray_cast(dg, e, d, distance=12.0)
+        if not hit: break
+        e = e + _V((0, 4.0, 0)); tg = tg + _V((0, 4.0, 0))
+    shot(name, tuple(e), tuple(tg), lens)
+sp = W["spawn"]; syaw = math.radians(W["spawnYaw"])
+eye_shot("9_lobby_eye_N", (-11.5, 30, 1.7), (-11.5 + math.sin(syaw) * 200, 30 + math.cos(syaw) * 200, 3))   # スポーン → 町の大通り
+eye_shot("9_lobby_eye_E", (-30, 100, 1.7), (400, 100, 3))
+eye_shot("9_lobby_eye_W", (30, 80, 1.7), (-400, 80, 3))
+eye_shot("9_lobby_eye_S", (0, 170, 1.7), (0, -400, 3))
+for gi, gaz in enumerate(W.get("vistaGaps", [])):   # 広場 → 南・南東の見晴らしの切れ目
+    a_ = math.radians(gaz)
+    shot(f"9_lobby_vista_{gi + 1}", tuple(lob + _V((sp[0], sp[2], 1.7))), tuple(lob + _V((sp[0] + math.sin(a_) * 400, sp[2] + math.cos(a_) * 400, 8))), 24)
+shot("9_lobby_practice_rider", tuple(lob + _V((27.5, 89, 2.6))), tuple(lob + _V((28, 130, 1.5))), 24)   # 練習場を騎手の目の高さで
+shot("9_lobby_ride_SE", tuple(lob + _V((120, -60, 3.2))), tuple(lob + _V((300, -180, 4))), 24)
+# 境目の切り通し（300m 手前から：三角の切れ込みが見えるか）
+pa = S[2].get("pass")
+if pa:
+    off = Vector((S[2]["center"][0] - 500, S[2]["center"][2] - 500, 0))
+    c = S[2]["course"]
+    k = nearest_k(S[2], U(pa["p"]) + off)
+    rider_eye(S[2], max(k - 26, 0), 26, "7_rider_3_c_pass_approach")   # コースの点は 10m ごと（260m 手前）
 print("ENGINE", sc.render.engine)

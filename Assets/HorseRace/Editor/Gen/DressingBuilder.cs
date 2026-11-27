@@ -19,7 +19,10 @@ namespace HorseRace.EditorTools
             var root = GenUtil.Child(sb.root, "Dressing", Vector3.zero).transform;
             root.position = Vector3.zero;
             List<Placement> plan = DressingPlan.For(sb.def, sb.courseLocal, sb.heights, sb.goalArc, sb.shortcut);
+            GenUtil.StageVariant = sb.def.index;   // 境目は紫の夕景の影色のマテリアル
             Instantiate(plan, root, sb.def.Origin, "S" + (sb.def.index + 1));
+            GenUtil.StageVariant = -1;
+            Atmosphere(sb, root, plan);
             if (sb.def.kind == HeightmapGen.KIND_MESA)
             {
                 Vector3 pp = DressingPlan.PodiumLocal(sb.courseLocal, sb.goalArc);
@@ -71,6 +74,44 @@ namespace HorseRace.EditorTools
                 else if (p.asset.StartsWith("Buildings/") && (p.collider || p.background))
                     BackgroundWalls(go, 1f);
                 SetStatic(go);
+            }
+        }
+
+        /// <summary>
+        /// 近く・中くらいの空気（art-r1-15）と遠くの目印の合図（art-r1-10）：コース沿いに地面すれすれの砂ぼこり（25m の箱、8 か所、風に流れる）、
+        /// 野営地の焚き火ごとに炎と煙の柱、遠くの目印（Landmark）の上に 40m 立ちのぼる暗い煙と灯り。
+        /// </summary>
+        static void Atmosphere(StageBuild sb, Transform root, List<Placement> plan)
+        {
+            var air = GenUtil.Child(root, "Atmosphere", Vector3.zero).transform;
+            air.position = Vector3.zero;
+            Vector3 o = sb.def.Origin;
+            Color dust = new Color(0.88f, 0.74f, 0.55f, 0.10f);
+            Vector3 wind = new Vector3(1.6f, 0.05f, 0.7f);
+            const int N = 8;
+            for (int i = 0; i < N; i++)
+            {
+                float a = sb.goalArc * (i + 0.5f) / N;
+                Vector3 t = WorldLayout.TangentAtArc(sb.courseLocal, a);
+                Vector3 lp = WorldLayout.PointAtArc(sb.courseLocal, a) + WorldLayout.RightOf(t) * ((i % 2 == 0 ? 1f : -1f) * 16f);
+                Vector3 p = sb.Ground(lp.x, lp.z);
+                GenUtil.DustBox(air, "GroundDust_" + i, p + Vector3.up * 0.8f, new Vector3(25f, 1.2f, 25f), dust, wind, 3f);
+            }
+            foreach (var q in plan)
+            {
+                Vector3 w = o + q.position;
+                if (q.asset == DressingPlan.CAMPFIRE)
+                {
+                    GenUtil.Particles(air, "CampFlames", w + Vector3.up * 0.4f, new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
+                    GenUtil.SmokeColumn(air, "CampSmoke", w + Vector3.up * 1f, SetPieceBuilder.SmokeGrey, 20f, 1.6f);
+                    GenUtil.PointLight(air, "CampLight", w + Vector3.up * 1.2f, new Color(1f, 0.6f, 0.3f), 9f, 1.2f);
+                }
+                else if (q.group == "Landmark" || (q.group == "GoalTown" && q.part == DressingPlan.RANCH_TOWER))
+                {
+                    Vector3 top = w + Vector3.up * (q.height + 1f);
+                    GenUtil.SmokeColumn(air, "LandmarkSmoke", top, new Color(0.22f, 0.20f, 0.20f, 0.6f), 40f, 4f);
+                    GenUtil.PointLight(air, "LandmarkLight", top - Vector3.up * 2f, SetPieceBuilder.LampWarm, 30f, 2f);
+                }
             }
         }
 

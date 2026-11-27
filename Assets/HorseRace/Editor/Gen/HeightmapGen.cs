@@ -57,13 +57,14 @@ namespace HorseRace.EditorTools
                 s0 += segLen;
             }
 
+            float total = s0;
             for (int z = 0; z < n; z++)
                 for (int x = 0; x < n; x++)
                 {
                     float d = dist[z, x];
                     if (d >= FALLOFF_M) continue;
                     float w = 1f - Smooth(RUNWAY_M, FALLOFF_M, d);
-                    float target = PathHeight(kind, seed, arc[z, x]);
+                    float target = PathHeight(kind, seed, arc[z, x], total);
                     h[z, x] = Mathf.Clamp01(Mathf.Lerp(h[z, x], target, w));
                 }
             return h;
@@ -270,6 +271,22 @@ namespace HorseRace.EditorTools
                 return 0.2f + 0.7f * (f + Smooth(0.75f, 1f, frac)) / 4f;
             }
         }
+
+        // ---- 境目（KIND_MESA）の最後：ゴールの町へ下る長い直線（ゴールの手前 FINAL_DESCENT_FROM_END_M〜TO_END_M で FINAL_DROP_M 下る）----
+        public const float FINAL_DROP_M = 18f;
+        public const float FINAL_DESCENT_FROM_END_M = 560f, FINAL_DESCENT_TO_END_M = 140f;   // コースの終点（流しの端）からの距離
+
+        /// <summary>コースの弧長 s（m、全長 total）での道の高さ（0〜1）。</summary>
+        public static float PathHeight(int kind, int seed, float s, float total)
+        {
+            float h = PathHeight(kind, seed, s);
+            if (kind == KIND_MESA && total > 0f)
+                h -= FINAL_DROP_M / HEIGHT_M * Smooth(total - FINAL_DESCENT_FROM_END_M, total - FINAL_DESCENT_TO_END_M, s);
+            return h;
+        }
+
+        /// <summary>決まった値ノイズ（0〜1）。外の地面（WorldBounds.FillerBaseHeight）など他の生成でも同じ値を使う。</summary>
+        public static float Noise01(float x, float y, int seed, int salt) => Noise(x, y, seed, salt);
 
         static float PathHeight(int kind, int seed, float s)
         {

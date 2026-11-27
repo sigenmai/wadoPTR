@@ -7,8 +7,11 @@ namespace HorseRace.EditorTools
     /// ロビーの柵と外を隠す木の帯（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。座標はロビー中心からの相対（m）。
     ///   柵：FENCE_RECT（町の外形 + 8m。広場・たまり場・掲示板・練習場はすべて町の中）を一周する木の柵（FarmProps_03 を高さ ×1.6、柱の間隔 ≤ 2.74m）。
     ///       練習場も柵の中なので出入口（Gates）は無し＝外へ出る切れ目は無い（必要になったら Gates に足す）。
-    ///   外：柵のすぐ外の地面は OUT_SLOPE で盛り上がり（OUT_RISE_MAX まで）、その先は外周の尾根。柵の外 3〜10m に木の帯（3 列・互い違い）。
-    ///   → 柵の中の目の高さ（1.6〜3.2m）から水平〜少し下向きに見ると、見えるのは柵・木・盛り上がった地面（尾根）・空だけ（VisibilityRay でテスト）。
+    ///   外：柵のすぐ外の地面はゆるく盛り上がり（OUT_SLOPE、OUT_RISE_MAX まで）、その先は低い外周の尾根と、その上の岩の冠（RimCrown、切れ目あり）。
+    ///       北（町の奥の岩山の裏）だけは高い尾根のまま（ステージの地形を隠す）。柵の外 3〜10m に木の帯（3 列・南は 2 列、互い違い）。
+    ///       南と南東に 2 つの「見晴らしの切れ目」（VistaGaps）：尾根・木・岩を置かず、広場から谷越しに遠くの山並み（Backdrop）が見える。
+    ///   → 柵の中の目の高さ（1.6〜3.2m）から水平〜少し下向きに見ると、見えるのは柵・木・尾根・空、切れ目からは遠くの景色だけ（VisibilityRay でテスト）。
+    ///      ステージの地形は尾根の下か、霧でほぼ隠れる距離（StagesHiddenFromLobby でテスト）。
     /// </summary>
     public static class LobbyLayout
     {
@@ -36,9 +39,11 @@ namespace HorseRace.EditorTools
 
         // ---- 町の中の配置（ロビー中心からの相対 m、町の南端 z = 25・通りの高さ y = 0）。Blender で測った町の空き地（建物・岩・サボテン・起伏の無い所）----
         // 広場＝町の南の入口（x -29〜-7、z 25〜48 の空き地）
-        public static readonly Vector3 SPAWN = new Vector3(-11.5f, 0f, 30f);            // 北（受付）を向く
-        public static readonly Vector3 LEDGER_DESK = new Vector3(-11.5f, 0f, 40.5f);    // 受付カウンター（南＝スポーンを向く）
-        public static readonly Vector3 WANTED_WALL = new Vector3(-22f, 0f, 36.5f);      // 手配書の壁（幅 6m、南を向く。背中は岩）
+        public static readonly Vector3 SPAWN = new Vector3(-11.5f, 0f, 30f);            // 北北東（町の大通り）を向く
+        /// <summary>スポーンの向き（北から東へ °）：町の大通り（x ≈ -5〜6）が正面の真ん中に来る。</summary>
+        public const float SPAWN_YAW = 15f;
+        public static readonly Vector3 LEDGER_DESK = new Vector3(-13.6f, 0f, 40.5f);    // 受付カウンター（南＝スポーンを向く。大通りへの視線の左）
+        public static readonly Vector3 WANTED_WALL = new Vector3(-26f, 0f, 36.5f);      // 手配書の壁（掲示板 ×1.2、南を向く。視線の外の西）
         public static readonly Vector3 START_BELL = new Vector3(-20f, 0f, 29.5f);       // スタート台（3m 四方）と鐘
         public static readonly Vector3 HUD_LEVER = new Vector3(-8f, 0f, 29f);           // 補助表示のレバー
         // 西の空き地（西の建物の列 x ≤ -14.6 と町の西の端 x -36 の間）
@@ -80,7 +85,7 @@ namespace HorseRace.EditorTools
             var l = new List<KeyValuePair<string, Vector4>>();
             void Add(string n, Vector3 p, float r) => l.Add(new KeyValuePair<string, Vector4>(n, new Vector4(p.x, 0f, p.z, r)));
             Add("Spawn", SPAWN, 1f);
-            Add("LedgerDesk", LEDGER_DESK, 2.5f);
+            Add("LedgerDesk", LEDGER_DESK, 1.8f);   // FarmProps_05 の机（半径 1.6m）
             for (int i = -1; i <= 1; i++) Add("WantedWall_" + (i + 1), WANTED_WALL + new Vector3(i * 2.1f, 0f, 0f), 1.2f);   // 幅 6.2m・厚さ 0.2m の板
             Add("StartBell", START_BELL, 2.2f);
             Add("HudLever", HUD_LEVER, 0.6f);
@@ -109,20 +114,53 @@ namespace HorseRace.EditorTools
         public const float FENCE_PIECE_M = 2.74f;        // FarmProps_03 の長さ（両端に柱）
         public const float FENCE_SCALE_Y = 1.6f;         // 0.98m × 1.6 ≈ 1.57m
         public const float FENCE_HEIGHT_M = 0.98f * FENCE_SCALE_Y;
-        public const float OUT_SLOPE = 0.6f, OUT_RISE_MAX = 12f;
-        public const float RIM_WIDTH_M = 30f, RIM_MIN_M = 15f, RIM_MAX_M = 30f;
+        // 柵の外の地面：ゆるい盛り上がり（20m で 6m）と低い尾根（4〜12m）。北の辺（町の奥の岩山の裏）は高いまま（12m・15〜30m）
+        public const float OUT_SLOPE = 0.3f, OUT_RISE_MAX = 6f;
+        public const float RIM_WIDTH_M = 30f, RIM_MIN_M = 4f, RIM_MAX_M = 12f;
+        public const float OUT_SLOPE_N = 0.6f, OUT_RISE_MAX_N = 12f, RIM_MIN_N = 15f, RIM_MAX_N = 30f;
+        public const float NORTH_BLEND_M = 40f;          // 北の高い尾根へ移る幅（柵の北の辺の 20m 南から）
+        public const float GAP_KEEP = 0.15f;
+        public const float BERM_VISIBLE_M = 12f;         // 柵の外のこの距離までは盛り上がりの途中の地面（見えてよい）             // 見晴らしの切れ目では盛り上がり・尾根をこの割合に下げる
         public const float BELT_FIRST_M = 3f, BELT_ROW_GAP_M = 3.5f, BELT_SPACING_M = 8f;
         public const int BELT_ROWS = 3;
+        public const int BELT_ROWS_SOUTH = 2;            // 南（広場の前）は 2 列
         public const int MAX_BELT = 600;
+
+        /// <summary>見晴らしの切れ目：スポーンから見た方位（北から東へ °）と半幅（°）。南と南東。</summary>
+        public static readonly Vector2[] VistaGaps = { new Vector2(180f, 11f), new Vector2(138f, 9f) };
+        const float GAP_SOFT_DEG = 4f;
+
+        /// <summary>柵の外の点 p（ロビー中心からの相対）が見晴らしの切れ目にどれだけ入っているか（0〜1、端は GAP_SOFT_DEG でなめらか）。柵の中は 0。</summary>
+        public static float GapFactor(Vector4 fence, Vector3 p)
+        {
+            if (DistOutside(fence, p) <= 0f) return 0f;
+            float az = WorldLayout.YawDeg(new Vector3(p.x - SPAWN.x, 0f, p.z - SPAWN.z).normalized);
+            float best = 0f;
+            foreach (var g in VistaGaps)
+            {
+                float d = Mathf.Abs(Mathf.DeltaAngle(az, g.x));
+                float t = Mathf.Clamp01((g.y + GAP_SOFT_DEG - d) / GAP_SOFT_DEG);
+                best = Mathf.Max(best, t * t * (3f - 2f * t));
+            }
+            return best;
+        }
+
+        /// <summary>北の高い尾根の割合（0〜1）：柵の北の辺の NORTH_BLEND_M/2 南から NORTH_BLEND_M かけて 1 へ。</summary>
+        public static float NorthFactor(Vector4 fence, Vector3 p)
+        {
+            float t = Mathf.Clamp01((p.z - (fence.w - NORTH_BLEND_M * 0.5f)) / NORTH_BLEND_M);
+            return t * t * (3f - 2f * t);
+        }
 
         /// <summary>柵の面積（m²）。</summary>
         public static float Area(Vector4 r) => (r.z - r.x) * (r.w - r.y);
 
-        /// <summary>木の帯の最低本数の目安（3 列の外周 ÷ 間隔 の 9 割）。Validator が使う。</summary>
+        /// <summary>木の帯の最低本数の目安（南は 2 列・切れ目は無しとして、外周 ÷ 間隔 の 8 割）。Validator が使う。</summary>
         public static int MinBelt(Vector4 rect)
         {
-            float perim = 2f * ((rect.z - rect.x) + (rect.w - rect.y));
-            return Mathf.FloorToInt(0.9f * BELT_ROWS * perim / BELT_SPACING_M);
+            float w = rect.z - rect.x, d = rect.w - rect.y;
+            float rows = BELT_ROWS * (w + 2f * d) + BELT_ROWS_SOUTH * w;
+            return Mathf.FloorToInt(0.8f * (rows - BELT_ROWS_SOUTH * 40f) / BELT_SPACING_M);
         }
 
         public struct Gate
@@ -192,25 +230,40 @@ namespace HorseRace.EditorTools
         /// <summary>長方形の外への距離（中なら 0）。</summary>
         public static float DistOutside(Vector4 rect, Vector3 p) => WorldBounds.DistToRect(p, rect);
 
-        /// <summary>柵の外の地面の盛り上がり（m）。外周の尾根（ApplyRim）は別に足される。</summary>
+        /// <summary>柵の外の地面の盛り上がり（m、南・東・西の低い値）。外周の尾根は別に足される。</summary>
         public static float OutsideRise(float dOut) => Mathf.Min(OUT_RISE_MAX, OUT_SLOPE * dOut);
 
-        /// <summary>外周の尾根の最低の高さ（ApplyRim のノイズの下限）。</summary>
-        public static float RimMin(Vector3 p)
+        /// <summary>外周の尾根の重み（地面の端で 1、内側 RIM_WIDTH_M で 0）。</summary>
+        public static float RimWeight(Vector3 p)
         {
             Vector4 g = GROUND_RECT;
             float d = Mathf.Min(Mathf.Min(p.x - g.x, g.z - p.x), Mathf.Min(p.z - g.y, g.w - p.z));
             if (d >= RIM_WIDTH_M) return 0f;
             float t = Mathf.Clamp01(1f - d / RIM_WIDTH_M);
-            return RIM_MIN_M * t * t * (3f - 2f * t);
+            return t * t * (3f - 2f * t);
         }
 
-        /// <summary>ロビーの地面の高さ（柵の中 0、外は盛り上がり＋尾根の下限）。</summary>
-        public static float GroundHeight(Vector4 fence, Vector3 p)
+        /// <summary>外周の尾根の最低の高さ（ノイズの下限、南・東・西の低い値）。</summary>
+        public static float RimMin(Vector3 p) => RIM_MIN_M * RimWeight(p);
+
+        /// <summary>
+        /// ロビーの地面の高さ（柵の中 0）。外は盛り上がり＋尾根（rimNoise 0〜1 で下限〜上限）。北は高い尾根へなめらかに移り、
+        /// 見晴らしの切れ目では GAP_KEEP まで下げる。LobbyBuilder（rimNoise = ノイズ）とテスト（rimNoise = 0：下限）が同じ式を使う。
+        /// </summary>
+        public static float GroundHeight(Vector4 fence, Vector3 p, float rimNoise)
         {
             float d = DistOutside(fence, p);
-            return d <= 0f ? 0f : OutsideRise(d) + RimMin(p);
+            if (d <= 0f) return 0f;
+            float nf = NorthFactor(fence, p);
+            float rise = Mathf.Lerp(Mathf.Min(OUT_RISE_MAX, OUT_SLOPE * d), Mathf.Min(OUT_RISE_MAX_N, OUT_SLOPE_N * d), nf);
+            float rmin = Mathf.Lerp(RIM_MIN_M, RIM_MIN_N, nf), rmax = Mathf.Lerp(RIM_MAX_M, RIM_MAX_N, nf);
+            float rim = RimWeight(p) * (rmin + (rmax - rmin) * Mathf.Clamp01(rimNoise));
+            float keep = 1f - (1f - GAP_KEEP) * GapFactor(fence, p);
+            return (rise + rim) * keep;
         }
+
+        /// <summary>ロビーの地面の高さの下限（尾根のノイズ 0）。</summary>
+        public static float GroundHeight(Vector4 fence, Vector3 p) => GroundHeight(fence, p, 0f);
 
         static readonly string[] TreeParts = { "Trees_01", "Trees_02" };
 
@@ -228,11 +281,14 @@ namespace HorseRace.EditorTools
                 {
                     float t = s + (float)rng.NextDouble() * 2f - 1f;
                     Vector3 p;
-                    if (t < w) p = new Vector3(outer.x + t, 0f, outer.y);
+                    bool south = false;
+                    if (t < w) { p = new Vector3(outer.x + t, 0f, outer.y); south = true; }
                     else if (t < w + d) p = new Vector3(outer.z, 0f, outer.y + (t - w));
                     else if (t < 2f * w + d) p = new Vector3(outer.z - (t - w - d), 0f, outer.w);
                     else p = new Vector3(outer.x, 0f, outer.w - (t - 2f * w - d));
                     int k = rng.Next(10);
+                    if (south && row >= BELT_ROWS_SOUTH) continue;          // 南（広場の前）は 2 列
+                    if (GapFactor(rect, p) > 0.05f) continue;                // 見晴らしの切れ目は空ける
                     string asset = k < 6 ? DressingPlan.TREES : (k < 9 ? DressingPlan.ACACIA : DressingPlan.DEADTREE);
                     string part = asset == DressingPlan.TREES ? TreeParts[rng.Next(2)] : null;
                     float scale = 1f + (float)rng.NextDouble() * 0.5f;
@@ -260,7 +316,12 @@ namespace HorseRace.EditorTools
             for (float t = 0.25f; t < maxDist; t += 0.5f)
             {
                 Vector3 p = eye + dir * t;
-                if (p.x < g.x || p.x > g.z || p.z < g.y || p.z > g.w) { what = "void"; return true; }
+                // ロビーの地面の外：見晴らしの切れ目からなら遠くの景色（外の地面と山並み）、それ以外は地面の端が見えてしまう
+                if (p.x < g.x || p.x > g.z || p.z < g.y || p.z > g.w)
+                {
+                    if (GapFactor(f, p) > 0.5f) { what = "vista"; return false; }
+                    what = "void"; return true;
+                }
                 float dOut = DistOutside(f, p);
                 if (dOut <= 0f)
                 {
@@ -282,9 +343,124 @@ namespace HorseRace.EditorTools
                     if (h2 + cy * cy < cr * cr) { what = "canopy"; return false; }
                 }
                 float gh = GroundHeight(f, p);
-                if (p.y <= gh) { what = gh < 1f ? "outside flat ground" : "rim"; return gh < 1f; }
+                if (p.y <= gh)
+                {
+                    if (gh < 1f && GapFactor(f, p) > 0.5f) { what = "vista ground"; return false; }
+                    if (dOut < BERM_VISIBLE_M) { what = "berm"; return false; }   // 柵のすぐ外のゆるい盛り上がり（ロビーの地面）
+                    what = gh < 1f ? "outside flat ground" : "rim"; return gh < 1f;
+                }
             }
             return false;
+        }
+
+        /// <summary>スポーンの目の高さ（1.6m）から方位 azDeg を見たときの地面の地平線の仰角（°、尾根の下限で数える）。</summary>
+        public static float HorizonElevationDeg(Vector4 fence, Vector3 eye, float azDeg)
+        {
+            float a = azDeg * Mathf.Deg2Rad, best = -90f;
+            Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+            Vector4 g = GROUND_RECT;
+            for (float t = 1f; t < 600f; t += 1f)
+            {
+                Vector3 p = eye + dir * t;
+                if (p.x < g.x || p.x > g.z || p.z < g.y || p.z > g.w) break;
+                float e = Mathf.Atan2(GroundHeight(fence, p) - eye.y, t) * Mathf.Rad2Deg;
+                if (e > best) best = e;
+            }
+            return best;
+        }
+
+        // ------------------------------------------------------------------
+        // ロビーからステージが見えないか（art-r1-04）
+        // ------------------------------------------------------------------
+
+        /// <summary>ステージの地形の高さの上限（m、外周の尾根を含む。控えめに大きく）。</summary>
+        public static float StageMaxHeight(int kind)
+            => kind == HeightmapGen.KIND_DUNES ? 0.40f * HeightmapGen.HEIGHT_M + HeightmapGen.RIM_MAX_M
+             : (kind == HeightmapGen.KIND_CANYON ? 0.95f * HeightmapGen.HEIGHT_M + HeightmapGen.RIM_MAX_M : 0.90f * HeightmapGen.HEIGHT_M + HeightmapGen.RIM_MAX_M);
+
+        /// <summary>
+        /// ロビーの目 eyeRel（ロビー中心からの相対、y = 目の高さ）から方位 azDeg に、霧で隠れない距離（LightingPlan.FogHiddenDistance）の内側で
+        /// ステージの地形（上限の高さ）が地面の地平線より上に見えるか。見えるなら true と、そのステージの番号・距離。
+        /// 町の建物・木・岩の冠は数えない（控えめ）。
+        /// </summary>
+        public static bool StageVisibleAbove(Vector4 fence, Vector3 eyeRel, float azDeg, out int stage, out float dist)
+        {
+            stage = -1; dist = 0f;
+            float horizon = HorizonElevationDeg(fence, eyeRel, azDeg);
+            float a = azDeg * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+            Vector3 eyeW = WorldBounds.LOBBY_CENTER + eyeRel;
+            float maxD = LightingPlan.FogHiddenDistance;
+            foreach (var sd in StageDefinitions.All)
+            {
+                Vector3 o = sd.Origin;
+                var r = new Vector4(o.x, o.z, o.x + StageDefinitions.SIZE, o.z + StageDefinitions.SIZE);
+                float hMax = StageMaxHeight(sd.kind);
+                for (float t = 5f; t < maxD; t += 5f)
+                {
+                    Vector3 p = eyeW + dir * t;
+                    if (p.x < r.x || p.x > r.z || p.z < r.y || p.z > r.w) continue;
+                    float e = Mathf.Atan2(hMax - eyeW.y, t) * Mathf.Rad2Deg;
+                    if (e > horizon) { stage = sd.index; dist = t; return true; }
+                }
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------
+        // 尾根の岩の冠（art-r1-05）と町の裏の飾り（art-r1-16）
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 尾根の上の岩の冠（切れ目あり）：柵の外 CROWN_OUT_M に沿って CROWN_STEP_M ごと（35% は空ける）。東西・南は岩の群れ（×2.5〜3）と
+        /// 砂漠の大岩（DesertRocks_01〜03 ×2〜2.6、長い辺を柵に沿わせる）、北の 2 つの角はメサ B（×1.5〜2）。見晴らしの切れ目には置かない。
+        /// y はロビー中心の高さ 0 からの地面の下限 − 高さの 25%（LobbyBuilder は実際の地形の高さで置き直す）。
+        /// </summary>
+        public static List<Placement> RimCrown(Vector4 rect, int seed)
+        {
+            const float CROWN_OUT_M = 24f, CROWN_STEP_M = 22f;
+            var rng = new System.Random(seed);
+            var list = new List<Placement>();
+            var outer = new Vector4(rect.x - CROWN_OUT_M, rect.y - CROWN_OUT_M, rect.z + CROWN_OUT_M, rect.w + CROWN_OUT_M);
+            float w = outer.z - outer.x, d = outer.w - outer.y, perim = 2f * (w + d);
+            string[] big = { "DesertRocks_01", "DesertRocks_02", "DesertRocks_03" };
+            int k = 0;
+            for (float s = CROWN_STEP_M * 0.5f; s < perim; s += CROWN_STEP_M, k++)
+            {
+                if (rng.NextDouble() < 0.35) continue;   // 切れ目のある冠
+                float t = s + (float)rng.NextDouble() * 6f - 3f;
+                Vector3 p; float sideYaw;
+                if (t < w) { p = new Vector3(outer.x + t, 0f, outer.y); sideYaw = 0f; }
+                else if (t < w + d) { p = new Vector3(outer.z, 0f, outer.y + (t - w)); sideYaw = 90f; }
+                else if (t < 2f * w + d) { p = new Vector3(outer.z - (t - w - d), 0f, outer.w); sideYaw = 0f; }
+                else { p = new Vector3(outer.x, 0f, outer.w - (t - 2f * w - d)); sideYaw = 90f; }
+                if (GapFactor(rect, p) > 0.01f) continue;
+                bool northCorner = p.z > rect.w + 10f && (p.x < rect.x + 10f || p.x > rect.z - 10f);
+                string asset, part = null; float scale, yaw;
+                if (northCorner) { asset = DressingPlan.MESAB; scale = 1.5f + (float)rng.NextDouble() * 0.5f; yaw = (float)rng.NextDouble() * 360f; }
+                else if (k % 3 == 0) { asset = DressingPlan.DROCKS; part = big[rng.Next(big.Length)]; scale = 2f + (float)rng.NextDouble() * 0.6f; yaw = sideYaw + (rng.Next(2) == 0 ? 0f : 180f); }
+                else { asset = DressingPlan.RSTYL; scale = 2.5f + (float)rng.NextDouble() * 0.5f; yaw = (float)rng.NextDouble() * 360f; }
+                var sz = DressingPlan.SizeOf(asset, part);
+                float h = sz.h * scale;
+                list.Add(new Placement
+                {
+                    group = "RimCrown", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - 0.25f * h, p.z),
+                    yawDeg = yaw, scale = scale, radius = sz.r * scale, height = h, collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
+                });
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// 町の裏（東の建物の列の裏と線路の間の狭い帯、x = BACKLOT_X）に 6m ごとに置く物の場所（ロビー中心からの相対）。練習場（z ≥ 86）の手前まで。
+        /// 線路（x ≈ 19.2〜21.9）と、線路の東の通り道（x ≥ 23.4 の建物・小物の箱の手前）の間に収まる小さな物だけ。
+        /// </summary>
+        public const float BACKLOT_X = 22.6f;
+        public static List<Vector3> BacklotSpots()
+        {
+            var l = new List<Vector3>();
+            for (float z = 48f; z <= 84f; z += 6f) l.Add(new Vector3(BACKLOT_X, 0f, z));
+            return l;
         }
     }
 }

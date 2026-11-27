@@ -42,8 +42,8 @@ namespace HorseRace.Tests
         {
             foreach (var p in Plan(i))
             {
-                float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - p.radius;
-                bool roadside = p.group == "Roadside" || p.group == "GoalTown";
+                float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - DressingPlan.FootprintRadius(p);
+                bool roadside = DressingPlan.NearRoadGroups.Contains(p.group);
                 Assert.GreaterOrEqual(d, (roadside ? DressingPlan.ROAD_MIN : DressingPlan.ROAD_CLEAR) - 0.01f, p.group + " " + p.part + " " + p.asset);
             }
         }
@@ -61,7 +61,8 @@ namespace HorseRace.Tests
                     bool townArea = c.w >= 100f;   // ゴールの町の範囲は町の建物だけが入れる
                     if (p.group == "GoalTown" && townArea) continue;
                     if (p.group == "GoalTown" && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
-                    Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(c.x, 0, c.z)), c.w + p.radius - 0.01f, p.group + " " + p.asset);
+                    if (p.group == "Landmark") continue;   // 遠くの目印は除外の円の外を自分で選ぶ（LandmarkSpot）
+                    Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(c.x, 0, c.z)), c.w + DressingPlan.FootprintRadius(p) - 0.01f, p.group + " " + p.asset);
                 }
                 var sc = shortcuts[i];
                 if (sc != null)
@@ -107,7 +108,9 @@ namespace HorseRace.Tests
             {
                 float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - p.radius;
                 if (d > DressingPlan.REACHABLE_M) Assert.IsFalse(p.collider, p.asset);
-                if (p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) Assert.IsTrue(p.background);
+                // メサは背景（見えない壁）。ただし道のすぐ脇の切り通しの門はメッシュの当たり判定
+                if ((p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) && p.group != "MesaGate") Assert.IsTrue(p.background);
+                if (p.group == "MesaGate") Assert.AreEqual(DressingPlan.SHAPE_MESH, p.shape);
                 if (p.height < DressingPlan.COLLIDER_MIN_H) Assert.IsFalse(p.collider, p.asset + " " + p.part);
             }
         }
@@ -165,8 +168,153 @@ namespace HorseRace.Tests
                 int k = Mathf.FloorToInt(a / DressingPlan.BAND_WINDOW_M);
                 if (k >= 0 && k < windows) counts[k]++;
             }
-            TestContext.WriteLine("min per 100 m: " + counts.Min());
+            TestContext.WriteLine("min per 100 m: " + counts.Min() + " at " + System.Array.IndexOf(counts, counts.Min()) * 100);
             for (int k = 0; k < windows; k++) Assert.GreaterOrEqual(counts[k], DressingPlan.ROADSIDE_LARGE_PER_100M, $"window {k * 100}-{k * 100 + 100} m");
+        }
+
+        /// <summary>峡谷の近景（art-r1-02）：コース 100m ごとに、道の中心から 30m 以内の飾りが 10 個以上（岩橋の溝の周りの区間は除く）。</summary>
+        [Test] public void CanyonNearFieldDensity()
+        {
+            var plan = Plan(0);
+            var course = courses[0];
+            var cum = DressingPlan.CourseArcs(course);
+            float bridge = SetPieces.BridgeArc(StageDefinitions.All[0], goals[0]);
+            int windows = Mathf.CeilToInt(goals[0] / DressingPlan.BAND_WINDOW_M);
+            var counts = new int[windows];
+            foreach (var p in plan)
+            {
+                float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
+                if (d > DressingPlan.NEAR_FIELD_M) continue;
+                int k = Mathf.FloorToInt(a / DressingPlan.BAND_WINDOW_M);
+                if (k >= 0 && k < windows) counts[k]++;
+            }
+            int min = int.MaxValue;
+            for (int k = 0; k < windows; k++)
+            {
+                float c = (k + 0.5f) * DressingPlan.BAND_WINDOW_M;
+                if (Mathf.Abs(c - bridge) < SetPieces.TRENCH_HALF_LENGTH + 20f) continue;   // 岩橋（溝は SetPieceBuilder が岩で飾る）
+                if (c > goals[0] - 60f) continue;                                           // ゴール前（ゲートの足元）
+                min = Mathf.Min(min, counts[k]);
+                Assert.GreaterOrEqual(counts[k], DressingPlan.NEAR_PER_100M, $"window {k * 100}-{k * 100 + 100} m");
+            }
+            TestContext.WriteLine("near-field min per 100 m: " + min);
+            Assert.Greater(Count(plan, p => p.group == "CanyonFloor"), 150);
+        }
+
+        /// <summary>崖の壁（art-r1-03）：長い辺（ローカル Z）を道に沿わせる（向きはコースの向き ±（揺らぎ＋カーブ））。裾は高さの 22% 埋める。</summary>
+        [Test] public void CliffWallsAlignWithRoadAndSink()
+        {
+            var plan = Plan(0);
+            var course = courses[0];
+            var cum = DressingPlan.CourseArcs(course);
+            int n = 0;
+            foreach (var p in plan)
+            {
+                if (p.group != "CliffWalls") continue;
+                n++;
+                float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
+                float tyaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(course, a));
+                float diff = Mathf.Abs(Mathf.DeltaAngle(tyaw, p.yawDeg));
+                diff = Mathf.Min(diff, 180f - diff);
+                Assert.LessOrEqual(diff, DressingPlan.CLIFF_YAW_JITTER + 25f, p.part);
+            }
+            Assert.Greater(n, 20);
+        }
+
+        /// <summary>遠くの目印（art-r1-10）：どのステージもスタートで進む向き ±35° にあり、コースから 60m 以上離れ、計画に入っている。</summary>
+        [TestCaseSource(nameof(Stages))]
+        public void LandmarkAheadAtStart(int i)
+        {
+            var plan = Plan(i);
+            var s = StageDefinitions.All[i];
+            Assert.IsTrue(DressingPlan.LandmarkSpot(s, courses[i], goals[i], out Vector3 spot, out float ang));
+            Vector3 p0 = WorldLayout.PointAtArc(courses[i], StageDefinitions.START_ARC_M), t0 = WorldLayout.TangentAtArc(courses[i], StageDefinitions.START_ARC_M);
+            Vector3 dir = spot - p0;
+            float a = Mathf.Abs(Mathf.DeltaAngle(WorldLayout.YawDeg(t0), WorldLayout.YawDeg(new Vector3(dir.x, 0f, dir.z).normalized)));
+            TestContext.WriteLine($"stage {i}: landmark {spot} angle {a:F1}, dist {WorldLayout.DistXZ(spot, p0):F0}");
+            Assert.LessOrEqual(a, DressingPlan.LANDMARK_MAX_ANGLE);
+            Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(spot, courses[i]), DressingPlan.LANDMARK_MIN_ROAD_M - 0.01f);
+            Assert.AreEqual(1, Count(plan, p => p.group == "Landmark"));
+            var lm = plan.First(p => p.group == "Landmark");
+            Assert.Less(WorldLayout.DistXZ(lm.position, spot), 0.01f);
+            Assert.Greater(lm.height, 15f);
+        }
+
+        /// <summary>道の目印（art-r1-10）：急なカーブの外側に杭・柵の列が続き、直線には標柱が立つ。どれも平らな道の外。</summary>
+        [TestCaseSource(nameof(Stages))]
+        public void GuideLinesTraceCorners(int i)
+        {
+            var plan = Plan(i);
+            var course = courses[i];
+            var guides = plan.Where(p => p.group == "GuideLine").ToList();
+            TestContext.WriteLine($"stage {i}: guide {guides.Count}");
+            Assert.Greater(guides.Count, 40);
+            int corners = 0, traced = 0;
+            for (float a = 40f; a < goals[i] - 40f; a += 12f)
+            {
+                float k = DressingPlan.Curvature(course, a);
+                if (Mathf.Abs(k) <= DressingPlan.GUIDE_CURVATURE * 1.2f) continue;
+                corners++;
+                Vector3 outside = WorldLayout.PointAtArc(course, a) + WorldLayout.RightOf(WorldLayout.TangentAtArc(course, a)) * (k > 0f ? 1f : -1f) * DressingPlan.GUIDE_LATERAL;
+                if (guides.Any(g => WorldLayout.DistXZ(g.position, outside) < 9f)) traced++;
+            }
+            TestContext.WriteLine($"corners {corners}, traced {traced}");
+            Assert.Greater(corners, 5);
+            Assert.GreaterOrEqual(traced, corners * 0.7f);
+            Assert.Greater(guides.Count(g => g.part == "DesertProps_05"), 5);   // 直線の標柱
+        }
+
+        /// <summary>砂漠の廃線（art-r1-10）：線路 3 本、コースから 30m 以上、線路の上に他の飾りが無い。</summary>
+        [Test] public void DunesRailwayRuns()
+        {
+            var plan = Plan(1);
+            var rails = plan.Where(p => p.group == "Railway" && p.part == DressingPlan.RAIL_TRACK).ToList();
+            Assert.AreEqual(SetPieces.RAIL_RUNS, rails.Count);
+            var runs = SetPieces.RailRuns(StageDefinitions.All[1], courses[1], goals[1]);
+            foreach (var r in rails)
+            {
+                Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(r.position, courses[1]), 30f);
+                Assert.IsFalse(r.collider);
+            }
+            foreach (var p in plan)
+            {
+                if (p.group == "Railway") continue;
+                foreach (var run in runs)
+                    Assert.Greater(WorldLayout.DistToSegmentXZ(p.position, run[0], run[1]), 3f, p.group + " " + p.asset + " が線路の上");
+            }
+        }
+
+        /// <summary>境目の切り通し・ゴールの町（art-r1-09）：メサの門が切り通しの両脇、ゴールの先 +15〜+110m の通りの両脇に建物、通りの奥に給水塔。</summary>
+        [Test] public void BorderPassGateAndGoalStreet()
+        {
+            var plan = Plan(2);
+            var s = StageDefinitions.All[2];
+            var course = courses[2];
+            float pass = SetPieces.PassArc(s, goals[2]);
+            Assert.Greater(pass, 0f);
+            var gate = plan.Where(p => p.group == "MesaGate").ToList();
+            Assert.AreEqual(2, gate.Count);
+            var cum = DressingPlan.CourseArcs(course);
+            int left = 0, right = 0;
+            foreach (var g in gate)
+            {
+                float a = DressingPlan.NearestArc(course, cum, g.position, out float d);
+                Assert.Less(Mathf.Abs(a - pass), 40f);
+                Vector3 rv = WorldLayout.RightOf(WorldLayout.TangentAtArc(course, a));
+                Vector3 q = g.position - WorldLayout.PointAtArc(course, a);
+                if (q.x * rv.x + q.z * rv.z > 0f) right++; else left++;
+            }
+            Assert.AreEqual(1, left); Assert.AreEqual(1, right);
+            int after = 0;
+            foreach (var p in plan)
+            {
+                if (p.group != "GoalTown" || !p.asset.StartsWith("Buildings/") || p.part != null) continue;
+                float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
+                if (a > goals[2] + 15f && a < goals[2] + 110f) after++;
+            }
+            Assert.GreaterOrEqual(after, 4);
+            var tower = plan.Single(p => p.group == "GoalTown" && p.part == DressingPlan.RANCH_TOWER);
+            Assert.Greater(WorldLayout.DistXZ(tower.position, course[course.Length - 1]), 20f);
         }
 
         [TestCaseSource(nameof(Stages))]
@@ -196,6 +344,13 @@ namespace HorseRace.Tests
             var f = LobbyLayout.FENCE_RECT;
             foreach (var p in l)
             {
+                if (p.group == "Backlot")
+                {
+                    // 町の裏（線路と東の通り道の間）。木は当たり判定なし
+                    Assert.That(p.position.x, Is.InRange(22.2f, 23.0f));
+                    if (DressingPlan.IsTree(p)) Assert.IsFalse(p.collider);
+                    continue;
+                }
                 // 町の外形（+1m）の外、柵の中
                 Assert.Greater(WorldBounds.DistToRect(p.position, t), 1f - 1e-3f, p.asset + " " + p.position);
                 Assert.That(p.position.x, Is.InRange(f.x, f.z)); Assert.That(p.position.z, Is.InRange(f.y, f.w));
@@ -204,6 +359,9 @@ namespace HorseRace.Tests
             }
             var counts = DressingPlan.CountByAsset(l);
             foreach (string a in DressingPlan.LobbyThemeAssets) Assert.IsTrue(counts.ContainsKey(a), a);
+            // 町の裏の飾り：木 4 本以上と、柵・干し草・樽・薪
+            Assert.GreaterOrEqual(Count(l, p => p.group == "Backlot" && p.asset == DressingPlan.TREES), 4);
+            Assert.GreaterOrEqual(Count(l, p => p.group == "Backlot"), 12);
         }
 
         /// <summary>Assets/HorseRace/Models の FBX（Raptor は Phase 2 なので除く）はすべてどこかで使う。</summary>

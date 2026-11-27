@@ -80,12 +80,97 @@ namespace HorseRace.Tests
             var belt = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3);
             TestContext.WriteLine($"belt {belt.Count}");
             Assert.That(belt.Count, Is.InRange(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), LobbyLayout.MAX_BELT));
-            Assert.GreaterOrEqual(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), 150);
+            Assert.GreaterOrEqual(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), 140);   // 南（広場の前）は 2 列、見晴らしの切れ目は空ける
             foreach (var t in belt)
             {
                 Assert.Greater(LobbyLayout.DistOutside(LobbyLayout.FENCE_RECT, t.position), 2f);
                 Assert.That(t.scale, Is.InRange(1f, 1.5f));
                 Assert.IsFalse(t.collider);
+                Assert.Less(LobbyLayout.GapFactor(LobbyLayout.FENCE_RECT, t.position), 0.06f, "見晴らしの切れ目に木");
+            }
+            // 南の辺（柵の南）は 2 列まで：柵から 3 列目（3 + 2 × 3.5 = 10m）の木は無い
+            foreach (var t in belt)
+                if (t.position.z < LobbyLayout.FENCE_RECT.y) Assert.Less(LobbyLayout.FENCE_RECT.y - t.position.z, LobbyLayout.BELT_FIRST_M + 2f * LobbyLayout.BELT_ROW_GAP_M - 1.1f);
+        }
+
+        /// <summary>見晴らしの切れ目（南・南東）：スポーンの目の高さから水平に見ると、ロビーの地面の外（遠くの山並み）まで届く。</summary>
+        [Test] public void VistaGapsOpenFromSpawn()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            var belt = LobbyLayout.TreeBelt(f, 3);
+            var eye = LobbyLayout.SPAWN + new Vector3(0f, 1.7f, 0f);
+            foreach (var g in LobbyLayout.VistaGaps)
+            {
+                float a = g.x * Mathf.Deg2Rad;
+                bool seen = LobbyLayout.SeesOutside(f, eye, new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), belt, 700f, out string what);
+                Assert.IsFalse(seen);
+                Assert.AreEqual("vista", what, "方位 " + g.x);
+                Assert.Less(LobbyLayout.HorizonElevationDeg(f, eye, g.x), 3f, "切れ目の地平線");
+            }
+        }
+
+        /// <summary>柵の外の地面はゆるい（スポーンから見た地平線は切れ目以外で 10° 以下：箱の底にいる感じにしない）。北（町の奥）は高い尾根のまま。</summary>
+        [Test] public void LobbyHorizonIsLowExceptNorth()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            var eye = LobbyLayout.SPAWN + new Vector3(0f, 1.6f, 0f);
+            float maxE = -90f;
+            for (int az = 0; az < 360; az += 5)
+            {
+                float e = LobbyLayout.HorizonElevationDeg(f, eye, az);
+                if (az > 60 && az < 300) { Assert.LessOrEqual(e, 10f, "az " + az); maxE = Mathf.Max(maxE, e); }
+            }
+            TestContext.WriteLine($"max horizon (south half) {maxE:F1} deg");
+            Assert.Greater(LobbyLayout.OUT_RISE_MAX_N, LobbyLayout.OUT_RISE_MAX);
+            Assert.LessOrEqual(LobbyLayout.OUT_RISE_MAX, 6f);
+        }
+
+        /// <summary>ロビーのどこから見ても、ステージの地形は尾根の地平線の下か、霧でほぼ隠れる距離より遠い（ロビーの空にステージが浮かばない）。</summary>
+        [Test] public void StagesHiddenFromLobby()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            int rays = 0;
+            for (float x = f.x + 4f; x <= f.z - 4f; x += 23f)
+                for (float z = f.y + 4f; z <= f.w - 4f; z += 20f)
+                    foreach (float eyeH in new[] { 1.6f, 3.2f })
+                        for (int az = 0; az < 360; az += 5)
+                        {
+                            rays++;
+                            bool vis = LobbyLayout.StageVisibleAbove(f, new Vector3(x, eyeH, z), az, out int st, out float d);
+                            Assert.IsFalse(vis, $"eye ({x},{eyeH},{z}) az {az}: stage {st} at {d:F0} m");
+                        }
+            TestContext.WriteLine($"{rays} rays");
+            // ステージ 2 の南の端とロビーの地面の北の端の間は、霧が始まる距離より十分遠い
+            var lr = WorldBounds.LobbyRect();
+            Assert.Greater(StageDefinitions.All[1].Origin.z - lr.w, LightingPlan.FOG_START_M + 100f);
+        }
+
+        /// <summary>尾根の岩の冠：柵の外（見えない壁の外）、見晴らしの切れ目の外、当たり判定なし、切れ目のある輪（一周の 4〜8 割）。</summary>
+        [Test] public void RimCrownBrokenRingOutsideFence()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            var crown = LobbyLayout.RimCrown(f, 11);
+            TestContext.WriteLine($"crown {crown.Count}");
+            Assert.That(crown.Count, Is.InRange(15, 60));
+            int mesas = 0;
+            foreach (var c in crown)
+            {
+                Assert.Greater(LobbyLayout.DistOutside(f, c.position), 20f);
+                Assert.Less(LobbyLayout.GapFactor(f, c.position), 0.02f);
+                Assert.IsFalse(c.collider);
+                if (c.asset == DressingPlan.MESAB) mesas++;
+            }
+            Assert.Greater(mesas, 0);
+        }
+
+        /// <summary>町の裏の飾りの場所：線路（x 19.2〜21.9）と東の通り道の間、測った町の物の箱の外、練習場の手前。</summary>
+        [Test] public void BacklotSpotsBetweenTrackAndPath()
+        {
+            foreach (var p in LobbyLayout.BacklotSpots())
+            {
+                Assert.That(p.x, Is.InRange(22.2f, 23.0f));
+                Assert.Less(p.z, LobbyLayout.PRACTICE_RECT.y - 1f);
+                foreach (var b in TOWN_FOOTPRINTS) Assert.Greater(WorldBounds.DistToRect(p, b), 0.7f, "町の " + b);
             }
         }
 

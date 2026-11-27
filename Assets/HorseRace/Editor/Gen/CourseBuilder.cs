@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 
 namespace HorseRace.EditorTools
@@ -10,17 +11,18 @@ namespace HorseRace.EditorTools
     public static class CourseBuilder
     {
         public const float CP_WIDTH = 36f, CP_HEIGHT = 10f, CP_DEPTH = 6f;   // 18 m/s・10fps でも 1 フレーム 1.8m（体 2.6m＋奥行 6m）で必ず重なる
-        public const float BOARD_SIDE = 15f;     // 黒板はコース中心から右へ 15m（平らな道 ±12m の外）
+        public const float BOARD_SIDE = CourseGeometry.BOARD_SIDE;     // 黒板はコース中心から右へ 15m（平らな道 ±12m の外）
         public const float GATE_HALF = CourseGeometry.GATE_HALF;
         public const float PEN_RADIUS = CourseGeometry.PEN_RADIUS;
         public const float PEN_BACK = CourseGeometry.PEN_BACK;   // 囲いの中心 = 流しの終点の 14m 手前
-        public const int BOARD_EVERY = 3;        // 黒板は CP3・CP6・…とゴール
+        public const int BOARD_EVERY = CourseGeometry.BOARD_EVERY;        // 黒板は CP3・CP6・…とゴール
 
         static readonly Color Wood = new Color(0.45f, 0.30f, 0.18f);
         static readonly Color DarkWood = new Color(0.30f, 0.20f, 0.12f);
         static readonly Color Chalk = new Color(0.12f, 0.22f, 0.16f);
         static readonly Color White = new Color(0.95f, 0.93f, 0.88f);
         static readonly Color Red = new Color(0.70f, 0.15f, 0.12f);
+        static readonly Color Ink = new Color(0.20f, 0.13f, 0.08f);
 
         public static void Build(StageBuild sb, WorldContext ctx)
         {
@@ -43,9 +45,7 @@ namespace HorseRace.EditorTools
             }
             Vector3 lineP = sb.GroundWorld(WorldLayout.PointAtArc(c, StageDefinitions.START_ARC_M + 3f));
             var line = GenUtil.World(root, "StartLine", lineP, yaw0);
-            GenUtil.Prim(PrimitiveType.Cube, "Chalk", line.transform, new Vector3(0f, 0.02f, 0f), new Vector3(24f, 0.04f, 0.4f), White);
-            GenUtil.Prim(PrimitiveType.Cylinder, "PostL", line.transform, new Vector3(-GATE_HALF, 1.5f, 0f), new Vector3(0.25f, 1.5f, 0.25f), Wood);
-            GenUtil.Prim(PrimitiveType.Cylinder, "PostR", line.transform, new Vector3(GATE_HALF, 1.5f, 0f), new Vector3(0.25f, 1.5f, 0.25f), Wood);
+            StartLineDressing(line.transform, sb, r0, t0, yaw0);
             // スターターはスタートラインの左脇（レーンの外）、コースのほうを向く
             Vector3 spot = sb.GroundWorld(lineP - r0 * (GATE_HALF + 3f) + t0 * 2f);
             sb.starterSpot = GenUtil.World(root, "StarterSpot", spot, WorldLayout.YawDeg(r0)).transform;
@@ -110,15 +110,58 @@ namespace HorseRace.EditorTools
             return rb;
         }
 
-        /// <summary>黒板 1 枚。文字は板の -Z 側（yaw の方向を見ている人に読める）。</summary>
+        /// <summary>スタートライン（art-r1-06）：両端の柱（DesertProps_05 ×1.2）と外側へ並ぶ杭の列（DesertProps_10）、レーンを横切る小石の線（当たり判定なし）。</summary>
+        static void StartLineDressing(Transform line, StageBuild sb, Vector3 r0, Vector3 t0, float yaw0)
+        {
+            Vector3 c = line.position;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 post = sb.GroundWorld(c + r0 * (s * GATE_HALF));
+                DressingBuilder.SetStatic(GenUtil.Stake(line, "DesertProps_05", post, yaw0, 1.2f));
+                for (int k = 0; k < 2; k++)
+                {
+                    Vector3 sp = sb.GroundWorld(c + r0 * (s * (GATE_HALF + 2.4f + k * 3.4f)));
+                    DressingBuilder.SetStatic(GenUtil.Stake(line, "DesertProps_10", sp, yaw0 + 90f, 1f));
+                }
+            }
+            // レーンを横切る小石の線（平たい小石、当たり判定なし）
+            for (float x = -GATE_HALF + 1f; x <= GATE_HALF - 1f + 1e-3f; x += 1.3f)
+            {
+                Vector3 p = sb.GroundWorld(c + r0 * x) - Vector3.up * 0.05f;
+                var pebble = GenUtil.InstantiatePart(GenUtil.Pack("RockCollection"), ((int)Mathf.Abs(x * 10f)) % 2 == 0 ? "RockCollection_112" : "RockCollection_128",
+                    line, p, x * 37f, 1.3f, new Vector3(0.6f, 0.2f, 0.6f), White);
+                DressingBuilder.SetStatic(pebble);
+            }
+        }
+
+        /// <summary>
+        /// 黒板 1 枚（art-r1-06）：掲示板の模型（NoticeBoard ×0.75）の板の面に黒板の色を塗り、文字を板の少し手前に置く。
+        /// 文字は -Z 側（yaw の方向を見ている人に読める）。模型が無ければ板の代わりに単色の板。
+        /// </summary>
         public static RankBoard ChalkBoardAt(Transform parent, Vector3 worldPos, float yaw, string name, bool showLastRace)
         {
             var go = GenUtil.World(parent, name, worldPos, yaw);
-            GenUtil.Prim(PrimitiveType.Cube, "PostL", go.transform, new Vector3(-1.3f, 1.1f, 0.05f), new Vector3(0.12f, 2.2f, 0.12f), Wood);
-            GenUtil.Prim(PrimitiveType.Cube, "PostR", go.transform, new Vector3(1.3f, 1.1f, 0.05f), new Vector3(0.12f, 2.2f, 0.12f), Wood);
-            GenUtil.Prim(PrimitiveType.Cube, "Slate", go.transform, new Vector3(0f, 1.9f, 0f), new Vector3(2.5f, 1.6f, 0.06f), Chalk);
-            GenUtil.Prim(PrimitiveType.Cube, "Frame", go.transform, new Vector3(0f, 1.9f, 0.02f), new Vector3(2.7f, 1.8f, 0.04f), DarkWood);
-            var text = GenUtil.Text(go.transform, "Chalk", new Vector3(0f, 1.9f, -0.04f), Quaternion.identity, "出走前", 1.2f, White, new Vector2(2.3f, 1.5f));
+            const float SC = 0.75f;
+            var holder = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), go.transform, "Board", worldPos, yaw, SC, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
+            var panel = GenUtil.FindDeep(holder.transform, "NoticeBoard_Panel");
+            Vector3 textPos = new Vector3(0f, 1.9f, -0.04f);
+            Vector2 textSize = new Vector2(2.3f, 1.5f);
+            if (panel != null)
+            {
+                GenUtil.YawAlign(holder.transform, GenUtil.FirstNormalWorld(panel), -go.transform.forward);
+                var pr = panel.GetComponent<Renderer>();
+                if (pr != null)
+                {
+                    pr.sharedMaterial = GenUtil.ToonColor(Chalk);
+                    Bounds b = pr.bounds;
+                    Vector3 local = go.transform.InverseTransformPoint(b.center);
+                    textPos = new Vector3(local.x, local.y, local.z - 0.04f);
+                    textSize = new Vector2(3.2f * SC * 0.92f, 1.8f * SC * 0.9f);
+                }
+            }
+            else GenUtil.Prim(PrimitiveType.Quad, "Slate", go.transform, new Vector3(0f, 1.9f, 0f), new Vector3(2.5f, 1.6f, 1f), Chalk)
+                .transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            var text = GenUtil.Text(go.transform, "Chalk", textPos, Quaternion.identity, "出走前", 1.0f, White, textSize);
             var rb = GenUtil.AddU<RankBoard>(go);
             rb.boardText = text;
             rb.maxLines = 8;
@@ -126,16 +169,44 @@ namespace HorseRace.EditorTools
             return rb;
         }
 
-        /// <summary>ゴールゲート（柱 2 本＋横木＋幕）と GoalPresenter。紙吹雪・着順の木札 8 枚。</summary>
+        /// <summary>
+        /// ゴールゲート（art-r1-06）：柱 = 杭（DesertProps_03 ×1.9 = 6.4m）、横木 = 丸太（WoodLogs_01 を横に引き伸ばして柱の間に渡す）、
+        /// 幕 = 手配書の紙（引き伸ばし）に「ゴール」、柱の横に街灯 2 本と暖色の灯り、柱の足元に干し草と樽。GoalPresenter・紙吹雪・着順の札 8 枚。
+        /// </summary>
         static GoalPresenter GoalGate(Transform cp, StageBuild sb, WorldContext ctx)
         {
             var gate = GenUtil.Child(cp, "GoalGate", Vector3.zero).transform;
-            GenUtil.Prim(PrimitiveType.Cylinder, "PostL", gate, new Vector3(-GATE_HALF, 3f, 0f), new Vector3(0.5f, 3f, 0.5f), Wood);
-            GenUtil.Prim(PrimitiveType.Cylinder, "PostR", gate, new Vector3(GATE_HALF, 3f, 0f), new Vector3(0.5f, 3f, 0.5f), Wood);
-            GenUtil.Prim(PrimitiveType.Cube, "Beam", gate, new Vector3(0f, 6.2f, 0f), new Vector3(GATE_HALF * 2f + 1f, 0.5f, 0.5f), DarkWood);
-            GenUtil.Prim(PrimitiveType.Cube, "Banner", gate, new Vector3(0f, 5.2f, 0f), new Vector3(10f, 1.4f, 0.08f), Red);
-            GenUtil.Text(gate, "BannerText", new Vector3(0f, 5.2f, -0.06f), Quaternion.identity, "ゴール", 8f, White, new Vector2(10f, 1.4f));
-            GenUtil.Text(gate, "BannerTextBack", new Vector3(0f, 5.2f, 0.06f), Quaternion.Euler(0f, 180f, 0f), "ゴール", 8f, White, new Vector2(10f, 1.4f));
+            Vector3 c = gate.position;
+            Vector3 right = gate.right, fwd = gate.forward;
+            float yaw = gate.eulerAngles.y;
+            var deco = GenUtil.Child(gate, "Dressing", Vector3.zero).transform;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 post = sb.GroundWorld(c + right * (s * GATE_HALF));
+                DressingBuilder.SetStatic(GenUtil.Stake(deco, "DesertProps_03", post, yaw, 1.9f));
+                Vector3 lamp = sb.GroundWorld(c + right * (s * (GATE_HALF + 1.4f)) - fwd * 0.6f);
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", deco, lamp, yaw + (s > 0 ? 90f : -90f), 1.25f,
+                    new Vector3(0.3f, 3f, 0.3f), Wood));
+                GenUtil.PointLight(deco, "GateLamp", lamp + Vector3.up * 3.6f, SetPieceBuilder.LampWarm, 10f, 1.5f);
+                Vector3 foot = sb.GroundWorld(c + right * (s * (GATE_HALF + 1.2f)) + fwd * 1.6f);
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", deco, foot, yaw + s * 20f, 1f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", deco, sb.GroundWorld(foot + right * (s * 1.6f)), yaw - s * 30f, 0.9f,
+                    new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_15", deco, sb.GroundWorld(foot - fwd * 3f), 0f, 1.2f,
+                    new Vector3(0.5f, 0.7f, 0.5f), Wood));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_22", deco, sb.GroundWorld(foot - fwd * 3.9f + right * (s * 0.8f)), 40f, 1.2f,
+                    new Vector3(0.5f, 0.5f, 0.5f), Wood));
+            }
+            // 横木：丸太（長さ 1.5m）を X に引き伸ばして柱の間（2 × GATE_HALF + 1）に渡す
+            var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", deco, c + Vector3.up * 6.1f, yaw, 1f, new Vector3(1.5f, 0.3f, 1f), DarkWood);
+            beam.transform.localScale = new Vector3((GATE_HALF * 2f + 1f) / 1.5f, 1.8f, 0.6f);
+            DressingBuilder.SetStatic(beam);
+            // 幕：手配書の紙を引き伸ばした板（表と裏）、文字は紙の手前
+            GenUtil.PaperSheet(gate, "Banner", "WantedPosters_01", new Vector3(0f, 4.3f, -0.15f), null, 10f, 1.8f);
+            var back = GenUtil.PaperSheet(gate, "BannerBack", "WantedPosters_01", new Vector3(0f, 4.3f, 0.15f), null, 10f, 1.8f);
+            back.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            GenUtil.Text(gate, "BannerText", new Vector3(0f, 5.2f, -0.2f), Quaternion.identity, "ゴール", 8f, Red, new Vector2(10f, 1.4f));
+            GenUtil.Text(gate, "BannerTextBack", new Vector3(0f, 5.2f, 0.2f), Quaternion.Euler(0f, 180f, 0f), "ゴール", 8f, Red, new Vector2(10f, 1.4f));
 
             var gp = GenUtil.AddU<GoalPresenter>(gate.gameObject);
             gp.stageIndex = sb.def.index;
@@ -147,9 +218,10 @@ namespace HorseRace.EditorTools
             var texts = new TMPro.TextMeshPro[8];
             for (int i = 0; i < 8; i++)
             {
+                // 着順の札：手配書の紙（WantedPosters_02）に着順。GoalPresenter が騎手の上へ動かす
                 var tag = GenUtil.Child(gate, "PlaceTag_" + (i + 1), new Vector3(0f, 3f, 0f));
-                GenUtil.Prim(PrimitiveType.Cube, "Board", tag.transform, Vector3.zero, new Vector3(1.0f, 0.45f, 0.05f), Wood);
-                texts[i] = GenUtil.Text(tag.transform, "Text", new Vector3(0f, 0f, -0.04f), Quaternion.identity, (i + 1) + "着", 2.5f, White, new Vector2(1f, 0.45f));
+                GenUtil.PaperSheet(tag.transform, "Board", "WantedPosters_02", new Vector3(0f, -0.3f, 0f), null, 1.0f, 0.6f);
+                texts[i] = GenUtil.Text(tag.transform, "Text", new Vector3(0f, 0f, -0.04f), Quaternion.identity, (i + 1) + "着", 2.5f, Ink, new Vector2(1f, 0.45f));
                 tags[i] = tag.transform;
                 tag.SetActive(false);
             }
@@ -189,33 +261,54 @@ namespace HorseRace.EditorTools
             return rp;
         }
 
-        /// <summary>スターター（Capsule の人物＋旗＋拳銃の腕）。3 ステージのスタート脇に移る。</summary>
+        /// <summary>
+        /// スターター（art-r1-06）：人の模型は無いので、街灯（FarmProps_02）につないだ馬（Horse.fbx、アニメーターを外して動かない）。
+        /// 旗は街灯の柱に（赤く塗った紙を引き伸ばした旗、FlagPivot が振る）、拳銃は柱の腕（PistolArm が上げる）。上に呼び込みの文字。
+        /// 3 ステージのスタート脇に移る。
+        /// </summary>
         public static Starter BuildStarter(WorldContext ctx)
         {
             StageBuild s0 = ctx.stages[0];
             var go = GenUtil.World(ctx.root, "Starter", s0.starterSpot.position, s0.starterSpot.eulerAngles.y);
             var body = go.transform;
-            GenUtil.Prim(PrimitiveType.Capsule, "Body", body, new Vector3(0f, 0.9f, 0f), new Vector3(0.5f, 0.9f, 0.5f), new Color(0.35f, 0.25f, 0.2f));
-            GenUtil.Prim(PrimitiveType.Sphere, "Head", body, new Vector3(0f, 1.95f, 0f), Vector3.one * 0.32f, new Color(0.9f, 0.75f, 0.6f));
-            GenUtil.Prim(PrimitiveType.Cylinder, "HatBrim", body, new Vector3(0f, 2.1f, 0f), new Vector3(0.6f, 0.02f, 0.6f), DarkWood);
-            GenUtil.Prim(PrimitiveType.Cylinder, "HatTop", body, new Vector3(0f, 2.22f, 0f), new Vector3(0.3f, 0.12f, 0.3f), DarkWood);
+            Vector3 pos = go.transform.position;
+            float yaw = go.transform.eulerAngles.y;
+            var lamp = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", body, pos, yaw, 1.2f, new Vector3(0.3f, 3.6f, 0.3f), Wood);
+            lamp.name = "LampPost";
+            GenUtil.PointLight(body, "StarterLamp", pos + Vector3.up * 3.6f, SetPieceBuilder.LampWarm, 10f, 1.4f);
+            // つないだ馬（柱の右、コースと平行に）
+            var horse = GenUtil.PlaceModel(GenUtil.HORSE_FBX, body, "TiedHorse", pos + go.transform.right * 1.8f - go.transform.forward * 1.2f, yaw + 90f, 1f,
+                new Vector3(0.8f, 1.6f, 2.4f), new Color(0.35f, 0.25f, 0.2f));
+            foreach (var a in horse.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(a);
+            var coat = AssetDatabase.LoadAssetAtPath<Material>(MountBuilder.CoatPaths[1]);
+            if (coat != null) foreach (var r in horse.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = coat;
+            // 柱の足元：干し草と樽
+            GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_02", body, pos - go.transform.right * 0.9f + go.transform.forward * 0.6f, yaw + 20f, 1f,
+                new Vector3(0.9f, 0.6f, 0.7f), Wood);
+            GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_15", body, pos - go.transform.right * 0.8f - go.transform.forward * 0.7f, 0f, 1f,
+                new Vector3(0.5f, 0.7f, 0.5f), Wood);
 
-            var flagPivot = GenUtil.Child(body, "FlagPivot", new Vector3(-0.3f, 1.4f, 0f)).transform;
-            GenUtil.Prim(PrimitiveType.Cylinder, "Pole", flagPivot, new Vector3(0f, 0.6f, 0f), new Vector3(0.04f, 0.6f, 0.04f), Wood);
-            GenUtil.Prim(PrimitiveType.Quad, "Cloth", flagPivot, new Vector3(0.3f, 1.0f, 0f), new Vector3(0.6f, 0.4f, 1f), Red);
-            GenUtil.Prim(PrimitiveType.Quad, "ClothBack", flagPivot, new Vector3(0.3f, 1.0f, 0f), new Vector3(0.6f, 0.4f, 1f), Red)
-                .transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            // 旗：柱の 1.6m に、赤く塗った紙の旗（表裏）
+            var flagPivot = GenUtil.Child(body, "FlagPivot", new Vector3(-0.15f, 1.6f, 0f)).transform;
+            GenUtil.Stake(flagPivot, "DesertProps_05", flagPivot.position, yaw, 0.4f);
+            var cloth = GenUtil.PaperSheet(flagPivot, "Cloth", "WantedPosters_01", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
+            cloth.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+            foreach (var r in cloth.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Red);
+            var clothBack = GenUtil.PaperSheet(flagPivot, "ClothBack", "WantedPosters_01", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
+            clothBack.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+            foreach (var r in clothBack.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Red);
 
-            var arm = GenUtil.Child(body, "PistolArm", new Vector3(0.3f, 1.5f, 0f)).transform;
-            GenUtil.Prim(PrimitiveType.Cube, "Arm", arm, new Vector3(0f, -0.3f, 0f), new Vector3(0.12f, 0.6f, 0.12f), new Color(0.35f, 0.25f, 0.2f));
+            // 拳銃の腕：柱の 2.4m（PistolArm が回して上げる）
+            var arm = GenUtil.Child(body, "PistolArm", new Vector3(0.2f, 2.4f, 0f)).transform;
             var gun = GenUtil.InstantiateModel(GenUtil.Pack("Revolver"), arm, "Revolver");
-            if (gun != null) { gun.transform.localPosition = new Vector3(0f, -0.62f, 0.05f); gun.transform.localScale = Vector3.one; }
+            if (gun != null) { gun.transform.localPosition = new Vector3(0f, -0.2f, 0.05f); gun.transform.localScale = Vector3.one; }
+            GenUtil.Text(body, "CallOut", new Vector3(0f, 4.6f, 0f), Quaternion.Euler(0f, 180f, 0f), "スタート係", 1.2f, Ink, new Vector2(3f, 0.6f));
 
             var st = GenUtil.AddU<Starter>(go);
             st.flagPivot = flagPivot;
             st.pistolArm = arm;
             st.audioSource = GenUtil.Audio(go, true);
-            st.pistolSmoke = GenUtil.Particles(arm, "PistolSmoke", new Vector3(0f, -0.7f, 0.2f), new Color(0.85f, 0.85f, 0.85f, 0.7f), 0.3f, 1f, 1.5f, false, 0f, 0.1f);
+            st.pistolSmoke = GenUtil.Particles(arm, "PistolSmoke", new Vector3(0f, -0.25f, 0.25f), new Color(0.85f, 0.85f, 0.85f, 0.7f), 0.3f, 1f, 1.5f, false, 0f, 0.1f);
             // 砂煙はスタートラインに沿って（スターターの右手 = コース側）3 か所
             var dust = new ParticleSystem[3];
             for (int i = 0; i < 3; i++)

@@ -23,8 +23,25 @@ namespace HorseRace.EditorTools
         public const float BRIDGE_HALF_SPAN = 11f;     // 橋の板の半分の長さ（溝の縁 10m より長い）
         public const float BRIDGE_WIDTH = 26f;          // 道幅（平らな道 ±12m）いっぱい＋余白
 
-        // ジャンプ台
+        // ジャンプ台（砂丘の盛り上がり：地形に坂を作り、見えない板の Collider で正確に跳ばせる）
         public const float JUMP_LENGTH = 8f, JUMP_HEIGHT = 1.5f, JUMP_WIDTH = 16f;
+        public const float KICKER_LIP_M = 6f;          // 縁の後ろ（着地側）で元の高さへ戻る長さ
+        public const float KICKER_SIDE_M = 6f;         // 横の裾
+        public const float KICKER_UNDER_M = 0.15f;     // 地形は見えない板の上面よりこれだけ低く（板の上を走る）
+
+        // 境目のメサの切り通し
+        public const float PASS_DEPTH = 6f;            // 道を下げる深さ
+        public const float PASS_HALF_CUT = 15f;        // 深さいっぱいの区間の半分（全長 30m）
+        public const float PASS_RAMP = 26f;            // 前後の下り・上り（6m / 26m、最大 20° 未満）
+        public const float PASS_ROAD_HALF = 13f;       // ここまで（道 ±12m ＋余白）は下げる
+        public const float PASS_WALL_RISE = 22f;       // 両脇（道から 22〜40m）の盛り上げ
+        public const float PASS_WALL_FROM = 22f, PASS_WALL_TO = 40f, PASS_WALL_FADE = 30f;
+
+        // 砂漠の廃線（WesternTown_049_Track、長さ 95.6m）
+        public const float RAIL_LENGTH = 95.6f;
+        public const float RAIL_LATERAL = 35f;         // コースから（30〜40m）
+        public const int RAIL_RUNS = 3;
+        public const float RAIL_BED_HALF = 3.5f, RAIL_BED_BLEND = 4f;
 
         // 崖下りの近道
         public const float SHORTCUT_DROP = 6f;
@@ -101,6 +118,9 @@ namespace HorseRace.EditorTools
         public static float JumpArc(StageDef def, float goalArc)
             => def.jumpFraction < 0f ? -1f : MidCpArc(def.jumpFraction * goalArc, StageDefinitions.CP_SPACING_M, goalArc);
 
+        public static float PassArc(StageDef def, float goalArc)
+            => def.passFraction < 0f ? -1f : MidCpArc(def.passFraction * goalArc, StageDefinitions.CP_SPACING_M, goalArc);
+
         /// <summary>点列の y に高さマップの高さ（m）を入れたコピー。</summary>
         public static Vector3[] WithHeights(Vector3[] local, float[,] h)
         {
@@ -120,7 +140,7 @@ namespace HorseRace.EditorTools
             return PlanShortcut(WithHeights(local, heights), cps, avoid0, avoid1);
         }
 
-        /// <summary>見どころの地形の加工（溝・近道）を heights に適用する。</summary>
+        /// <summary>見どころの地形の加工（溝・近道・ジャンプの盛り上がり・切り通し・廃線の路盤）を heights に適用する。</summary>
         public static ShortcutPlan ApplyTerrain(StageDef def, Vector3[] local, float[,] heights, float goalArc)
         {
             ShortcutPlan plan = PlanFor(def, local, heights, goalArc);
@@ -128,7 +148,156 @@ namespace HorseRace.EditorTools
             if (bridge >= 0f)
                 CarveTrench(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, bridge), WorldLayout.TangentAtArc(local, bridge));
             if (plan != null) ApplyShortcut(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, plan, local);
+            float jump = JumpArc(def, goalArc);
+            if (jump >= 0f)
+                RaiseKicker(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, jump), WorldLayout.TangentAtArc(local, jump));
+            float pass = PassArc(def, goalArc);
+            if (pass >= 0f)
+                CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, pass), WorldLayout.TangentAtArc(local, pass));
+            foreach (var run in RailRuns(def, local, goalArc))
+                FlattenBed(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, run[0], run[1]);
             return plan;
+        }
+
+        // ------------------------------------------------------------------
+        // ジャンプの盛り上がり・切り通し・廃線
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// ジャンプの盛り上がり（地形の高さに足す m）。along = コース方向の位置（中心 0、+ が進む向き）、lat = 横の距離。
+        /// 坂（JUMP_LENGTH）で JUMP_HEIGHT − KICKER_UNDER_M まで上がり、縁の後ろ KICKER_LIP_M で元へ戻る。横は JUMP_WIDTH/2 から KICKER_SIDE_M で裾。
+        /// </summary>
+        public static float KickerRise(float along, float lat)
+        {
+            float half = JUMP_LENGTH * 0.5f, top = JUMP_HEIGHT - KICKER_UNDER_M;
+            float a;
+            if (along < -half || along > half + KICKER_LIP_M) return 0f;
+            if (along <= half) a = top * (along + half) / JUMP_LENGTH;
+            else a = top * (1f - Smooth01((along - half) / KICKER_LIP_M));
+            float w = 1f - Smooth01((Mathf.Abs(lat) - JUMP_WIDTH * 0.5f) / KICKER_SIDE_M);
+            return a * w;
+        }
+
+        public static void RaiseKicker(float[,] h, float sizeM, float heightM, Vector3 center, Vector3 tangent)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
+            Vector3 r = WorldLayout.RightOf(t);
+            float reach = JUMP_LENGTH + KICKER_LIP_M + JUMP_WIDTH * 0.5f + KICKER_SIDE_M;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.x + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.z + reach) / cell));
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float dx = x * cell - center.x, dz = z * cell - center.z;
+                    float rise = KickerRise(dx * t.x + dz * t.z, dx * r.x + dz * r.z);
+                    if (rise > 0f) h[z, x] = Mathf.Clamp01(h[z, x] + rise / heightM);
+                }
+        }
+
+        /// <summary>
+        /// 切り通しの高さの変化（m、地形に足す）。道（|lat| ≤ PASS_ROAD_HALF）は PASS_DEPTH 下げ（前後 PASS_RAMP でなめらかに）、
+        /// 両脇（PASS_WALL_FROM〜PASS_WALL_TO）は PASS_WALL_RISE 盛り上げて、遠くから三角の切れ込みに見える壁にする。
+        /// </summary>
+        public static float PassDelta(float along, float lat)
+        {
+            float al = Mathf.Abs(along), la = Mathf.Abs(lat);
+            float aw = 1f - Smooth01((al - PASS_HALF_CUT) / PASS_RAMP);
+            float awWall = 1f - Smooth01((al - PASS_HALF_CUT - 10f) / 30f);
+            float lw = Smooth01((la - PASS_ROAD_HALF) / (PASS_WALL_FROM - PASS_ROAD_HALF));
+            float outer = 1f - Smooth01((la - PASS_WALL_TO) / PASS_WALL_FADE);
+            return -PASS_DEPTH * aw * (1f - lw) + PASS_WALL_RISE * awWall * lw * outer;
+        }
+
+        public static void CarvePass(float[,] h, float sizeM, float heightM, Vector3 center, Vector3 tangent)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
+            Vector3 r = WorldLayout.RightOf(t);
+            float reach = PASS_HALF_CUT + 40f + PASS_WALL_TO + PASS_WALL_FADE;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.x + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.z + reach) / cell));
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float dx = x * cell - center.x, dz = z * cell - center.z;
+                    float d = PassDelta(dx * t.x + dz * t.z, dx * r.x + dz * r.z);
+                    if (d != 0f) h[z, x] = Mathf.Clamp01(h[z, x] + d / heightM);
+                }
+        }
+
+        /// <summary>
+        /// 砂漠の廃線（コースと平行、横 RAIL_LATERAL m）：コースが RAIL_LENGTH m ほぼまっすぐな所を RAIL_RUNS か所（300m 以上離して）。
+        /// 各 [a, b]（Terrain ローカル、y = 0）。コースの全点から 30m 以上・Terrain の端から 80m 以上離れる。砂漠以外は空。
+        /// </summary>
+        public static System.Collections.Generic.List<Vector3[]> RailRuns(StageDef def, Vector3[] local, float goalArc)
+        {
+            var runs = new System.Collections.Generic.List<Vector3[]>();
+            if (def.kind != HeightmapGen.KIND_DUNES || local == null || local.Length < 2) return runs;
+            var used = new System.Collections.Generic.List<float>();
+            float half = RAIL_LENGTH * 0.5f;
+            int side = 1;
+            for (float a = 160f; a < goalArc - 160f && runs.Count < RAIL_RUNS; a += 10f)
+            {
+                bool far = true;
+                foreach (float u in used) if (Mathf.Abs(u - a) < 300f) far = false;
+                if (!far) continue;
+                Vector3 p0 = WorldLayout.PointAtArc(local, a - half), p1 = WorldLayout.PointAtArc(local, a + half);
+                // ほぼまっすぐ：途中の点が弦から 3m 以内
+                bool straight = true;
+                for (float k = a - half; k <= a + half && straight; k += 8f)
+                    if (WorldLayout.DistToSegmentXZ(WorldLayout.PointAtArc(local, k), p0, p1) > 3f) straight = false;
+                if (!straight) continue;
+                for (int tryS = 0; tryS < 2; tryS++, side = -side)
+                {
+                    Vector3 t = new Vector3(p1.x - p0.x, 0f, p1.z - p0.z).normalized;
+                    Vector3 r = WorldLayout.RightOf(t) * (side * RAIL_LATERAL);
+                    Vector3 a0 = p0 + r, b0 = p1 + r;
+                    bool ok = true;
+                    for (int k = 0; k <= 12 && ok; k++)
+                    {
+                        Vector3 q = Vector3.Lerp(a0, b0, k / 12f);
+                        if (q.x < 80f || q.z < 80f || q.x > StageDefinitions.SIZE - 80f || q.z > StageDefinitions.SIZE - 80f) ok = false;
+                        else if (WorldLayout.DistToPolylineXZ(q, local) < 30f) ok = false;
+                    }
+                    if (!ok) continue;
+                    runs.Add(new[] { new Vector3(a0.x, 0f, a0.z), new Vector3(b0.x, 0f, b0.z) });
+                    used.Add(a);
+                    side = -side;
+                    break;
+                }
+            }
+            return runs;
+        }
+
+        /// <summary>廃線の路盤：a〜b の両端の高さを結ぶ直線に、幅 ±RAIL_BED_HALF をならす（RAIL_BED_BLEND で元へ）。</summary>
+        public static void FlattenBed(float[,] h, float sizeM, float heightM, Vector3 a, Vector3 b)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            float ya = WorldLayout.SampleHeight(h, sizeM, heightM, a.x, a.z), yb = WorldLayout.SampleHeight(h, sizeM, heightM, b.x, b.z);
+            Vector3 ab = new Vector3(b.x - a.x, 0f, b.z - a.z);
+            float L = ab.magnitude;
+            if (L < 1e-3f) return;
+            Vector3 t = ab / L;
+            float reach = RAIL_BED_HALF + RAIL_BED_BLEND;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.x, b.x) - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((Mathf.Max(a.x, b.x) + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.z, b.z) - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((Mathf.Max(a.z, b.z) + reach) / cell));
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float dx = x * cell - a.x, dz = z * cell - a.z;
+                    float along = dx * t.x + dz * t.z;
+                    if (along < -RAIL_BED_BLEND || along > L + RAIL_BED_BLEND) continue;
+                    float lat = Mathf.Abs(dx * t.z - dz * t.x);
+                    if (lat >= reach) continue;
+                    float wl = lat <= RAIL_BED_HALF ? 1f : 1f - (lat - RAIL_BED_HALF) / RAIL_BED_BLEND;
+                    float wa = along < 0f ? 1f + along / RAIL_BED_BLEND : (along > L ? 1f - (along - L) / RAIL_BED_BLEND : 1f);
+                    float target = Mathf.Lerp(ya, yb, Mathf.Clamp01(along / L)) / heightM;
+                    h[z, x] = Mathf.Clamp01(Mathf.Lerp(h[z, x], target, Mathf.Clamp01(wl * wa)));
+                }
         }
 
         // ------------------------------------------------------------------

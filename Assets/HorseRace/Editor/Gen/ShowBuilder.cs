@@ -104,14 +104,19 @@ namespace HorseRace.EditorTools
                 }
             }
 
-            // 新聞売り（Capsule の人物）
+            // 新聞売りの屋台（art-r1-12：人の模型は無いので、木箱を積んだ屋台と街灯。号外の紙は街灯の腕に吊り、呼び込みのときに振り上げる）
             var crierGo = GenUtil.World(root, "TownCrier", crierPos, crierYaw);
-            GenUtil.Prim(PrimitiveType.Capsule, "Body", crierGo.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.45f, 0.8f, 0.45f), new Color(0.3f, 0.3f, 0.45f));
-            GenUtil.Prim(PrimitiveType.Sphere, "Head", crierGo.transform, new Vector3(0f, 1.75f, 0f), Vector3.one * 0.3f, new Color(0.9f, 0.75f, 0.6f));
-            GenUtil.Prim(PrimitiveType.Cylinder, "Cap", crierGo.transform, new Vector3(0f, 1.92f, 0f), new Vector3(0.32f, 0.05f, 0.32f), DarkWood);
-            var arm = GenUtil.Child(crierGo.transform, "PaperArm", new Vector3(0.28f, 1.35f, 0f)).transform;
-            GenUtil.Prim(PrimitiveType.Cube, "Arm", arm, new Vector3(0f, -0.25f, 0f), new Vector3(0.1f, 0.5f, 0.1f), new Color(0.3f, 0.3f, 0.45f));
-            GenUtil.Prim(PrimitiveType.Cube, "Paper", arm, new Vector3(0f, -0.5f, 0.12f), new Vector3(0.3f, 0.4f, 0.01f), Paper);
+            Vector3 cp = crierGo.transform.position, cr = crierGo.transform.right, cf = crierGo.transform.forward;
+            GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_11", crierGo.transform, cp, crierYaw, 1f, new Vector3(1.2f, 1.1f, 1.2f), Wood).name = "Stall";
+            GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_12", crierGo.transform, cp + Vector3.up * 1.1f + cr * 0.1f, crierYaw + 15f, 0.8f,
+                new Vector3(1f, 1f, 1f), Wood).name = "StallTop";
+            GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_15", crierGo.transform, cp + cr * 1.1f, 0f, 1f, new Vector3(0.5f, 0.7f, 0.5f), Wood).name = "Barrel";
+            GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", crierGo.transform, cp - cr * 0.9f - cf * 0.3f, crierYaw + 90f, 0.8f,
+                new Vector3(0.3f, 2.5f, 0.3f), Wood).name = "Lamp";
+            for (int i = 0; i < 3; i++)   // 売り物の新聞の束（紙を重ねて置く）
+                GenUtil.PaperSheet(crierGo.transform, "Bundle_" + i, "WantedPosters_01", new Vector3(-0.3f + i * 0.3f, 1.12f, -0.62f), null, 0.28f, 0.36f);
+            var arm = GenUtil.Child(crierGo.transform, "PaperArm", new Vector3(-0.9f, 1.9f, -0.3f)).transform;
+            GenUtil.PaperSheet(arm, "Paper", "WantedPosters_01", new Vector3(0f, -0.5f, -0.05f), null, 0.32f, 0.44f);
             var crier = GenUtil.AddU<TownCrier>(crierGo);
             crier.callAudio = GenUtil.Audio(crierGo, true);
             crier.boards = telegram != null ? new[] { telegram } : new NoticeBoardDisplay[0];
@@ -230,8 +235,16 @@ namespace HorseRace.EditorTools
             var steps = new Transform[3];
             for (int i = 0; i < 3; i++)
             {
+                // 段：当たり判定は見えない箱、見た目は木箱（FarmProps_11）を段の大きさに引き伸ばしたもの
                 var tier = GenUtil.Prim(PrimitiveType.Cube, "Tier_" + label[i], holder.transform, new Vector3(x[i], baseTop + h[i] * 0.5f, 0f),
                     new Vector3(1.4f, h[i], 1.4f), new Color(0.55f, 0.38f, 0.22f), true);
+                GenUtil.HideRenderers(tier);
+                var crate = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_11", holder.transform, holder.transform.position, 0f, 1f,
+                    new Vector3(1.2f, 1.1f, 1.2f), new Color(0.55f, 0.38f, 0.22f));
+                crate.transform.SetParent(holder.transform, false);
+                crate.transform.localPosition = new Vector3(x[i], baseTop, 0f);
+                crate.transform.localRotation = Quaternion.identity;
+                crate.transform.localScale = new Vector3(1.4f / 1.2f, h[i] / 1.1f, 1.4f / 1.2f);
                 GenUtil.Text(holder.transform, "TierLabel_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.71f), Quaternion.Euler(0f, 180f, 0f),
                     label[i], 4f, new Color(1f, 0.85f, 0.4f), new Vector2(1.2f, 0.6f));
                 steps[i] = GenUtil.Child(holder.transform, "Step_" + label[i], new Vector3(x[i], baseTop + h[i] + 0.05f, 0f)).transform;

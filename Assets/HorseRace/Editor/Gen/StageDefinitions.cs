@@ -26,6 +26,7 @@ namespace HorseRace.EditorTools
         public float bridgeFraction = -1f;     // 荒野：掘った溝に架かる岩橋
         public bool cliffShortcut;             // 荒野：崖下りの近道（CP の連鎖には入らない枝道）
         public float jumpFraction = -1f;       // 砂漠：砂丘越えのジャンプ台
+        public float passFraction = -1f;       // 境目：メサの切り通し（道を下げて両脇の地形を盛り、メサの門で挟む）
 
         public Vector3 Origin => new Vector3(center.x - StageDefinitions.HALF, center.y, center.z - StageDefinitions.HALF);
     }
@@ -85,15 +86,17 @@ namespace HorseRace.EditorTools
             {
                 index = 2, label = "境目", kind = HeightmapGen.KIND_MESA, seed = 37,
                 center = new Vector3(1200f, 0f, 0f),
-                // メサの間を抜けて北東の角のゴールの町へ。最後の 110m は町の通り（流し）
+                // メサの間を抜けて北東の角のゴールの町へ。最後の 3 点は一直線（ゴール前 300m ＋流し 110m の下りの直線、
+                // HeightmapGen.FINAL_DROP_M）。最後の 110m は町の通り（流し）
                 controlLocal = new[]
                 {
                     P(110, 110), P(360, 170), P(620, 120), P(870, 250), P(820, 470), P(560, 460),
-                    P(300, 440), P(130, 610), P(250, 830), P(500, 790), P(720, 840), P(880, 880),
+                    P(300, 440), P(130, 610), P(230, 820), P(342, 766), P(479, 795), P(880, 880),
                 },
                 runoutM = 110f,
                 relicFractions = new[] { 0.2f, 0.4f, 0.6f, 0.8f },
                 relicSide = new[] { -4f, 4f, 4f, -4f },
+                passFraction = 0.72f,
             },
         };
 

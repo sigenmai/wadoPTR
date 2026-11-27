@@ -52,6 +52,12 @@ namespace HorseRace.EditorTools
         static readonly Dictionary<string, Material> toonCache = new Dictionary<string, Material>();
         static Shader toonShader;
 
+        /// <summary>
+        /// いま作っているステージ（0 荒野 / 1 砂漠 / 2 境目、-1 = ステージ外）。境目の飾りのマテリアルは影色を紫の夕景にした別のもの
+        /// （キーの末尾 "_S3"、ArtPalette / LightingPlan.ShadowColorDusk）。DressingBuilder が飾りを置く間だけ設定する。
+        /// </summary>
+        public static int StageVariant = -1;
+
         public static void Reset()
         {
             Missing.Clear();
@@ -59,6 +65,7 @@ namespace HorseRace.EditorTools
             Tagged.Clear();
             toonCache.Clear();
             toonShader = null;
+            StageVariant = -1;
         }
 
         /// <summary>負の数でも 0..n-1 に入る剰余。</summary>
@@ -156,7 +163,7 @@ namespace HorseRace.EditorTools
             go.name = name;
             go.transform.SetParent(parent, false);
             go.transform.localPosition = Vector3.zero;
-            Toonify(go);
+            Toonify(go, null, path.StartsWith(MODELS + "/") ? path.Substring(MODELS.Length + 1) : path, null);
             return go;
         }
 
@@ -195,7 +202,7 @@ namespace HorseRace.EditorTools
             part.localRotation = wr;
             part.localScale = ws;
             Object.DestroyImmediate(inst);
-            Toonify(holder);
+            Toonify(holder, null, packPath.StartsWith(MODELS + "/") ? packPath.Substring(MODELS.Length + 1) : packPath, partName);
             return holder;
         }
 
@@ -272,6 +279,10 @@ namespace HorseRace.EditorTools
         }
 
         static Material SaveOrUpdate(string key, Texture tex, Color tint)
+            => SaveOrUpdate(key, tex, tint, ArtPalette.DEFAULT_FLATTEN, ArtPalette.DEFAULT_FLATTEN_MIP, LightingPlan.ShadowColor);
+
+        /// <summary>トゥーンのマテリアルを作る（同じキーはこのビルドで 1 つ）。影色・影の段の太陽・平らにする強さは毎回書き直す（古い .mat の値を残さない）。</summary>
+        static Material SaveOrUpdate(string key, Texture tex, Color tint, float flatten, float flattenMip, Color shadow)
         {
             Material cached;
             if (toonCache.TryGetValue(key, out cached)) return cached;
@@ -287,7 +298,10 @@ namespace HorseRace.EditorTools
             else if (sh != null) mat.shader = sh;
             mat.SetTexture("_MainTex", tex);
             mat.SetColor("_Tint", tint);
-            mat.SetFloat("_Flatten", FLATTEN);
+            mat.SetFloat("_Flatten", flatten);
+            mat.SetFloat("_FlattenMip", flattenMip);
+            mat.SetColor("_ShadowColor", shadow);
+            mat.SetFloat("_ShadowLightFloor", LightingPlan.SHADOW_LIGHT_FLOOR);
             mat.enableInstancing = true;   // 同じ木・岩が多いので GPU インスタンシング（静的バッチングされないものに効く）
             EditorUtility.SetDirty(mat);
             toonCache[key] = mat;
@@ -305,9 +319,16 @@ namespace HorseRace.EditorTools
             return SaveOrUpdate("Toon_" + key, tex, Color.white);
         }
 
-        /// <summary>モデル内のすべての Renderer のマテリアルを、元のテクスチャを引き継いだトゥーンに差し替える。</summary>
-        public static void Toonify(GameObject root, Texture overrideTex = null)
+        /// <summary>
+        /// モデル内のすべての Renderer のマテリアルを、元のテクスチャを引き継いだトゥーンに差し替える。
+        /// assetPath（Models からの相対）・partName を渡すと素材ごとの決まり（ArtPalette：大きな岩は細部を残す・岩の色を暖色へ・町の灰色/青/緑を寄せる）を当てる。
+        /// 境目のステージを作っている間（StageVariant == 2）は影色を紫の夕景にした別のマテリアル。
+        /// </summary>
+        public static void Toonify(GameObject root, Texture overrideTex = null, string assetPath = null, string partName = null)
         {
+            ArtPalette.Style style = ArtPalette.StyleFor(assetPath, partName);
+            bool dusk = StageVariant == 2;
+            Color shadow = dusk ? LightingPlan.ShadowColorDusk : LightingPlan.ShadowColor;
             foreach (var r in root.GetComponentsInChildren<Renderer>(true))
             {
                 if (r is ParticleSystemRenderer || r is LineRenderer) continue;
@@ -320,10 +341,11 @@ namespace HorseRace.EditorTools
                     Texture tex = overrideTex != null ? overrideTex : MainTextureOf(s, r);
                     // 画像を使わず「色だけ」で塗られた素材が多い（町・小物のパック）。元の色を Tint に引き継ぐ
                     // （画像があるときは白のまま。Blender から来た FBX は画像付きでも灰色の基本色を持っていて、掛けると暗くなる）
-                    Color tint = tex != null ? Color.white : BaseColorOf(s);
+                    Color tint = tex != null ? Color.white : ArtPalette.RemapBaseColor(assetPath, BaseColorOf(s));
+                    tint = ArtPalette.Multiply(tint, style.tint);
                     string key = (s != null ? s.name : "none") + "_" + (tex != null ? tex.name : "notex")
-                        + "_" + ColorUtility.ToHtmlStringRGB(tint);
-                    dst[i] = SaveOrUpdate("Toon_" + key, tex, tint);
+                        + "_" + ColorUtility.ToHtmlStringRGB(tint) + style.key + (dusk ? "_S3" : "");
+                    dst[i] = SaveOrUpdate("Toon_" + key, tex, tint, style.flatten, style.flattenMip, shadow);
                 }
                 r.sharedMaterials = dst;
             }
@@ -404,6 +426,99 @@ namespace HorseRace.EditorTools
             var mat = ParticleMaterial();
             if (pr != null && mat != null) pr.sharedMaterial = mat;
             return ps;
+        }
+
+        /// <summary>立ちのぼる煙の柱（暗い灰色、上へ riseM m）。野営地の焚き火・煙突・遠くの目印。</summary>
+        public static ParticleSystem SmokeColumn(Transform parent, string name, Vector3 localPos, Color color, float riseM, float width)
+        {
+            float life = 6f;
+            var ps = Particles(parent, name, localPos, color, width, riseM / life, life, true, 6f, width * 0.3f);
+            var sh = ps.shape;
+            sh.shapeType = ParticleSystemShapeType.Cone;
+            sh.angle = 6f;
+            sh.radius = width * 0.3f;
+            sh.rotation = new Vector3(-90f, 0f, 0f);   // 円錐を上へ
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.World;
+            vel.x = 0.6f; vel.y = 0f; vel.z = 0.3f;   // 弱い風
+            var sz = ps.sizeOverLifetime;
+            sz.enabled = true;
+            sz.sizeMultiplier = 3f;
+            var main = ps.main;
+            main.maxParticles = 80;
+            return ps;
+        }
+
+        /// <summary>地面すれすれの砂ぼこり（box の中に薄く、風に流れる）。近景・中景の空気。</summary>
+        public static ParticleSystem DustBox(Transform parent, string name, Vector3 localPos, Vector3 box, Color color, Vector3 wind, float rate)
+        {
+            var ps = Particles(parent, name, localPos, color, 2.5f, 0.2f, 7f, true, rate, 1f);
+            var sh = ps.shape;
+            sh.shapeType = ParticleSystemShapeType.Box;
+            sh.scale = box;
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.World;
+            vel.x = wind.x; vel.y = wind.y; vel.z = wind.z;
+            var main = ps.main;
+            main.maxParticles = 120;
+            return ps;
+        }
+
+        /// <summary>点光源（ランプ・焚き火・見どころの色の合図）。影は落とさない（VRChat の負荷）。</summary>
+        public static Light PointLight(Transform parent, string name, Vector3 worldPos, Color color, float range, float intensity)
+        {
+            var go = World(parent, name, worldPos);
+            var l = go.AddComponent<Light>();
+            l.type = LightType.Point;
+            l.color = color;
+            l.range = range;
+            l.intensity = intensity;
+            l.shadows = LightShadows.None;
+            return l;
+        }
+
+        /// <summary>見た目を消す（当たり判定は残す）。プリミティブの板を見えない Collider として使うとき。</summary>
+        public static void HideRenderers(GameObject go)
+        {
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+        }
+
+        /// <summary>DesertProps の杭・柱（03 = 杭 3.4m、05 = 杭 3.1m、10 = 杭の列）を 1 本。</summary>
+        public static GameObject Stake(Transform parent, string part, Vector3 worldPos, float yaw, float scale)
+            => InstantiatePart(Pack("DesertProps"), part, parent, worldPos, yaw, scale, new Vector3(0.3f, 3f, 0.3f), new Color(0.45f, 0.30f, 0.18f));
+
+        /// <summary>
+        /// 手配書の紙（WantedPosters の部品）を 1 枚、紙の面を parent の -Z（parent.forward の反対）に向けて置く。
+        /// widthM・heightM を渡すと、その大きさに引き伸ばす（間に向きのそろった Scaler を挟むので歪まない）。原点は紙の下の辺の真ん中。
+        /// </summary>
+        public static GameObject PaperSheet(Transform parent, string name, string part, Vector3 localPos, Texture tex, float widthM = 0f, float heightM = 0f)
+        {
+            var scaler = Child(parent, name, localPos);
+            var holder = InstantiatePart(Pack("WantedPosters"), part, scaler.transform, scaler.transform.position, 0f, 1f,
+                new Vector3(0.44f, 0.63f, 0.01f), new Color(0.93f, 0.86f, 0.70f));
+            holder.name = "Sheet";
+            holder.transform.SetParent(scaler.transform, false);
+            holder.transform.localPosition = Vector3.zero;
+            holder.transform.localRotation = Quaternion.identity;
+            if (holder.transform.childCount > 0)
+            {
+                Transform p = holder.transform.GetChild(0);
+                YawAlign(holder.transform, FirstNormalWorld(p), -scaler.transform.forward);
+            }
+            if (tex != null) Toonify(holder, tex);
+            if (widthM > 0f && heightM > 0f)
+            {
+                // 外形は Scaler の向きで測る（親が回っていると世界の軸の外形が太るため、いったん Scaler を世界の軸にそろえる）
+                Quaternion keep = scaler.transform.rotation;
+                scaler.transform.rotation = Quaternion.identity;
+                Bounds b = RendererBounds(holder);
+                scaler.transform.rotation = keep;
+                float w = Mathf.Max(0.05f, b.size.x), h = Mathf.Max(0.05f, b.size.y);
+                scaler.transform.localScale = new Vector3(widthM / w, heightM / h, 1f);
+            }
+            return scaler;
         }
 
         public static AudioSource Audio(GameObject go, bool is2D, bool loop = false)

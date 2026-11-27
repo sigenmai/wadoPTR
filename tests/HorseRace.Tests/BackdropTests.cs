@@ -10,7 +10,13 @@ namespace HorseRace.Tests
         {
             var b = DressingPlan.Backdrop(7);
             TestContext.WriteLine($"backdrop: {b.Count}");
-            Assert.That(b.Count, Is.InRange(40, 120));
+            Assert.That(b.Count, Is.InRange(70, 200));
+            // 崖の板（遠くで平らな箱に見える）は使わない。2 列（内側 320m・外側 520m 付近）
+            foreach (var p in b) Assert.AreNotEqual(DressingPlan.CLIFFS, p.asset);
+            var u = WorldBounds.Union();
+            int outer = 0;
+            foreach (var p in b) if (WorldBounds.DistToRect(p.position, u) > 470f) outer++;
+            Assert.Greater(outer, b.Count / 4, "外側の列");
             var rects = WorldBounds.PlayableRects();
             Vector4 f = WorldBounds.FillerRect();
             foreach (var p in b)
@@ -18,7 +24,9 @@ namespace HorseRace.Tests
                 foreach (var r in rects)
                     Assert.GreaterOrEqual(WorldBounds.DistToRect(p.position, r), p.radius + 50f, p.asset);
                 Assert.IsFalse(p.collider);
-                Assert.That(p.scale, Is.InRange(4f, 8f));
+                Assert.That(p.scale, Is.InRange(5f, 10f));
+                // 足元は外の地面に埋まる（高さの 25%）
+                Assert.AreEqual(WorldBounds.FILLER_Y + WorldBounds.FillerBaseHeight(p.position.x, p.position.z) - WorldBounds.BACKDROP_SINK * p.height, p.position.y, 0.01f);
                 // 地面の板の上に乗っている（山の外側も空白にならない）
                 Assert.That(p.position.x - p.radius, Is.GreaterThan(f.x));
                 Assert.That(p.position.x + p.radius, Is.LessThan(f.z));
@@ -33,6 +41,18 @@ namespace HorseRace.Tests
             var c = DressingPlan.Backdrop(7);
             Assert.AreEqual(a.Count, c.Count);
             for (int i = 0; i < a.Count; i++) Assert.AreEqual(a[i].position.x, c[i].position.x);
+        }
+
+        /// <summary>外の地面：遊べる範囲のすぐ外はほぼ平ら、山並みの方へ 20m 以上上る（無限の平らな板にしない）。</summary>
+        [Test] public void FillerTerrainRisesTowardBackdrop()
+        {
+            var u = WorldBounds.Union();
+            float near = WorldBounds.FillerBaseHeight(u.x - 10f, (u.y + u.w) * 0.5f);
+            Assert.Less(Mathf.Abs(near), 1f);
+            float far = WorldBounds.FillerBaseHeight(u.x - 600f, (u.y + u.w) * 0.5f);
+            Assert.Greater(far, 15f);
+            for (float x = u.x - 700f; x < u.z + 700f; x += 97f)
+                Assert.That(WorldBounds.FillerBaseHeight(x, u.y - 300f), Is.InRange(-7f, 70f));
         }
 
         [Test] public void FillerCoversEveryPlayableRect()

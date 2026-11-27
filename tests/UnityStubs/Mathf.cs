@@ -24,6 +24,8 @@ namespace UnityEngine
         public static int RoundToInt(float v) => (int)Math.Round(v);
         public static float Round(float f) => (float)Math.Round(f);
         public static float Floor(float v) => (float)Math.Floor(v);
+        public static float Repeat(float t, float length) => Clamp(t - Floor(t / length) * length, 0f, length);
+        public static float DeltaAngle(float current, float target) { float d = Repeat(target - current, 360f); if (d > 180f) d -= 360f; return d; }
         public static int FloorToInt(float v) => (int)Math.Floor(v);
         public static int CeilToInt(float v) => (int)Math.Ceiling(v);
         public static float Atan(float v) => (float)Math.Atan(v);

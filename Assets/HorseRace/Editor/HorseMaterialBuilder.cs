@@ -51,6 +51,9 @@ namespace HorseRace.EditorTools
                 mat.SetFloat("_HueShift", c.hue);
                 mat.SetFloat("_Saturation", c.sat);
                 mat.SetFloat("_Brightness", c.bright);
+                // 影の色・影の段の太陽は飾りと同じ（古い .mat に前の暗い影色が残らないよう毎回書く）
+                mat.SetColor("_ShadowColor", HorseRace.EditorTools.LightingPlan.ShadowColor);
+                mat.SetFloat("_ShadowLightFloor", HorseRace.EditorTools.LightingPlan.SHADOW_LIGHT_FLOOR);
                 EditorUtility.SetDirty(mat);
             }
             AssetDatabase.SaveAssets();

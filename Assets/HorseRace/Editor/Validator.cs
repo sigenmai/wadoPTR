@@ -126,6 +126,7 @@ namespace HorseRace.EditorTools
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
             CheckWiring(root, warn, info);
+            CheckLook(warn, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 
             var sb = new StringBuilder();
@@ -369,6 +370,18 @@ namespace HorseRace.EditorTools
                     info.Add(tag + "：ジャンプ台（" + ang.ToString("F1") + "°）");
                 }
             }
+            float pass = SetPieces.PassArc(def, len);
+            if (pass >= 0f)
+            {
+                // 切り通し：掘る前の高さ（HeightmapGen は決定的）と比べて道が下がり、両脇が盛り上がっているか
+                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, StageDefinitions.Normalize(local));
+                Vector3 c = WorldLayout.PointAtArc(local, pass), r = WorldLayout.RightOf(WorldLayout.TangentAtArc(local, pass));
+                float H(float[,] a, Vector3 q) => WorldLayout.SampleHeight(a, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, q.x, q.z);
+                float cut = H(raw, c) - H(h, c), wall = Mathf.Min(H(h, c + r * 30f) - H(raw, c + r * 30f), H(h, c - r * 30f) - H(raw, c - r * 30f));
+                if (cut < SetPieces.PASS_DEPTH * 0.6f || wall < 10f)
+                    warn.Add(tag + "：メサの切り通しが浅い（道 −" + cut.ToString("F1") + "m、両脇 +" + wall.ToString("F1") + "m）");
+                else info.Add(tag + "：メサの切り通し（道 −" + cut.ToString("F1") + "m、両脇 +" + wall.ToString("F1") + "m）");
+            }
         }
 
         /// <summary>レイヤーとマスク：マスクが 0 でない、体の Collider が Mount、大きなトリガーが Ignore Raycast、地形が Ground。</summary>
@@ -452,18 +465,83 @@ namespace HorseRace.EditorTools
             int backdrop = 0;
             if (bd != null) foreach (Transform g in bd) if (g.name == "Backdrop") backdrop += g.childCount;
             if (backdrop < 40) warn.Add("遠景の山並みが " + backdrop + " 個しかありません（40 個以上）");
-            Transform filler = bd != null ? GenUtil.FindDeep(bd, "GroundFiller") : null;
-            if (filler == null) warn.Add("地面の板（GroundFiller）がありません。ステージの間に空白が見えます");
+            Transform filler = bd != null ? GenUtil.FindDeep(bd, "OuterGround") : null;
+            var ft = filler != null ? filler.GetComponent<Terrain>() : null;
+            if (ft == null || ft.terrainData == null) warn.Add("外の地面（OuterGround の Terrain）がありません。ステージの間に空白が見えます");
             else
             {
-                var r = filler.GetComponent<Renderer>();
-                Bounds fb = r != null ? r.bounds : new Bounds(filler.position, Vector3.zero);
+                Vector3 o = ft.transform.position, sz = ft.terrainData.size;
                 foreach (var rect in WorldBounds.PlayableRects())
-                    if (fb.min.x > rect.x || fb.max.x < rect.z || fb.min.z > rect.y || fb.max.z < rect.w)
-                    { warn.Add("地面の板が遊べる範囲を覆っていません（空白が見えるおそれ）"); break; }
+                    if (o.x > rect.x || o.x + sz.x < rect.z || o.z > rect.y || o.z + sz.z < rect.w)
+                    { warn.Add("外の地面が遊べる範囲を覆っていません（空白が見えるおそれ）"); break; }
             }
             info.Add("見えない場所の対処：霧 " + (RenderSettings.fog ? RenderSettings.fogStartDistance.ToString("F0") + "〜" + RenderSettings.fogEndDistance.ToString("F0") + "m" : "なし")
                 + "、遠景の山並み " + backdrop + " 個");
+        }
+
+        /// <summary>
+        /// 見た目の決まり（art-r1-01 / art-r1-13）：
+        ///   ・峡谷の底の地面の影の段（素材の色 × 影色 × (環境光 + 太陽 × 0.5)）の輝度が LightingPlan.MIN_SHADOW_LUMINANCE 以上（真っ黒な溝にしない）。
+        ///     実際の環境光（RenderSettings）と太陽（RenderSettings.sun）で数える。
+        ///   ・岩のトゥーンのマテリアルのうち、平均の色相が暖色（0〜60°）の外のもの（青い灰色の岩など）を一覧にする（情報）。
+        /// </summary>
+        static void CheckLook(List<string> warn, List<string> info)
+        {
+            Color amb = RenderSettings.ambientGroundColor;
+            float sunK = RenderSettings.sun != null ? RenderSettings.sun.intensity * LightingPlan.SHADOW_LIGHT_FLOOR : LightingPlan.SUN_INTENSITY * LightingPlan.SHADOW_LIGHT_FLOOR;
+            Color sun = RenderSettings.sun != null ? RenderSettings.sun.color : LightingPlan.SunColor;
+            float worst = float.MaxValue;
+            foreach (Color albedo in new[] { ArtPalette.DirtCanyon, ArtPalette.SandLayer })
+            {
+                Color sh = LightingPlan.ShadowColor;
+                var c = new Color(albedo.r * sh.r * (amb.r + sun.r * sunK), albedo.g * sh.g * (amb.g + sun.g * sunK), albedo.b * sh.b * (amb.b + sun.b * sunK));
+                worst = Mathf.Min(worst, LightingPlan.Luminance(c));
+            }
+            if (worst < LightingPlan.MIN_SHADOW_LUMINANCE)
+                warn.Add("峡谷の底の影が暗すぎます（影の段の輝度 " + worst.ToString("F2") + "、" + LightingPlan.MIN_SHADOW_LUMINANCE + " 以上）。環境光・太陽・影色を確認してください");
+            else info.Add("光：峡谷の底の影の段の輝度 " + worst.ToString("F2") + "（" + LightingPlan.MIN_SHADOW_LUMINANCE + " 以上）");
+
+            var cool = new List<string>();
+            foreach (string g in AssetDatabase.FindAssets("t:Material", new[] { GenUtil.GEN_MATERIALS }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(g);
+                string name = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (!ArtPalette.IsRockAsset(name)) continue;
+                var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (m == null || m.shader == null || m.shader.name != GenUtil.TOON_SHADER) continue;
+                Color mean = MeanColor(m.GetTexture("_MainTex") as Texture2D);
+                Color tint = m.GetColor("_Tint");
+                Color c = ArtPalette.Multiply(mean, tint);
+                if (!ArtPalette.IsWarmRock(c))
+                {
+                    float h, sat, v;
+                    ArtPalette.ToHSV(c, out h, out sat, out v);
+                    cool.Add(name + "（色相 " + h.ToString("F0") + "°・彩度 " + sat.ToString("F2") + "）");
+                }
+            }
+            if (cool.Count > 0) info.Add("色：暖色（0〜60°）の外の岩のマテリアル " + cool.Count + " 個: " + string.Join("、", cool.ToArray()));
+            else info.Add("色：岩のマテリアルはすべて暖色（0〜60°）");
+        }
+
+        /// <summary>テクスチャの平均の色（小さな RenderTexture に縮めて読む。読めない設定のテクスチャでもよい）。無ければ白。</summary>
+        static Color MeanColor(Texture2D tex)
+        {
+            if (tex == null) return Color.white;
+            var rt = RenderTexture.GetTemporary(4, 4, 0);
+            Graphics.Blit(tex, rt);
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var small = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+            small.ReadPixels(new Rect(0, 0, 4, 4), 0, 0);
+            small.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            Color[] px = small.GetPixels();
+            Object.DestroyImmediate(small);
+            float r = 0f, gg = 0f, b = 0f;
+            foreach (var c in px) { r += c.r; gg += c.g; b += c.b; }
+            int n = Mathf.Max(1, px.Length);
+            return new Color(r / n, gg / n, b / n);
         }
 
         /// <summary>

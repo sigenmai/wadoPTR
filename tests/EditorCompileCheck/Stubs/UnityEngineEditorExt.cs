@@ -233,7 +233,20 @@ namespace UnityEngine
         public Texture2D(int width, int height) { }
         public Texture2D(int width, int height, TextureFormat textureFormat, bool mipChain) { }
         public void SetPixels(Color[] colors) { }
+        public Color[] GetPixels() => new Color[0];
+        public void ReadPixels(Rect source, int destX, int destY) { }
         public void Apply() { }
+    }
+
+    public struct Rect
+    {
+        public Rect(float x, float y, float width, float height) { this.x = x; this.y = y; this.width = width; this.height = height; }
+        public float x, y, width, height;
+    }
+
+    public static class Graphics
+    {
+        public static void Blit(Texture source, RenderTexture dest) { }
     }
 
     public partial class RenderTexture
@@ -243,6 +256,9 @@ namespace UnityEngine
         public bool useMipMap { get; set; }
         public bool autoGenerateMips { get; set; }
         public void Release() { }
+        public static RenderTexture active { get; set; }
+        public static RenderTexture GetTemporary(int width, int height, int depthBuffer) => null;
+        public static void ReleaseTemporary(RenderTexture temp) { }
     }
 
     public partial class Camera
@@ -278,6 +294,7 @@ namespace UnityEngine
         public LightType type { get; set; }
         public Color color { get; set; }
         public float intensity { get; set; }
+        public float range { get; set; }
         public LightShadows shadows { get; set; }
     }
 
@@ -364,8 +381,29 @@ namespace UnityEngine
             public bool enabled { get; set; }
             public ParticleSystemShapeType shapeType { get; set; }
             public float radius { get; set; }
+            public float angle { get; set; }
+            public Vector3 position { get; set; }
+            public Vector3 rotation { get; set; }
+            public Vector3 scale { get; set; }
         }
 
+        public struct VelocityOverLifetimeModule
+        {
+            public bool enabled { get; set; }
+            public ParticleSystemSimulationSpace space { get; set; }
+            public MinMaxCurve x { get; set; }
+            public MinMaxCurve y { get; set; }
+            public MinMaxCurve z { get; set; }
+        }
+
+        public struct SizeOverLifetimeModule
+        {
+            public bool enabled { get; set; }
+            public float sizeMultiplier { get; set; }
+        }
+
+        public VelocityOverLifetimeModule velocityOverLifetime => default(VelocityOverLifetimeModule);
+        public SizeOverLifetimeModule sizeOverLifetime => default(SizeOverLifetimeModule);
         public MainModule main => default(MainModule);
         public EmissionModule emission => default(EmissionModule);
         public ShapeModule shape => default(ShapeModule);
