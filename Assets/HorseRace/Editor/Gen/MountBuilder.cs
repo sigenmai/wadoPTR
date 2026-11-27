@@ -69,7 +69,8 @@ namespace HorseRace.EditorTools
             mc.obstacleMask = WorldLayers.ObstacleMask;
 
             var visualGo = GenUtil.Child(t, "Visual", Vector3.zero);
-            mc.visual = BuildVisual(visualGo, practice ? slot % 6 : 0);
+            // 練習用は slot = -1 なので、練習用の番号（casterId - 8 = 0, 1）で毛色を変える
+            mc.visual = BuildVisual(visualGo, practice ? GenUtil.Mod(casterId - RaceManager.MAX_SLOTS, CoatPaths.Length) : 0);
 
             var reins = GenUtil.Child(t, "ReinsVR", Vector3.zero);
             var vr = GenUtil.AddU<MountInputVR>(reins);
@@ -143,7 +144,7 @@ namespace HorseRace.EditorTools
             if (mv.horseModel != null)
             {
                 mv.horseCoatRenderers = mv.horseModel.GetComponentsInChildren<Renderer>(true);
-                if (coats[0] != null) foreach (var r in mv.horseCoatRenderers) r.sharedMaterial = coats[initialCoat % coats.Length] ?? coats[0];
+                if (coats[0] != null) foreach (var r in mv.horseCoatRenderers) r.sharedMaterial = coats[GenUtil.Mod(initialCoat, coats.Length)] ?? coats[0];
                 mv.earLeft = GenUtil.FindDeep(mv.horseModel.transform, "EarL");
                 mv.earRight = GenUtil.FindDeep(mv.horseModel.transform, "EarR");
             }
@@ -321,6 +322,7 @@ namespace HorseRace.EditorTools
             dc.visual = visual;
             dc.baseRadius = 1f;
             dc.whoosh = GenUtil.Audio(go, false);
+            visual.SetActive(false);   // 使うまで隠す（起動時の一瞬のちらつき防止）
             return dc;
         }
 
@@ -360,6 +362,7 @@ namespace HorseRace.EditorTools
                 if (b.size.x > 0.01f && b.size.y > 0.01f && b.size.z > 0.01f)
                     rock.transform.localScale = new Vector3(AbilityMath.WALL_WIDTH / b.size.x, 4.3f / b.size.y, 1.8f / b.size.z);
                 GenUtil.SetLayerRecursive(seg, WorldLayers.Block);
+                seg.SetActive(false);   // 使うまで隠す（当たり判定も無効）
                 segs[i] = seg;
             }
             rw.segments = segs;
@@ -378,6 +381,7 @@ namespace HorseRace.EditorTools
             ib.groundMask = WorldLayers.BlockMask;   // 地形＋岩壁ではねる
             ib.bounceSound = GenUtil.Audio(go, false);
             ib.hitSound = GenUtil.Audio(go, false);
+            ib.visual.SetActive(false);
             return ib;
         }
 

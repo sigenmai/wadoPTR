@@ -191,8 +191,20 @@ namespace HorseRace.EditorTools
         // 共通
         // ------------------------------------------------------------------
 
+        /// <summary>決まった乱数でコースから minD〜maxD m の点。スターター・橋・近道など sb.exclusions の範囲は除く。</summary>
         static List<Vector3> Scatter(StageBuild sb, int seed, int count, float minD, float maxD, float spacing)
-            => WorldLayout.ScatterNearCourse(seed, count, StageDefinitions.SIZE, 40f, sb.courseLocal, minD, maxD, spacing);
+        {
+            var pts = WorldLayout.ScatterNearCourse(seed, count, StageDefinitions.SIZE, 40f, sb.courseLocal, minD, maxD, spacing);
+            var r = new List<Vector3>();
+            foreach (var p in pts)
+            {
+                bool ok = true;
+                foreach (var e in sb.exclusions)
+                    if (WorldLayout.DistXZ(p, new Vector3(e.x, 0f, e.z)) < e.w + spacing * 0.5f) { ok = false; break; }
+                if (ok) r.Add(p);
+            }
+            return r;
+        }
 
         static List<Vector3> Filter(List<Vector3> pts, Vector3[] avoid, float radius)
         {

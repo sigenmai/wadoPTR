@@ -22,6 +22,16 @@ namespace HorseRace.EditorTools
         public GoalPresenter goal;
         public Vector3 goalTownCenter;
         public readonly List<SandZone> sandZones = new List<SandZone>();
+        /// <summary>飾りを置かない場所（Terrain ローカル x/z と半径 m）：スターター・橋・近道など。</summary>
+        public readonly List<Vector4> exclusions = new List<Vector4>();
+        public SetPieces.ShortcutPlan shortcut;
+        public float bridgeArc = -1f, jumpArc = -1f;
+
+        public void Exclude(Vector3 world, float radius)
+        {
+            Vector3 o = def.Origin;
+            exclusions.Add(new Vector4(world.x - o.x, 0f, world.z - o.z, radius));
+        }
 
         /// <summary>Terrain ローカル (lx, lz) → ワールド（地面の高さ）。</summary>
         public Vector3 Ground(float lx, float lz)

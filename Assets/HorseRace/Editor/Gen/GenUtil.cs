@@ -48,6 +48,9 @@ namespace HorseRace.EditorTools
             toonShader = null;
         }
 
+        /// <summary>負の数でも 0..n-1 に入る剰余。</summary>
+        public static int Mod(int a, int n) => n <= 0 ? 0 : ((a % n) + n) % n;
+
         public static void Warn(string msg)
         {
             if (!Missing.Contains(msg)) Missing.Add(msg);
@@ -406,16 +409,44 @@ namespace HorseRace.EditorTools
         static TMPro.TMP_FontAsset font;
         static bool fontSearched;
 
-        /// <summary>日本語の TMP フォント（Assets/HorseRace 以下で最初に見つかった TMP_FontAsset）。無ければ既定フォント＋警告。</summary>
+        public const string FONT_TTF = "Assets/HorseRace/Fonts/ipag.ttf";   // IPA ゴシック（IPA フォントライセンス v1.0、同じフォルダに全文）
+        public const string GEN_FONTS = GENERATED + "/Fonts";
+        public const string GEN_FONT_ASSET = GEN_FONTS + "/IPAGothic SDF.asset";
+
+        /// <summary>
+        /// 日本語の TMP フォント。Assets/HorseRace 以下に TMP_FontAsset があればそれ（Generated のものを含む）、
+        /// 無ければ Fonts/ipag.ttf から TMP_FontAsset.CreateFontAsset で動的フォントアセット（必要な文字を実行時に追加）を作って
+        /// Generated/Fonts に保存する。どちらも無ければ null（Validate が警告）。
+        /// </summary>
         public static TMPro.TMP_FontAsset Font()
         {
             if (fontSearched) return font;
             fontSearched = true;
             string[] g = AssetDatabase.FindAssets("t:TMP_FontAsset", new[] { "Assets/HorseRace" });
             if (g.Length > 0) font = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(AssetDatabase.GUIDToAssetPath(g[0]));
+            if (font == null) font = CreateFontAsset();
             if (font == null)
-                Warn("日本語の TMP フォントが Assets/HorseRace 以下にありません（TMP の既定フォントでは日本語が□になります）");
+                Warn("日本語の TMP フォントがありません（" + FONT_TTF + " も見つかりません）。TMP の既定フォントでは日本語が□になります");
             return font;
+        }
+
+        static TMPro.TMP_FontAsset CreateFontAsset()
+        {
+            var ttf = AssetDatabase.LoadAssetAtPath<UnityEngine.Font>(FONT_TTF);
+            if (ttf == null) return null;
+            var fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf);
+            if (fa == null) { Warn("TMP_FontAsset.CreateFontAsset が失敗しました: " + FONT_TTF); return null; }
+            EnsureFolder(GEN_FONTS);
+            fa.name = "IPAGothic SDF";
+            AssetDatabase.CreateAsset(fa, GEN_FONT_ASSET);
+            // アトラスとマテリアルはフォントアセットの中に保存する（別ファイルにしないと参照が切れる）
+            if (fa.atlasTextures != null)
+                foreach (var t in fa.atlasTextures) if (t != null) { t.name = "IPAGothic Atlas"; AssetDatabase.AddObjectToAsset(t, fa); }
+            if (fa.material != null) { fa.material.name = "IPAGothic Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+            EditorUtility.SetDirty(fa);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[HorseRace] 日本語フォントアセットを作りました（動的）: " + GEN_FONT_ASSET);
+            return fa;
         }
 
         public static void ResetFontCache()

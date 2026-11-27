@@ -399,6 +399,8 @@ namespace UnityEngine
     public static partial class Mathf
     {
         public static float Pow(float f, float p) => (float)Math.Pow(f, p);
+        public static float Tan(float f) => (float)Math.Tan(f);
+        public static float DeltaAngle(float current, float target) => target - current;
     }
 }
 
@@ -433,4 +435,6 @@ namespace UnityEngine.UI
 namespace UnityEngine
 {
     public sealed class Sprite : Object { }
+
+    public sealed class Font : Object { }
 }

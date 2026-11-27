@@ -197,21 +197,36 @@ namespace HorseRace.EditorTools
             return tags;
         }
 
-        /// <summary>表彰台（Props/Podium）。段の上の立ち位置 3 つ（0 = 1 位：中央、1 = 2 位、2 = 3 位）、花火 4 つ。</summary>
+        /// <summary>
+        /// 表彰台（Props/Podium は低い円台なので、その上に木の段を 3 つ積む：1 位 = 中央・一番高い、2 位 = 左、3 位 = 右）。
+        /// 段の上に立ち位置（0 = 1 位、1 = 2 位、2 = 3 位）、花火 4 つ。台の当たり判定は MeshCollider（形のまま）、段は BoxCollider。
+        /// </summary>
         public static Podium BuildPodium(Transform parent, Vector3 pos, float yawFacingAudience)
         {
             var holder = GenUtil.PlaceModel(GenUtil.Prop("Podium"), parent, "Podium", pos - Vector3.up * 0.05f, yawFacingAudience, 1f,
                 new Vector3(5f, 0.65f, 5f), new Color(0.8f, 0.7f, 0.5f));
-            DressingBuilder.AddCollider(holder, false);
-            var col = holder.AddComponent<BoxCollider>();   // 低い台も乗れるように
+            foreach (var mf in holder.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null) continue;
+                var mc = mf.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = mf.sharedMesh;
+            }
             Bounds b = GenUtil.RendererBounds(holder);
-            col.center = holder.transform.InverseTransformPoint(b.center);
-            col.size = new Vector3(b.size.x, b.size.y, b.size.z);
-            float top = b.max.y - holder.transform.position.y;
+            float baseTop = b.max.y - holder.transform.position.y;
+            if (baseTop < 0.05f) baseTop = 0.65f;
+            float[] x = { 0f, -1.5f, 1.5f };
+            float[] h = { 1.0f, 0.7f, 0.45f };
+            string[] label = { "1", "2", "3" };
             var steps = new Transform[3];
-            float[] x = { 0f, -1.6f, 1.6f };
             for (int i = 0; i < 3; i++)
-                steps[i] = GenUtil.Child(holder.transform, "Step_" + (i + 1), new Vector3(x[i], top + 0.05f, 0f)).transform;
+            {
+                var tier = GenUtil.Prim(PrimitiveType.Cube, "Tier_" + label[i], holder.transform, new Vector3(x[i], baseTop + h[i] * 0.5f, 0f),
+                    new Vector3(1.4f, h[i], 1.4f), new Color(0.55f, 0.38f, 0.22f), true);
+                GenUtil.Text(holder.transform, "TierLabel_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.71f), Quaternion.Euler(0f, 180f, 0f),
+                    label[i], 4f, new Color(1f, 0.85f, 0.4f), new Vector2(1.2f, 0.6f));
+                steps[i] = GenUtil.Child(holder.transform, "Step_" + label[i], new Vector3(x[i], baseTop + h[i] + 0.05f, 0f)).transform;
+                tier.name = "Tier_" + label[i];
+            }
             var fw = new ParticleSystem[4];
             for (int i = 0; i < 4; i++)
             {

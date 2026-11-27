@@ -75,6 +75,10 @@ namespace HorseRace.EditorTools
             GenUtil.MODELS + "/ThirdParty/MesaRockB/MesaRockB.fbx", GenUtil.MODELS + "/ThirdParty/RockSetStylized/RockSetStylized.fbx",
             GenUtil.MODELS + "/Buildings/TownBlock.fbx", GenUtil.MODELS + "/Buildings/SaloonFacade.fbx", GenUtil.MODELS + "/Buildings/RanchCompound.fbx",
             MountBuilder.MOUNT_CONTROLLER, MountBuilder.CAMEL_CONTROLLER, MountBuilder.SKELETON_CONTROLLER,
+            GenUtil.Third("RockGray", "RockGrayA"), GenUtil.Third("RockGray", "RockGrayB"), GenUtil.Third("RockGray", "RockGrayC"),
+            GenUtil.Third("RockGray", "RockGrayD"), GenUtil.Third("RockGray", "RockGrayE"), GenUtil.Third("RockGray", "RockGrayF"),
+            GenUtil.Third("RockGray", "RockGrayG"), GenUtil.Third("RockGray", "RockGrayH"),
+            GenUtil.FONT_TTF,
         };
 
         [MenuItem("HorseRace/Validate")]
@@ -93,6 +97,7 @@ namespace HorseRace.EditorTools
 
             CheckStages(root, warn, info);
             CheckAssets(warn);
+            CheckLayers(root, warn);
             CheckWiring(root, warn, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 
@@ -136,7 +141,12 @@ namespace HorseRace.EditorTools
                     TerrainData td = terrain.terrainData;
                     int r = td.heightmapResolution;
                     float[,] h = td.GetHeights(0, 0, r, r);
-                    slope = HeightmapGen.MaxSlopeDegAlong(h, td.size.x, td.size.y, StageDefinitions.Normalize(local));
+                    // 岩橋の上は板なので、その区間は地形の勾配から外す
+                    float bridge = SetPieces.BridgeArc(def, len);
+                    Vector3[] slopePts = bridge < 0f ? local
+                        : SetPieces.ExcludeArcRange(local, bridge - SetPieces.BRIDGE_HALF_SPAN, bridge + SetPieces.BRIDGE_HALF_SPAN);
+                    slope = HeightmapGen.MaxSlopeDegAlong(h, td.size.x, td.size.y, StageDefinitions.Normalize(slopePts));
+                    CheckSetPieces(def, tag, stageRoot, local, len, h, allCps, warn, info);
                     if (slope > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：コース上の最大勾配 " + slope.ToString("F1") + "° が 25° を超えています");
                     int ar = td.alphamapResolution;
                     if (td.alphamapLayers > TerrainBuilder.LAYER_SAND)
@@ -184,6 +194,106 @@ namespace HorseRace.EditorTools
                     + (slope >= 0f ? slope.ToString("F1") + "°" : "-") + "、CP " + cps.Count + " 個、砂地 "
                     + (sand >= 0f ? (sand * 100f).ToString("F0") + "%" : "-") + "（SandZone " + zones + "）、遺物 " + relics + " 個、CP 線分からのずれ最大 " + dev.ToString("F0") + "m");
             }
+        }
+
+        /// <summary>見どころ：岩橋（板が Ground、溝が 8m 以上深い）、崖下りの近道（段 3〜8m、コースに戻る、CP の線分から 60m 以内、
+        /// 途中の CP の箱が近道に届く）、ジャンプ台（25° 以下、Ground）。</summary>
+        static void CheckSetPieces(StageDef def, string tag, Transform stageRoot, Vector3[] local, float len, float[,] h,
+            Checkpoint[] allCps, List<string> warn, List<string> info)
+        {
+            float bridge = SetPieces.BridgeArc(def, len);
+            if (bridge >= 0f)
+            {
+                Transform deck = GenUtil.FindDeep(stageRoot, "RockBridge");
+                if (deck == null) warn.Add(tag + "：岩橋（RockBridge）がありません");
+                else
+                {
+                    Transform plank = GenUtil.FindDeep(deck, "Deck");
+                    if (plank == null || plank.gameObject.layer != WorldLayers.Ground) warn.Add(tag + "：岩橋の板が Ground レイヤーではありません");
+                    Vector3 c = WorldLayout.PointAtArc(local, bridge);
+                    float floor = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, c.x, c.z) + def.Origin.y;
+                    float depth = deck.position.y - floor;
+                    if (depth < 8f) warn.Add(tag + "：岩橋の下の溝が浅すぎます（" + depth.ToString("F1") + "m）");
+                    info.Add(tag + "：岩橋（溝の深さ " + depth.ToString("F1") + "m）");
+                }
+            }
+            if (def.cliffShortcut)
+            {
+                // 掘る前の高さ（HeightmapGen は決定的）で Build World と同じ計画を作り、シーンの地形で段差を測る
+                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, StageDefinitions.Normalize(local));
+                SetPieces.ShortcutPlan p = SetPieces.PlanFor(def, local, raw, len);
+                if (p == null) warn.Add(tag + "：崖下りの近道を置ける区間がありません");
+                else
+                {
+                    float drop = SetPieces.MaxDropAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.a, p.b, 4f);
+                    if (drop > SetPieces.MAX_DROP + 0.5f) warn.Add(tag + "：近道の段が高すぎます（" + drop.ToString("F1") + "m > 8m）");
+                    if (drop < 3f) warn.Add(tag + "：近道の段が低すぎて着地の硬直が起きません（" + drop.ToString("F1") + "m）");
+                    float rejoin = WorldLayout.DistToPolylineXZ(p.b, local);
+                    if (rejoin > 60f) warn.Add(tag + "：近道の出口がコースから " + rejoin.ToString("F0") + "m 離れています");
+                    if (p.maxDevFromCpChord > 60f) warn.Add(tag + "：近道が CP の線分から " + p.maxDevFromCpChord.ToString("F0") + "m 離れます（コース外リセット）");
+                    var cps = new List<Checkpoint>();
+                    foreach (var c in allCps) if (c.stageIndex == def.index) cps.Add(c);
+                    cps.Sort((x, y) => x.index.CompareTo(y.index));
+                    for (int k = 0; k < p.crossCps.Length; k++)
+                    {
+                        int idx = p.crossCps[k];
+                        if (idx >= cps.Count) { warn.Add(tag + "：近道が横切る CP がありません"); continue; }
+                        var box = cps[idx].GetComponent<BoxCollider>();
+                        float o = p.crossOffsets[k];
+                        if (box == null || o < box.center.x - box.size.x * 0.5f || o > box.center.x + box.size.x * 0.5f)
+                            warn.Add(tag + "：CP" + cps[idx].index + " の箱が近道（横 " + o.ToString("F0") + "m）まで届いていません");
+                    }
+                    info.Add(tag + "：崖下りの近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + SetPieces.SHORTCUT_SPAN) + "、段 "
+                        + drop.ToString("F1") + "m、CP 線分から最大 " + p.maxDevFromCpChord.ToString("F0") + "m）");
+                }
+            }
+            if (SetPieces.JumpArc(def, len) >= 0f)
+            {
+                Transform jump = GenUtil.FindDeep(stageRoot, "DuneJump");
+                if (jump == null) warn.Add(tag + "：ジャンプ台（DuneJump）がありません");
+                else
+                {
+                    float ang = Mathf.Abs(Mathf.DeltaAngle(0f, jump.eulerAngles.x));
+                    if (ang > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：ジャンプ台の角度 " + ang.ToString("F1") + "° が 25° を超えています");
+                    Transform r = GenUtil.FindDeep(jump, "Ramp");
+                    if (r == null || r.gameObject.layer != WorldLayers.Ground) warn.Add(tag + "：ジャンプ台が Ground レイヤーではありません");
+                    info.Add(tag + "：ジャンプ台（" + ang.ToString("F1") + "°）");
+                }
+            }
+        }
+
+        /// <summary>レイヤーとマスク：マスクが 0 でない、体の Collider が Mount、大きなトリガーが Ignore Raycast、地形が Ground。</summary>
+        static void CheckLayers(GameObject root, List<string> warn)
+        {
+            int ground = LayerMask.NameToLayer("Ground"), mount = LayerMask.NameToLayer("Mount");
+            if (ground < 0 || mount < 0 || LayerMask.NameToLayer("Rider") < 0 || LayerMask.NameToLayer("Block") < 0)
+                warn.Add("レイヤー Ground / Mount / Rider / Block のどれかが TagManager にありません");
+            foreach (var t in root.GetComponentsInChildren<Terrain>(true))
+                if (t.gameObject.layer != ground) warn.Add("Terrain " + t.name + "（" + t.transform.parent.name + "）が Ground レイヤーではありません");
+            foreach (var m in root.GetComponentsInChildren<MountController>(true))
+            {
+                if (m.gameObject.layer != mount) warn.Add(m.name + " が Mount レイヤーではありません");
+                var body = m.GetComponent<BoxCollider>();
+                if (body == null || body.isTrigger) warn.Add(m.name + " に体の Collider（Is Trigger でない BoxCollider）がありません");
+                if (m.groundMask.value == 0 || m.obstacleMask.value == 0) warn.Add(m.name + " の groundMask / obstacleMask が 0 です");
+            }
+            foreach (var c in root.GetComponentsInChildren<AbilityCaster>(true))
+                if (c.targetMask.value == 0 || c.blockMask.value == 0 || c.groundMask.value == 0) warn.Add(c.name + " の AbilityCaster のマスクが 0 です");
+            foreach (var b in root.GetComponentsInChildren<IronBall>(true)) if (b.groundMask.value == 0) warn.Add(b.name + " の groundMask が 0 です");
+            foreach (var w in root.GetComponentsInChildren<RockWall>(true)) if (w.groundMask.value == 0) warn.Add(w.name + " の groundMask が 0 です");
+            foreach (var l in root.GetComponentsInChildren<LassoEffect>(true)) if (l.mountMask.value == 0) warn.Add(l.name + " の mountMask が 0 です");
+            foreach (var r in root.GetComponentsInChildren<RelicPickup>(true))
+            {
+                if (r.groundMask.value == 0) warn.Add(r.name + " の groundMask が 0 です");
+                if (r.gameObject.layer != WorldLayers.TRIGGERS) warn.Add(r.name + "（遺物のトリガー）が Ignore Raycast レイヤーではありません");
+            }
+            foreach (var c in root.GetComponentsInChildren<Checkpoint>(true))
+                if (c.gameObject.layer != WorldLayers.TRIGGERS) { warn.Add("CP のトリガーが Ignore Raycast レイヤーではありません（" + c.name + " ほか）"); break; }
+            foreach (var z in root.GetComponentsInChildren<SandZone>(true))
+                if (z.gameObject.layer != WorldLayers.TRIGGERS) { warn.Add("SandZone が Ignore Raycast レイヤーではありません（" + z.name + " ほか）"); break; }
+            foreach (var a in root.GetComponentsInChildren<PracticeArea>(true))
+                if (a.gameObject.layer != WorldLayers.TRIGGERS) warn.Add("練習場のトリガーが Ignore Raycast レイヤーではありません");
+            if (GenUtil.Font() == null) warn.Add("日本語の TMP フォントがありません（" + GenUtil.FONT_TTF + "）");
         }
 
         static void CheckAssets(List<string> warn)

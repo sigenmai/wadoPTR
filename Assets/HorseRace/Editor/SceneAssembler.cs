@@ -56,6 +56,7 @@ namespace HorseRace.EditorTools
                     ctx.stages.Add(sb);
                     Progress("ステージ " + (i + 1) + "：コース", 0.10f + i * 0.2f);
                     CourseBuilder.Build(sb, ctx);
+                    SetPieceBuilder.Build(sb, ctx);
                     Progress("ステージ " + (i + 1) + "：飾り", 0.15f + i * 0.2f);
                     DressingBuilder.BuildStage(sb, ctx);
                 }
@@ -71,6 +72,16 @@ namespace HorseRace.EditorTools
                 Wire(ctx);
                 SceneDescriptor(ctx);
                 GenUtil.FlushBehaviours();
+            }
+            catch (System.Exception e)
+            {
+                // エディタのコードなので try/catch してよい（U# の制約はランタイムだけ）。作りかけは残さない
+                Debug.LogError("[HorseRace] ワールド生成中にエラー: " + e.Message + "\n" + e);
+                if (ctx.root != null) Object.DestroyImmediate(ctx.root.gameObject);
+                EditorUtility.ClearProgressBar();
+                EditorUtility.DisplayDialog("HorseRace/Build World",
+                    "ワールド生成中にエラーが起きました:\n" + e.Message + "\n\n作りかけの " + GenUtil.ROOT_NAME + " は削除しました。詳しくは Console を見てください。", "OK");
+                return;
             }
             finally
             {
@@ -201,15 +212,21 @@ namespace HorseRace.EditorTools
             foreach (var t in ctx.directorTags) t.director = ctx.director;
         }
 
+        /// <summary>
+        /// VRCSceneDescriptor は HorseRace_Generated の外（シーン直下の "VRCWorld"）に 1 つだけ置き、作り直しでも消さない
+        /// （PipelineManager のワールド ID を保つため）。既にあればスポーンだけ更新する。
+        /// </summary>
         static void SceneDescriptor(WorldContext ctx)
         {
             VRCSceneDescriptor desc = null;
-            foreach (var d in Object.FindObjectsOfType<VRCSceneDescriptor>())
+            foreach (var d in Object.FindObjectsOfType<VRCSceneDescriptor>(true))
                 if (!d.transform.IsChildOf(ctx.root)) { desc = d; break; }
             if (desc == null)
             {
-                var go = GenUtil.Child(ctx.root, "VRCWorld", ctx.lobbySpawn.position);
+                var go = new GameObject("VRCWorld");   // シーン直下（親なし）
+                go.transform.position = ctx.lobbySpawn.position;
                 desc = go.AddComponent<VRCSceneDescriptor>();
+                Debug.Log("[HorseRace] シーン直下に VRCWorld（VRCSceneDescriptor）を作りました。以後の Build World では作り直しません");
             }
             else Debug.Log("[HorseRace] 既存の VRCSceneDescriptor（" + desc.name + "）のスポーン位置をロビーに設定しました");
             desc.spawns = new[] { ctx.lobbySpawn };
@@ -248,8 +265,14 @@ namespace HorseRace.EditorTools
             if (created == 0) return true;
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            // U# 1.x の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める（記憶にある API 名。
+            // 無い版では Refresh 後に U# が自動でコンパイルする）
+            UdonSharpProgramAsset.CompileAllCsPrograms(true);
             EditorUtility.DisplayDialog("HorseRace/Build World",
-                "UdonSharp のプログラムアセットを " + created + " 個作りました。\nUdonSharp のコンパイルが終わったら、もう一度「HorseRace/Build World」を実行してください。", "OK");
+                "UdonSharp のプログラムアセットを " + created + " 個作り、コンパイルを始めました。\n\n"
+                + "完了の確認：Unity 右下の読み込み表示が止まり、Console に UdonSharp のコンパイルエラー（赤）が無いこと"
+                + "（Assets/HorseRace/Scripts の .asset を選ぶと Inspector にコンパイル結果が出ます）。\n"
+                + "確認できたら、もう一度「HorseRace/Build World」を実行してください。", "OK");
             return false;
         }
     }

@@ -3,7 +3,7 @@ using UnityEngine;
 namespace HorseRace.EditorTools
 {
     /// <summary>
-    /// コース：スタート位置（8 頭の横一列）・スタートライン、CP（80m ごと、Is Trigger の BoxCollider ＋黒板 RankBoard）、
+    /// コース：スタート位置（8 頭の横一列）・スタートライン、CP（80m ごと、Is Trigger の BoxCollider。黒板 RankBoard は 3 つ目ごとの CP とゴール）、
     /// ゴールゲート（最後の CP = isGoal ＋ GoalPresenter）、ゴール後の囲い、遺物 4 個、スターターの立ち位置。
     /// コース外リセットは MountController が CP の線分からの距離で行う（Validate が線分からのずれ ≤ 60m を確認）。
     /// </summary>
@@ -14,6 +14,7 @@ namespace HorseRace.EditorTools
         public const float GATE_HALF = 13f;
         public const float PEN_RADIUS = 12f;
         public const float PEN_BACK = 14f;       // 囲いの中心 = 流しの終点の 14m 手前
+        public const int BOARD_EVERY = 3;        // 黒板は CP3・CP6・…とゴール
 
         static readonly Color Wood = new Color(0.45f, 0.30f, 0.18f);
         static readonly Color DarkWood = new Color(0.30f, 0.20f, 0.12f);
@@ -48,6 +49,7 @@ namespace HorseRace.EditorTools
             // スターターはスタートラインの左脇（レーンの外）、コースのほうを向く
             Vector3 spot = sb.GroundWorld(lineP - r0 * (GATE_HALF + 3f) + t0 * 2f);
             sb.starterSpot = GenUtil.World(root, "StarterSpot", spot, WorldLayout.YawDeg(r0)).transform;
+            sb.Exclude(spot, 14f);    // スターターの周りに岩を置かない
 
             // ---- CP ----
             float[] arcs = WorldLayout.CheckpointArcs(sb.goalArc, StageDefinitions.CP_SPACING_M);
@@ -74,7 +76,8 @@ namespace HorseRace.EditorTools
                 prev = cp;
                 sb.checkpoints.Add(cp);
                 if (k == 0) sb.firstCheckpoint = cp;
-                ctx.rankBoards.Add(ChalkBoard(go.transform, sb, p, t, "Board"));
+                // 黒板は 3 つ目ごとの CP とゴールだけ（RankBoard の書き直しの負荷を抑える）
+                if (goal || (k + 1) % BOARD_EVERY == 0) ctx.rankBoards.Add(ChalkBoard(go.transform, sb, p, t, "Board"));
                 if (goal) sb.goal = GoalGate(go.transform, sb, ctx);
             }
 
@@ -102,7 +105,9 @@ namespace HorseRace.EditorTools
         static RankBoard ChalkBoard(Transform cp, StageBuild sb, Vector3 p, Vector3 t, string name)
         {
             Vector3 bp = sb.GroundWorld(p + WorldLayout.RightOf(t) * BOARD_SIDE);
-            return ChalkBoardAt(cp, bp, WorldLayout.YawDeg(t), name, false);
+            var rb = ChalkBoardAt(cp, bp, WorldLayout.YawDeg(t), name, false);
+            rb.stageIndex = sb.def.index;
+            return rb;
         }
 
         /// <summary>黒板 1 枚。文字は板の -Z 側（yaw の方向を見ている人に読める）。</summary>
@@ -162,7 +167,7 @@ namespace HorseRace.EditorTools
             col.radius = 1.5f;
             col.center = new Vector3(0f, 0.8f, 0f);
             go.layer = WorldLayers.TRIGGERS;
-            string part = "Gems_0" + (gemIndex % 4 + 1);
+            string part = "Gems_0" + (GenUtil.Mod(gemIndex, 4) + 1);
             var gem = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), part, go.transform, pos, 0f, 1f,
                 new Vector3(0.4f, 0.6f, 0.4f), new Color(0.3f, 0.8f, 0.9f));
             gem.name = "Visual";
