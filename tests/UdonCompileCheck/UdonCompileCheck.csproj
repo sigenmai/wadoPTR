@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Type-checks the UdonSharp runtime scripts (Logic + Runtime) against hand-written stubs of the
+    Unity 2022.3 / VRChat SDK3 / UdonSharp 1.1 APIs they use. This is NOT a Unity compile and NOT a
+    U# compile: it only catches C# type/signature errors. Self-contained (does not reference tests/UnityStubs).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0414;CS0169;CS0649;CS0108</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs/**/*.cs" />
+    <Compile Include="../../Assets/HorseRace/Scripts/**/*.cs" />
+  </ItemGroup>
+</Project>
