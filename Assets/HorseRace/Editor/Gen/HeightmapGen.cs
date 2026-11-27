@@ -52,6 +52,7 @@ namespace HorseRace.EditorTools
             {
                 Vector3 a = coursePointsNormalized[i - 1] * TERRAIN_SIZE_M, b = coursePointsNormalized[i] * TERRAIN_SIZE_M;
                 float segLen = Mathf.Sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+                float tx = segLen > 1e-5f ? (b.x - a.x) / segLen : 1f, tz = segLen > 1e-5f ? (b.z - a.z) / segLen : 0f;
                 int steps = Mathf.Max(1, Mathf.CeilToInt(segLen / (cellM * 0.5f)));
                 for (int k = 0; k <= steps; k++)
                 {
@@ -121,6 +122,25 @@ namespace HorseRace.EditorTools
         public static float TrailEdgeJitter(int kind, float x, float z)
             => kind == KIND_DUNES ? TRAIL_EDGE_NOISE_M * (2f * Noise(x / TRAIL_EDGE_NOISE_SCALE_M, z / TRAIL_EDGE_NOISE_SCALE_M, 3, 41) - 1f) : 0f;
 
+        /// <summary>art-r5-01：符号付きの距離 d（m）をテクスチャの G（0〜1）へ：G = 0.5 + d / (2·TRAIL_DIST_MAX_M)。</summary>
+        public static float EncodeSignedDist(float d) => Mathf.Clamp01(0.5f + Mathf.Clamp(d, -TRAIL_DIST_MAX_M, TRAIL_DIST_MAX_M) / (2f * TRAIL_DIST_MAX_M));
+
+        /// <summary>G（0〜1）→ 符号付きの距離（m）。ToonTerrain の d = (G − 0.5)·2（× TRAIL_DIST_MAX_M）と同じ。</summary>
+        public static float DecodeSignedDist(float g) => (g - 0.5f) * 2f * TRAIL_DIST_MAX_M;
+
+        /// <summary>art-r5-01：符号付きの距離 sd（m）の轍の重み（ToonTerrain と同じ式：1 − smoothstep(w·0.35, w·0.65, ||d| − offset|)）。</summary>
+        public static float RutWeightSigned(float sd) => RutWeight(Mathf.Abs(sd));
+
+        /// <summary>格子 a（[z, x]）の (x, z)（格子の番号）の双線形補間（TerrainBuilder の道のテクスチャとテスト用）。</summary>
+        public static float SampleBilinear(float[,] a, float x, float z)
+        {
+            int n = a.GetLength(0), mm = a.GetLength(1);
+            int x0 = Mathf.Clamp((int)Mathf.Floor(x), 0, mm - 2), z0 = Mathf.Clamp((int)Mathf.Floor(z), 0, n - 2);
+            float fx = Mathf.Clamp01(x - x0), fz = Mathf.Clamp01(z - z0);
+            float top = a[z0, x0] + (a[z0, x0 + 1] - a[z0, x0]) * fx, bot = a[z0 + 1, x0] + (a[z0 + 1, x0 + 1] - a[z0 + 1, x0]) * fx;
+            return top + (bot - top) * fz;
+        }
+
         /// <summary>轍の重み（0〜1）：中心からの距離 d が ±RUT_OFFSET_M の幅 RUT_WIDTH_M の線の上で 1。</summary>
         public static float RutWeight(float d)
         {
@@ -145,11 +165,23 @@ namespace HorseRace.EditorTools
         /// <summary>重み・道の中心からの距離・その点のいちばん近い所の平らな道の半幅（m、art-r4-05：砂漠の縁の砂に使う）。</summary>
         public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized, out float[,] dist, out float[,] hwMap)
         {
+            float[,] signedDist;
+            return TrailMask(resolution, def, coursePointsNormalized, out dist, out hwMap, out signedDist);
+        }
+
+        /// <summary>
+        /// art-r5-01：さらに「符号付きの横の距離」（m、+ = 進む向きの左、− = 右。いちばん近い区間の接線 × (p − 最寄りの点) の外積）。
+        /// 符号なしの距離は中心の線で折れ曲がるので、双線形で補間すると轍が途切れた点線・丸いしみになった。符号付きなら中心をまっすぐ通る（直線の道で正確に線形）。
+        /// 範囲の外は ±TRAIL_DIST_MAX_M。TerrainBuilder が G = 0.5 + d / (2·TRAIL_DIST_MAX_M) に入れる（EncodeSignedDist）。
+        /// </summary>
+        public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized, out float[,] dist, out float[,] hwMap, out float[,] signedDist)
+        {
             hwMap = null;
             int n = resolution;
             var m = new float[n, n];
             dist = new float[n, n];
-            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) dist[z, x] = float.MaxValue;
+            signedDist = new float[n, n];
+            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) { dist[z, x] = float.MaxValue; signedDist[z, x] = TRAIL_DIST_MAX_M; }
             if (coursePointsNormalized == null || coursePointsNormalized.Length < 2) return m;
             float cellM = TERRAIN_SIZE_M / (n - 1);
             float maxHw = RUNWAY_M;
@@ -162,6 +194,7 @@ namespace HorseRace.EditorTools
             {
                 Vector3 a = coursePointsNormalized[i - 1] * TERRAIN_SIZE_M, b = coursePointsNormalized[i] * TERRAIN_SIZE_M;
                 float segLen = Mathf.Sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+                float tx = segLen > 1e-5f ? (b.x - a.x) / segLen : 1f, tz = segLen > 1e-5f ? (b.z - a.z) / segLen : 0f;
                 int steps = Mathf.Max(1, Mathf.CeilToInt(segLen / (cellM * 0.5f)));
                 for (int k = 0; k <= steps; k++)
                 {
@@ -173,7 +206,13 @@ namespace HorseRace.EditorTools
                         {
                             float dx = x * cellM - px, dz = z * cellM - pz;
                             float d = Mathf.Sqrt(dx * dx + dz * dz);
-                            if (d < dist[z, x]) { dist[z, x] = d; arc[z, x] = s0 + segLen * t; }
+                            if (d < dist[z, x])
+                            {
+                                dist[z, x] = d; arc[z, x] = s0 + segLen * t;
+                                // 接線 × (p − 最寄りの点)：区間の線からのまっすぐな横の距離（サンプル点の間隔で波打たない）
+                                float lat = tz * dx - tx * dz;
+                                signedDist[z, x] = Mathf.Clamp(-lat, -TRAIL_DIST_MAX_M, TRAIL_DIST_MAX_M);
+                            }
                         }
                 }
                 s0 += segLen;

@@ -341,10 +341,11 @@ namespace HorseRace.EditorTools
                 if (r is ParticleSystemRenderer || r is LineRenderer) continue;
                 // 町の模型全体を置いたとき（ロビー）：部品（WesternTown_NNN_種類）ごとに色の決まり（地面の板・岩山、art-r2-11）
                 ArtPalette.Style style = baseStyle;
+                string sidingName = partName ?? assetPath;   // art-r5-06：白い壁の板壁の色を選ぶ名前
                 if (town && partName == null)
                 {
                     string pn = TownPartOf(r.transform, root.transform);
-                    if (pn != null) style = ArtPalette.StyleFor(assetPath, pn, ArtPalette.PartKind(pn));
+                    if (pn != null) { style = ArtPalette.StyleFor(assetPath, pn, ArtPalette.PartKind(pn)); sidingName = pn; }
                 }
                 var src = r.sharedMaterials;
                 var dst = new Material[src.Length];
@@ -356,7 +357,7 @@ namespace HorseRace.EditorTools
                     // 画像を使わず「色だけ」で塗られた素材が多い（町・小物のパック）。元の色を Tint に引き継ぐ
                     // （画像があるときは白のまま。Blender から来た FBX は画像付きでも灰色の基本色を持っていて、掛けると暗くなる）
                     // 画像付きの建物（Buildings/・RanchCompound）は青白い壁を古い木の色へ寄せる掛け色（art-r2-14）
-                    Color tint = tex != null ? ArtPalette.TextureTint(assetPath) : ArtPalette.RemapBaseColor(assetPath, BaseColorOf(s));
+                    Color tint = tex != null ? ArtPalette.TextureTint(assetPath) : ArtPalette.RemapBaseColor(assetPath, BaseColorOf(s), sidingName);
                     tint = ArtPalette.Multiply(tint, style.tint);
                     string key = (s != null ? s.name : "none") + "_" + (tex != null ? tex.name : "notex")
                         + "_" + ColorUtility.ToHtmlStringRGB(tint) + style.key + (dusk ? "_S3" : "");

@@ -29,8 +29,8 @@ namespace HorseRace.EditorTools
         public const float STRATA_BAND_M = 8f;
         /// <summary>art-r4-04：境目の縞の帯の高さ（ToonTerrain の _StrataScale）。</summary>
         public const float STRATA_BAND_BORDER_M = 4f;
-        /// <summary>art-r4-05：道のマスクのテクスチャの解像度（双線形、縁がのこぎりの歯にならない）。</summary>
-        public const int TRAIL_TEX_RES = 2048;
+        /// <summary>art-r4-05 → art-r5-01：道のマスクのテクスチャの解像度。ステージは 4096（1 texel ≈ 0.24m、轍 0.6m がなめらか）、ロビーは 2048。</summary>
+        public const int TRAIL_TEX_RES = 4096, LOBBY_TRAIL_TEX_RES = 2048;
         /// <summary>art-r4-04：法線の y がこれより小さい（約 53° より急な）面だけ縞を濃く（ToonTerrain の _StrataSlope）。</summary>
         public const float STRATA_SLOPE_NY = 0.6f;
         public const string TERRAIN_SHADER = "HorseRace/ToonTerrain";
@@ -55,8 +55,8 @@ namespace HorseRace.EditorTools
             sb.sand = HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES, def.kind, def.seed,
                 def.kind != HeightmapGen.KIND_DUNES ? sb.heights : null);   // 荒野は谷底だけ、境目はくぼ地（art-r3-07）
             // 道の踏み固めた土（course-r1-09）：道の上の砂は消す（道の外の砂 = 遅くなる危険）
-            float[,] trailDist, trailHw;
-            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm, out trailDist, out trailHw);
+            float[,] trailDist, trailHw, trailSigned;
+            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm, out trailDist, out trailHw, out trailSigned);
             HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail, def.kind, trailDist, trailHw);   // art-r4-05：砂漠は道の縁の外を砂のまま
             // 深い砂の区間（system-r2-01）：道の上も砂（ラクダの出番）。踏み跡は薄く残す
             HeightmapGen.ApplyDeepSand(sb.sand, sb.trail, def, sb.courseLocal, StageDefinitions.SIZE);
@@ -75,7 +75,7 @@ namespace HorseRace.EditorTools
             sb.terrain.heightmapPixelError = 4f;
             // course-r3-14：スタート・ゴールの線（道を横切る明るい土の帯、地形の塗りだけ）を道のマスクの B へ
             float[,] lines = HeightmapGen.LineMask(StageDefinitions.ALPHAMAP_RES, def, sb.courseLocal, sb.goalArc);
-            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailDist, lines), "Stage" + (def.index + 1), def.index);
+            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailSigned, lines, TRAIL_TEX_RES), "Stage" + (def.index + 1), def.index);
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -220,14 +220,15 @@ namespace HorseRace.EditorTools
         public static Color TrailColor(int stage) => ArtPalette.Trail(stage);
 
         /// <summary>
-        /// 道の踏み固めた土の重み（R、Terrain 全体の UV）と道の中心からの距離（G = 距離 / TRAIL_DIST_MAX_M、art-r3-06：ToonTerrain が ±1.8m の轍を描く）を
-        /// Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。距離は線形に補間されるので、1 マス 2m の解像度でも 0.6m の轍の線が描ける。
+        /// 道の踏み固めた土の重み（R、Terrain 全体の UV）と道の中心からの符号付きの横の距離（art-r5-01：G = 0.5 + d / (2·TRAIL_DIST_MAX_M)、
+        /// ToonTerrain が ±1.8m の 2 本の轍を描く）を Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。
+        /// 符号付きの距離は中心の線をまっすぐ通るので、双線形で補間しても途切れない（前の符号なしの距離は点線・しみになった）。
         /// </summary>
-        public static Texture2D TrailTexture(string name, float[,] trail, float[,] dist = null, float[,] lines = null)
+        public static Texture2D TrailTexture(string name, float[,] trail, float[,] signedDist = null, float[,] lines = null, int res = TRAIL_TEX_RES)
         {
             int n = trail.GetLength(0), m = trail.GetLength(1);
-            // art-r4-05：2048 に双線形で引き伸ばす（512 の 1 マス 2m の段が道の縁ののこぎりの歯に見えた）
-            int R = TRAIL_TEX_RES;
+            // art-r4-05：双線形で引き伸ばす（512 の 1 マス 2m の段が道の縁ののこぎりの歯に見えた）。art-r5-01：ステージは 4096
+            int R = res;
             var tex = new Texture2D(R, R, TextureFormat.RGBA32, false);
             var px = new Color[R * R];
             for (int z = 0; z < R; z++)
@@ -235,7 +236,7 @@ namespace HorseRace.EditorTools
                 {
                     float u = x / (float)(R - 1) * (m - 1), w = z / (float)(R - 1) * (n - 1);
                     float v = Bilinear(trail, u, w);
-                    float g = dist != null ? Mathf.Clamp01(Bilinear(dist, u, w, HeightmapGen.TRAIL_DIST_MAX_M) / HeightmapGen.TRAIL_DIST_MAX_M) : 1f;
+                    float g = signedDist != null ? HeightmapGen.EncodeSignedDist(HeightmapGen.SampleBilinear(signedDist, u, w)) : 1f;
                     float l = lines != null ? Bilinear(lines, u, w) : 0f;   // B = スタート・ゴールの線（course-r3-14）
                     px[z * R + x] = new Color(v, g, l, 1f);
                 }
@@ -274,11 +275,11 @@ namespace HorseRace.EditorTools
                 for (int x = 0; x < res; x++)
                 {
                     var p = new Vector3(origin.x + x / (float)(res - 1) * sizeX, 0f, origin.z + z / (float)(res - 1) * sizeZ);
-                    float d = WorldLayout.DistToPolylineXZ(p, path);
-                    dist[z, x] = d;
-                    trail[z, x] = HeightmapGen.TrailWeight(d, halfWidth, HeightmapGen.TRAIL_EDGE_DUNES_M);
+                    float sd = WorldLayout.SignedDistToPolylineXZ(p, path);   // art-r5-01：符号付き
+                    dist[z, x] = sd;
+                    trail[z, x] = HeightmapGen.TrailWeight(Mathf.Abs(sd), halfWidth, HeightmapGen.TRAIL_EDGE_DUNES_M);
                 }
-            return TrailTexture(name, trail, dist);
+            return TrailTexture(name, trail, dist, null, Mathf.Max(res, LOBBY_TRAIL_TEX_RES));
         }
 
         /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>

@@ -151,11 +151,11 @@ class P {
       int n=h.GetLength(0);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"h{d.index}.bin")))){ bw.Write(n); for(int z=0;z<n;z++)for(int x=0;x<n;x++)bw.Write(h[z,x]); }
       // 道の踏み固めた土（art-r2-02）。art-r4-05：TerrainBuilder と同じく道の上の砂を消し（砂漠は縁の外を砂のまま）、深い砂を足し、轍の距離（G）も書き出す
-      var trail=HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES,d,norm,out float[,] tdist,out float[,] thw);
+      var trail=HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES,d,norm,out float[,] tdist,out float[,] thw,out float[,] tsigned);
       HeightmapGen.ClearSandOnTrail(sand,trail,d.kind,tdist,thw);
       HeightmapGen.ApplyDeepSand(sand,trail,d,local,StageDefinitions.SIZE);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"t{d.index}.bin")))){ int trn=trail.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(trail[z,x]); }
-      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"g{d.index}.bin")))){ int trn=tdist.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(Mathf.Clamp01(tdist[z,x]/HeightmapGen.TRAIL_DIST_MAX_M)); }
+      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"g{d.index}.bin")))){ int trn=tdist.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(HeightmapGen.EncodeSignedDist(tsigned[z,x])); }   // art-r5-01：符号付き（G = 0.5 + d / 32m）
       int m=sand.GetLength(0);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"s{d.index}.bin")))){ bw.Write(m); for(int z=0;z<m;z++)for(int x=0;x<m;x++)bw.Write(sand[z,x]); }
       var ch=SetPieces.WithHeights(local,h);

@@ -263,13 +263,8 @@ namespace HorseRace.Tests
             {
                 if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;   // 立てた丸太の杭は中心が柱の真ん中
                 if (p.group == "GiantSkeleton" || p.asset == DressingPlan.SKELETON) continue;   // 横倒しの骨は原点が腰
-                float fr = DressingPlan.FootprintRadius(p);
-                float g0 = b.Ground(p.position.x, p.position.z), mn = g0;
-                for (int k = 0; k < 4; k++)
-                {
-                    float a = (45f + k * 90f) * Mathf.Deg2Rad;
-                    mn = Mathf.Min(mn, b.Ground(p.position.x + Mathf.Sin(a) * fr * 0.7f, p.position.z + Mathf.Cos(a) * fr * 0.7f));
-                }
+                // art-r5-03：足元は 8 点・半径 fr（木・サボテンは幹の半径：Add が記録した GroundRadius）
+                DressingPlan.FootprintRange(b.h, StageDefinitions.SIZE, p.position, DressingPlan.GroundRadius(p), out float mn, out _, out float g0);
                 if (p.position.y > mn + 0.05f || p.position.y > g0 + 0.3f) { bad++; if (bad < 5) TestContext.WriteLine($"  floating {p.group} {p.asset} {p.part} y {p.position.y:F2} ground {mn:F2}"); }
             }
             TestContext.WriteLine($"stage {i}: floating {bad} of {b.plan.Count}");
@@ -278,7 +273,7 @@ namespace HorseRace.Tests
             {
                 if (DressingPlan.LineGroups.Contains(p.group) || DressingPlan.ShareExempt.Contains(p.group) || p.group == "MinersCamp" || p.group == "Caravan" || p.group == "WaterStop") continue;
                 if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;
-                float fr = DressingPlan.FootprintRadius(p), mn = float.MaxValue, mx = float.MinValue;
+                float fr = DressingPlan.GroundRadius(p), mn = float.MaxValue, mx = float.MinValue;
                 for (int k = 0; k < 5; k++)
                 {
                     float a = (45f + k * 90f) * Mathf.Deg2Rad;

@@ -120,7 +120,9 @@ namespace HorseRace.Tests
             TestContext.WriteLine($"stage {i}: {line.Count} marks, {panels} fence panels, {posts} posts, max gap {gap:F2} m at {DressingPlan.WorstGapAt} arc {DressingPlan.NearestArc(b.local, DressingPlan.CourseArcs(b.local), DressingPlan.WorstGapAt, out float dd):F0} d {dd:F1}");
             Assert.LessOrEqual(gap, DressingPlan.FENCE_MAX_GAP_M);
             Assert.LessOrEqual(line.Count, DressingPlan.BARRIER_BUDGET);
-            Assert.Greater(posts, panels / (DressingPlan.BARRIER_POST_EVERY + 1));
+            // art-r5-02：杭は柵 8 枚ごと、18° より急な斜面には立てない（白い歯の列にしない）
+            Assert.Greater(posts, 0);
+            Assert.LessOrEqual(posts, panels / DressingPlan.BARRIER_POST_EVERY + 60);
             Assert.IsFalse(line.Any(p => p.part == "DesertProps_05" || p.part == "FarmProps_04"));
             Assert.Greater(line.Count(p => p.asset == DressingPlan.RCOLL), 10, "遠い柵は岩の山");
         }

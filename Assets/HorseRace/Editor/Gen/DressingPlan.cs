@@ -22,6 +22,7 @@ namespace HorseRace.EditorTools
         public int shape;           // DressingPlan.SHAPE_*
         public bool background;     // 背景専用（メサ・厩舎：見えない壁で囲む）
         public bool lamp;           // art-r4-14：立てた丸太の柱の上に暖色の灯り（DressingBuilder が付ける。野の街灯の代わり）
+        public float groundR = -1f; // art-r5-03：接地を調べた足元の半径（m、木・サボテンは幹）。< 0 = FootprintRadius
     }
 
     /// <summary>
@@ -602,6 +603,86 @@ namespace HorseRace.EditorTools
         }
         public const float GROUND_REJECT_MAX_H = 3.2f;
 
+        // ---- art-r5-03：浮かない（大きな物も）----
+        /// <summary>斜面に埋めない・背景でない高さ GROUNDING_MAX_H 未満の物は、足元の差 &gt; GROUNDING_SPAN × 高さ、
+        /// または足元のいちばん低い所が中心より GROUNDING_OVERHANG × 高さ低い（縁からはみ出す）なら置かない。</summary>
+        public const float GROUNDING_SPAN = 0.45f, GROUNDING_OVERHANG = 0.3f, GROUNDING_MAX_H = 10f;
+        /// <summary>Validator.CheckGrounding：足元のいちばん低い地面が置いた高さ（足元の底）よりこれ以上低いと浮いている。</summary>
+        public const float GROUNDING_FLOAT_TOL_M = 0.25f;
+        public const float TOWER_FLAT_R_M = 4f, TOWER_FLAT_SPAN_M = 0.6f, TOWER_RIM_OUT_M = 8f, TOWER_RIM_DROP_M = 2f;
+        /// <summary>砂丘の上の塔（台座は砂に埋まる）：足元の差・外の落ち込みの上限をゆるめる。</summary>
+        public const float TOWER_FLAT_SPAN_SAND_M = 1.2f, TOWER_RIM_DROP_SAND_M = 3.5f;
+
+        /// <summary>
+        /// art-r5-03：浮く置き方か。span = 足元 8 点の差、low = いちばん低い地面、center = 中心の地面。
+        /// 斜面に埋める岩（SlopeEmbedded）・背景・高さ 10m 以上・途切れない線の目印（柵・路肩・柵の線）は沈めるだけ。
+        /// </summary>
+        public static bool RejectGrounding(string group, bool background, float height, float span, float low, float center)
+        {
+            if (background || height >= GROUNDING_MAX_H || SlopeEmbedded.Contains(group) || LineGroups.Contains(group) || group == "BarrierLine"
+                || group == "DuneWreck") return false;   // 砂に半分埋めて傾けた荷車は埋めるのが目的
+            return span > GROUNDING_SPAN * height || low < center - GROUNDING_OVERHANG * height;
+        }
+
+        /// <summary>柵の板（FarmProps_03/04/06/08）か：地面に沿って沈める（土手に沿う柵）。</summary>
+        public static bool IsFencePart(string part) => part == "FarmProps_03" || part == "FarmProps_04" || part == "FarmProps_06" || part == "FarmProps_08";
+
+        /// <summary>art-r5-03：塔の足元（4m で差 &lt; 0.6m、足元の 8m 外が 2m より低くない）。</summary>
+        public static bool TowerSiteOk(float[,] h, float sizeM, Vector3 p, float fr) => TowerSiteOk(h, sizeM, p, fr, false);
+
+        /// <summary>sand = 砂丘の上（砂に埋まる台座）：足元の差 TOWER_FLAT_SPAN_SAND_M・外の落ち込み TOWER_RIM_DROP_SAND_M まで。</summary>
+        public static bool TowerSiteOk(float[,] h, float sizeM, Vector3 p, float fr, bool sand)
+        {
+            if (h == null) return true;
+            float mn, mx, c;
+            FootprintRange(h, sizeM, p, TOWER_FLAT_R_M, out mn, out mx, out c);
+            if (mx - mn >= (sand ? TOWER_FLAT_SPAN_SAND_M : TOWER_FLAT_SPAN_M)) return false;
+            float drop = sand ? TOWER_RIM_DROP_SAND_M : TOWER_RIM_DROP_M;
+            float ro = Mathf.Max(fr, TOWER_FLAT_R_M) + TOWER_RIM_OUT_M;
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * 45f * Mathf.Deg2Rad;
+                if (WorldLayout.SampleHeight(h, sizeM, HeightmapGen.HEIGHT_M, p.x + Mathf.Sin(a) * ro, p.z + Mathf.Cos(a) * ro) < c - drop) return false;
+            }
+            return true;
+        }
+
+        /// <summary>接地を調べた足元の半径（Add が記録した値、無ければ FootprintRadius）。</summary>
+        public static float GroundRadius(Placement p) => p.groundR >= 0f ? p.groundR : FootprintRadius(p);
+
+        /// <summary>木の接地を調べる幹の半径（枝の広がりの半径 r から）。</summary>
+        public static float TrunkRadius(float r) => Mathf.Min(r, 0.2f * r + 0.3f);
+
+        /// <summary>塔の部品（風車・給水塔・鐘の塔）か。</summary>
+        public static bool IsTowerPart(string part) => part == RANCH_TOWER || part == TOWN_TALL_A || part == TOWN_TALL_B;
+
+        /// <summary>高さマップ h（sizeM 四方）の点 p の中心と半径 fr の 8 点の地面の最低・最高・中心。</summary>
+        public static void FootprintRange(float[,] h, float sizeM, Vector3 p, float fr, out float mn, out float mx, out float center)
+        {
+            center = h == null ? 0f : WorldLayout.SampleHeight(h, sizeM, HeightmapGen.HEIGHT_M, p.x, p.z);
+            mn = center; mx = center;
+            if (h == null) return;
+            for (int i = 0; i < 8; i++)
+            {
+                float a = (22.5f + i * 45f) * Mathf.Deg2Rad;
+                float g = WorldLayout.SampleHeight(h, sizeM, HeightmapGen.HEIGHT_M, p.x + Mathf.Sin(a) * fr, p.z + Mathf.Cos(a) * fr);
+                mn = Mathf.Min(mn, g); mx = Mathf.Max(mx, g);
+            }
+        }
+
+        /// <summary>
+        /// art-r5-03（Validator.CheckGrounding と同じ）：置いた物の足元のいちばん低い地面が、足元の底（立てた杭は中心 − 高さ / 2）より
+        /// どれだけ下か（m、+ = 浮いている）。斜面に埋める岩・背景は 0。
+        /// </summary>
+        public static float FloatGap(Placement p, float[,] h, float sizeM)
+        {
+            if (p.background || SlopeEmbedded.Contains(p.group) || h == null) return 0f;
+            float mn, mx, c;
+            FootprintRange(h, sizeM, p.position, GroundRadius(p), out mn, out mx, out c);
+            float baseY = p.part == POST_PART && Mathf.Abs(p.rollDeg - 90f) < 1f ? p.position.y - p.height * 0.5f : p.position.y;
+            return baseY - mn;
+        }
+
         /// <summary>接地を調べる足元の半径（FootprintRadius と同じ決まりを Add の引数から）。</summary>
         public static float FootprintRadiusFor(string asset, string group, float r, float scaleY)
         {
@@ -634,6 +715,7 @@ namespace HorseRace.EditorTools
         {
             "Landmark", "FinishLandmark", "GoalTown", "GoalOutpost", "MesaGate", "RailHalt", "PassFloor", "StreetDressing", "PlateEdge", "MesaSaddle", "Railway", "RimLandmark", "GiantSkeleton",
             "GuideLine", "CanyonRim", "RanchYard", "StartTown", "RoadIsland", "GuideTower", "NotchFrame", "Fork", "WallFace", "PassLamp", "PassBeacon",
+            "RimSilhouette",   // art-r5-03：地平線のシルエットは割合で間引かない（大岩・メサの数が増えても地平線を空けない）
         };
 
         /// <summary>
@@ -848,7 +930,7 @@ namespace HorseRace.EditorTools
             /// <summary>置けたら true。</summary>
             public bool Add(string group, string asset, string part, Vector3 p, float yaw, float scale, float sink,
                 float minRoad = ROAD_CLEAR, bool trunk = false, bool background = false, float roll = 0f, bool ignoreCircles = false, float rBounds = -1f,
-                float scaleY = 1f, float rOverlap = -1f)
+                float scaleY = 1f, float rOverlap = -1f, bool fixedSpot = false)
             {
                 if (list.Count >= budget) return false;
                 // course-r3-12：段の付いた八角の MesaRock は霧で平らになる 250m より遠くだけ。近くは形のある MesaRockB（同じくらいの外形）に替える
@@ -856,13 +938,32 @@ namespace HorseRace.EditorTools
                 if (OverShare(group, asset, part)) return false;
                 Size s = SizeOf(asset, part);
                 float r = s.r * scale, hh = s.h * scale * scaleY;
-                if (!Allowed(p, r, minRoad, ignoreCircles, rBounds, rOverlap)) return false;
-                // art-r4-08：接地。足元の中心と 0.7 × 足元の半径の 4 点のいちばん低い所へ、高さの差 + 0.1m 以上沈める。
+                // art-r4-08：接地。足元の中心と足元の半径の 8 点（art-r5-03）のいちばん低い所へ、高さの差 + 0.1m 以上沈める。
                 // 急な斜面（差 > 0.6 × 高さ）の小物・柵は置かない（斜面から突き出す）。斜面に埋める岩のまとまり（SlopeEmbedded）と背景は置く
                 float fr = FootprintRadiusFor(asset, group, r, scaleY);
-                float y, span;
-                FootprintGround(p, fr, out y, out span);
-                if (RejectSlope(group, background, hh, span)) return false;
+                if (trunk || asset == TREES || asset == ACACIA || asset == DEADTREE) fr = TrunkRadius(r);   // art-r5-03：木は幹だけが地面に触れる
+                float y = 0f, span = 0f, y0;
+                // art-r5-03：浮く場所なら少しずらして（2・4m、塔は 16m まで）平らな足元を探す。線の目印・形の決まった物はずらさない
+                bool tower = IsTowerPart(part) && h != null;
+                bool nudge = h != null && !background && !fixedSpot && !LineGroups.Contains(group) && group != "BarrierLine" && part != RAIL_TRACK;
+                int rings = fixedSpot ? 0 : (tower ? 4 : (nudge ? 2 : 0));
+                bool found = false;
+                Vector3 p0 = p;
+                for (int ring = 0; ring <= rings && !found; ring++)
+                    for (int k = 0; k < (ring == 0 ? 1 : 8) && !found; k++)
+                    {
+                        float off = ring * (tower ? 3f : 2f), ang = (k * 45f + ring * 22.5f) * Mathf.Deg2Rad;
+                        Vector3 q = new Vector3(p0.x + Mathf.Sin(ang) * off, 0f, p0.z + Mathf.Cos(ang) * off);
+                        if (!Allowed(q, r, minRoad, ignoreCircles, rBounds, rOverlap)) continue;
+                        FootprintGround(q, fr, out y, out span, out y0);
+                        if (RejectSlope(group, background, hh, span)) continue;
+                        // art-r5-03：斜面・縁で浮く物を置かない（谷側が宙に浮く・縁から台座がはみ出す）。線路は平らにした路盤の上
+                        if (part != RAIL_TRACK && !IsFencePart(part) && RejectGrounding(group, background, hh, span, y, y0)) continue;
+                        if (tower && !DressingPlan.TowerSiteOk(h, sizeM, q, fr, def != null && def.kind == HeightmapGen.KIND_DUNES)) continue;
+                        if ((asset == CAMEL || group == "Caravan") && h != null && SlopeAt(this, q) > CARAVAN_MAX_SLOPE_DEG) continue;   // 砂丘の面に浮くラクダ
+                        p = q; found = true;
+                    }
+                if (!found) return false;
                 sink = Mathf.Max(sink, Mathf.Min(span + GROUND_EXTRA_SINK, GROUND_MAX_SINK * hh));
                 bool reach = course == null || WorldLayout.DistToPolylineXZ(p, course) - r < REACHABLE_M;
                 bool col = !background && reach && hh >= COLLIDER_MIN_H;
@@ -871,7 +972,7 @@ namespace HorseRace.EditorTools
                     group = group, asset = asset, part = part, position = new Vector3(p.x, y - sink, p.z),
                     yawDeg = yaw, rollDeg = roll, scale = scale, scaleY = scaleY, radius = r, height = hh, collider = col,
                     shape = !col ? SHAPE_NONE : (trunk ? SHAPE_TRUNK : (r >= 6f ? SHAPE_MESH : SHAPE_BOX)),
-                    background = background,
+                    background = background, groundR = fr,
                 });
                 Count(list[list.Count - 1], 1);
                 return true;
@@ -881,11 +982,13 @@ namespace HorseRace.EditorTools
             /// 立てた丸太の杭（art-r3-02）：WoodLogs_01 を横倒し（roll 90°）にして高さ heightM・太さ thickM の柱にする
             /// （SetPieceBuilder.UprightLog と同じ置き方、断面は CourseMarks.PostScale で正方形に近く）。骨の杭 DesertProps_03/05 の代わり。
             /// </summary>
-            public bool AddPost(string group, Vector3 p, float yaw, float heightM, float thickM, float minRoad = ROAD_MIN, bool ignoreCircles = false)
+            public bool AddPost(string group, Vector3 p, float yaw, float heightM, float thickM, float minRoad = ROAD_MIN, bool ignoreCircles = false, float maxSlope = POST_MAX_SLOPE_DEG)
             {
                 if (list.Count >= budget) return false;
                 float r = Mathf.Max(0.2f, thickM * 0.7f);
                 if (!Allowed(p, r, minRoad, ignoreCircles)) return false;
+                // art-r5-02：急な斜面（> POST_MAX_SLOPE_DEG）には杭を立てない（切り通しの 40° の壁に杭の列が登っていた）
+                if (h != null && SlopeAt(this, p) > maxSlope) return false;
                 float y, span;
                 FootprintGround(p, r, out y, out span);   // art-r4-08：いちばん低い所へ
                 Vector3 sc = CourseMarks.PostScale(heightM, thickM);
@@ -895,7 +998,7 @@ namespace HorseRace.EditorTools
                 {
                     group = group, asset = LOGS, part = POST_PART, position = new Vector3(p.x, y + heightM * 0.5f - 0.15f, p.z),
                     yawDeg = yaw, rollDeg = 90f, scale = sc.x, scaleY = sc.y / sc.x, scaleZ = sc.z / sc.x, radius = r, height = heightM,
-                    collider = col, shape = col ? SHAPE_BOX : SHAPE_NONE,
+                    collider = col, shape = col ? SHAPE_BOX : SHAPE_NONE, groundR = r,
                 });
                 Count(list[list.Count - 1], 1);
                 return true;
@@ -907,23 +1010,30 @@ namespace HorseRace.EditorTools
             /// </summary>
             public bool AddLampPost(string group, Vector3 p, float yaw, float minRoad = ROAD_MIN, bool ignoreCircles = false)
             {
-                if (!AddPost(group, p, yaw, LAMP_POST_H, LAMP_POST_THICK, minRoad, ignoreCircles)) return false;
+                if (!AddPost(group, p, yaw, LAMP_POST_H, LAMP_POST_THICK, minRoad, ignoreCircles, 90f)) return false;   // 灯りは道の縁の目印：傾きでは間引かない
                 list[list.Count - 1].lamp = true;
                 return true;
             }
 
-            /// <summary>足元（中心と半径 0.7 × fr の 4 点）のいちばん低い地面と、高い所との差。</summary>
+            /// <summary>足元（中心と半径 fr の 8 点、art-r5-03：前は 0.7 × fr の 4 点で縁を見落とした）のいちばん低い地面と、高い所との差。</summary>
             public void FootprintGround(Vector3 p, float fr, out float low, out float span)
             {
-                float y0 = Ground(p.x, p.z), mn = y0, mx = y0;
-                for (int i = 0; i < 4; i++)
-                {
-                    float a = (45f + i * 90f) * Mathf.Deg2Rad;
-                    float g = Ground(p.x + Mathf.Sin(a) * fr * 0.7f, p.z + Mathf.Cos(a) * fr * 0.7f);
-                    mn = Mathf.Min(mn, g); mx = Mathf.Max(mx, g);
-                }
+                float c;
+                FootprintGround(p, fr, out low, out span, out c);
+            }
+
+            /// <summary>center = 足元の中心の地面の高さ。</summary>
+            public void FootprintGround(Vector3 p, float fr, out float low, out float span, out float center)
+            {
+                float mn, mx;
+                FootprintRange(h, sizeM, p, fr, out mn, out mx, out center);
                 low = mn; span = mx - mn;
             }
+
+            /// <summary>
+            /// art-r5-03：塔（風車・給水塔・鐘の塔）は足元 4m の地面の差 &lt; TOWER_FLAT_SPAN_M、かつ足元の 8m 外の地面が TOWER_RIM_DROP_M より低くない
+            /// （縁に立って台座が宙にはみ出さない）。
+            /// </summary>
 
             public Vector3 Around(Vector3 c, float radius)
             {
@@ -1049,7 +1159,14 @@ namespace HorseRace.EditorTools
                 w.list[w.list.Count - 1].collider = false;
                 w.list[w.list.Count - 1].shape = SHAPE_NONE;
             }
-            w.Add(G, WTOWN, TOWN_TALL_A, w.Side(s + 36f, -(RAIL_HALT_TO_M - 4f + ex)), yaw + 90f, 1.2f, 0.3f, ROAD_MIN, ignoreCircles: true, rOverlap: 0.3f);
+            // art-r5-03：給水塔は平らな足元を探す（砂丘のうねりの縁に立てない）
+            bool tower = false;
+            for (int ti = 0; ti < 32 && !tower; ti++)
+            {
+                const float side = -1f;
+                int tj = ti % 32;
+                tower = w.Add(G, WTOWN, TOWN_TALL_A, w.Side(s + 36f + (tj % 8) * 7f, side * (RAIL_HALT_TO_M - 4f + ex + (tj / 8) * 7f)), yaw + 90f, 1.2f, 0.3f, ROAD_MIN, ignoreCircles: true, rOverlap: 0.3f);
+            }
             for (int i = 0; i < 3; i++)
                 w.Add(G, HAY, i == 0 ? "HayBales_01" : HayParts[1 + i], w.Side(s + 30f + i * 1.8f, -(RAIL_HALT_FROM_M + ex + (i % 2) * 1.2f)), yaw + i * 35f, 1f, 0.05f, ROAD_MIN);
             for (int i = 0; i < 3; i++)
@@ -1098,7 +1215,7 @@ namespace HorseRace.EditorTools
             }
             // 出口の目印（art-r4-15：風車の塔は荒野の遠くの目印 Landmark の 1 本だけ。庭の出口は干し草の山と荷車）
             float ex = gate + RANCH_YARD_HALF_M + 40f;
-            for (int t = 0; t < 4; t++)
+            for (int t = 0; t < 10; t++)
                 if (w.Add(G, WTOWN, TOWN_CART, w.Side(ex + t * 10f, (t % 2 == 0 ? 1f : -1f) * (StageDefinitions.HalfWidthAt(def, ex) + 6f + t * 2f)), w.YawAt(ex) + 30f, 1f, 0.05f, ROAD_MIN))
                 {
                     Vector3 hp = w.list[w.list.Count - 1].position;
@@ -1468,7 +1585,9 @@ namespace HorseRace.EditorTools
         public const float BARRIER_TIGHT_EXTRA_M = 10f;  // 道の縁から 10m 以内の柵（急カーブ・絞り・ヘアピン）の急カーブの外側は岩
         public const float BARRIER_CORNER_ROCK_SCALE = 0.45f;
         public const float BARRIER_INSET_M = 0.8f;      // 柵の線から道の側へ（壁の手前に見える）
-        public const int BARRIER_POST_EVERY = 4;        // 柵 4 枚ごとに立てた丸太の杭
+        public const int BARRIER_POST_EVERY = 8;        // art-r5-02：柵 8 枚ごとに立てた丸太の杭（前は 4 枚：白い歯の列に見えた）
+        /// <summary>art-r5-02：杭（AddPost）はこの傾き（°）より急な地面には立てない。</summary>
+        public const float POST_MAX_SLOPE_DEG = 18f;
         public const float BARRIER_NEAR_PAD_M = 3f;     // 近い区間（NearBarrierSegments）の端も柵になるよう少し外まで柵にする
         public const int BARRIER_BUDGET = 6000;
         /// <summary>近い柵の目に見える柵の板どうしの最大のすき間（m、course-r3-05：当たる壁は必ず見える）。</summary>
@@ -2425,15 +2544,16 @@ namespace HorseRace.EditorTools
             float pref = Mathf.Clamp(goalAng, -30f, 30f);
             var circles = StageExclusions(def, course, goalArc);
             var angles = new List<float>();
-            for (float a = -30f; a <= 30.01f; a += 5f) angles.Add(a);
+            for (float a = -35f; a <= 35.01f; a += 5f) angles.Add(a);
             angles.Sort((x, y) => Mathf.Abs(x - pref).CompareTo(Mathf.Abs(y - pref)));
             string asset, part; float sc;
             LandmarkAsset(def.kind, out asset, out part, out sc);
             float top = SizeOf(asset, part).h * sc * 0.85f;
-            bool found = false;
-            Vector3 first = Vector3.zero; float firstAng = 0f;
+            bool found = false, foundFlat = false;
+            Vector3 first = Vector3.zero, flat = Vector3.zero; float firstAng = 0f, flatAng = 0f;
+            float fr = FootprintRadiusFor(asset, "Landmark", SizeOf(asset, part).r * sc, 1f);
             foreach (float a in angles)
-                for (float d = 700f; d >= 380f; d -= 40f)
+                for (float d = 700f; d >= 260f; d -= 20f)
                 {
                     float yaw = (WorldLayout.YawDeg(t0) + a) * Mathf.Deg2Rad;
                     Vector3 p = new Vector3(p0.x + Mathf.Sin(yaw) * d, 0f, p0.z + Mathf.Cos(yaw) * d);
@@ -2443,8 +2563,13 @@ namespace HorseRace.EditorTools
                     foreach (var c in circles) if (WorldLayout.DistXZ(p, new Vector3(c.x, 0f, c.z)) < c.w + 10f) free = false;
                     if (!free) continue;
                     if (!found) { found = true; first = p; firstAng = a; }
-                    if (heights == null || LandmarkVisible(heights, p0, p, top)) { spot = p; angleDeg = a; return true; }
+                    if (heights == null) { spot = p; angleDeg = a; return true; }
+                    // art-r5-03：塔は平らで縁でない地面だけ（風車の台座が尾根の縁から宙にはみ出していた）
+                    if (!TowerSiteOk(heights, StageDefinitions.SIZE, p, fr, def.kind == HeightmapGen.KIND_DUNES)) continue;
+                    if (!foundFlat) { foundFlat = true; flat = p; flatAng = a; }
+                    if (LandmarkVisible(heights, p0, p, top)) { spot = p; angleDeg = a; return true; }
                 }
+            if (foundFlat) { spot = flat; angleDeg = flatAng; return true; }
             spot = first; angleDeg = firstAng;
             return found;
         }
@@ -2473,8 +2598,8 @@ namespace HorseRace.EditorTools
             string asset, part; float sc;
             LandmarkAsset(def.kind, out asset, out part, out sc);
             Vector3 toStart = WorldLayout.PointAtArc(w.course, StageDefinitions.START_ARC_M) - p;
-            w.Add("Landmark", asset, part, p, WorldLayout.YawDeg(new Vector3(toStart.x, 0f, toStart.z).normalized), sc, 0.3f, LANDMARK_MIN_ROAD_M - 10f,
-                background: true, ignoreCircles: true);
+            w.Add("Landmark", asset, part, p, WorldLayout.YawDeg(new Vector3(toStart.x, 0f, toStart.z).normalized), sc, 0.3f, 0f,
+                background: true, ignoreCircles: true, fixedSpot: true, rOverlap: 0f);   // LandmarkSpot が平らで見える場所を選んだ
         }
 
         /// <summary>
@@ -2586,10 +2711,10 @@ namespace HorseRace.EditorTools
             float exit = pass + SetPieces.PASS_HALF_CUT;
             Vector3 ep = WorldLayout.PointAtArc(w.course, exit), et = WorldLayout.TangentAtArc(w.course, exit);
             et = new Vector3(et.x, 0f, et.z).normalized;
-            for (int tries = 0; tries < 16; tries++)
+            for (int tries = 0; tries < 64; tries++)   // art-r5-03：塔は平らな足元まで広く探す
             {
-                float d = Mathf.Lerp(PASS_BEACON_FROM_M, PASS_BEACON_TO_M, (tries % 4) / 3f);
-                float off = (tries / 4) * 6f * ((tries / 4) % 2 == 0 ? 1f : -1f);
+                float d = Mathf.Lerp(PASS_BEACON_FROM_M - 15f, PASS_BEACON_TO_M + 5f, (tries % 8) / 7f);
+                float off = ((tries / 8 + 1) / 2) * 7f * ((tries / 8) % 2 == 0 ? 1f : -1f);
                 Vector3 p = ep + et * d + WorldLayout.RightOf(et) * off;
                 p.y = 0f;
                 if (w.Add("PassBeacon", RANCH, RANCH_TOWER, p, WorldLayout.YawDeg(-et), 1.2f, 0.3f, ROAD_CLEAR + 4f, background: true))
@@ -2715,6 +2840,8 @@ namespace HorseRace.EditorTools
         // ---- art-r4-18：砂漠の道の近くの暮らしの跡 ----
         public const float DUNE_WRECK_STEP_M = 300f, DUNE_WRECK_LAT_MIN = 12f, DUNE_WRECK_LAT_MAX = 20f, DUNE_WRECK_SINK = 0.4f, DUNE_WRECK_TILT = 18f;
         public const float CARAVAN_ROAD_MAX_M = 25f;
+        /// <summary>art-r5-03：ラクダ・隊列はこの傾き（°）より急な砂丘の面には置かない。</summary>
+        public const float CARAVAN_MAX_SLOPE_DEG = 12f;
         public const int CARAVAN_CAMELS = 3;
 
         /// <summary>
@@ -2736,8 +2863,9 @@ namespace HorseRace.EditorTools
                     Size cs = SizeOf(WTOWN, TOWN_CART);
                     if (!w.Add(G, WTOWN, TOWN_CART, p, w.YawAt(a) + w.Rand(-60f, 60f), 1f, DUNE_WRECK_SINK * cs.h, ROAD_MIN, roll: DUNE_WRECK_TILT * (tries % 2 == 0 ? 1f : -1f)))
                         continue;
-                    w.Add(G, DPROPS, k % 2 == 0 ? "DesertProps_07" : "DesertProps_14", p + new Vector3(2.2f, 0f, 1.4f), w.Rand(0f, 360f), 1.1f, 0.05f, ROAD_MIN);
-                    w.Add(G, DPROPS, "DesertProps_14", p + new Vector3(-1.8f, 0f, -1.6f), w.Rand(0f, 360f), 1f, 0.05f, ROAD_MIN);
+                    // art-r5-03：骨は骨のまとまりだけ（art-r3-06）。荷車の脇は草と小石
+                    w.Add(G, DPROPS, DpGrass[k % DpGrass.Length], p + new Vector3(2.2f, 0f, 1.4f), w.Rand(0f, 360f), 1.1f, 0.05f, ROAD_MIN);
+                    w.Add(G, RCOLL, Pebbles[k % Pebbles.Length], p + new Vector3(-1.8f, 0f, -1.6f), w.Rand(0f, 360f), 1f, 0.05f, ROAD_MIN);
                     break;
                 }
             }
@@ -2746,9 +2874,9 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < CARAVAN_CAMELS; i++)
             {
                 float a = ca + i * 6f;
-                float lat = Mathf.Min(CARAVAN_ROAD_MAX_M - 2f, StageDefinitions.HalfWidthAt(def, a) + 8f);
-                for (int tries = 0; tries < 3; tries++)
-                    if (w.Add("Caravan", CAMEL, null, w.Side(a + tries * 2f, -lat - tries), w.YawAt(a) + w.Rand(-6f, 6f), 1f, 0.02f, ROAD_MIN)) break;
+                float lat = Mathf.Clamp(StageDefinitions.HalfWidthAt(def, a) + 8f, 19.5f, CARAVAN_ROAD_MAX_M - 3f);
+                for (int tries = 0; tries < 12; tries++)   // art-r5-03：平らな所まで道に沿って探す（砂丘の面に浮かせない）
+                    if (w.Add("Caravan", CAMEL, null, w.Side(a + tries * 5f, -Mathf.Min(CARAVAN_ROAD_MAX_M - 1f, lat + (tries % 3) * 1.2f)), w.YawAt(a) + w.Rand(-6f, 6f), 1f, 0.02f, ROAD_MIN, fixedSpot: true)) break;
             }
         }
 
@@ -3132,6 +3260,8 @@ namespace HorseRace.EditorTools
         // ---- 道沿いの見どころ（art-r2-05）：道から VIGNETTE_LAT_MIN〜MAX m、VIGNETTE_STEP_MIN〜MAX m ごと ----
         public const float VIGNETTE_LAT_MIN = 30f, VIGNETTE_LAT_MAX = 60f;
         public const float VIGNETTE_STEP_MIN = 350f, VIGNETTE_STEP_MAX = 450f;
+        /// <summary>art-r5-03：見どころの広がり（半径 9m）の地面の差の上限（m）。</summary>
+        public const float VIGNETTE_MAX_SPAN_M = 1.6f;
 
         /// <summary>ステージごとの見どころのまとまりの名前（荒野 = 鉱夫の野営、砂漠 = 隊商、境目 = 水場）。</summary>
         public static string VignetteGroup(int kind) => kind == HeightmapGen.KIND_CANYON ? "MinersCamp" : (kind == HeightmapGen.KIND_DUNES ? "Caravan" : "WaterStop");
@@ -3143,7 +3273,9 @@ namespace HorseRace.EditorTools
             for (float a = 200f; a < goalArc - 150f; a += w.Rand(VIGNETTE_STEP_MIN, VIGNETTE_STEP_MAX), k++)
             {
                 Vector3 c;
-                if (!FindBesideRange(w, a - 30f, a + 30f, VIGNETTE_LAT_MIN + 8f, VIGNETTE_LAT_MAX - 8f, 9f, out c)) continue;
+                if (!FindBesideRange(w, a - 30f, a + 30f, VIGNETTE_LAT_MIN + 8f, VIGNETTE_LAT_MAX - 8f, 9f, out c, VIGNETTE_MAX_SPAN_M)
+                    && !FindBesideRange(w, a - 60f, a + 60f, VIGNETTE_LAT_MIN + 4f, VIGNETTE_LAT_MAX + 4f, 9f, out c, VIGNETTE_MAX_SPAN_M * 1.6f)
+                    && !(def.kind == HeightmapGen.KIND_CANYON && FindBesideRange(w, a - 120f, a + 120f, ROAD_CLEAR + 6f, VIGNETTE_LAT_MAX, 7f, out c, VIGNETTE_MAX_SPAN_M * 2f))) continue;   // 狭い谷：谷底の平らな所
                 Vector3 toRoad = WorldLayout.PointAtArc(w.course, a) - c;
                 float face = WorldLayout.YawDeg(new Vector3(toRoad.x, 0f, toRoad.z).normalized);
                 if (def.kind == HeightmapGen.KIND_CANYON) MinersCamp(w, G, c, face, k);
@@ -3373,14 +3505,25 @@ namespace HorseRace.EditorTools
             return false;
         }
 
-        static bool FindBesideRange(Work w, float a0, float a1, float latMin, float latMax, float r, out Vector3 p)
+        static bool FindBesideRange(Work w, float a0, float a1, float latMin, float latMax, float r, out Vector3 p, float maxSpan = -1f)
         {
-            for (int tries = 0; tries < 30; tries++)
+            int n = maxSpan > 0f ? 80 : 30;
+            for (int tries = 0; tries < n; tries++)
             {
                 float a = Mathf.Lerp(a0, a1, (tries % 5) / 4f);
                 float side = (tries / 5) % 2 == 0 ? 1f : -1f;
                 p = w.Side(a, side * w.Rand(latMin, latMax));
-                if (w.Allowed(p, r, ROAD_CLEAR, false)) return true;
+                if (!w.Allowed(p, r, ROAD_CLEAR, false)) continue;
+                if (maxSpan > 0f && w.h != null)
+                {
+                    // art-r5-03：まとまりの広がり全体がほぼ平ら（テント・ラクダ・焚き火が斜面に浮かない）
+                    float mn, mx, c;
+                    FootprintRange(w.h, w.sizeM, p, r, out mn, out mx, out c);
+                    if (mx - mn > maxSpan) continue;
+                    FootprintRange(w.h, w.sizeM, p, r * 0.5f, out mn, out mx, out c);
+                    if (mx - mn > maxSpan * 0.5f) continue;
+                }
+                return true;
             }
             p = Vector3.zero;
             return false;

@@ -91,22 +91,26 @@ def terrain(stage):
         a = hsh(i[0], i[1]); b = hsh(i[0] + 1, i[1]); c = hsh(i[0], i[1] + 1); d = hsh(i[0] + 1, i[1] + 1)
         return (a + (b - a) * u[0]) * (1 - u[1]) + (c + (d - c) * u[0]) * u[1]
     def noise2(px, pz, sc, seed): return (vnoise(px, pz, sc, seed) * 0.65 + vnoise(px * 2.03 + 17, pz * 2.03 + 17, sc, seed + 1) * 0.35) * 2 - 1
-    grain = noise2(xx, yy, 3.5, 1) * 0.07 + noise2(xx + 311, yy + 311, 45.0, 2) * 0.05
+    # art-r5-13：粒 0.13・細かい擦れ 0.11（道の重み < 0.5 の所だけ）
+    grain = noise2(xx, yy, 3.5, 1) * 0.13 + noise2(xx + 311, yy + 311, 45.0, 2) * 0.05 + noise2(xx + 517, yy + 517, 1.2, 4) * 0.11
     # 道の踏み固めた土（HeightmapGen.TrailMask、ステージごとの ArtPalette.Trail：art-r2-02）
     tp = os.path.join(ex, f"t{i}.bin")
     if os.path.exists(tp) and stage.get("trail"):
         T = read_grid(tp)
         T = np.asarray(Image.fromarray((np.clip(T, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1], Image.BILINEAR), np.float32)[..., None] / 255
-        col = col * (1 + grain[..., None] * (1 - T))
+        off = 1 - np.clip((T - 0.4) / 0.2, 0, 1)
+        col = col * (1 + grain[..., None] * off)
         tc = np.array(stage["trail"])[None, None] * np.ones_like(col)
         # art-r4-02：轍（G = 道の中心からの距離 / TRAIL_DIST_MAX、ToonTerrain と同じ）と蹄の擦れ
         gp_ = os.path.join(ex, f"g{i}.bin")
         if os.path.exists(gp_):
-            Gd = read_grid(gp_) * stage.get("trailDistMax", 16.0)
+            # art-r5-01：G = 0.5 + 符号付きの横の距離 / (2·TRAIL_DIST_MAX)。d = (G − 0.5)·2·MAX、rut = 1 − smoothstep(w·0.35, w·0.65, ||d| − offset|)
+            Gd = (read_grid(gp_) - 0.5) * 2.0 * stage.get("trailDistMax", 16.0)
             Gd = np.asarray(Image.fromarray(Gd.astype(np.float32), mode="F").resize(slope.shape[::-1], Image.BILINEAR), np.float32)
-            rut = np.abs(Gd - stage.get("rutOffset", 1.8)) < stage.get("rutWidth", 0.6) * 0.5
-            tc = tc * np.where(rut, stage.get("rutShade", 0.75), 1.0)[..., None]
-        tc = tc * (1 + noise2(xx + 77, yy + 77, 1.2, 3) * 0.06)[..., None]
+            w_ = stage.get("rutWidth", 0.6); e_ = np.abs(np.abs(Gd) - stage.get("rutOffset", 1.8))
+            k_ = np.clip((e_ - w_ * 0.35) / (w_ * 0.3), 0, 1); rut = 1 - k_ * k_ * (3 - 2 * k_)
+            tc = tc * (1 - (1 - stage.get("rutShade", 0.86)) * rut)[..., None]
+        tc = tc * (1 + noise2(xx + 77, yy + 77, 1.2, 3) * 0.11 * 0.3)[..., None]
         col = col * (1 - T) + tc * T
     # スタート・ゴールの線（course-r3-14、HeightmapGen.LineMask）：道の色 × 1.6（ToonTerrain の _LineBoost）
     lp_ = os.path.join(ex, f"l{i}.bin")
@@ -232,18 +236,30 @@ def hsv(c):
     else: h = 60 * ((r - g) / d + 4)
     return h % 360, d / mx, mx
 def lerp3(a, b, t): return [a[k] + (b[k] - a[k]) * t for k in range(3)]
-def remap_base(asset, c):
-    """ArtPalette.RemapBaseColor：町・建物の灰色・青 → 古い木、緑 → セージ（色だけの素材）。"""
+# art-r5-06：白い壁は 4 色の板壁（ArtPalette.Sidings：古い木・色あせた納屋の赤・日干し煉瓦・黄土）を建物の名前の FNV-1a ハッシュで
+SIDINGS = [[0.78, 0.66, 0.52], [0.60, 0.33, 0.25], [0.80, 0.60, 0.44], [0.78, 0.62, 0.36]]
+def stable_hash(s):
+    h = 2166136261
+    for ch in (s or ""):
+        h ^= ord(ch); h = (h * 16777619) & 0xFFFFFFFF
+    return h
+def siding_for(name): return SIDINGS[stable_hash(name) % len(SIDINGS)]
+def cap_v(c, mx=0.82):
+    m = max(c)
+    return c if m <= mx or m <= 1e-5 else [x * mx / m for x in c]
+def remap_base(asset, c, name=None):
+    """ArtPalette.RemapBaseColor：町・建物の白い壁 → 4 色の板壁、灰色・青 → 古い木、緑 → セージ（色だけの素材）。明るさは 0.82 まで。"""
     if "WesternTown" not in asset and "Buildings/" not in asset and "RanchCompound" not in asset: return c
     h, s_, v = hsv(c)
     if v < 0.12: return c
-    if v > 0.85 and s_ < 0.25: return lerp3(c, W["wood"], 0.6)   # art-r4-16：白に近いクリーム色
-    if s_ < 0.12 and v > 0.25: return lerp3(c, W["wood"], 0.65)
-    if 180 <= h <= 260 and s_ >= 0.08: return lerp3(c, W["wood"], 0.7)
-    if 75 <= h < 170 and s_ >= 0.15: return lerp3(c, W["sage"], 0.7)
-    return c
+    if v > 0.80 and s_ < 0.25: r = lerp3(c, siding_for(name or asset), 0.88)
+    elif s_ < 0.12 and v > 0.25: r = lerp3(c, W["wood"], 0.65)
+    elif 180 <= h <= 260 and s_ >= 0.08: r = lerp3(c, W["wood"], 0.7)
+    elif 75 <= h < 170 and s_ >= 0.15: r = lerp3(c, W["sage"], 0.7)
+    else: r = c
+    return cap_v(r)
 def lin2srgb(c): return [(1.055 * x ** (1 / 2.4) - 0.055) if x > 0.0031308 else 12.92 * x for x in c]
-def styled(mat, asset, tint):
+def styled(mat, asset, tint, name=None):
     """マテリアルを複製して Unity と同じ色の決まりを当てる。画像付きはアルファで切り抜き（半透明にしない）。"""
     if mat is None or not mat.use_nodes: return mat
     m = mat.copy()
@@ -264,7 +280,7 @@ def styled(mat, asset, tint):
             m.node_tree.links.new(mix.outputs[0], inp)
     else:
         c = list(inp.default_value)[:3]
-        c = srgb2lin([x * t for x, t in zip(remap_base(asset, lin2srgb(c)), tint)])
+        c = srgb2lin([x * t for x, t in zip(remap_base(asset, lin2srgb(c), name), tint)])
         inp.default_value = (*c, 1)
     return m
 def apply_style(obj, asset, part):
@@ -272,8 +288,9 @@ def apply_style(obj, asset, part):
     if kind == "Ground": tint = W["townGround"]
     elif kind in ("Hill", "Rock"): tint = W["warmRock"]
     else: tint = TINTS.get(asset + "|" + (part or ""), [1, 1, 1])
+    name = part or (obj.name.split(".")[0] if "WesternTown" in asset else asset)
     for slot in obj.material_slots:
-        slot.material = styled(slot.material, asset, tint)
+        slot.material = styled(slot.material, asset, tint, name)
 
 # Build World と同じ配置計画（DressingPlan）で素材を置く
 A = lambda *p: os.path.join(assets, *p)

@@ -189,6 +189,9 @@ namespace HorseRace.EditorTools
                     if (fenceGap > DressingPlan.FENCE_MAX_GAP_M) warn.Add(tag + "：近い柵の目印に " + fenceGap.ToString("F1") + "m のすき間（" + DressingPlan.FENCE_MAX_GAP_M + "m 以下：当たる壁は見える）");
                     else info.Add(tag + "：近い柵の目印のすき間 最大 " + fenceGap.ToString("F2") + "m");
                     CheckRim(tag, h, td.size.x, td.size.y, warn, info);
+                    var splan = DressingPlan.For(def, local, h, len, SetPieces.PlanFor(def, local, h, len));
+                    splan.AddRange(DressingPlan.BarrierLine(def, local, h, len, bplan));
+                    CheckGrounding(tag, splan, h, td.size.x, warn, info);
                     if (slope > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：コース上の最大勾配 " + slope.ToString("F1") + "° が 25° を超えています");
                     int ar = td.alphamapResolution;
                     if (td.alphamapLayers > TerrainBuilder.LAYER_SAND)
@@ -387,6 +390,24 @@ namespace HorseRace.EditorTools
 
         /// <summary>レイヤーとマスク：マスクが 0 でない、体の Collider が Mount、大きなトリガーが Ignore Raycast、地形が Ground。</summary>
         /// <summary>ui-r2-11：clip の無い AudioSource は鳴らない（PlayOneShot で clip を渡す MinimalHud.finishAudio・GoalPresenter.bellAudio も clip を持たせる）。</summary>
+        /// <summary>
+        /// art-r5-03：飾りの計画のどれも浮いていない（足元 8 点のいちばん低い地面が足元の底より GROUNDING_FLOAT_TOL_M 以上下に無い）。
+        /// 斜面に埋める岩・背景は除く（DressingPlan.FloatGap）。
+        /// </summary>
+        static void CheckGrounding(string tag, List<Placement> plan, float[,] h, float sizeM, List<string> warn, List<string> info)
+        {
+            int bad = 0; float worst = 0f; string which = null;
+            foreach (var p in plan)
+            {
+                float g = DressingPlan.FloatGap(p, h, sizeM);
+                if (g <= DressingPlan.GROUNDING_FLOAT_TOL_M) continue;
+                bad++;
+                if (g > worst) { worst = g; which = p.group + " " + (p.part ?? p.asset); }
+            }
+            if (bad > 0) warn.Add(tag + "：浮いている飾り " + bad + " 個（最大 " + worst.ToString("F2") + "m：" + which + "、art-r5-03）");
+            else info.Add(tag + "：飾り " + plan.Count + " 個はどれも地面に着いている");
+        }
+
         static void CheckAudio(GameObject root, List<string> warn, List<string> info)
         {
             int total = 0, silent = 0;

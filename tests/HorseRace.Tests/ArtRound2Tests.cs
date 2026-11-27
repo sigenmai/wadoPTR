@@ -99,7 +99,8 @@ namespace HorseRace.Tests
                 // art-r3-06：砂漠の道は砂より 0.08 以上暗い明るい踏み固めた土（前の暗い道はアスファルトに見えた）。砂漠の土とは色合いで分ける
                 Assert.GreaterOrEqual(Mathf.Abs(t - d), i == 1 ? 0.05f : 0.15f, "土 " + i);
                 // art-r4-05：砂漠の道は砂 × 約 0.92 の明るさの踏み固めた砂（暗い帯にしない：砂の 85% 以上、砂よりは暗い）
-                if (i == 1) { Assert.GreaterOrEqual(t, 0.85f * sand, "砂漠の道は暗い帯にしない"); Assert.Less(t, sand, "砂漠の道は砂より少し暗い"); }
+                // art-r5-07：砂漠の道は砂より明るさで 0.08 以上明るい（同じ明るさでは道が見えなかった）
+                if (i == 1) Assert.GreaterOrEqual(t - sand, ArtPalette.TRAIL_DUNES_ABOVE_SAND, "砂漠の道は砂より明るい");
                 else Assert.GreaterOrEqual(Mathf.Abs(t - sand), 0.10f, "砂 " + i);
             }
             Assert.AreNotEqual(ArtPalette.Trail(0), ArtPalette.Trail(1));

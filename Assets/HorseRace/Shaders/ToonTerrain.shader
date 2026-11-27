@@ -3,7 +3,7 @@
 // - TerrainLayer 4 枚まで（_Control の RGBA）。0 土・1 岩・2 砂は平面の UV、3 は「地層の縞」：
 //   ワールドの高さ（y / _StrataScale）を V にして横の縞を急な斜面に描く（峡谷の壁がメサの岩の模様と同じ縞になる）
 // - 道の踏み固めた土（course-r1-09）：_TrailTex（Terrain 全体の UV、R = 重み）で _TrailColor に置き換える（土の斑を少しだけ残す）。
-//   G = 道の中心からの距離 / 16m（art-r3-06）：±1.8m に幅 0.6m の轍を道の色 ×0.75 で描く（art-r4-02）。
+//   G = 0.5 + 符号付きの横の距離 / 32m（art-r5-01）：±1.8m に幅 0.6m の轍を道の色 ×0.86 で描く。
 // - art-r4-02：道の外はワールド座標の値ノイズの粒（3.5m）とまだら（45m）、道の上は蹄の擦れ（1.2m）。art-r4-04：急な面（n.y < _StrataSlope）は地層の縞を濃く
 //   ステージごとのマテリアル（TerrainBuilder.ApplyToonMaterial）。_TrailTex が無い（黒）なら何もしない
 // - 霧・影受け。GPU インスタンシングの地形描画（drawInstanced）は使わない（TerrainBuilder が OFF にする）
@@ -25,18 +25,18 @@ Shader "HorseRace/ToonTerrain"
         _ShadeSoftness ("Shade Softness", Range(0.001,0.3)) = 0.05
         _StrataScale ("Strata band height (m)", Float) = 8
         _StrataTile ("Strata horizontal tile (m)", Float) = 45
-        _TrailTex ("Trail mask (R) + centre distance (G)", 2D) = "black" {}
+        _TrailTex ("Trail mask (R) + signed centre distance (G, 0.5 = centre)", 2D) = "black" {}
         _TrailColor ("Trail Color", Color) = (0.55,0.40,0.28,1)
         _RutOffset ("Rut offset (G units)", Float) = 0.1125
         _RutWidth ("Rut width (G units)", Float) = 0.0375
-        _RutDarken ("Rut darken (0-1)", Range(0,1)) = 0.25
+        _RutDarken ("Rut darken (0-1)", Range(0,1)) = 0.14
         _LineBoost ("Start/finish line brightness (x trail color)", Float) = 1.6
         _GrainScale ("Grain scale (m)", Float) = 3.5
-        _GrainAmp ("Grain amount", Range(0,0.3)) = 0.07
+        _GrainAmp ("Grain amount", Range(0,0.3)) = 0.13
         _MottleScale ("Mottle scale (m)", Float) = 45
         _MottleAmp ("Mottle amount", Range(0,0.3)) = 0.05
         _ScuffScale ("Hoof scuff scale (m)", Float) = 1.2
-        _ScuffAmp ("Hoof scuff amount", Range(0,0.3)) = 0.06
+        _ScuffAmp ("Hoof scuff amount", Range(0,0.3)) = 0.11
         _StrataSlope ("Strata on faces with normal.y below (0 = off)", Range(0,1)) = 0
     }
 
@@ -133,15 +133,20 @@ Shader "HorseRace/ToonTerrain"
                 float3 trTex = tex2D(_TrailTex, i.uv).rgb;
                 float trail = trTex.r;
                 // art-r4-02：道の外の粒（_GrainScale）とまだら（_MottleScale）。平らな色の面を少しだけ揺らす
-                float grain = noise2(i.wpos.xz, _GrainScale) * _GrainAmp + noise2(i.wpos.xz + 311.0, _MottleScale) * _MottleAmp;
-                albedo *= 1.0 + grain * (1.0 - saturate(trail));
+                // art-r5-13：粒（_GrainAmp 0.13）と細かい擦れ（_ScuffAmp 0.11）は道の重み < 0.5 の所だけ（騎手の目の高さでも地面の細部が読める）
+                float offRoad = 1.0 - smoothstep(0.4, 0.6, trail);
+                float grain = noise2(i.wpos.xz, _GrainScale) * _GrainAmp + noise2(i.wpos.xz + 311.0, _MottleScale) * _MottleAmp
+                            + noise2(i.wpos.xz + 517.0, _ScuffScale) * _ScuffAmp;
+                albedo *= 1.0 + grain * offRoad;
                 float mott = saturate(dot(c0, float3(0.333, 0.333, 0.333)) * 1.5);
                 float3 trailCol = _TrailColor.rgb * (0.92 + 0.16 * mott);
-                // 轍（art-r3-06）：G = 道の中心からの距離（線形に補間される）。±_RutOffset の幅 _RutWidth の 2 本を道の色 × (1 − _RutDarken)
-                float rut = 1.0 - smoothstep(_RutWidth * 0.35, _RutWidth * 0.65, abs(trTex.g - _RutOffset));
+                // 轍（art-r3-06 → art-r5-01）：G = 0.5 + 符号付きの横の距離 / (2·16m)。符号付きなので補間しても中心で折れず、2 本のなめらかな線になる。
+                // d = (G − 0.5)·2（16m 単位）。±_RutOffset の幅 _RutWidth の 2 本を道の色 × (1 − _RutDarken)
+                float sd = (trTex.g - 0.5) * 2.0;
+                float rut = 1.0 - smoothstep(_RutWidth * 0.35, _RutWidth * 0.65, abs(abs(sd) - _RutOffset));
                 trailCol *= 1.0 - _RutDarken * rut;
-                // art-r4-02：蹄の擦れ（1.2m の細かい明暗）
-                trailCol *= 1.0 + noise2(i.wpos.xz + 77.0, _ScuffScale) * _ScuffAmp;
+                // art-r4-02 → art-r5-13：蹄の擦れは道の上では弱く（道はきれいに保つ）、道の外の粒は強く
+                trailCol *= 1.0 + noise2(i.wpos.xz + 77.0, _ScuffScale) * _ScuffAmp * 0.3;
                 albedo = lerp(albedo, trailCol, saturate(trail));
                 // スタート・ゴールの線（course-r3-14）：B = 道を横切る帯の重み。道の色を明るく（_LineBoost 倍）
                 albedo = lerp(albedo, saturate(_TrailColor.rgb * _LineBoost), saturate(trTex.b));

@@ -96,6 +96,26 @@ namespace HorseRace.EditorTools
             return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
+        /// <summary>
+        /// art-r5-01：折れ線への符号付きの距離（m、+ = 進む向きの左、− = 右）。大きさは DistToPolylineXZ と同じ、符号はいちばん近い区間の接線 × (p − 最寄りの点)。
+        /// 轍のテクスチャ（ToonTerrain の G）は符号付きにする（符号なしは中心で折れ曲がり、補間すると点線・しみになる）。
+        /// </summary>
+        public static float SignedDistToPolylineXZ(Vector3 p, Vector3[] pts)
+        {
+            if (pts == null || pts.Length < 2) return DistToPolylineXZ(p, pts);
+            float best = float.MaxValue, sign = 1f;
+            for (int i = 1; i < pts.Length; i++)
+            {
+                Vector3 a = pts[i - 1], b = pts[i];
+                float abx = b.x - a.x, abz = b.z - a.z, len2 = abx * abx + abz * abz;
+                float t = len2 > 1e-6f ? Mathf.Clamp01(((p.x - a.x) * abx + (p.z - a.z) * abz) / len2) : 0f;
+                float dx = p.x - (a.x + abx * t), dz = p.z - (a.z + abz * t);
+                float d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d < best) { best = d; sign = (abz * dx - abx * dz) > 0f ? -1f : 1f; }
+            }
+            return best * sign;
+        }
+
         public static float DistToPolylineXZ(Vector3 p, Vector3[] pts)
         {
             if (pts == null || pts.Length == 0) return float.MaxValue;

@@ -27,6 +27,19 @@ namespace HorseRace.EditorTools
         public static readonly Color RockSetTint = new Color(RockGrayTint.r * 0.93f, RockGrayTint.g * 0.88f, RockGrayTint.b * 0.84f);
         public static readonly Color WeatheredWood = new Color(0.78f, 0.66f, 0.52f);
         public static readonly Color Sage = new Color(0.62f, 0.66f, 0.52f);
+        /// <summary>art-r5-06：白い壁を塗り替える 4 色の板壁（建物の名前の決まったハッシュで選ぶ）。青緑はブースト専用なので使わない。</summary>
+        public static readonly Color FadedBarnRed = new Color(0.60f, 0.33f, 0.25f);
+        public static readonly Color Adobe = new Color(0.80f, 0.60f, 0.44f);
+        public static readonly Color Ochre = new Color(0.78f, 0.62f, 0.36f);
+        public static readonly Color[] Sidings = { WeatheredWood, FadedBarnRed, Adobe, Ochre };
+        /// <summary>art-r5-06：町・建物の塗り替えた色の明るさ（HSV の v）の上限（夕景の環境光でも白い漆喰に見せない）。</summary>
+        public const float TOWN_MAX_V = 0.82f;
+        public const float WHITE_WALL_V = 0.80f, WHITE_WALL_S = 0.25f, WHITE_WALL_LERP = 0.88f;
+        /// <summary>
+        /// art-r5-02：道の家具の杭（WoodLogs_01 を立てた柱：柵の継ぎ目・直線の標柱・近づく道）の色。地面より 1〜2 段暗い古い木
+        /// （前は素材のままのクリーム色で、白い歯・骨に見えて本当の道しるべ＝茶色の柵より目立った）。
+        /// </summary>
+        public static readonly Color PostWood = new Color(0.50f, 0.36f, 0.25f);
 
         // ---- 地形の色（TerrainBuilder の TerrainLayer）----
         public static readonly Color DirtCanyon = new Color(0.62f, 0.36f, 0.22f);    // 赤錆
@@ -52,17 +65,20 @@ namespace HorseRace.EditorTools
         public static Color StrataDarkFor(int stage) => stage == 2 ? StrataDarkBorder : StrataDark;
 
         // ---- 地面の粒（art-r4-02）：ToonTerrain のワールド座標の値ノイズで、道の外の色を少しだけ揺らす ----
-        public const float GRAIN_SCALE_M = 3.5f, GRAIN_AMP = 0.07f, MOTTLE_SCALE_M = 45f, MOTTLE_AMP = 0.05f;
-        public const float SCUFF_SCALE_M = 1.2f, SCUFF_AMP = 0.06f;
+        /// art-r5-13：GRAIN_AMP 0.07 → 0.13、SCUFF_AMP 0.06 → 0.11（騎手の目の高さ 2.6m でも読める）。どちらも道の重み &lt; 0.5 の所だけ（道はきれいに）。
+        public const float GRAIN_SCALE_M = 3.5f, GRAIN_AMP = 0.13f, MOTTLE_SCALE_M = 45f, MOTTLE_AMP = 0.05f;
+        public const float SCUFF_SCALE_M = 1.2f, SCUFF_AMP = 0.11f;
 
         /// <summary>ステージ（0 荒野 / 1 砂漠 / 2 境目、それ以外 = ロビー・外の地面）の土の色。</summary>
         public static Color Dirt(int stage) => stage == 1 ? DirtDunes : (stage == 2 ? DirtBorder : DirtCanyon);
 
         // ---- 道の踏み固めた土（art-r2-02）：ステージの土・砂と明るさで 0.15 / 0.10 以上離す（道が読める）----
         public static readonly Color TrailCanyon = new Color(0.82f, 0.63f, 0.46f);   // 明るい踏み固めた粘土（赤錆の土 0.405 → 0.66）
-        public static readonly Color TrailDunes = new Color(0.84f, 0.70f, 0.50f);    // art-r4-05：砂 × 約 0.92 の明るさの踏み固めた砂（色の帯ではなく轍と路肩の小物で読む）
-        /// <summary>轍の色 = 道の色 × RUT_SHADE（art-r3-06 → art-r4-02：0.85 → 0.75、轍で道が読める）。</summary>
-        public const float RUT_SHADE = 0.75f;
+        public static readonly Color TrailDunes = new Color(0.95f, 0.86f, 0.68f);    // art-r5-07：砂より明るい踏み固めた砂（明るさで砂 + 0.08 以上、art-r4-05 の 0.84/0.70/0.50 は砂と同じ明るさで道が見えなかった）
+        /// <summary>art-r5-07：砂漠の道は砂より明るさで TRAIL_DUNES_ABOVE_SAND 以上明るい（色相ではなく明るさの差で読む）。</summary>
+        public const float TRAIL_DUNES_ABOVE_SAND = 0.08f;
+        /// <summary>轍の色 = 道の色 × RUT_SHADE（art-r3-06 → art-r4-02：0.85 → 0.75 → art-r5-01：0.86、やわらかい 2 本の線。穴・油のしみに見せない）。</summary>
+        public const float RUT_SHADE = 0.86f;
         public static readonly Color TrailBorder = new Color(0.78f, 0.63f, 0.56f);   // 夕景の明るい道（紫の土 0.39 → 0.66、砂 0.77 とも 0.11 離す）
 
         /// <summary>ステージの道の色。</summary>
@@ -72,9 +88,9 @@ namespace HorseRace.EditorTools
         /// <summary>町の模型の地面の板（WesternTown_001_Ground）：まわりの砂の地面に合わせた暗めの砂色（明るすぎるクリーム色にしない）。</summary>
         public static readonly Color TownGroundTint = new Color(0.80f, 0.60f, 0.44f);   // art-r3-09：踏み固めた土（TrailCanyon 寄り）で砂の土手へなじむ
         /// <summary>Buildings/*.fbx（画像付き）の青白い壁を古い木の色へ寄せる掛け色（art-r2-14）。</summary>
-        public static readonly Color BuildingTextureTint = new Color(0.85f, 0.68f, 0.50f);   // art-r4-16：一番明るい成分を 0.85 まで（夕景の紫の地面の上で白く飛ばない）。art-r3-15 の (0.98,0.78,0.58) と同じ色合い
-        /// <summary>画像付きの建物の掛け色の一番明るい成分の上限（art-r4-16）。</summary>
-        public const float BUILDING_TEX_MAX = 0.85f;
+        public static readonly Color BuildingTextureTint = new Color(0.80f, 0.62f, 0.46f);   // art-r5-06：0.85 → 0.80（夕景の環境光で白く見えた）。art-r4-16・art-r3-15 と同じ色合い
+        /// <summary>画像付きの建物の掛け色の一番明るい成分の上限（art-r4-16 → art-r5-06：0.85 → 0.80）。</summary>
+        public const float BUILDING_TEX_MAX = 0.80f;
 
         /// <summary>素材ごとのトゥーンの設定。</summary>
         public struct Style
@@ -125,6 +141,8 @@ namespace HorseRace.EditorTools
             // art-r3-13：岩のセット（灰白の岩）も暖色へ（遠くで白い「きのこ」の岩に見えた）
             if (Has(assetPath, "RockSetStylized")) { s.tint = RockSetTint; s.flatten = ROCK_FLATTEN; s.flattenMip = ROCK_FLATTEN_MIP; s.key += "_WarmSet"; }
             if (Has(assetPath, "Gems")) { s.glow = GEM_GLOW; s.key += "_Glow"; }
+            // art-r5-02：立てた丸太の杭・横木（WoodLogs_01）は暗い古い木（クリーム色の白い歯にしない）
+            if (Has(assetPath, "WoodLogs") && partName == DressingPlan.POST_PART) { s.tint = PostWood; s.key += "_Post"; }
             if (Has(assetPath, "WesternTown"))
             {
                 string kind = partKind ?? PartKind(partName);
@@ -145,17 +163,45 @@ namespace HorseRace.EditorTools
         public static Color TextureTint(string assetPath) => IsBuildingModel(assetPath) ? BuildingTextureTint : Color.white;
 
         /// <summary>色だけで塗られた素材の色を共通の色に寄せる（町・建物の灰色・青 → 古い木、緑 → セージ）。それ以外はそのまま。</summary>
-        public static Color RemapBaseColor(string assetPath, Color c)
+        public static Color RemapBaseColor(string assetPath, Color c) => RemapBaseColor(assetPath, c, assetPath);
+
+        /// <summary>
+        /// art-r5-06：objectName（建物の部品名・模型のパス）の決まったハッシュで、白い壁（v &gt; 0.80・s &lt; 0.25）を 4 色の板壁
+        /// （古い木・色あせた納屋の赤・日干し煉瓦・黄土）のどれかへ 0.88 寄せる。暗い縁取り・窓はそのまま。結果の明るさは TOWN_MAX_V まで。
+        /// </summary>
+        public static Color RemapBaseColor(string assetPath, Color c, string objectName)
         {
             if (!Has(assetPath, "WesternTown") && !IsBuildingModel(assetPath)) return c;
             float h, s, v;
             ToHSV(c, out h, out s, out v);
             if (v < 0.12f) return c;                                   // 黒に近い（窓・影）はそのまま
-            if (v > 0.85f && s < 0.25f) return Lerp(c, WeatheredWood, 0.6f);          // art-r4-16：白に近いクリーム色の壁（夕景で白く飛ぶ）
-            if (s < 0.12f && v > 0.25f) return Lerp(c, WeatheredWood, 0.65f);          // 灰色
-            if (h >= 180f && h <= 260f && s >= 0.08f) return Lerp(c, WeatheredWood, 0.7f);   // 青
-            if (h >= 75f && h < 170f && s >= 0.15f) return Lerp(c, Sage, 0.7f);        // 緑
-            return c;
+            Color r = c;
+            if (v > WHITE_WALL_V && s < WHITE_WALL_S) r = Lerp(c, SidingFor(objectName), WHITE_WALL_LERP);   // 白に近いクリーム色の壁（夕景で白く飛ぶ）
+            else if (s < 0.12f && v > 0.25f) r = Lerp(c, WeatheredWood, 0.65f);          // 灰色
+            else if (h >= 180f && h <= 260f && s >= 0.08f) r = Lerp(c, WeatheredWood, 0.7f);   // 青
+            else if (h >= 75f && h < 170f && s >= 0.15f) r = Lerp(c, Sage, 0.7f);        // 緑
+            return CapValue(r, TOWN_MAX_V);
+        }
+
+        /// <summary>art-r5-06：建物の名前の板壁の色（FNV-1a の決まったハッシュ。tools/preview の siding_for と同じ）。</summary>
+        public static Color SidingFor(string objectName) => Sidings[(int)(StableHash(objectName) % (uint)Sidings.Length)];
+
+        /// <summary>文字列の決まったハッシュ（FNV-1a 32bit。string.GetHashCode は実行ごとに変わるので使わない）。</summary>
+        public static uint StableHash(string s)
+        {
+            uint hsh = 2166136261u;
+            if (s != null)
+                for (int i = 0; i < s.Length; i++) { hsh ^= s[i]; hsh *= 16777619u; }
+            return hsh;
+        }
+
+        /// <summary>HSV の v（一番明るい成分）が max を超えたら、色相・彩度を保って暗くする。</summary>
+        public static Color CapValue(Color c, float max)
+        {
+            float mx = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+            if (mx <= max || mx <= 1e-5f) return c;
+            float k = max / mx;
+            return new Color(c.r * k, c.g * k, c.b * k, 1f);
         }
 
         static Color Lerp(Color a, Color b, float t)
