@@ -68,6 +68,21 @@
 - 「**警告 N 件:**」のあとに「  ! …」が並ぶ場合は黄色の警告です。素材の欠け（コピーし忘れ）、つなぎ忘れ、勾配超過などが書いてあります。内容を読んで、素材なら `Assets/HorseRace` を入れ直し、分からなければそのまま Claude に送ってください。
 - 「HorseRace_Generated がありません」と出たら、先に Build World を実行する。
 
+## 8b. 配置を手で直す（任意）
+Build World は毎回 `HorseRace_Generated` を作り直しますが、**飾りの位置を手で直した結果は残せます**。
+
+1. Scene ビューで飾り（岩・木・崖・サボテン・建物・柵・手配書・遠景の山・木の帯など）を選び、**移動・回転・拡大**、または **Delete で削除**する。
+   - 手で直せる飾りは、Hierarchy の名前の末尾に ` {S1/CliffWalls/Cliffs|Cliffs_03#12}` のような **id** が付いているものです（名前の末尾は消さない・変えない）。
+2. メニュー「**HorseRace/Save Layout**」。シーンと「Build World が計算した配置」を比べ、違いを `Assets/HorseRace/Layout/LayoutOverrides.json` に保存します（「移動 N 個・削除 M 個を保存しました」と出ます）。シーンは作り直しません。
+3. 以後の「**HorseRace/Build World**」は自動で配置したあとにこのファイルを当てるので、直した配置のままになります（Console に「移動 N 個・削除 M 個」。ステージ定義や素材を変えて合わなくなった id は黄色の警告で一覧）。
+4. 元に戻すときはメニュー「**HorseRace/Reset Layout**」（確認のあとファイルを消す）→ Build World。
+5. **自分で物を足すとき**は、シーン直下の **`HorseRace_Custom`**（Build World が無ければ空で作る）の子に置いてください。Build World はこの中を一切触りません。Validate が個数を出し、道（コース中心から 12m 以内）に乗っている物や CP・遺物・スタート位置・ゴール後の囲い・スターターの立ち位置をふさぐ物を警告します。
+
+- **Save Layout を押さずに Build World すると、手で直した分は消えます**（先に Save Layout）。
+- 遊びに関わる物（CP・遺物・スタートの並び・ゴール後の囲い・ゴールゲート・スターター・表彰台・岩橋とジャンプ台・ロビーの受付・手配書のカード・柵の馬・鐘・レバー・練習場の杭とカカシ・掲示板・乗り物）には id が付かないので、この方法では動かせません。動かすには `StageDefinitions.cs` / `LobbyBuilder.cs` を変えます（Claude に頼む）。
+- 背景専用の物（メサ・厩舎）を動かすと、まわりの見えない壁も一緒に動きます（拡大の変化は壁には反映されません）。
+- id は名前の末尾に付けるだけで、実行時のコンポーネントは足していません（VRChat のアップロードに影響なし）。
+
 ## 9. VRChat SDK で動かす（Build & Test）
 1. メニュー「**VRChat SDK → Show Control Panel**」を開き、**Authentication** タブでログイン。
 2. **Builder** タブ（Build タブ）を開く。上部の Validations（赤はビルドを止めるエラー、黄は警告）を確認。**赤が出たらその文面を Claude に送る**。

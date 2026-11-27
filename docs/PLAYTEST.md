@@ -275,6 +275,10 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] 岩橋の溝の両端・底、崖下りの近道の両脇と崖の面が岩で覆われ、地形の切り口が目立たない
 - [ ] 観戦カメラ（掲示板の中継）が地形の端・尾根の外・虚空を映さない（カメラの位置は今のステージの見えない壁の内側に制限）。中継カメラの Far Clip は 1100m
 - [ ] 霧：Lighting 設定の Fog が ON（Linear、350〜1100m、砂色）。空は砂色の Procedural Skybox。VRCWorld の Reference Camera（Far Clip 1500m）が設定されている
+- [ ] 配置の手直し（Task 11e）：飾り（名前の末尾に `{id}`）をいくつか動かす・回す・拡大する・削除する →「HorseRace/Save Layout」で「移動 N 個・削除 M 個を保存しました」→ Build World → 直したとおりになっている（Console に同じ数）。メサを動かすと見えない壁も付いてくる
+- [ ] 「HorseRace/Reset Layout」→ Build World で自動の配置に戻る。Save Layout を押さずに Build World すると手直しは消える（仕様）
+- [ ] `HorseRace_Custom` に置いた物は Build World の後も残る。道の上や CP・遺物・スタート位置に置くと Validate が警告する
+- [ ] CP・遺物・スタートの並び・ゴールゲート・囲い・スターター・表彰台・ロビーの仕掛け・乗り物の名前には `{id}` が付いていない（手直しの対象外）
 - [ ] 負荷：8 人で接戦（全員が同じ区間を走る）のとき、VR でカクつかない（Task 11d で 1 ステージの飾りが最大 800、ロビーに柵 約 500 区間＋木の帯 約 520 本。トゥーンシェーダーは GPU インスタンシング対応で、生成マテリアルは Enable GPU Instancing が ON。Frame Debugger で木・岩がまとめて描かれている（Static Batch / Instanced）こと）（黒板の書き直しは今のステージの黒板だけ）。Unity の Profiler で Udon の時間が 1 フレーム 2ms 未満
 - [ ] Build World を 2 回続けて実行しても `VRCWorld` は 1 つのままで、ワールド ID（Pipeline Manager の Blueprint ID）が変わらない
 
