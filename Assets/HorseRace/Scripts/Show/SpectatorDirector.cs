@@ -46,6 +46,12 @@ namespace HorseRace
         [Tooltip("向き（馬の進行方向）の追従の速さ")]
         public float yawSharpness = 2f;
 
+        [Header("カメラの範囲（ステージごと、x/z。Build World が見えない壁の内側に設定）")]
+        [Tooltip("stage 番号ごとの最小 x/z（y は使わない）。空ならはみ出しを制限しない")]
+        public Vector3[] stageBoundsMin;
+        [Tooltip("stage 番号ごとの最大 x/z")]
+        public Vector3[] stageBoundsMax;
+
         [Header("任意")]
         [Tooltip("掲示板の下の札に「中継：名前（2位）」と書く")]
         public TextMeshPro captionText;
@@ -310,6 +316,19 @@ namespace HorseRace
             hasFollow = false; // 新しい馬の後ろに追従点を置き直す
         }
 
+        /// <summary>カメラがステージの外（地形の端・尾根の向こう）を映さないよう、位置を今のステージの範囲に収める。</summary>
+        private Vector3 ClampToStage(Vector3 p)
+        {
+            if (stageBoundsMin == null || stageBoundsMax == null) return p;
+            int st = raceManager.stage;
+            if (st < 0 || st >= stageBoundsMin.Length || st >= stageBoundsMax.Length) return p;
+            Vector3 mn = stageBoundsMin[st];
+            Vector3 mx = stageBoundsMax[st];
+            p.x = Mathf.Clamp(p.x, mn.x, mx.x);
+            p.z = Mathf.Clamp(p.z, mn.z, mx.z);
+            return p;
+        }
+
         private void LateUpdate()
         {
             if (!live || broadcastCamera == null || raceManager == null) return;
@@ -330,6 +349,7 @@ namespace HorseRace
                 followYaw = Mathf.LerpAngle(followYaw, mYaw, 1f - Mathf.Exp(-yawSharpness * dt));
                 followPos = Vector3.Lerp(followPos, DesiredPos(mp, followYaw), 1f - Mathf.Exp(-positionSharpness * dt));
             }
+            followPos = ClampToStage(followPos);
             Vector3 look = mp + Vector3.up * lookHeight - followPos;
             Quaternion rot = look.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(look) : broadcastCamera.transform.rotation;
             Vector3 pos = followPos;
