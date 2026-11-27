@@ -44,6 +44,7 @@ namespace HorseRace.EditorTools
             ctx.lobbyCenter = CENTER;
 
             GameObject town = Town(root);
+            FitFence(town);
             Ground(root, town);
             Plaza(root, ctx);
             Corral(root, ctx);
@@ -76,11 +77,29 @@ namespace HorseRace.EditorTools
             };
         }
 
+        public const float FENCE_COLLIDER_H = 3.0f;
+        /// <summary>このビルドの柵の長方形（ロビー中心からの相対）。実際の町が入らなければ広げる（FitFence）。</summary>
+        static Vector4 fenceRect = LobbyLayout.FENCE_RECT;
+
+        /// <summary>実際の WesternTown の外形（回転した後）が柵の中に 8m 以上の余白で入るか確かめ、入らなければ柵を広げる。</summary>
+        static void FitFence(GameObject town)
+        {
+            Bounds tb = GenUtil.RendererBounds(town);
+            var townRel = new Vector4(tb.min.x - CENTER.x, tb.min.z - CENTER.z, tb.max.x - CENTER.x, tb.max.z - CENTER.z);
+            bool grown, fits;
+            fenceRect = LobbyLayout.FitFenceRect(LobbyLayout.FENCE_RECT, townRel, LobbyLayout.TOWN_MARGIN_M, out grown, out fits);
+            if (grown)
+                Debug.LogError("[HorseRace] WesternTown（" + townRel + "）が柵の長方形に 8m の余白で入らないため、柵を " + fenceRect
+                    + " に広げました（木の帯・柵の外の盛り上がりも広げた柵に合わせます）");
+            if (!fits)
+                Debug.LogError("[HorseRace] WesternTown が大きすぎて、柵を最大まで広げても 8m の余白が取れません。町の配置を確認してください");
+        }
+
         /// <summary>ロビー全体を囲む木の柵（切れ目なし、柱 ≤ 2.74m、高さ約 1.57m、Block）と、柵の外の木の帯（3 列）。</summary>
         static void FenceAndBelt(Transform root)
         {
             var fence = GenUtil.World(root, "LobbyFence", CENTER).transform;
-            var segs = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
+            var segs = LobbyLayout.FenceSegments(fenceRect, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
             foreach (var sg in segs)
             {
                 Vector3 a = CENTER + sg[0], b = CENTER + sg[1];
@@ -90,13 +109,15 @@ namespace HorseRace.EditorTools
                     new Vector3(Fence.PIECE, 1f, 0.15f), Wood);
                 piece.transform.localScale = new Vector3(len / Fence.PIECE, LobbyLayout.FENCE_SCALE_Y, 1f);
                 var box = piece.AddComponent<BoxCollider>();
-                box.size = new Vector3(Fence.PIECE, 1.05f, 0.4f);
-                box.center = new Vector3(0f, 0.52f, 0f);
+                // 当たり判定は見た目より高い 3.0m（乗り物のジャンプで越えられない）。ローカルは縦 ×1.6 されるので割る
+                float colH = FENCE_COLLIDER_H / LobbyLayout.FENCE_SCALE_Y;
+                box.size = new Vector3(Fence.PIECE, colH, 0.4f);
+                box.center = new Vector3(0f, colH * 0.5f, 0f);
                 GenUtil.SetLayerRecursive(piece, WorldLayers.Block);
                 DressingBuilder.SetStatic(piece);
             }
             var belt = GenUtil.World(root, "LobbyTreeBelt", CENTER).transform;
-            var trees = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3);
+            var trees = LobbyLayout.TreeBelt(fenceRect, 3);
             DressingBuilder.Instantiate(trees, belt, CENTER);
             Debug.Log("[HorseRace] ロビーの柵 " + segs.Count + " 区間（切れ目 " + LobbyLayout.Gates.Length + "）、柵の外の木の帯 " + trees.Count + " 本");
         }
@@ -259,7 +280,7 @@ namespace HorseRace.EditorTools
                         if (dd < BERM_M && !entrance) level += BERM_HEIGHT_M * (1f - dd / BERM_M);
                     }
                     // 柵の外はすぐ盛り上がる（柵の中から外の平らな地面が見えない）
-                    float dOut = LobbyLayout.DistOutside(LobbyLayout.FENCE_RECT, new Vector3(wx - CENTER.x, 0f, wz - CENTER.z));
+                    float dOut = LobbyLayout.DistOutside(fenceRect, new Vector3(wx - CENTER.x, 0f, wz - CENTER.z));
                     if (dOut > 0f) level += LobbyLayout.OutsideRise(dOut);
                     h[z, x] = level / GROUND_HEIGHT_RANGE;
                 }
@@ -273,7 +294,17 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
 
             // 外周の見えない壁（尾根の手前。練習場もこの内側）
-            TerrainBuilder.BoundaryWalls(root, origin, GROUND_SIZE, BORDER_INSET_M, "LobbyBorder");
+            // 見えない壁は柵の 6m 外（柵が広がっても柵の外側。尾根の手前〜斜面）
+            {
+                var bw = GenUtil.World(root, "LobbyBorder", CENTER).transform;
+                Vector4 r = new Vector4(fenceRect.x - 6f, fenceRect.y - 6f, fenceRect.z + 6f, fenceRect.w + 6f);
+                float cx = (r.x + r.z) * 0.5f, cz = (r.y + r.w) * 0.5f, w = r.z - r.x, d = r.w - r.y, hgt = TerrainBuilder.WALL_HEIGHT_M;
+                AddBox(bw, "N", new Vector3(cx, hgt * 0.5f - 20f, r.w), new Vector3(w + 2f, hgt, 2f), false);
+                AddBox(bw, "S", new Vector3(cx, hgt * 0.5f - 20f, r.y), new Vector3(w + 2f, hgt, 2f), false);
+                AddBox(bw, "E", new Vector3(r.z, hgt * 0.5f - 20f, cz), new Vector3(2f, hgt, d + 2f), false);
+                AddBox(bw, "W", new Vector3(r.x, hgt * 0.5f - 20f, cz), new Vector3(2f, hgt, d + 2f), false);
+                GenUtil.SetLayerRecursive(bw.gameObject, WorldLayers.Block);
+            }
             TownWallsAndSkirt(root, town, tb);
         }
 

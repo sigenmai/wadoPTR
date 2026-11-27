@@ -64,6 +64,27 @@ namespace HorseRace.EditorTools
             return r;
         }
 
+        public const float TOWN_MARGIN_M = 8f;
+        /// <summary>柵を広げてよい最大（ロビーの地面の端から 14m：木の帯 3 列が尾根の斜面に乗り、地面の端より内側に収まる）。</summary>
+        public const float FENCE_MAX_INSET_M = 14f;
+        public static readonly Vector4 FENCE_MAX_RECT = new Vector4(GROUND_RECT.x + FENCE_MAX_INSET_M, GROUND_RECT.y + FENCE_MAX_INSET_M,
+            GROUND_RECT.z - FENCE_MAX_INSET_M, GROUND_RECT.w - FENCE_MAX_INSET_M);
+
+        /// <summary>
+        /// 実際の町の外形 town（ロビー中心からの相対）が柵の長方形 baseRect の内側に margin m 以上の余白で入るよう、足りない辺だけ外へ広げる。
+        /// 広げた結果は FENCE_MAX_RECT を超えない（超える分は fits = false）。grown = 広げたか。
+        /// </summary>
+        public static Vector4 FitFenceRect(Vector4 baseRect, Vector4 town, float margin, out bool grown, out bool fits)
+        {
+            var r = new Vector4(Mathf.Min(baseRect.x, town.x - margin), Mathf.Min(baseRect.y, town.y - margin),
+                Mathf.Max(baseRect.z, town.z + margin), Mathf.Max(baseRect.w, town.w + margin));
+            grown = r.x != baseRect.x || r.y != baseRect.y || r.z != baseRect.z || r.w != baseRect.w;
+            var m = FENCE_MAX_RECT;
+            fits = r.x >= m.x && r.y >= m.y && r.z <= m.z && r.w <= m.w;
+            r = new Vector4(Mathf.Max(r.x, m.x), Mathf.Max(r.y, m.y), Mathf.Min(r.z, m.z), Mathf.Min(r.w, m.w));
+            return r;
+        }
+
         /// <summary>長方形の外への距離（中なら 0）。</summary>
         public static float DistOutside(Vector4 rect, Vector3 p) => WorldBounds.DistToRect(p, rect);
 
@@ -81,9 +102,9 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>ロビーの地面の高さ（柵の中 0、外は盛り上がり＋尾根の下限）。</summary>
-        public static float GroundHeight(Vector3 p)
+        public static float GroundHeight(Vector4 fence, Vector3 p)
         {
-            float d = DistOutside(FENCE_RECT, p);
+            float d = DistOutside(fence, p);
             return d <= 0f ? 0f : OutsideRise(d) + RimMin(p);
         }
 
@@ -114,7 +135,7 @@ namespace HorseRace.EditorTools
                     var sz = DressingPlan.SizeOf(asset, part);
                     list.Add(new Placement
                     {
-                        group = "TreeBelt", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(p) - 0.3f, p.z),
+                        group = "TreeBelt", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - 0.3f, p.z),
                         yawDeg = (float)rng.NextDouble() * 360f, scale = scale, radius = sz.r * scale, height = sz.h * scale,
                         collider = false, shape = DressingPlan.SHAPE_NONE,
                     });
@@ -128,10 +149,10 @@ namespace HorseRace.EditorTools
         /// ロビーの地面の外（虚空）に先に届いたら true（＝外が見えてしまう）。柵の中の地面・柵・木（幹の円柱と樹冠の球）・
         /// 盛り上がった地面（尾根）に当たれば false。
         /// </summary>
-        public static bool SeesOutside(Vector3 eye, Vector3 dir, List<Placement> belt, float maxDist, out string what)
+        public static bool SeesOutside(Vector4 fence, Vector3 eye, Vector3 dir, List<Placement> belt, float maxDist, out string what)
         {
             what = "none";
-            Vector4 f = FENCE_RECT, g = GROUND_RECT;
+            Vector4 f = fence, g = GROUND_RECT;
             for (float t = 0.25f; t < maxDist; t += 0.5f)
             {
                 Vector3 p = eye + dir * t;
@@ -156,7 +177,7 @@ namespace HorseRace.EditorTools
                     float cy = y - tr.height * 0.62f, cr = tr.radius * 0.8f;
                     if (h2 + cy * cy < cr * cr) { what = "canopy"; return false; }
                 }
-                float gh = GroundHeight(p);
+                float gh = GroundHeight(f, p);
                 if (p.y <= gh) { what = gh < 1f ? "outside flat ground" : "rim"; return gh < 1f; }
             }
             return false;

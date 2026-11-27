@@ -108,7 +108,16 @@ namespace HorseRace.EditorTools
             int fenceN = fenceT != null ? fenceT.childCount : 0, beltN = 0;
             if (beltT != null) foreach (Transform g in beltT) beltN += g.childCount;
             int expectFence = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M).Count;
-            if (fenceN < expectFence) warn.Add("ロビーの柵が " + fenceN + " 区間しかありません（" + expectFence + " 区間で一周）。切れ目から外が見えます");
+            if (fenceN < expectFence) warn.Add("ロビーの柵が " + fenceN + " 区間しかありません（" + expectFence + " 区間以上で一周）。切れ目から外が見えます");
+            // 実際の町（WesternTown）が柵の中に 8m 以上の余白で入っているか
+            Transform townT = GenUtil.FindDeep(root.transform, "WesternTown");
+            if (fenceT != null && townT != null && fenceN > 0)
+            {
+                Bounds fb = GenUtil.RendererBounds(fenceT.gameObject), tb = GenUtil.RendererBounds(townT.gameObject);
+                float m = Mathf.Min(Mathf.Min(tb.min.x - fb.min.x, fb.max.x - tb.max.x), Mathf.Min(tb.min.z - fb.min.z, fb.max.z - tb.max.z));
+                if (m < LobbyLayout.TOWN_MARGIN_M - 0.5f) warn.Add("町（WesternTown）と柵の余白が " + m.ToString("F1") + "m しかありません（8m 以上）");
+                else info.Add("ロビー：町と柵の余白 最小 " + m.ToString("F0") + "m");
+            }
             if (beltN < 300) warn.Add("ロビーの柵の外の木の帯が " + beltN + " 本しかありません（300 本以上）");
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
