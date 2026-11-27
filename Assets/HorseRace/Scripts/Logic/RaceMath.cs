@@ -66,6 +66,29 @@ namespace HorseRace
             return 0;
         }
 
+        /// <summary>Seconds until the stage ends (the earlier of the hard limit and 60 s after the first finish). Never negative.</summary>
+        public static float RemainingSeconds(double serverNow, double stageStart, double firstFinishAt)
+        {
+            double end = stageStart + STAGE_HARD_LIMIT;
+            if (firstFinishAt >= 0.0)
+            {
+                double afterFirst = firstFinishAt + AFTER_FIRST_FINISH;
+                if (afterFirst < end) end = afterFirst;
+            }
+            double left = end - serverNow;
+            if (left < 0.0) return 0f;
+            return (float)left;
+        }
+
+        /// <summary>"m:ss", rounding up so the clock reads 0:00 only when time is over. Negative shows 0:00.</summary>
+        public static string FormatClock(float seconds)
+        {
+            int total = seconds > 0f ? UnityEngine.Mathf.CeilToInt(seconds) : 0;
+            int m = total / 60;
+            int s = total % 60;
+            return m.ToString() + ":" + (s < 10 ? "0" : "") + s.ToString();
+        }
+
         public static bool CanEnterStage(int raceState)
         {
             return raceState == STATE_LOBBY || raceState == STATE_STAGE_RESULT;
