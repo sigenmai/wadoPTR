@@ -45,6 +45,8 @@ namespace UnityEngine
         public static Quaternion Euler(float x, float y, float z) => identity;
         public static Quaternion Euler(Vector3 euler) => identity;
         public static Quaternion AngleAxis(float angle, Vector3 axis) => identity;
+        public static Quaternion LookRotation(Vector3 forward) => identity;
+        public static Quaternion LookRotation(Vector3 forward, Vector3 upwards) => identity;
         public static Quaternion Slerp(Quaternion a, Quaternion b, float t) => a;
         public static Quaternion Lerp(Quaternion a, Quaternion b, float t) => a;
         public static Quaternion Inverse(Quaternion q) => q;
@@ -106,7 +108,7 @@ namespace UnityEngine
 
     public enum QueryTriggerInteraction { UseGlobal = 0, Ignore = 1, Collide = 2 }
 
-    public enum KeyCode { None = 0, Space = 32, E = 101, LeftShift = 304, RightShift = 303 }
+    public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, LeftShift = 304, RightShift = 303 }
 
     public class Object
     {
@@ -155,6 +157,8 @@ namespace UnityEngine
         public Vector3 InverseTransformDirection(Vector3 direction) => direction;
         public Vector3 TransformDirection(Vector3 direction) => direction;
         public void SetPositionAndRotation(Vector3 position, Quaternion rotation) { }
+        public void Rotate(float xAngle, float yAngle, float zAngle) { }
+        public void SetParent(Transform parent) { }
     }
 
     public class Behaviour : Component
@@ -198,6 +202,8 @@ namespace UnityEngine
         public static bool Raycast(Vector3 origin, Vector3 direction, out RaycastHit hitInfo, float maxDistance) { hitInfo = default; return false; }
         public static bool Raycast(Vector3 origin, Vector3 direction, out RaycastHit hitInfo, float maxDistance, int layerMask) { hitInfo = default; return false; }
         public static bool Raycast(Vector3 origin, Vector3 direction, out RaycastHit hitInfo, float maxDistance, int layerMask, QueryTriggerInteraction queryTriggerInteraction) { hitInfo = default; return false; }
+        public static RaycastHit[] SphereCastAll(Vector3 origin, float radius, Vector3 direction, float maxDistance, int layerMask, QueryTriggerInteraction queryTriggerInteraction) => new RaycastHit[0];
+        public static Collider[] OverlapSphere(Vector3 position, float radius, int layerMask, QueryTriggerInteraction queryTriggerInteraction) => new Collider[0];
     }
 
     public static class Time
@@ -218,6 +224,8 @@ namespace UnityEngine
         public static bool GetButtonDown(string buttonName) => false;
         public static float GetAxis(string axisName) => 0f;
         public static float GetAxisRaw(string axisName) => 0f;
+        public static bool GetMouseButton(int button) => false;
+        public static bool GetMouseButtonDown(int button) => false;
     }
 
     public static class Debug
@@ -235,6 +243,21 @@ namespace UnityEngine
         public Material sharedMaterial { get; set; }
         public Material material { get; set; }
         public Material[] sharedMaterials { get; set; }
+    }
+
+    public class LineRenderer : Renderer
+    {
+        public int positionCount { get; set; }
+        public void SetPosition(int index, Vector3 position) { }
+    }
+
+    public class ParticleSystem : Component
+    {
+        public bool isPlaying => false;
+        public void Play() { }
+        public void Stop() { }
+        public void Clear() { }
+        public void Emit(int count) { }
     }
 
     public class RuntimeAnimatorController : Object
@@ -301,6 +324,9 @@ namespace UnityEngine
 
     [AttributeUsage(AttributeTargets.Field)]
     public class SerializeField : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Field)]
+    public class HideInInspector : Attribute { }
 
     [AttributeUsage(AttributeTargets.Field)]
     public class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }

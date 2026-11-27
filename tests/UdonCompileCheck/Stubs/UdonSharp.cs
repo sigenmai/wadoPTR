@@ -48,6 +48,10 @@ namespace UdonSharp
         public virtual void OnPlayerTriggerExit(VRCPlayerApi player) { }
         public virtual void OnStationEntered(VRCPlayerApi player) { }
         public virtual void OnStationExited(VRCPlayerApi player) { }
+        public virtual void OnPickup() { }
+        public virtual void OnDrop() { }
+        public virtual void OnPickupUseDown() { }
+        public virtual void OnPickupUseUp() { }
         public virtual void InputJump(bool value, UdonInputEventArgs args) { }
         public virtual void InputUse(bool value, UdonInputEventArgs args) { }
         public virtual void InputGrab(bool value, UdonInputEventArgs args) { }

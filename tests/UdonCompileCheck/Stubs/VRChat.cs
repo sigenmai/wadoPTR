@@ -53,6 +53,11 @@ namespace VRC.SDKBase
     public class VRC_Pickup : MonoBehaviour
     {
         public enum PickupHand { None = 0, Left = 1, Right = 2 }
+        public bool pickupable = true;
+        public bool IsHeld => false;
+        public PickupHand currentHand => PickupHand.None;
+        public VRCPlayerApi currentPlayer => null;
+        public void Drop() { }
     }
 
     /// <summary>Mirrors VRC.SDKBase.VRCStation (abstract base of VRC.SDK3.Components.VRCStation).</summary>
