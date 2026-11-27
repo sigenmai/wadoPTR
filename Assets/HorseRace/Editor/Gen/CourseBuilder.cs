@@ -11,9 +11,9 @@ namespace HorseRace.EditorTools
     {
         public const float CP_WIDTH = 36f, CP_HEIGHT = 10f, CP_DEPTH = 4f;
         public const float BOARD_SIDE = 15f;     // 黒板はコース中心から右へ 15m（平らな道 ±12m の外）
-        public const float GATE_HALF = 13f;
-        public const float PEN_RADIUS = 12f;
-        public const float PEN_BACK = 14f;       // 囲いの中心 = 流しの終点の 14m 手前
+        public const float GATE_HALF = CourseGeometry.GATE_HALF;
+        public const float PEN_RADIUS = CourseGeometry.PEN_RADIUS;
+        public const float PEN_BACK = CourseGeometry.PEN_BACK;   // 囲いの中心 = 流しの終点の 14m 手前
         public const int BOARD_EVERY = 3;        // 黒板は CP3・CP6・…とゴール
 
         static readonly Color Wood = new Color(0.45f, 0.30f, 0.18f);
