@@ -29,6 +29,11 @@ namespace UdonSharp
         public void RequestSerialization() { }
         public void SendCustomEvent(string eventName) { }
         public void SendCustomNetworkEvent(NetworkEventTarget target, string eventName) { }
+        // UdonSharp 1.2 / VRChat SDK 3.8+: network events with parameters (receiver must be [NetworkCallable]).
+        public void SendCustomNetworkEvent(NetworkEventTarget target, string eventName, object parameter0) { }
+        public void SendCustomNetworkEvent(NetworkEventTarget target, string eventName, object parameter0, object parameter1) { }
+        public void SendCustomNetworkEvent(NetworkEventTarget target, string eventName, object parameter0, object parameter1, object parameter2) { }
+        public void SendCustomNetworkEvent(NetworkEventTarget target, string eventName, object parameter0, object parameter1, object parameter2, object parameter3) { }
         public void SendCustomEventDelayedSeconds(string eventName, float delaySeconds, EventTiming eventTiming = EventTiming.Update) { }
         public void SendCustomEventDelayedFrames(string eventName, int delayFrames, EventTiming eventTiming = EventTiming.Update) { }
 
@@ -39,6 +44,8 @@ namespace UdonSharp
         public virtual void OnOwnershipTransferred(VRCPlayerApi player) { }
         public virtual void OnPlayerJoined(VRCPlayerApi player) { }
         public virtual void OnPlayerLeft(VRCPlayerApi player) { }
+        public virtual void OnPlayerTriggerEnter(VRCPlayerApi player) { }
+        public virtual void OnPlayerTriggerExit(VRCPlayerApi player) { }
         public virtual void OnStationEntered(VRCPlayerApi player) { }
         public virtual void OnStationExited(VRCPlayerApi player) { }
         public virtual void InputJump(bool value, UdonInputEventArgs args) { }

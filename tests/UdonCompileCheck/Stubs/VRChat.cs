@@ -22,12 +22,19 @@ namespace VRC.SDKBase
 
         public static bool IsValid(VRCPlayerApi player) => player != null;
         public static VRCPlayerApi GetPlayerById(int playerId) => null;
+        public static int GetPlayerCount() => 0;
+        public static VRCPlayerApi[] GetPlayers(VRCPlayerApi[] players) => players;
         public bool IsValid() => true;
         public bool IsUserInVR() => false;
         public TrackingData GetTrackingData(TrackingDataType tt) => default;
         public Vector3 GetPosition() => Vector3.zero;
         public Quaternion GetRotation() => Quaternion.identity;
         public void TeleportTo(Vector3 teleportPos, Quaternion teleportRot) { }
+        public void SetVoiceDistanceNear(float near) { }
+        public void SetVoiceDistanceFar(float far) { }
+        public void SetVoiceGain(float gain) { }
+        public void SetVoiceLowpass(bool enabled) { }
+        public void SetVoiceVolumetricRadius(float radius) { }
         public void PlayHapticEventInHand(VRC_Pickup.PickupHand hand, float duration, float amplitude, float frequency) { }
     }
 
@@ -101,5 +108,24 @@ namespace VRC.Udon.Common.Enums
 
 namespace VRC.Udon.Common.Interfaces
 {
-    public enum NetworkEventTarget { All = 0, Owner = 1 }
+    public enum NetworkEventTarget { All = 0, Owner = 1, Others = 2, Self = 3 }
+}
+
+namespace VRC.SDK3.UdonNetworkCalling
+{
+    /// <summary>Mirrors VRC.SDK3.UdonNetworkCalling.NetworkCallableAttribute (SDK 3.8+): marks a method callable by network events with parameters.</summary>
+    [System.AttributeUsage(System.AttributeTargets.Method)]
+    public class NetworkCallableAttribute : System.Attribute
+    {
+        public int MaxEventsPerSecond { get; }
+        public NetworkCallableAttribute() { MaxEventsPerSecond = 5; }
+        public NetworkCallableAttribute(int maxEventsPerSecond) { MaxEventsPerSecond = maxEventsPerSecond; }
+    }
+
+    /// <summary>Mirrors VRC.SDK3.UdonNetworkCalling.NetworkCalling (SDK 3.8+).</summary>
+    public static class NetworkCalling
+    {
+        public static VRC.SDKBase.VRCPlayerApi CallingPlayer => null;
+        public static bool InNetworkCall => false;
+    }
 }
