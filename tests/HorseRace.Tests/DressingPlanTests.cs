@@ -182,23 +182,25 @@ namespace HorseRace.Tests
 
         static List<Placement> Lobby()
         {
-            var ex = new List<Vector4> { new Vector4(0, 0, -2, 22), new Vector4(72, 0, -12, 32), new Vector4(-50, 0, -10, 26) };
-            return DressingPlan.ForLobby(new Vector2(-41, 25), new Vector2(41, 189), ex, 5);
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            return DressingPlan.ForLobby(new Vector2(t.x, t.y), new Vector2(t.z, t.w), LobbyLayout.LobbyDressingExclusions(), 5);
         }
 
+        /// <summary>ロビーの飾りは町と柵の間の帯だけ：町の中（通り・広場・練習場）にも、南の入口の前にも置かない。</summary>
         [Test] public void LobbyEdgesFilledOutsideTown()
         {
             var l = Lobby();
             TestContext.WriteLine($"lobby: {l.Count}");
-            Assert.That(l.Count, Is.InRange(100, DressingPlan.MAX_LOBBY));
+            Assert.That(l.Count, Is.InRange(50, DressingPlan.MAX_LOBBY));
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            var f = LobbyLayout.FENCE_RECT;
             foreach (var p in l)
             {
-                bool inside = p.position.x > -41 && p.position.x < 41 && p.position.z > 25 && p.position.z < 189;
-                Assert.IsFalse(inside);
-                Assert.Greater(WorldLayout.DistXZ(p.position, new Vector3(0, 0, -2)), 22f);
-                // 柵の中（3m 内側）
-                var f = LobbyLayout.FENCE_RECT;
-                Assert.That(p.position.x, Is.InRange(f.x + 3f, f.z - 3f)); Assert.That(p.position.z, Is.InRange(f.y + 3f, f.w - 3f));
+                // 町の外形（+1m）の外、柵の中
+                Assert.Greater(WorldBounds.DistToRect(p.position, t), 1f - 1e-3f, p.asset + " " + p.position);
+                Assert.That(p.position.x, Is.InRange(f.x, f.z)); Assert.That(p.position.z, Is.InRange(f.y, f.w));
+                // 南の辺（広場の前）には置かない
+                Assert.IsFalse(p.position.z < t.y && Mathf.Abs(p.position.x) < 40f, "南の入口の前: " + p.asset + " " + p.position);
             }
             var counts = DressingPlan.CountByAsset(l);
             foreach (string a in DressingPlan.LobbyThemeAssets) Assert.IsTrue(counts.ContainsKey(a), a);

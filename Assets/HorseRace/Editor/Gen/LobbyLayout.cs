@@ -5,29 +5,107 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ロビーの柵と外を隠す木の帯（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。座標はロビー中心からの相対（m）。
-    ///   柵：FENCE_RECT（町・広場・たまり場・掲示板・練習場をすべて含む、町くらいの大きさの長方形）を一周する木の柵（FarmProps_03 を高さ ×1.6、柱の間隔 ≤ 2.74m）。
+    ///   柵：FENCE_RECT（町の外形 + 8m。広場・たまり場・掲示板・練習場はすべて町の中）を一周する木の柵（FarmProps_03 を高さ ×1.6、柱の間隔 ≤ 2.74m）。
     ///       練習場も柵の中なので出入口（Gates）は無し＝外へ出る切れ目は無い（必要になったら Gates に足す）。
     ///   外：柵のすぐ外の地面は OUT_SLOPE で盛り上がり（OUT_RISE_MAX まで）、その先は外周の尾根。柵の外 3〜10m に木の帯（3 列・互い違い）。
     ///   → 柵の中の目の高さ（1.6〜3.2m）から水平〜少し下向きに見ると、見えるのは柵・木・盛り上がった地面（尾根）・空だけ（VisibilityRay でテスト）。
     /// </summary>
     public static class LobbyLayout
     {
+        /// <summary>町の外形（ロビー中心からの相対。Blender で FBX を測った値 81.17m × 164.38m を、南端 z = 25・東西の中心 x = 0 に置いたとき）。
+        /// 実際の外形は LobbyBuilder が測り、柵が足りなければ広げる。</summary>
+        public static readonly Vector4 TOWN_NOMINAL_RECT = new Vector4(-40.59f, 25f, 40.59f, 189.38f);
+        public const float TOWN_MARGIN_M = 8f;
         /// <summary>
-        /// 柵の長方形（minX, minZ, maxX, maxZ）。ロビー全体を西部の町（WesternTown 約 82m × 164m、x ±41・z 25〜189）くらいの大きさに：
-        /// 西 = 町 −41 から 14m（柵の馬・厩舎）、北 = 町の北端 189 + 8m、南 = 広場・たまり場・待機場所の 9m 南、東 = 練習場の東端 + 8m。
-        /// 約 163m × 255m（約 4.2 万 m²）。実際の町が入らなければ FitFenceRect で広げる。
+        /// 柵の長方形（minX, minZ, maxX, maxZ）。ロビー全体 = 西部の町（WesternTown、Blender で測った外形 81.2m × 164.4m、x ±40.6・z 25〜189.4）
+        /// ＋ 四方に TOWN_MARGIN_M（8m）。約 97m × 180m（約 1.75 万 m²）。広場・柵の馬・たまり場・練習場はすべて町の中の空き地にある。
+        /// 実際の町が入らなければ FitFenceRect で広げる。
         /// </summary>
-        public static readonly Vector4 FENCE_RECT = new Vector4(-55f, -58f, 108f, 197f);
+        public static readonly Vector4 FENCE_RECT = new Vector4(TOWN_NOMINAL_RECT.x - TOWN_MARGIN_M, TOWN_NOMINAL_RECT.y - TOWN_MARGIN_M,
+            TOWN_NOMINAL_RECT.z + TOWN_MARGIN_M, TOWN_NOMINAL_RECT.w + TOWN_MARGIN_M);   // (-48.59, 17, 48.59, 197.38)
         /// <summary>柵から地面（Terrain）の端までの幅：柵の外の盛り上がり＋木の帯＋外周の尾根（RIM_WIDTH_M）が入る。</summary>
         public const float GROUND_BORDER_M = 38f;
         /// <summary>ロビーの地面（Terrain、長方形）の範囲 = 柵を GROUND_BORDER_M 広げたもの。</summary>
         public static readonly Vector4 GROUND_RECT = new Vector4(FENCE_RECT.x - GROUND_BORDER_M, FENCE_RECT.y - GROUND_BORDER_M,
             FENCE_RECT.z + GROUND_BORDER_M, FENCE_RECT.w + GROUND_BORDER_M);
-        /// <summary>想定の町の外形（ロビー中心からの相対）。実際の外形は LobbyBuilder が測り、柵が足りなければ広げる。</summary>
-        public static readonly Vector4 TOWN_NOMINAL_RECT = new Vector4(-41f, 25f, 41f, 189f);
-        /// <summary>練習場：町の東、広場・たまり場の隣（中心はロビー中心からの相対、半径 = トリガーの箱の内接円）。</summary>
-        public static readonly Vector3 PRACTICE_CENTER = new Vector3(72f, 0f, -12f);
-        public const float PRACTICE_RADIUS_M = 28f;
+        /// <summary>
+        /// 町の奥の見えない壁（z、町の南端 25 のとき）。町の模型には z ≈ 140〜141 に東西いっぱいの木の柵（高さ約 2m）があり、
+        /// その北（教会の裏の空き地・岩山）は背景専用：柵のすぐ北に見えない壁を置いて、柵の両端の隙間と岩山へ行けないようにする。
+        /// </summary>
+        public const float TOWN_BACK_Z = 141.5f;
+
+        // ---- 町の中の配置（ロビー中心からの相対 m、町の南端 z = 25・通りの高さ y = 0）。Blender で測った町の空き地（建物・岩・サボテン・起伏の無い所）----
+        // 広場＝町の南の入口（x -29〜-7、z 25〜48 の空き地）
+        public static readonly Vector3 SPAWN = new Vector3(-11.5f, 0f, 30f);            // 北（受付）を向く
+        public static readonly Vector3 LEDGER_DESK = new Vector3(-11.5f, 0f, 40.5f);    // 受付カウンター（南＝スポーンを向く）
+        public static readonly Vector3 WANTED_WALL = new Vector3(-22f, 0f, 36.5f);      // 手配書の壁（幅 6m、南を向く。背中は岩）
+        public static readonly Vector3 START_BELL = new Vector3(-20f, 0f, 29.5f);       // スタート台（3m 四方）と鐘
+        public static readonly Vector3 HUD_LEVER = new Vector3(-8f, 0f, 29f);           // 補助表示のレバー
+        // 西の空き地（西の建物の列 x ≤ -14.6 と町の西の端 x -36 の間）
+        public static readonly Vector3 PARKING_FIRST = new Vector3(-33.5f, 0f, 37f);   // 乗り物の待機場所 ×8（北へ PARKING_STEP ずつ、東を向く）
+        public const float PARKING_STEP = 2.3f;
+        public static readonly Vector3 CORRAL_FIRST = new Vector3(-21f, 0f, 47.5f);    // 柵の馬 ×7（北へ CORRAL_STEP ずつ、東を向く）
+        public const float CORRAL_STEP = 2.2f;
+        public static readonly Vector3 HANGOUT_FIRE = new Vector3(-25f, 0f, 72.5f);    // たまり場の焚き火（ベンチは半径 3.2m）
+        public static readonly Vector3 NOTICE_BOARDS = new Vector3(-25f, 0f, 80f);     // 掲示板 3 枚（東西に 6m ずつ、南＝焚き火を向く）
+        public static readonly Vector3 LAST_RACE_BOARD = new Vector3(-33.5f, 0f, 72.5f); // 前回レースの黒板（焚き火から西を見て読む）
+        public static readonly Vector3 TOWN_CRIER = new Vector3(-17.5f, 0f, 71.5f);    // 新聞売り（西＝焚き火を向く）
+        public static readonly Vector3 SPARE_POOL = new Vector3(-32.5f, 0f, 125f);     // 予備の遺物 ×4（北へ 4m ずつ、普段は出ていない）
+        /// <summary>厩舎（背景専用）：町の奥の柵（z 140）の北、見えない壁の向こう。14m × 6m、正面は南。</summary>
+        public static readonly Vector3 STABLE = new Vector3(-29f, 0f, 148.5f);
+
+        /// <summary>
+        /// 練習場：町の東の線路の東（北東の空き地、給水塔のまわり）。長方形（minX, minZ, maxX, maxZ）＝トリガーの箱。
+        /// 南の端に練習用の馬の杭（広場から線路沿いに北へ来て最初に着く所）、ジャンプ台（北へ跳ぶ）、カカシ、北の端に小さな丘。
+        /// </summary>
+        public static readonly Vector4 PRACTICE_RECT = new Vector4(19f, 87f, 36f, 140f);
+        public static Vector3 PRACTICE_CENTER => new Vector3((PRACTICE_RECT.x + PRACTICE_RECT.z) * 0.5f, 0f, (PRACTICE_RECT.y + PRACTICE_RECT.w) * 0.5f);
+        /// <summary>練習用の馬に乗ったまま練習場の外へ出たと見なす距離（中心から、箱の角 ≈ 27.8m より少し大きく）。</summary>
+        public static float PracticeReleaseRadius => 0.5f * Mathf.Sqrt((PRACTICE_RECT.z - PRACTICE_RECT.x) * (PRACTICE_RECT.z - PRACTICE_RECT.x)
+            + (PRACTICE_RECT.w - PRACTICE_RECT.y) * (PRACTICE_RECT.w - PRACTICE_RECT.y)) + 3f;
+        public static readonly Vector3 PRACTICE_POST_FIRST = new Vector3(23.5f, 0f, 90.5f);   // 杭 ×2（北へ 4.5m、馬はその 2.5m 東）
+        public static readonly Vector3 PRACTICE_JUMP = new Vector3(29f, 0f, 101f);           // ジャンプ台（6m × 6.2m、15°、北へ上る。着地は z 104〜117）
+        public static readonly Vector3 PRACTICE_BUMP = new Vector3(25.5f, 0f, 132f);         // 小さな丘（7m 四方を 45° 回した低い台、上面 0.45m）
+        public static readonly Vector3 PRACTICE_DUMMY_1 = new Vector3(23.5f, 0f, 111f);
+        public static readonly Vector3 PRACTICE_DUMMY_2 = new Vector3(33f, 0f, 129f);
+        public static readonly Vector3 PRACTICE_RELIC = new Vector3(33f, 0f, 108f);
+
+        /// <summary>ロビーの飾り（DressingPlan.ForLobby）を置かない円（x, _, z, 半径）：南の入口の前（町の南の辺と柵の間＝広場への入口）。
+        /// 遊びに使う物はすべて町の中（飾りは町の外形の外だけ）なので、それ以外の円は要らない。</summary>
+        public static List<Vector4> LobbyDressingExclusions() => new List<Vector4> { new Vector4(0f, 0f, TOWN_NOMINAL_RECT.y - 4f, 44f) };
+
+        /// <summary>遊びに使う物の位置と半径（テストで「柵の中・町の建物の外」を確かめる）。</summary>
+        public static List<KeyValuePair<string, Vector4>> FunctionalSpots()
+        {
+            var l = new List<KeyValuePair<string, Vector4>>();
+            void Add(string n, Vector3 p, float r) => l.Add(new KeyValuePair<string, Vector4>(n, new Vector4(p.x, 0f, p.z, r)));
+            Add("Spawn", SPAWN, 1f);
+            Add("LedgerDesk", LEDGER_DESK, 2.5f);
+            for (int i = -1; i <= 1; i++) Add("WantedWall_" + (i + 1), WANTED_WALL + new Vector3(i * 2.1f, 0f, 0f), 1.2f);   // 幅 6.2m・厚さ 0.2m の板
+            Add("StartBell", START_BELL, 2.2f);
+            Add("HudLever", HUD_LEVER, 0.6f);
+            for (int i = 0; i < 8; i++) Add("Parking_" + i, PARKING_FIRST + new Vector3(0f, 0f, i * PARKING_STEP), 1.4f);
+            for (int i = 0; i < 7; i++) Add("Picker_" + i, CORRAL_FIRST + new Vector3(0f, 0f, i * CORRAL_STEP), 1.4f);
+            Add("CorralFenceS", CORRAL_FIRST + new Vector3(-3.5f, 0f, -1.5f), 0.3f);
+            Add("CorralFenceN", CORRAL_FIRST + new Vector3(-3.5f, 0f, 6 * CORRAL_STEP + 0.8f), 0.3f);   // すぐ北にサボテン
+            Add("Campfire+Benches", HANGOUT_FIRE, 4f);
+            for (int i = -1; i <= 1; i++) Add("NoticeBoard_" + (i + 1), NOTICE_BOARDS + new Vector3(i * 6f, 0f, 0f), 2.3f);
+            Add("LastRaceBoard", LAST_RACE_BOARD, 1.5f);
+            Add("TownCrier", TOWN_CRIER, 0.6f);
+            for (int i = 0; i < 4; i++) Add("SpareRelic_" + i, SPARE_POOL + new Vector3(0f, 0f, -6f + i * 4f), 0.8f);
+            for (int i = 0; i < 2; i++)
+            {
+                Add("PracticePost_" + i, PRACTICE_POST_FIRST + new Vector3(0f, 0f, i * 4.5f), 0.5f);
+                Add("PracticeHome_" + i, PRACTICE_POST_FIRST + new Vector3(2.5f, 0f, i * 4.5f), 1.4f);
+            }
+            Add("PracticeJump", PRACTICE_JUMP, 4.4f);
+            Add("PracticeBump", PRACTICE_BUMP, 5f);
+            Add("PracticeDummy_1", PRACTICE_DUMMY_1, 0.8f);
+            Add("PracticeDummy_2", PRACTICE_DUMMY_2, 0.8f);
+            Add("PracticeRelic", PRACTICE_RELIC, 0.8f);
+            return l;
+        }
+
         public const float FENCE_PIECE_M = 2.74f;        // FarmProps_03 の長さ（両端に柱）
         public const float FENCE_SCALE_Y = 1.6f;         // 0.98m × 1.6 ≈ 1.57m
         public const float FENCE_HEIGHT_M = 0.98f * FENCE_SCALE_Y;
@@ -88,7 +166,6 @@ namespace HorseRace.EditorTools
             return r;
         }
 
-        public const float TOWN_MARGIN_M = 8f;
         /// <summary>柵を広げてよい最大（ロビーの地面の端から 14m：木の帯 3 列が尾根の斜面に乗り、地面の端より内側に収まる）。
         /// 地面は柵＋38m なので、町は各辺 24m までなら広げた柵に収まる。</summary>
         public const float FENCE_MAX_INSET_M = 14f;
@@ -101,8 +178,10 @@ namespace HorseRace.EditorTools
         /// </summary>
         public static Vector4 FitFenceRect(Vector4 baseRect, Vector4 town, float margin, out bool grown, out bool fits)
         {
-            var r = new Vector4(Mathf.Min(baseRect.x, town.x - margin), Mathf.Min(baseRect.y, town.y - margin),
-                Mathf.Max(baseRect.z, town.z + margin), Mathf.Max(baseRect.w, town.w + margin));
+            // 0.1m までの差（測った外形の丸め・浮動小数の誤差）では広げない
+            const float TOL = 0.1f;
+            var r = new Vector4(town.x - margin < baseRect.x - TOL ? town.x - margin : baseRect.x, town.y - margin < baseRect.y - TOL ? town.y - margin : baseRect.y,
+                town.z + margin > baseRect.z + TOL ? town.z + margin : baseRect.z, town.w + margin > baseRect.w + TOL ? town.w + margin : baseRect.w);
             grown = r.x != baseRect.x || r.y != baseRect.y || r.z != baseRect.z || r.w != baseRect.w;
             var m = FENCE_MAX_RECT;
             fits = r.x >= m.x && r.y >= m.y && r.z <= m.z && r.w <= m.w;

@@ -33,7 +33,7 @@ namespace HorseRace.EditorTools
     {
         public const int MAX_PER_STAGE = 800;      // Task 11d：木を増やした（静的バッチング＋トゥーンの GPU インスタンシング前提）
         public const int MIN_PER_STAGE = 450;
-        public const int MAX_LOBBY = 300;          // 木の帯（LobbyLayout.TreeBelt）と柵は別に数える（ロビーを町くらいに縮めたので 450 → 300）
+        public const int MAX_LOBBY = 150;          // 木の帯（LobbyLayout.TreeBelt）と柵は別に数える（ロビー＝町だけ、飾りは町と柵の間の 8m の帯だけなので 300 → 150）
         public const float LARGE_MIN_H = 1.6f;     // 「大きな飾り」の高さ。これ未満は小物（まとまりの中だけ、1 ステージの 25% まで）
         public const float SMALL_SHARE_MAX = 0.25f;
         public const float BAND_WINDOW_M = 100f;   // 道沿いの帯：コース 100m ごとに
@@ -42,7 +42,7 @@ namespace HorseRace.EditorTools
         public const float TREE_SCALE_MIN = 0.8f, TREE_SCALE_MAX = 1.4f;
         public const int OASIS_TREES = 25;
         // テーマごとの木の最少本数（テストで確認）
-        public const int MIN_DEAD_TREES_CANYON = 90, MIN_DEAD_TREES_DUNES = 30, MIN_TREES_BORDER = 120, MIN_TREES_LOBBY = 30;
+        public const int MIN_DEAD_TREES_CANYON = 90, MIN_DEAD_TREES_DUNES = 30, MIN_TREES_BORDER = 120, MIN_TREES_LOBBY = 20;
         public const float ROAD_CLEAR = 18f;       // 散らす飾り：道の中心から（足元の半径込み）
         public const float ROAD_MIN = 13f;         // 道沿いに意図して置くもの（柵・町の建物）：平らな道 ±12m の外
         public const float REACHABLE_M = 60f;      // これより遠い飾りには Collider を付けない（コース外リセットで届かない）
@@ -393,8 +393,11 @@ namespace HorseRace.EditorTools
 
             public float RoadDist(Vector3 p) => course == null ? float.MaxValue : WorldLayout.DistToPolylineXZ(p, course);
 
-            public bool Allowed(Vector3 p, float r, float minRoad, bool ignoreCircles)
+            /// <summary>rBounds ≥ 0 なら範囲・置かない長方形・円はその半径で調べる（木の枝が柵や町の縁にかかってよいとき）。重なりは r で調べる。</summary>
+            public bool Allowed(Vector3 p, float r, float minRoad, bool ignoreCircles, float rBounds = -1f)
             {
+                float rr = r;
+                if (rBounds >= 0f) r = rBounds;
                 if (p.x - r < minX || p.x + r > maxX || p.z - r < minZ || p.z + r > maxZ) return false;
                 if (RoadDist(p) - r < minRoad) return false;
                 if (!ignoreCircles)
@@ -402,6 +405,7 @@ namespace HorseRace.EditorTools
                         if (WorldLayout.DistXZ(p, new Vector3(c.x, 0f, c.z)) < c.w + r) return false;
                 if (capR > 0f && WorldLayout.DistToSegmentXZ(p, capA, capB) < capR + r) return false;
                 if (hasRect && p.x + r > rectMin.x && p.x - r < rectMax.x && p.z + r > rectMin.y && p.z - r < rectMax.y) return false;
+                r = rr;
                 if (r >= 1.5f)
                     foreach (var q in list)
                         if (q.radius >= 1.5f && WorldLayout.DistXZ(p, q.position) < 0.75f * (r + q.radius)) return false;
@@ -410,12 +414,12 @@ namespace HorseRace.EditorTools
 
             /// <summary>置けたら true。</summary>
             public bool Add(string group, string asset, string part, Vector3 p, float yaw, float scale, float sink,
-                float minRoad = ROAD_CLEAR, bool trunk = false, bool background = false, float roll = 0f, bool ignoreCircles = false)
+                float minRoad = ROAD_CLEAR, bool trunk = false, bool background = false, float roll = 0f, bool ignoreCircles = false, float rBounds = -1f)
             {
                 if (list.Count >= budget) return false;
                 Size s = SizeOf(asset, part);
                 float r = s.r * scale, hh = s.h * scale;
-                if (!Allowed(p, r, minRoad, ignoreCircles)) return false;
+                if (!Allowed(p, r, minRoad, ignoreCircles, rBounds)) return false;
                 float y = Ground(p.x, p.z);
                 for (int i = 0; i < 4; i++)
                 {
@@ -905,27 +909,32 @@ namespace HorseRace.EditorTools
 
         /// <summary>
         /// ロビーの町のまわりの飾り（位置はロビー中心からの相対 m、地面 y = 0）。townMin/townMax は町の外形（x/z）、
-        /// exclusions は広場の設備など置かない円（x, _, z, 半径）。町の外周 4〜8m 外を一周、9m ごとに小さな山（木箱・樽・干し草・薪・柵・草）。
+        /// exclusions は置かない円（x, _, z, 半径）。ロビー全体＝町（柵は町の外形 + 8m）なので、飾りは町と柵の間の 8m の帯だけ：
+        ///   東・西・北の辺の 3〜5m 外に 12m ごとの小さな山（木箱・樽・干し草・薪・柵・草）。南の辺（広場の前）には置かない。
+        ///   木：北の辺（岩山の裏）に 9m ごと、東・西の辺は町の奥の壁（LobbyLayout.TOWN_BACK_Z）より北に 12m ごと。
+        /// 町の中（通り・広場・練習場）には何も置かない。
         /// </summary>
         public static List<Placement> ForLobby(Vector2 townMin, Vector2 townMax, List<Vector4> exclusions, int seed)
         {
             var w = new Work
             {
                 course = null, h = null, sizeM = 0f, budget = MAX_LOBBY,
-                // ロビーの柵（LobbyLayout.FENCE_RECT）の 3m 内側
-                minX = LobbyLayout.FENCE_RECT.x + 3f, maxX = LobbyLayout.FENCE_RECT.z - 3f,
-                minZ = LobbyLayout.FENCE_RECT.y + 3f, maxZ = LobbyLayout.FENCE_RECT.w - 3f,
+                // ロビーの柵（LobbyLayout.FENCE_RECT）の 0.5m 内側まで（木の枝は柵にかかってよい）
+                minX = LobbyLayout.FENCE_RECT.x + 0.5f, maxX = LobbyLayout.FENCE_RECT.z - 0.5f,
+                minZ = LobbyLayout.FENCE_RECT.y + 0.5f, maxZ = LobbyLayout.FENCE_RECT.w - 0.5f,
                 rng = new System.Random(seed), hasRect = true,
                 rectMin = new Vector2(townMin.x - 1f, townMin.y - 1f), rectMax = new Vector2(townMax.x + 1f, townMax.y + 1f),
             };
             if (exclusions != null) w.circles.AddRange(exclusions);
-            float perim = 2f * ((townMax.x - townMin.x) + (townMax.y - townMin.y));
-            int n = Mathf.FloorToInt(perim / 9f);
+            float wdt = townMax.x - townMin.x, dep = townMax.y - townMin.y;
+            float perim = 2f * (wdt + dep);
+            int n = Mathf.FloorToInt(perim / 12f);
             for (int i = 0; i < n; i++)
             {
                 float d = i * perim / n;
+                if (d < wdt) continue;   // 南の辺（広場の前）は空ける
                 Vector3 p; float yaw;
-                PerimeterPoint(townMin, townMax, d, w.Rand(4f, 8f), out p, out yaw);
+                PerimeterPoint(townMin, townMax, d, w.Rand(3f, 5f), out p, out yaw);
                 int kind = i % 5;
                 string G = "TownEdge";
                 if (kind == 0)
@@ -936,13 +945,13 @@ namespace HorseRace.EditorTools
                 else if (kind == 1)
                 {
                     w.Add(G, FARM, w.Pick(FarmCrates), p, w.Rand(0f, 360f), 1f, 0f);
-                    w.Add(G, FARM, w.Pick(FarmBarrels), w.Around(p, 2.5f), w.Rand(0f, 360f), 1f, 0f);
-                    w.Add(G, FARM, w.Pick(FarmSmall), w.Around(p, 3f), w.Rand(0f, 360f), 1f, 0f);
+                    w.Add(G, FARM, w.Pick(FarmBarrels), w.Around(p, 2f), w.Rand(0f, 360f), 1f, 0f);
+                    w.Add(G, FARM, w.Pick(FarmSmall), w.Around(p, 2.5f), w.Rand(0f, 360f), 1f, 0f);
                 }
                 else if (kind == 2)
                 {
                     w.Add(G, HAY, "HayBales_01", p, w.Rand(0f, 360f), 1f, 0f);
-                    w.Add(G, HAY, w.Pick(HayParts), w.Around(p, 3f), w.Rand(0f, 360f), 1f, 0f);
+                    w.Add(G, HAY, w.Pick(HayParts), w.Around(p, 2.5f), w.Rand(0f, 360f), 1f, 0f);
                 }
                 else if (kind == 3)
                 {
@@ -953,34 +962,26 @@ namespace HorseRace.EditorTools
                 else
                 {
                     w.Add(G, DPROPS, w.Pick(DpGrass), p, w.Rand(0f, 360f), 1f, 0f);
-                    w.Add(G, CACTI, w.Pick(CactiParts), w.Around(p, 3f), w.Rand(0f, 360f), 0.8f, 0f, trunk: true);
-                    w.Add(G, DPROPS, w.Pick(DpCacti), w.Around(p, 3f), w.Rand(0f, 360f), 1f, 0f, trunk: true);
+                    w.Add(G, CACTI, w.Pick(CactiParts), w.Around(p, 2.5f), w.Rand(0f, 360f), 0.8f, 0f, trunk: true);
+                    w.Add(G, DPROPS, w.Pick(DpCacti), w.Around(p, 2.5f), w.Rand(0f, 360f), 1f, 0f, trunk: true);
                 }
             }
-            // 木の並木：町の外周の 13〜15m 外を 10m ごと、ロビーの東西の柵の内側（柵の 12m 内側）にも
-            for (int i = 0; i < Mathf.FloorToInt(perim / 10f); i++)
-            {
-                Vector3 p; float yaw;
-                PerimeterPoint(townMin, townMax, i * 10f, w.Rand(13f, 15f), out p, out yaw);
-                if (i % 3 == 0) Tree(w, "TreeRows", ACACIA, null, p, 0f);
-                else Tree(w, "TreeRows", TREES, TreePart(w), p, 0f);
-            }
-            for (float z = w.minZ + 10f; z < w.maxZ - 10f; z += 14f)
+            // 木：町と柵の間の帯の真ん中（町の縁から 4〜5m）に、北の辺は 9m ごと、東・西の辺は 14m ごと（南の入口の前は円で除く）。
+            // 帯は 8m しかないので、枝は柵・町の縁にかかってよい（範囲は幹のまわり 1.2m で調べる）。
+            int k = 0;
+            for (float x = townMin.x + 4f; x < townMax.x - 2f; x += 9f, k++)
+                LobbyTree(w, new Vector3(x + w.Rand(-2f, 2f), 0f, townMax.y + w.Rand(4f, 5f)), k);
+            for (float z = townMin.y + 8f; z < townMax.y; z += 14f, k++)
                 for (int s2 = -1; s2 <= 1; s2 += 2)
-                {
-                    bool ac = ((int)(z / 14f)) % 2 != 0;
-                    Tree(w, "TreeRows", ac ? ACACIA : TREES, ac ? null : TreePart(w), new Vector3(s2 < 0 ? w.minX + 9f : w.maxX - 9f, 0f, z + w.Rand(-3f, 3f)), 0f);
-                }
-            // 町の横の空き地（並木と柵ぎわの列の間が 30m 以上ある側だけ）：真ん中に 18m ごとの疎らな列（練習場・広場は除外の円で避ける）
-            for (int s2 = -1; s2 <= 1; s2 += 2)
-            {
-                float avenue = s2 < 0 ? townMin.x - 15f : townMax.x + 15f, wall = s2 < 0 ? w.minX + 9f : w.maxX - 9f;
-                if (Mathf.Abs(wall - avenue) < 30f) continue;
-                float x = (avenue + wall) * 0.5f;
-                for (float z = townMin.y; z < w.maxZ - 10f; z += 18f)
-                    Tree(w, "TreeRows", TREES, TreePart(w), new Vector3(x + w.Rand(-4f, 4f), 0f, z + w.Rand(-3f, 3f)), 0f);
-            }
+                    LobbyTree(w, new Vector3(s2 < 0 ? townMin.x - w.Rand(4f, 5f) : townMax.x + w.Rand(4f, 5f), 0f, z + w.Rand(-2f, 2f)), k + s2);
             return w.list;
+        }
+
+        static void LobbyTree(Work w, Vector3 p, int k)
+        {
+            bool ac = ((k % 3) + 3) % 3 == 0;
+            w.Add("TreeRows", ac ? ACACIA : TREES, ac ? null : TreePart(w), p, w.Rand(0f, 360f), w.Rand(TREE_SCALE_MIN, TREE_SCALE_MAX), 0.2f,
+                ROAD_CLEAR, trunk: true, rBounds: 1.2f);
         }
 
         static Vector3 Offset(Vector3 p, float yaw, float d)

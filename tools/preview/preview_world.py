@@ -242,6 +242,7 @@ def lobby_h(x, z):
     dx = max(FR[0] - x, 0, x - FR[2]); dz = max(FR[1] - z, 0, z - FR[3])
     d = math.hypot(dx, dz)
     h = min(12.0, 0.6 * d)
+    if -39.6 < x < 39.6 and 26 < z < 188.4: return -1.0   # 町の足元は 1m 下げる（LobbyBuilder と同じ。通りとちらつかない）
     e = min(x - GR[0], GR[2] - x, z - GR[1], GR[3] - z)
     if e < 30: h += (1 - e / 30) * 22
     return h
@@ -259,14 +260,33 @@ og = bpy.data.objects.new("LobbyGround", me); sc.collection.objects.link(og)
 og.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
 for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
     o.location = lob + Vector((0, 107, -13.7))   # 町の南端をロビー中心 +25m（LobbyBuilder と同じ）
-PC = W['practice']
-bpy.ops.mesh.primitive_cylinder_add(radius=PC[2], depth=0.1, location=(lob.x + PC[0], lob.y + PC[1], 0.05))
-bpy.context.active_object.data.materials.append(mat_color('Practice', srgb2lin((0.72, 0.56, 0.38))))
-HAY = mat_color('Hay', srgb2lin((0.85, 0.72, 0.38)))
-for k in range(14):
-    a = k / 14 * 2 * math.pi
-    box('Hay', Vector((lob.x + PC[0] + 24 * math.cos(a), lob.y + PC[1] + 24 * math.sin(a), 0.5)), (1.6, 1.0, 1.0), HAY, a)
-box('Ramp', Vector((lob.x + PC[0] + 14, lob.y + PC[1], 0.6)), (6, 4, 1.2), FENCE if 'FENCE' in dir() else HAY, 0)
+# 遊びに使う物の目印（LobbyLayout.FunctionalSpots の位置・半径）：広場＝赤、待機場所・柵の馬＝青、たまり場＝橙、練習場＝緑、予備の遺物＝水色
+PRR = W['practiceRect']
+bpy.ops.mesh.primitive_plane_add(size=1, location=(lob.x + (PRR[0] + PRR[2]) / 2, lob.y + (PRR[1] + PRR[3]) / 2, 0.06))
+o_ = bpy.context.active_object; o_.scale = (PRR[2] - PRR[0], PRR[3] - PRR[1], 1)
+o_.data.materials.append(mat_color('Practice', srgb2lin((0.55, 0.75, 0.45))))
+GROUPS = {"plaza": ((0.9, 0.15, 0.1), ("Spawn", "Ledger", "Wanted", "StartBell", "HudLever")),
+          "mounts": ((0.15, 0.35, 0.95), ("Parking", "Picker", "CorralFence")),
+          "hangout": ((1.0, 0.55, 0.1), ("Campfire", "NoticeBoard", "LastRace", "TownCrier")),
+          "practice": ((0.2, 0.85, 0.25), ("Practice",)),
+          "spare": ((0.2, 0.9, 0.9), ("SpareRelic",))}
+GM = {k: mat_color("Spot_" + k, srgb2lin(c), emit=0.6) for k, (c, _) in GROUPS.items()}
+for sp in W.get("spots", []):
+    g = next((k for k, (_, pre) in GROUPS.items() if any(sp["n"].startswith(x) for x in pre)), "plaza")
+    if sp["n"] in ("PracticeJump", "PracticeBump"): continue
+    hgt = 3.0 if sp["n"].startswith("NoticeBoard") or sp["n"].startswith("Wanted") else (2.2 if sp["r"] < 2 else 0.8)
+    if sp["n"] == "Spawn": hgt = 0.1   # スポーンは平らな円（目の高さのカメラが中に入らない）
+    bpy.ops.mesh.primitive_cylinder_add(radius=sp["r"], depth=hgt, location=(lob.x + sp["x"], lob.y + sp["z"], hgt / 2), vertices=16)
+    bpy.context.active_object.data.materials.append(GM[g])
+RAMP = mat_color('Ramp', srgb2lin((0.66, 0.45, 0.30)))
+jp = W["jump"]; bp = W["bump"]
+bpy.ops.mesh.primitive_cube_add(size=1, location=(lob.x + jp[0], lob.y + jp[2], 0.6), rotation=(math.radians(15), 0, 0))
+o_ = bpy.context.active_object; o_.scale = (6, 6.2, 0.5); o_.data.materials.append(RAMP)
+box('Bump', Vector((lob.x + bp[0], lob.y + bp[2], -0.75)), (7, 7, 2.4), RAMP, math.radians(45))
+st = W["stable"]
+box('Stable', Vector((lob.x + st[0], lob.y + st[2], 3)), (14, 5.6, 6), mat_color('Stable', srgb2lin((0.45, 0.28, 0.16))), 0)
+# 奥の見えない壁（半透明の赤い線）
+box('BackWall', Vector((lob.x, lob.y + W["townBackZ"], 1.5)), (FR[2] - FR[0], 0.3, 3), mat_color('BackWall', srgb2lin((0.9, 0.1, 0.1)), emit=0.3), 0)
 
 FENCE = mat_color("Fence", srgb2lin((0.45, 0.29, 0.18)))
 for a_, b_ in W.get("fence", []):
@@ -323,12 +343,15 @@ def shot(name, loc, target, lens=35):
 
 world.mist_settings.start = 3000
 if os.environ.get("LOBBY_ONLY"):
-    for name, eye, tgt, lens in (("L1_aerial", (200, -1030, 170), (25, -735, 0), 24),
-                                 ("L2_top", (26, -750, 560), (26, -749.9, 0), 30),
-                                 ("L3_plaza_to_town", (0, -845, 1.7), (0, -600, 8), 24),
-                                 ("L4_plaza_to_practice", (10, -830, 1.7), (160, -834, 2), 24),
-                                 ("L5_practice_outward", (85, -835, 3.2), (320, -900, 4), 24),
-                                 ("L6_west_outward", (-48, -760, 1.7), (-400, -760, 3), 24)):
+    for name, eye, tgt, lens in (("L1_aerial", (-150, -900, 150), (0, -720, 0), 26),
+                                 ("L2_top", (0, -713, 300), (0, -712.9, 0), 30),
+                                 ("L3_plaza_spawn_north", (-11.5, -790, 1.7), (-11.5, -700, 2), 24),
+                                 ("L4_plaza_overview", (5, -812, 14), (-18, -780, 0), 24),
+                                 ("L5_west_strip", (-33, -803, 9), (-24, -740, 0), 24),
+                                 ("L6_practice_lane", (25, -738, 3.2), (28, -680, 2), 24),
+                                 ("L7_practice_from_above", (55, -760, 40), (27, -706, 0), 26),
+                                 ("L8_south_outward", (-11.5, -792, 1.7), (-11.5, -1100, 3), 24),
+                                 ("L9_east_outward", (30, -720, 3.2), (400, -720, 3), 24)):
         shot(name, eye, tgt, lens)
     raise SystemExit
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)

@@ -67,8 +67,8 @@ namespace HorseRace.EditorTools
             return m;
         }
 
-        /// <summary>たまり場の掲示板 3 枚（center の並び、北＝焚き火のほうを向く）と中継・木札・新聞売り。</summary>
-        public static void BuildBoards(Transform parent, WorldContext ctx, Vector3 center)
+        /// <summary>たまり場の掲示板 3 枚（center を中心に facing と直角に 6m ずつ並べ、facing の向き＝焚き火のほうを向く）と中継・木札・新聞売り（crierPos、crierYaw）。</summary>
+        public static void BuildBoards(Transform parent, WorldContext ctx, Vector3 center, Vector3 facing, Vector3 crierPos, float crierYaw)
         {
             var root = GenUtil.World(parent, "NoticeBoards", center).transform;
 
@@ -93,8 +93,9 @@ namespace HorseRace.EditorTools
             NoticeBoardDisplay telegram = null;
             for (int mode = 0; mode < 3; mode++)
             {
-                Vector3 p = center + new Vector3((mode - 1) * 6f, 0f, 0f);
-                var nb = Board(root, "NoticeBoard_" + titles[mode], p, Vector3.forward, mode, ctx, out Transform front, out Vector3 panelCenter);
+                Vector3 side = new Vector3(facing.z, 0f, -facing.x);   // 並ぶ向き（facing と直角）
+                Vector3 p = center + side * ((mode - 1) * 6f);
+                var nb = Board(root, "NoticeBoard_" + titles[mode], p, facing, mode, ctx, out Transform front, out Vector3 panelCenter);
                 if (mode == 1) telegram = nb;
                 if (mode == 0)
                 {
@@ -104,7 +105,7 @@ namespace HorseRace.EditorTools
             }
 
             // 新聞売り（Capsule の人物）
-            var crierGo = GenUtil.World(root, "TownCrier", center + new Vector3(12f, 0f, 4f), -90f);
+            var crierGo = GenUtil.World(root, "TownCrier", crierPos, crierYaw);
             GenUtil.Prim(PrimitiveType.Capsule, "Body", crierGo.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.45f, 0.8f, 0.45f), new Color(0.3f, 0.3f, 0.45f));
             GenUtil.Prim(PrimitiveType.Sphere, "Head", crierGo.transform, new Vector3(0f, 1.75f, 0f), Vector3.one * 0.3f, new Color(0.9f, 0.75f, 0.6f));
             GenUtil.Prim(PrimitiveType.Cylinder, "Cap", crierGo.transform, new Vector3(0f, 1.92f, 0f), new Vector3(0.32f, 0.05f, 0.32f), DarkWood);
