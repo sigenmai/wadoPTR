@@ -186,7 +186,7 @@ namespace HorseRace.EditorTools
             var bc = book.AddComponent<BoxCollider>();
             bc.size = new Vector3(0.8f, 0.3f, 0.6f);
             bc.center = new Vector3(0f, 0.1f, 0f);
-            var page = GenUtil.Text(book.transform, "PageText", new Vector3(0f, 0.045f, 0f), Quaternion.Euler(90f, 0f, 0f), "エントリー台帳", 0.35f, Ink, new Vector2(0.62f, 0.42f));
+            var page = GenUtil.Text(book.transform, "PageText", new Vector3(0f, 0.045f, 0f), Quaternion.Euler(90f, 180f, 0f), "エントリー台帳", 0.35f, Ink, new Vector2(0.62f, 0.42f));
             var ledger = GenUtil.AddU<EntryLedger>(book);
             ledger.pageText = page;
             ledger.signSound = GenUtil.Audio(book, false);
@@ -399,8 +399,8 @@ namespace HorseRace.EditorTools
                 var bench = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", h, p, a + 90f, 1.4f, new Vector3(1.4f, 0.35f, 0.4f), Wood);
                 bench.name = "Bench_" + i;
             }
-            // 前回のレースの黒板（焚き火のほうを向く）
-            ctx.rankBoards.Add(CourseBuilder.ChalkBoardAt(h, L(18f, -26f), 90f, "LastRaceBoard", true));
+            // 前回のレースの黒板（焚き火の側＝東から読める。文字は yaw の方向を見ている人に読める）
+            ctx.rankBoards.Add(CourseBuilder.ChalkBoardAt(h, L(18f, -26f), -90f, "LastRaceBoard", true));
             ShowBuilder.BuildBoards(h, ctx, L(30f, -40f));
         }
 
