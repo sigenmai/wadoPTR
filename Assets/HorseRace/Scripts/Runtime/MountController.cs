@@ -85,6 +85,19 @@ namespace HorseRace
         public float seatMaxLag = 0.5f;
         public float seatPitchScale = 0.5f;
 
+        [Header("Progress")]
+        /// <summary>RaceManager がステージ開始時に設定する。</summary>
+        public int currentStage;
+        public float offCourseDistance = 60f;
+        public float terrainProbeRange = 50f;
+
+        // ---- チェックポイント進行・コース外リセット（オーナー側）----
+        private Checkpoint nextCp;
+        private Vector3 respawnPos;
+        private float respawnYaw;
+        private bool hasRespawn;
+        private float secondsOffCourse;
+
         // ---- オーナー側の内部状態 ----
         private int cruiseLevel;          // 0 停止, 1 常歩, 2 速歩, 3 駆歩
         private float inputSteer;         // A/D・左スティック
@@ -231,6 +244,83 @@ namespace HorseRace
             pullTarget = target;
             pullBonus = bonusMps;
             pullRemaining = seconds;
+        }
+
+        /// <summary>オーナー側。ステージ開始時に RaceManager が呼ぶ。syncCp = 0 はスタートライン通過済みの意味。</summary>
+        public void ResetProgress(Vector3 startPos, float startYaw, Checkpoint firstCp)
+        {
+            EnsureInit();
+            syncCp = 0;
+            syncFinishAt = -1.0;
+            syncDistToCp = 0f;
+            nextCp = firstCp;
+            respawnPos = startPos + Vector3.up * 0.5f;
+            respawnYaw = startYaw;
+            hasRespawn = true;
+            secondsOffCourse = 0f;
+            if (Networking.IsOwner(gameObject)) RequestSerialization();
+        }
+
+        /// <summary>Checkpoint から呼ばれる。現在のステージで、直前の CP の次の番号のときだけ進む。</summary>
+        public void ReachCheckpoint(Checkpoint cp)
+        {
+            if (cp == null) return;
+            if (!Networking.IsOwner(gameObject)) return;
+            if (cp.stageIndex != currentStage) return;
+            if (cp.index != syncCp + 1) return;
+            syncCp = cp.index;
+            respawnPos = cp.transform.position + Vector3.up * 0.5f;
+            respawnYaw = cp.transform.eulerAngles.y;
+            hasRespawn = true;
+            nextCp = cp.next;
+            secondsOffCourse = 0f;
+            if (cp.isGoal && syncFinishAt < 0.0) syncFinishAt = Networking.GetServerTimeInSeconds();
+            RequestSerialization();
+        }
+
+        /// <summary>XZ 平面での点 p と線分 a-b の距離。</summary>
+        public static float DistToSegmentXZ(Vector3 p, Vector3 a, Vector3 b)
+        {
+            float abx = b.x - a.x;
+            float abz = b.z - a.z;
+            float len2 = abx * abx + abz * abz;
+            float t = 0f;
+            if (len2 > 0.0001f) t = Mathf.Clamp01(((p.x - a.x) * abx + (p.z - a.z) * abz) / len2);
+            float dx = p.x - (a.x + abx * t);
+            float dz = p.z - (a.z + abz * t);
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
+        private void UpdateProgress(float dt)
+        {
+            Vector3 pos = transform.position;
+            syncDistToCp = nextCp != null ? Vector3.Distance(pos, nextCp.transform.position) : 0f;
+            if (!raceActive || !hasRespawn) { secondsOffCourse = 0f; return; }
+
+            RaycastHit hit;
+            float height;
+            if (Physics.Raycast(pos + Vector3.up * rayStartHeight, Vector3.down, out hit,
+                rayStartHeight + terrainProbeRange, groundMask, QueryTriggerInteraction.Ignore))
+            {
+                height = pos.y - hit.point.y;
+            }
+            else
+            {
+                height = -100f;
+            }
+
+            float dist;
+            if (nextCp != null) dist = DistToSegmentXZ(pos, respawnPos, nextCp.transform.position);
+            else dist = DistToSegmentXZ(pos, respawnPos, respawnPos);
+
+            if (dist > offCourseDistance) secondsOffCourse += dt;
+            else secondsOffCourse = 0f;
+
+            if (RaceMath.NeedsReset(height, dist, secondsOffCourse))
+            {
+                secondsOffCourse = 0f;
+                TeleportTo(respawnPos, respawnYaw);
+            }
         }
 
         public bool IsLocalRider()
@@ -527,6 +617,8 @@ namespace HorseRace
 
             transform.position = next;
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+            UpdateProgress(dt);
 
             syncGait = ComputeAnimGait(mount, Speed);
             if (!Grounded) syncGait |= GAIT_FLAG_AIR;
