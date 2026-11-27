@@ -261,7 +261,11 @@ def proto(asset, part):
         o.data = sel[0].data
         sc.collection.objects.link(o)
         apply_style(o, asset, part)
+        # 親（FBX の軸補正）の回転を含めたワールドの向きを保つ（GenUtil.InstantiatePart と同じ）。
+        # 前は親を外すだけで、杭の列 DesertProps_06/10 などが横倒し（骨のあばらのような弧）に描かれていた
+        mw = sel[0].matrix_world.copy()
         o.parent = None
+        o.matrix_world = mw
         o.location = (0, 0, 0)
         o.hide_render = True
         o.hide_set(True)

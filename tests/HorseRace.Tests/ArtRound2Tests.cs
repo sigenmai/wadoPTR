@@ -105,7 +105,7 @@ namespace HorseRace.Tests
             var plan = Stage(i).plan;
             var guides = plan.Where(p => p.group == "GuideLine" || p.group == "CanyonRim").ToList();
             Assert.Greater(guides.Count, 30);
-            Assert.IsFalse(guides.Any(p => p.part == "DesertProps_06"), "柵の列にあばら");
+            Assert.IsFalse(guides.Any(p => p.part == "DesertProps_06" || p.part == "DesertProps_10"), "柵の列にあばらに見える杭");
             Assert.Greater(guides.Count(p => p.part == "FarmProps_03" || p.part == "FarmProps_04"), guides.Count / 3);
             Assert.Greater(guides.Count(p => p.part == "FarmProps_02"), 3, "直線の街灯");
             var bones = plan.Where(p => DressingPlan.IsBonePart(p.part)).ToList();

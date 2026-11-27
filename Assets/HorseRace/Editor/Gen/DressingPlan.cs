@@ -1284,7 +1284,7 @@ namespace HorseRace.EditorTools
                 if (Mathf.Abs(k) > GUIDE_CURVATURE) { lastCorner = a; cornerSide = k > 0f ? 1f : -1f; }   // 左へ曲がる → 外側は右（+）
                 if (a - lastCorner <= GUIDE_AFTER_M)
                 {
-                    // 柵（FarmProps_03 / 04）を 2 枚、3 枚目ごとに杭の列（DesertProps_10）（art-r2-03：骨のあばら DesertProps_06 は使わない）
+                    // 柵（FarmProps_03 / 04）を 2 枚、3 枚目ごとにまっすぐな杭（DesertProps_05）（art-r2-03：骨のあばらに見える DesertProps_06/10 は使わない）
                     string part = FencePiece(piece++);
                     string asset = part.StartsWith("FarmProps") ? FARM : DPROPS;
                     float r = SizeOf(asset, part).r;
@@ -1306,11 +1306,14 @@ namespace HorseRace.EditorTools
             }
         }
 
-        /// <summary>道の目印の柵の並び（art-r2-03）：FarmProps_03・FarmProps_04・DesertProps_10（杭の列）の順に繰り返す。</summary>
+        /// <summary>
+        /// 道の目印の柵の並び（art-r2-03）：FarmProps_03・FarmProps_04・まっすぐな杭（DesertProps_05 と _03 を交互）の順に繰り返す。
+        /// 指示は 3 枚目を DesertProps_10 だったが、_10 は白っぽい曲がった杭 4 本で、下見の騎手の目の高さでは骨のあばらに見えたので、まっすぐな杭にした。
+        /// </summary>
         public static string FencePiece(int k)
         {
-            int m = ((k % 3) + 3) % 3;
-            return m == 0 ? "FarmProps_03" : (m == 1 ? "FarmProps_04" : "DesertProps_10");
+            int m = ((k % 6) + 6) % 6;
+            return m == 0 || m == 3 ? "FarmProps_03" : (m == 1 || m == 4 ? "FarmProps_04" : (m == 2 ? "DesertProps_05" : "DesertProps_03"));
         }
 
         /// <summary>骨（あばら・頭骨 DesertProps_06/07/08）を置いてよいまとまり（art-r2-03）。1 ステージ BONE_MAX 個まで。</summary>
@@ -1690,7 +1693,7 @@ namespace HorseRace.EditorTools
             }
             else
             {
-                w.Add(G, WTOWN, TOWN_TALL_A, GoalFrame(w, goalArc, OUTPOST_DUNES_ALONG, 0f), yaw + 180f, 1f, 0.6f, ROAD_MIN, background: true, ignoreCircles: true);
+                w.Add(G, WTOWN, TOWN_TALL_A, GoalFrame(w, goalArc, OUTPOST_DUNES_ALONG, 0f), yaw, 1f, 0.6f, ROAD_MIN, background: true, ignoreCircles: true);
                 w.Add(G, WTOWN, StreetBuildings[0], GoalFrame(w, goalArc, 88f, 28f), yaw - 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
                 w.Add(G, WTOWN, StreetBuildings[4], GoalFrame(w, goalArc, 92f, -30f), yaw + 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
                 for (int i = 0; i < 3; i++)
