@@ -21,6 +21,9 @@ namespace HorseRace
         public TextMeshPro clockText;
         [Tooltip("跳ねる拡大をかける Transform（文字）")]
         public Transform punchRoot;
+        [Tooltip("板の下の段の道のり（art-r4-07：次のステージと 3 幕の地図）")]
+        public TextMeshPro routeText;
+        private int lastRouteStage = -2;
 
         private string lastText = "";
         private int lastSecond = -1;
@@ -52,6 +55,8 @@ namespace HorseRace
                 }
             }
             else lastSecond = -1;
+            int routeStage = racing ? rm.stage : -1;
+            if (routeText != null && routeStage != lastRouteStage) { lastRouteStage = routeStage; routeText.text = HudMath.RouteMap(routeStage); }
             string t = HudMath.TownClockText(left, rm.ActiveCount(), racing, rm.stage);
             if (t == lastText) return;
             lastText = t;

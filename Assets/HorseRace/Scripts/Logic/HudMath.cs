@@ -361,6 +361,22 @@ namespace HorseRace
         }
 
         /// <summary>町の大時計の文字。lobbyLeft = 出走までの秒数（なければ -1）、activeCount = サインした人数、racing = レース中、stage = 今のステージ。</summary>
+        /// <summary>
+        /// 大時計の板の下の道のり（art-r4-07：板は空の黒い面にしない）：「次のレース：荒野」と 3 幕の地図（荒野 ― 砂漠 ― 境目、今の幕は太字）。
+        /// stage &lt; 0（ロビー）なら最初の幕を強調する。
+        /// </summary>
+        public static string RouteMap(int stage)
+        {
+            int cur = stage < 0 ? 0 : stage;
+            string s = "";
+            for (int i = 0; i < 3; i++)
+            {
+                if (i > 0) s += " ― ";
+                s += i == cur ? "<b>" + StageName(i) + "</b>" : StageName(i);
+            }
+            return (stage < 0 ? "次のレース：" + StageName(0) + "から" : "第" + (cur + 1).ToString() + "幕 " + StageName(cur)) + "\n" + s;
+        }
+
         public static string TownClockText(float lobbyLeft, int activeCount, bool racing, int stage)
         {
             if (racing) return "レース中\n<size=60%>" + StageLabel(stage) + "</size>";

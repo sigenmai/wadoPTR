@@ -994,7 +994,7 @@ namespace HorseRace.EditorTools
                 MesaGate(w, def, goalArc); MesaPlateau(w, def, goalArc); FinalApproachRail(w, def, goalArc);
                 foreach (var p in w.list) if (p.group == "WallFace") { p.collider = false; p.shape = SHAPE_NONE; }   // course-r3-03：当たりは柵が受け持つ
             }
-            if (def.kind == HeightmapGen.KIND_CANYON) { RimLandmarks(w, def, goalArc); CanyonRimFences(w, def, goalArc); }
+            if (def.kind == HeightmapGen.KIND_CANYON) { RimLandmarks(w, def, goalArc); CanyonCrestCaps(w, def, goalArc); CanyonRimFences(w, def, goalArc); }
             if (def.kind == HeightmapGen.KIND_DUNES) Railway(w, def, goalArc);
             RoadIslands(w, def, goalArc);     // S 字の真ん中の岩の島（course-r2-03）
             Fork(w, def, goalArc);            // 広場の二股（course-r2-13）
@@ -3437,6 +3437,44 @@ namespace HorseRace.EditorTools
                         Grove(w, "RimLandmark", p, 12f, 4, 1f, 0f);
                         break;
                     }
+                }
+            }
+        }
+
+        // ---- art-r4-17：峡谷の壁の頂の岩（段の付いた頂の線を隠す） ----
+        public const float CREST_CAP_STEP_M = 40f, CREST_CAP_LAT_MIN = 34f, CREST_CAP_LAT_MAX = 90f;
+
+        /// <summary>
+        /// 峡谷の壁の頂（art-r4-17）：40m ごとに左右交互、道から 34〜90m の横の線でいちばん高い所（壁の頂）に、岩のセットの大きな岩（高さ 9m）と縦に伸ばした大岩を交互に 35% 埋める。
+        /// 高さマップの段（のこぎりの歯）に見える頂の線を、三角の岩のシルエットで切る。group RimLandmark（斜面に埋める岩）。
+        /// </summary>
+        static void CanyonCrestCaps(Work w, StageDef def, float goalArc)
+        {
+            int k = 0;
+            for (float a = 120f; a < goalArc - 60f; a += CREST_CAP_STEP_M, k++)
+            {
+                float sd = k % 2 == 0 ? 1f : -1f, best = float.MinValue, bestLat = -1f;
+                for (float lat = CREST_CAP_LAT_MIN; lat <= CREST_CAP_LAT_MAX; lat += 4f)
+                {
+                    Vector3 q = w.Side(a, sd * (lat + w.Extra(a)));
+                    if (q.x < EDGE_MARGIN + 20f || q.z < EDGE_MARGIN + 20f || q.x > w.sizeM - EDGE_MARGIN - 20f || q.z > w.sizeM - EDGE_MARGIN - 20f) break;
+                    float g = w.Ground(q.x, q.z);
+                    if (g > best) { best = g; bestLat = lat; }
+                }
+                if (bestLat < 0f) continue;
+                Vector3 p = w.Side(a, sd * (bestLat + w.Extra(a)));
+                if (k % 2 == 0)
+                {
+                    // メサ B は尾根のシルエット（RimSilhouettes）が使うので、頂は岩のセットの大きな岩（メサ B が素材の 8% を超えない）
+                    string rp = RstylBig[k / 2 % RstylBig.Length];
+                    float sc = 9f / Mathf.Max(0.5f, SizeOf(RSTYL, rp).h);
+                    w.Add("RimLandmark", RSTYL, rp, p, w.Rand(0f, 360f), sc, 0.35f * SizeOf(RSTYL, rp).h * sc, ROAD_CLEAR, background: true);
+                }
+                else
+                {
+                    string part = RockBig[k % RockBig.Length];
+                    const float SC = 0.45f, SY = 1.5f;
+                    w.Add("RimLandmark", DROCKS, part, p, w.YawAt(a) + (sd < 0 ? 90f : -90f), SC, 0.35f * SizeOf(DROCKS, part).h * SC * SY, ROAD_CLEAR, background: true, scaleY: SY);
                 }
             }
         }

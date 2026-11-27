@@ -358,7 +358,11 @@ namespace HorseRace.EditorTools
             tgo.transform.position = origin;
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             lobbyTerrain = tgo.GetComponent<Terrain>();
-            TerrainBuilder.ApplyToonMaterial(lobbyTerrain);
+            // art-r4-07/13：大通り（x = スポーン、z 20〜150）と南の切れ目から外へ続く近づく道の轍（荒野の道の色）
+            var street = LobbyLayout.StreetAndApproach();
+            var streetW = new Vector3[street.Length];
+            for (int i = 0; i < street.Length; i++) streetW[i] = CENTER + street[i];
+            TerrainBuilder.ApplyToonMaterial(lobbyTerrain, TerrainBuilder.PathTrailTexture("Lobby", origin, sizeX, sizeZ, 512, streetW, LobbyLayout.APPROACH_HALF_M), "Lobby", 0);
             ctxLobbyTerrain = lobbyTerrain;
 
             // 外周の見えない壁は柵の 6m 外（柵が広がっても柵の外側。尾根の手前〜斜面）
@@ -1175,6 +1179,12 @@ namespace HorseRace.EditorTools
             var clock = GenUtil.AddU<TownClockBoard>(go);
             clock.clockText = text;
             clock.punchRoot = holder;
+            // art-r4-07：板の下の段に次のステージと 3 幕の地図（最初から書いておく。空の黒い板にしない）
+            var routeHolder = GenUtil.Child(go.transform, "RouteMap", textPos + new Vector3(0f, -0.95f * sc, 0f)).transform;
+            var route = GenUtil.Text(routeHolder, "Text", Vector3.zero, Quaternion.identity, HudMath.RouteMap(-1), 1.4f, UiStyle.InkFace,
+                new Vector2(3.0f * sc, 0.7f * sc), TextStyle.Ink, true);
+            route.fontSizeMin = Mathf.Max(route.fontSizeMin, 1.0f);
+            clock.routeText = route;
         }
 
         /// <summary>

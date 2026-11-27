@@ -517,7 +517,15 @@ namespace HorseRace.EditorTools
                     float a = (45f + i * 90f) * Mathf.Deg2Rad;
                     y = Mathf.Min(y, ground(new Vector3(c.position.x + Mathf.Sin(a) * r, 0f, c.position.z + Mathf.Cos(a) * r)));
                 }
-                c.position = new Vector3(c.position.x, y - CROWN_SINK * c.height, c.position.z);
+                // art-r4-08：足元の高さの差 + 0.1m も沈める（高さの 60% まで）。斜面の下側で浮かない
+                float hi = ground(c.position);
+                for (int i = 0; i < 4; i++)
+                {
+                    float a = (45f + i * 90f) * Mathf.Deg2Rad;
+                    hi = Mathf.Max(hi, ground(new Vector3(c.position.x + Mathf.Sin(a) * r, 0f, c.position.z + Mathf.Cos(a) * r)));
+                }
+                float sink = Mathf.Max(CROWN_SINK * c.height, Mathf.Min(hi - y + 0.1f, 0.6f * c.height));
+                c.position = new Vector3(c.position.x, y - sink, c.position.z);
             }
         }
 

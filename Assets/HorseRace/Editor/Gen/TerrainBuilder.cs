@@ -262,6 +262,25 @@ namespace HorseRace.EditorTools
             return top + (bot - top) * tz;
         }
 
+        /// <summary>
+        /// 長方形の Terrain（ワールドの原点 origin、大きさ sizeX × sizeZ）に、ワールドの折れ線 path（半幅 halfWidth）の道のマスク（R = 重み、G = 中心からの距離）を
+        /// res × res で作る（art-r4-07/13：ロビーの大通りと町へ近づく道の轍。ステージの道と同じ ToonTerrain の轍）。
+        /// </summary>
+        public static Texture2D PathTrailTexture(string name, Vector3 origin, float sizeX, float sizeZ, int res, Vector3[] path, float halfWidth)
+        {
+            var trail = new float[res, res];
+            var dist = new float[res, res];
+            for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++)
+                {
+                    var p = new Vector3(origin.x + x / (float)(res - 1) * sizeX, 0f, origin.z + z / (float)(res - 1) * sizeZ);
+                    float d = WorldLayout.DistToPolylineXZ(p, path);
+                    dist[z, x] = d;
+                    trail[z, x] = HeightmapGen.TrailWeight(d, halfWidth, HeightmapGen.TRAIL_EDGE_DUNES_M);
+                }
+            return TrailTexture(name, trail, dist);
+        }
+
         /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>
         public static void ApplyToonMaterial(Terrain t, Texture2D trail, string name, int stage)
         {
@@ -430,7 +449,11 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             var terrain = tgo.GetComponent<Terrain>();
             terrain.heightmapPixelError = 8f;
-            ApplyToonMaterial(terrain);
+            // art-r4-13：町へ近づく道（ロビーの南の切れ目から外の地面へ 300m）の轍も外の地面に塗る
+            var road = LobbyLayout.StreetAndApproach();
+            var roadW = new Vector3[road.Length];
+            for (int i = 0; i < road.Length; i++) roadW[i] = WorldBounds.LOBBY_CENTER + road[i];
+            ApplyToonMaterial(terrain, PathTrailTexture("OuterGround", new Vector3(f.x, 0f, f.y), sizeX, sizeZ, 2048, roadW, LobbyLayout.APPROACH_HALF_M), "OuterGround", 0);
             DressingBuilder.SetStatic(tgo);
             return terrain;
         }

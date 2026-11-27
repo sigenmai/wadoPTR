@@ -367,5 +367,32 @@ namespace HorseRace.Tests
             Assert.GreaterOrEqual(camels.Count, 2, "道から 25m 以内のラクダの隊列");
             Assert.AreEqual(1, b.plan.Count(p => p.group == "GiantSkeleton" && Mathf.Abs(p.scale - DressingPlan.GIANT_SKELETON_HERO_SCALE) < 1e-3f), "砂漠の主役の巨大な骨");
         }
+
+        [Test] public void TownBoardShowsRouteByDefault()
+        {
+            string r = HudMath.RouteMap(-1);
+            StringAssert.Contains("次のレース", r);
+            StringAssert.Contains("<b>荒野</b>", r);
+            StringAssert.Contains("砂漠", r);
+            StringAssert.Contains("境目", r);
+            StringAssert.Contains("<b>砂漠</b>", HudMath.RouteMap(1));
+        }
+
+        // ---- art-r4-17：峡谷の壁の頂の岩・急な壁をならす ----
+        [Test] public void CanyonCrestCapsAndSmoothWalls()
+        {
+            var b = Stage(0);
+            int caps = b.plan.Count(p => p.group == "RimLandmark" && (p.asset == DressingPlan.RSTYL || p.asset == DressingPlan.DROCKS));
+            TestContext.WriteLine($"canyon crest caps {caps}");
+            Assert.GreaterOrEqual(caps, (int)(b.goal / DressingPlan.CREST_CAP_STEP_M) / 2);
+            Assert.AreEqual(0, b.plan.Count(p => p.group == "RimLandmark" && p.part == DressingPlan.RANCH_TOWER), "頂は岩（風車の塔ではない）");
+            // 急な壁のならし：45° 以上の段の隣どうしの差が小さくなる
+            var h = new float[33, 33];
+            for (int z = 0; z < 33; z++) for (int x = 0; x < 33; x++) h[z, x] = (x / 4) % 2 == 0 ? 0.2f : 0.5f;   // 段の付いた壁
+            HeightmapGen.SmoothSteep(h, 64f, 200f, null);
+            float maxJump = 0f;
+            for (int x = 1; x < 32; x++) maxJump = Mathf.Max(maxJump, Mathf.Abs(h[16, x] - h[16, x - 1]));
+            Assert.Less(maxJump, 0.3f, "段がならされる");
+        }
     }
 }

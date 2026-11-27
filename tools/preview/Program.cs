@@ -96,7 +96,7 @@ class P {
     Vector3 up=Vector3.up;
     // 柵（LobbyLayout.FenceSegments、FarmProps_03 を高さ ×1.6）
     foreach(var sg in fence){ Vector3 dd=sg[1]-sg[0]; float len=new Vector3(dd.x,0f,dd.z).magnitude; if(len<0.1f) continue;
-      l.Add(X(FP,"FarmProps_03",(sg[0]+sg[1])*0.5f,WorldLayout.YawDeg(new Vector3(dd.x,0f,dd.z).normalized)+90f,1f,0f,new Vector3(len/2.74f,LobbyLayout.FENCE_SCALE_Y,1f))); }
+      l.Add(X(FP,"FarmProps_03",(sg[0]+sg[1])*0.5f,WorldLayout.YawDeg(new Vector3(dd.x,0f,dd.z).normalized)+90f,1f,0f,new Vector3(len/2.74f,LobbyLayout.FenceScaleYAt((sg[0]+sg[1])*0.5f),1f))); }   // art-r4-09：切れ目の柵は低い
     // 広場：受付の机・樽・木箱・街灯・札の板、操作の紙の杭、手配書の壁
     Vector3 desk=LobbyLayout.LEDGER_DESK;
     l.Add(X(FP,"FarmProps_05",desk,180f,1f)); l.Add(X(FP,"FarmProps_15",desk+new Vector3(2.4f,0f,1.2f),0f,1f)); l.Add(X(FP,"FarmProps_12",desk+new Vector3(1.2f,0f,2.2f),20f,1f));
