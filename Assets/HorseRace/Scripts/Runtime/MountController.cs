@@ -89,7 +89,9 @@ namespace HorseRace
         /// <summary>RaceManager がステージ開始時に設定する。</summary>
         public int currentStage;
         public float offCourseDistance = 60f;
-        public float terrainProbeRange = 50f;
+        public float terrainProbeRange = 200f;
+        public float underTerrainProbeRange = 100f;
+        public float airNoGroundGrace = 2f;
 
         // ---- チェックポイント進行・コース外リセット（オーナー側）----
         private Checkpoint nextCp;
@@ -97,6 +99,7 @@ namespace HorseRace
         private float respawnYaw;
         private bool hasRespawn;
         private float secondsOffCourse;
+        private float airTime;
 
         // ---- オーナー側の内部状態 ----
         private int cruiseLevel;          // 0 停止, 1 常歩, 2 速歩, 3 駆歩
@@ -266,6 +269,7 @@ namespace HorseRace
         {
             if (cp == null) return;
             if (!Networking.IsOwner(gameObject)) return;
+            if (!raceActive || InputLocked) return;
             if (cp.stageIndex != currentStage) return;
             if (cp.index != syncCp + 1) return;
             syncCp = cp.index;
@@ -295,7 +299,9 @@ namespace HorseRace
         {
             Vector3 pos = transform.position;
             syncDistToCp = nextCp != null ? Vector3.Distance(pos, nextCp.transform.position) : 0f;
-            if (!raceActive || !hasRespawn) { secondsOffCourse = 0f; return; }
+            if (Grounded) airTime = 0f; else airTime += dt;
+            // ゴール後は惰性でどこへ行ってもよい
+            if (!raceActive || !hasRespawn || syncFinishAt >= 0.0) { secondsOffCourse = 0f; return; }
 
             RaycastHit hit;
             float height;
@@ -304,9 +310,20 @@ namespace HorseRace
             {
                 height = pos.y - hit.point.y;
             }
-            else
+            else if (Physics.Raycast(pos + Vector3.up * rayStartHeight, Vector3.up, out hit,
+                underTerrainProbeRange, groundMask, QueryTriggerInteraction.Ignore))
+            {
+                // 下に地面が無く上にある：地形の下に抜けた
+                height = -100f;
+            }
+            else if (Grounded || airTime >= airNoGroundGrace)
             {
                 height = -100f;
+            }
+            else
+            {
+                // 深い谷を跳び越え中：猶予時間の間は地形の下とみなさない
+                height = 0f;
             }
 
             float dist;
