@@ -43,5 +43,49 @@ namespace HorseRace
             }
             return target;
         }
+
+        /// <summary>
+        /// 着順（1 始まり）。finishAt が stageStart 以上の有効スロットのうち何番目にゴールしたか（同時刻はスロット番号の小さい順）。
+        /// slot がまだゴールしていなければ 0。
+        /// </summary>
+        public static int FinishPlace(double[] finishAt, bool[] active, int slot, double stageStart)
+        {
+            if (slot < 0 || slot >= finishAt.Length || slot >= active.Length) return 0;
+            if (!active[slot]) return 0;
+            double mine = finishAt[slot];
+            if (mine < 0.0 || mine < stageStart) return 0;
+            int place = 1;
+            for (int i = 0; i < finishAt.Length && i < active.Length; i++)
+            {
+                if (i == slot || !active[i]) continue;
+                double f = finishAt[i];
+                if (f < 0.0 || f < stageStart) continue;
+                if (f < mine || (f == mine && i < slot)) place++;
+            }
+            return place;
+        }
+
+        /// <summary>order の各位置について前の馬との水平距離（m）。index 0 は 0。x / z はスロット番号で引く。</summary>
+        public static float[] GapsXZ(int[] order, float[] x, float[] z)
+        {
+            int n = order.Length;
+            float[] gaps = new float[n];
+            for (int k = 1; k < n; k++)
+            {
+                int a = order[k];
+                int b = order[k - 1];
+                float dx = x[a] - x[b];
+                float dz = z[a] - z[b];
+                gaps[k] = UnityEngine.Mathf.Sqrt(dx * dx + dz * dz);
+            }
+            return gaps;
+        }
+
+        /// <summary>rank（1 始まり）位のスロット。いなければ -1。</summary>
+        public static int SlotAtRank(int[] order, int rank)
+        {
+            if (rank < 1 || rank > order.Length) return -1;
+            return order[rank - 1];
+        }
     }
 }
