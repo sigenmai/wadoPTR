@@ -70,6 +70,42 @@ namespace HorseRace.EditorTools
             return name.Substring(open + 2, name.Length - open - 3);
         }
 
+        /// <summary>id が taken に既にあれば "~2" "~3" … を足して重ならない id にする（Build World の GenUtil.Tag が使う）。</summary>
+        public static string UniqueId(string id, ICollection<string> taken)
+        {
+            string u = id;
+            for (int k = 2; taken.Contains(u); k++) u = id + "~" + k;
+            return u;
+        }
+
+        /// <summary>
+        /// 名前の末尾の id が壊れていそうか（" {…}" を含むのに末尾が "}" で終わらない：F2 で名前を変えた・Ctrl+D で " (1)" が付いた など）。
+        /// </summary>
+        public static bool LooksLikeBrokenId(string name)
+        {
+            if (string.IsNullOrEmpty(name) || ParseId(name) != null) return false;
+            int open = name.LastIndexOf(" {");
+            return open >= 0 && name.IndexOf('}', open) > open;
+        }
+
+        /// <summary>2 つの手直しの一覧が同じ内容か（順番は問わない。姿勢は SameTransform の許容差）。保存していない変更の検出に使う。</summary>
+        public static bool SameOverrides(List<LayoutOverride> a, List<LayoutOverride> b)
+        {
+            a = a ?? new List<LayoutOverride>();
+            b = b ?? new List<LayoutOverride>();
+            if (a.Count != b.Count) return false;
+            var map = new Dictionary<string, LayoutOverride>();
+            foreach (var o in b) if (o != null && o.id != null) map[o.id] = o;
+            foreach (var o in a)
+            {
+                LayoutOverride q;
+                if (o == null || o.id == null || !map.TryGetValue(o.id, out q)) return false;
+                if (o.deleted != q.deleted) return false;
+                if (!o.deleted && !SameTransform(new LayoutItem { position = o.position, euler = o.euler, scale = o.scale }, q.position, q.euler, q.scale)) return false;
+            }
+            return true;
+        }
+
         /// <summary>計画の配置 → 計算どおりの姿勢（origin = 計画の原点。回転は Euler(0, yaw, roll)、拡大は一様）。</summary>
         public static LayoutItem ItemFor(string id, Placement p, Vector3 origin)
             => new LayoutItem { id = id, position = origin + p.position, euler = new Vector3(0f, p.yawDeg, p.rollDeg), scale = new Vector3(p.scale, p.scale, p.scale) };

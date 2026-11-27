@@ -41,6 +41,7 @@ namespace UnityEditor
         public static void ClearProgressBar() { }
         public static bool DisplayDialog(string title, string message, string ok) => true;
         public static bool DisplayDialog(string title, string message, string ok, string cancel) => true;
+        public static int DisplayDialogComplex(string title, string message, string ok, string cancel, string alt) => 0;
     }
 
     public class Undo

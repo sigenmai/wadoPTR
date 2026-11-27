@@ -110,17 +110,20 @@ namespace HorseRace.EditorTools
             }
         }
 
-        [MenuItem("HorseRace/Save Layout")]
-        public static void SaveLayout()
+        /// <summary>シーンの今の飾りと基準の違い。基準が無い・壊れている・ルートが無いときは false と理由。</summary>
+        static bool SceneDiff(out List<LayoutOverride> diff, out int tagged, out List<string> broken, out string problem)
         {
-            var baseline = ReadOverrides(BASELINE);
+            diff = null; tagged = 0; broken = new List<string>(); problem = null;
             GameObject root = null;
             foreach (GameObject g in SceneManager.GetActiveScene().GetRootGameObjects())
                 if (g.name == GenUtil.ROOT_NAME) root = g;
-            if (baseline == null || root == null)
+            if (root == null || !File.Exists(BASELINE)) { problem = "先に「HorseRace/Build World」を実行してください（配置の基準がありません）。"; return false; }
+            List<LayoutOverride> baseline;
+            try { baseline = LayoutOverrides.FromJson(File.ReadAllText(BASELINE)); }
+            catch (System.Exception e)
             {
-                EditorUtility.DisplayDialog("HorseRace/Save Layout", "先に「HorseRace/Build World」を実行してください（配置の基準がありません）。", "OK");
-                return;
+                problem = "配置の基準ファイル（" + BASELINE + "）が壊れています（" + e.Message + "）。\n「HorseRace/Build World」をやり直すと作り直されます（その前に手で直した分は保存できません）。";
+                return false;
             }
             var expected = new List<LayoutItem>();
             foreach (var b in baseline) expected.Add(new LayoutItem { id = b.id, position = b.position, euler = b.euler, scale = b.scale });
@@ -128,15 +131,79 @@ namespace HorseRace.EditorTools
             foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
             {
                 string id = LayoutOverrides.ParseId(t.name);
-                if (id != null) actual.Add(ItemOf(id, t));
+                if (id != null) { actual.Add(ItemOf(id, t)); tagged++; }
+                else if (LayoutOverrides.LooksLikeBrokenId(t.name)) broken.Add(t.name);
             }
-            var diff = LayoutOverrides.Diff(expected, actual);
-            int moved = 0, deleted = 0;
+            diff = LayoutOverrides.Diff(expected, actual);
+            return true;
+        }
+
+        static void Count(List<LayoutOverride> diff, out int moved, out int deleted)
+        {
+            moved = 0; deleted = 0;
             foreach (var d in diff) if (d.deleted) deleted++; else moved++;
+        }
+
+        static void WriteOverrides(List<LayoutOverride> diff)
+        {
             GenUtil.EnsureFolder(Path.GetDirectoryName(LayoutOverrides.FILE).Replace('\\', '/'));
             File.WriteAllText(LayoutOverrides.FILE, LayoutOverrides.ToJson(diff));
             AssetDatabase.ImportAsset(LayoutOverrides.FILE);
-            string msg = "移動 " + moved + " 個・削除 " + deleted + " 個を保存しました。\n（" + LayoutOverrides.FILE + "）\n次の Build World でもこの配置になります。";
+        }
+
+        /// <summary>
+        /// Build World の前：シーンに保存していない配置の変更があれば聞く。true = 続ける（保存した or 破棄した or 変更なし）、false = やめる。
+        /// </summary>
+        public static bool GuardUnsavedEdits()
+        {
+            List<LayoutOverride> diff; int tagged; List<string> broken; string problem;
+            if (!SceneDiff(out diff, out tagged, out broken, out problem)) return true;   // 基準やルートが無い＝比べるものがない
+            var saved = ReadOverrides(LayoutOverrides.FILE) ?? new List<LayoutOverride>();
+            if (LayoutOverrides.SameOverrides(diff, saved)) return true;
+            int moved, deleted;
+            Count(diff, out moved, out deleted);
+            int choice = EditorUtility.DisplayDialogComplex("HorseRace/Build World",
+                "保存していない配置の変更があります（移動 " + moved + "・削除 " + deleted + "）。\nBuild World はシーンを作り直すので、保存しないと消えます。",
+                "保存して続ける", "キャンセル", "破棄して続ける");
+            if (choice == 1) return false;
+            if (choice == 0)
+            {
+                WriteOverrides(diff);
+                Debug.Log("[HorseRace] Build World の前に配置の変更を保存しました：移動 " + moved + " 個・削除 " + deleted + " 個");
+            }
+            else Debug.Log("[HorseRace] 保存していない配置の変更を破棄しました（移動 " + moved + "・削除 " + deleted + "）");
+            return true;
+        }
+
+        [MenuItem("HorseRace/Save Layout")]
+        public static void SaveLayout()
+        {
+            List<LayoutOverride> diff; int tagged; List<string> broken; string problem;
+            if (!SceneDiff(out diff, out tagged, out broken, out problem))
+            {
+                EditorUtility.DisplayDialog("HorseRace/Save Layout", problem, "OK");
+                return;
+            }
+            int moved, deleted;
+            Count(diff, out moved, out deleted);
+            var deletedIds = new List<string>();
+            foreach (var d in diff) if (d.deleted) deletedIds.Add(d.id);
+            string list = "";
+            if (deletedIds.Count > 0)
+            {
+                int show = Mathf.Min(10, deletedIds.Count);
+                list = "\n\n削除になる飾り（" + deletedIds.Count + " 個" + (deletedIds.Count > show ? "、最初の 10 個" : "") + "）:\n  " + string.Join("\n  ", deletedIds.GetRange(0, show).ToArray());
+            }
+            string brokenNote = "";
+            if (broken.Count > 0)
+                brokenNote = "\n\n名前の末尾の id（{…}）が変わっている物が " + broken.Count + " 個あります（例: " + broken[0] + "）。"
+                    + "名前を変えた・複製した物は手直しの対象外で、元の物は「削除」として保存されます。複製した物は HorseRace_Custom へ移してください。";
+            bool many = deleted > 20 || (tagged + deleted > 0 && deleted > 0.1f * (tagged + deleted));
+            if (many && !EditorUtility.DisplayDialog("HorseRace/Save Layout",
+                    "削除が多いです（" + deleted + " 個）。名前を変えたり親を変えたりしていませんか？" + list + brokenNote + "\n\nこのまま保存しますか？", "保存する", "やめる"))
+                return;
+            WriteOverrides(diff);
+            string msg = "移動 " + moved + " 個・削除 " + deleted + " 個を保存しました。\n（" + LayoutOverrides.FILE + "）\n次の Build World でもこの配置になります。" + (many ? "" : list) + brokenNote;
             Debug.Log("[HorseRace] " + msg);
             EditorUtility.DisplayDialog("HorseRace/Save Layout", msg, "OK");
         }

@@ -32,6 +32,7 @@ namespace HorseRace.EditorTools
             var ctx = new WorldContext();
             try
             {
+                if (!LayoutTools.GuardUnsavedEdits()) return;   // 手で直して保存していない配置があれば聞く
                 if (!ProgramAssets.Ensure()) return;
                 GenUtil.Reset();
                 GenUtil.ResetFontCache();

@@ -43,8 +43,7 @@ namespace HorseRace.EditorTools
         /// <summary>手直しできる飾りに安定した id を付ける（名前の末尾 " {id}"）。重複した id は "~2" などを足して警告。</summary>
         public static void Tag(GameObject go, string id)
         {
-            string unique = id;
-            for (int k = 2; Tagged.ContainsKey(unique); k++) unique = id + "~" + k;
+            string unique = LayoutOverrides.UniqueId(id, Tagged.Keys);
             if (unique != id) Debug.LogWarning("[HorseRace] 配置の id が重複したので " + unique + " にしました");
             go.name = LayoutOverrides.NameWithId(go.name, unique);
             Tagged[unique] = go;

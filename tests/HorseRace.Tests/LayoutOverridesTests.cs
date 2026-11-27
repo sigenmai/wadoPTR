@@ -78,6 +78,40 @@ namespace HorseRace.Tests
             Assert.Throws<System.FormatException>(() => LayoutOverrides.FromJson("{\"items\": [ {\"deleted\": true} ]}"));
         }
 
+        [Test] public void DuplicateIdsGetSuffix()
+        {
+            var taken = new HashSet<string> { "Lobby/A|#1", "Lobby/A|#1~2" };
+            Assert.AreEqual("Lobby/A|#1~3", LayoutOverrides.UniqueId("Lobby/A|#1", taken));
+            Assert.AreEqual("Lobby/B|#1", LayoutOverrides.UniqueId("Lobby/B|#1", taken));
+        }
+
+        [Test] public void BrokenIdSuffixDetected()
+        {
+            Assert.IsTrue(LayoutOverrides.LooksLikeBrokenId("Tent {S2/Oasis/Tent|#3} (1)"));   // Ctrl+D
+            Assert.IsTrue(LayoutOverrides.LooksLikeBrokenId("Tent {S2/Oasis/Tent|#3}x"));
+            Assert.IsFalse(LayoutOverrides.LooksLikeBrokenId("Tent {S2/Oasis/Tent|#3}"));
+            Assert.IsFalse(LayoutOverrides.LooksLikeBrokenId("MyRock"));
+        }
+
+        [Test] public void SameOverridesIgnoresOrderAndTinyDifferences()
+        {
+            var a = new List<LayoutOverride>
+            {
+                new LayoutOverride { id = "x", position = new Vector3(1, 2, 3), euler = new Vector3(0, 10, 0), scale = Vector3One(1) },
+                new LayoutOverride { id = "y", deleted = true },
+            };
+            var b = new List<LayoutOverride>
+            {
+                new LayoutOverride { id = "y", deleted = true },
+                new LayoutOverride { id = "x", position = new Vector3(1.004f, 2, 3), euler = new Vector3(0, 370, 0), scale = Vector3One(1) },
+            };
+            Assert.IsTrue(LayoutOverrides.SameOverrides(a, b));
+            b[1].position = new Vector3(2, 2, 3);
+            Assert.IsFalse(LayoutOverrides.SameOverrides(a, b));
+            Assert.IsFalse(LayoutOverrides.SameOverrides(a, new List<LayoutOverride> { a[0] }));
+            Assert.IsTrue(LayoutOverrides.SameOverrides(null, new List<LayoutOverride>()));
+        }
+
         [Test] public void NameCarriesId()
         {
             string id = "S2/Oasis/Tent|#3";
