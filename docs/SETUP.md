@@ -73,6 +73,7 @@ VRChat の Worlds プロジェクト（下の 1〜2）が用意できていれ�
    - シーン内の既存の Directional Light は無効にされ、生成した太陽が使われる。
    - シーン直下に `VRCWorld`（VRC Scene Descriptor）が 1 つ作られる（作り直しても消えず、ワールド ID は保たれる）。生成物は全部 `HorseRace_Generated` の下で、実行のたびに作り直し。
    - `Assets/HorseRace/Generated/` に TerrainData・マテリアル・RenderTexture・フォントなどが作られる。
+   - 各ステージのコースの両側（中心から 28m）に**見えない柵**（`Stage*/CourseBarrier`：当たりの壁 約 1000 区間＋見た目の帯）が作られる。遠くからは見えず、16m 以内に近づくと砂金色の網目が浮かぶ（シェーダー `HorseRace/ProximityBarrier`、マテリアル `Generated/Materials/ProximityBarrier.mat`）。崖下りの近道・岩橋の溝・ゴールの手前 45m から先には張らない。柵は毎回コースから計算して作り直すもので、**配置の手直し（8b）の対象ではありません**（id なし。動かすには `CourseBarrier.cs` の値を変える）。
 6. 完了したら **Ctrl + S でシーンを保存**。
 
 ## 8. 結果を確認する：HorseRace/Validate

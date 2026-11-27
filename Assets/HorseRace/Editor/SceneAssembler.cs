@@ -14,7 +14,7 @@ namespace HorseRace.EditorTools
     ///   1. UdonSharp のプログラムアセットが無いスクリプトに作る（作ったときはコンパイル待ちのため一度止まる → もう一度実行）
     ///   2. 毛色マテリアル（HorseMaterialBuilder）と Mount.controller（MountAnimatorBuilder）を作る
     ///   3. レイヤー Ground / Mount / Rider / Block を用意（WorldLayers）
-    ///   4. ステージ ×3（Terrain・砂地・コース・飾り）、ロビー（町・受付・手配書・柵の馬・鐘・練習場・たまり場・掲示板・中継）
+    ///   4. ステージ ×3（Terrain・砂地・コース・見えない柵・飾り）、ロビー（町・受付・手配書・柵の馬・鐘・練習場・たまり場・掲示板・中継）
     ///   5. 乗り物（レース用 8 頭は待機場所、練習用 2 頭は杭の横）、スターター、RaceManager
     ///   6. PLAYTEST の「セットアップ」に書かれた参照をすべてつなぐ（Wire）→ VRCSceneDescriptor・ライト
     ///   7. 最後に Validate を実行して結果を Console に出す
@@ -61,6 +61,7 @@ namespace HorseRace.EditorTools
                     Progress("ステージ " + (i + 1) + "：コース", 0.10f + i * 0.2f);
                     CourseBuilder.Build(sb, ctx);
                     SetPieceBuilder.Build(sb, ctx);
+                    BarrierBuilder.Build(sb);   // コースの見えない柵（溝・近道を掘った後の地形に合わせる）
                     Progress("ステージ " + (i + 1) + "：飾り", 0.15f + i * 0.2f);
                     DressingBuilder.BuildStage(sb, ctx);
                 }

@@ -220,11 +220,69 @@ namespace HorseRace.EditorTools
                 int relics = 0;
                 foreach (var r in allRelics) if (!r.isSpare && r.transform.IsChildOf(stageRoot)) relics++;
                 if (relics != StageDefinitions.RELICS_PER_STAGE) warn.Add(tag + "：遺物 " + relics + " 個（想定 4）");
+                CheckBarrier(tag, stageRoot, cps, allRelics, warn, info);
 
                 info.Add(tag + "：全長 " + len.ToString("F0") + "m（駆歩 10m/s で約 " + (len / 10f / 60f).ToString("F1") + " 分）、最大勾配 "
                     + (slope >= 0f ? slope.ToString("F1") + "°" : "-") + "、CP " + cps.Count + " 個、砂地 "
                     + (sand >= 0f ? (sand * 100f).ToString("F0") + "%" : "-") + "（SandZone " + zones + "）、遺物 " + relics + " 個、CP 線分からのずれ最大 " + dev.ToString("F0") + "m");
             }
+        }
+
+        /// <summary>
+        /// コースの見えない柵（BarrierBuilder）：区間の数、Block レイヤー、CP の箱・遺物・スタート位置・ゴール後の囲いから
+        /// CourseBarrier.CP_CLEAR_M（4m）以上離れているか。
+        /// </summary>
+        static void CheckBarrier(string tag, Transform stageRoot, List<Checkpoint> cps, RelicPickup[] allRelics, List<string> warn, List<string> info)
+        {
+            if (Mathf.Abs(CourseBarrier.CP_WIDTH - CourseBuilder.CP_WIDTH) > 0.01f || Mathf.Abs(CourseBarrier.CP_DEPTH - CourseBuilder.CP_DEPTH) > 0.01f)
+                warn.Add("CourseBarrier の CP の箱の大きさが CourseBuilder と違います（柵と CP の距離の確認がずれます）");
+            Transform root = GenUtil.FindDeep(stageRoot, BarrierBuilder.ROOT);
+            Transform walls = root != null ? GenUtil.FindDeep(root, "Walls") : null;
+            if (walls == null || walls.childCount == 0) { warn.Add(tag + "：コースの見えない柵（" + BarrierBuilder.ROOT + "）がありません"); return; }
+            var segs = new List<Vector3[]>();
+            bool badLayer = false;
+            foreach (Transform w in walls)
+            {
+                var box = w.GetComponent<BoxCollider>();
+                if (box == null) continue;
+                if (w.gameObject.layer != WorldLayers.Block) badLayer = true;
+                float half = box.size.z * 0.5f;
+                segs.Add(new[] { w.TransformPoint(new Vector3(0f, 0f, -half)), w.TransformPoint(new Vector3(0f, 0f, half)) });
+            }
+            if (badLayer) warn.Add(tag + "：コースの柵が Block レイヤーではありません（乗り物が止まりません）");
+
+            float minCp = float.MaxValue;
+            string worst = "";
+            foreach (var cp in cps)
+            {
+                var box = cp.GetComponent<BoxCollider>();
+                if (box == null) continue;
+                Vector3 c = box.center, z = box.size * 0.5f;
+                Transform t = cp.transform;
+                var quad = new[]
+                {
+                    t.TransformPoint(new Vector3(c.x - z.x, 0f, c.z - z.z)), t.TransformPoint(new Vector3(c.x + z.x, 0f, c.z - z.z)),
+                    t.TransformPoint(new Vector3(c.x + z.x, 0f, c.z + z.z)), t.TransformPoint(new Vector3(c.x - z.x, 0f, c.z + z.z)),
+                };
+                float d = CourseBarrier.DistToQuad(segs, quad);
+                if (d < minCp) { minCp = d; worst = "CP" + cp.index; }
+            }
+            var points = new List<KeyValuePair<string, Vector3>>();
+            foreach (var r in allRelics) if (!r.isSpare && r.transform.IsChildOf(stageRoot)) points.Add(new KeyValuePair<string, Vector3>("遺物 " + r.name, r.transform.position));
+            Transform grid = GenUtil.FindDeep(stageRoot, "StartGrid");
+            if (grid != null) foreach (Transform s in grid) points.Add(new KeyValuePair<string, Vector3>("スタート位置", s.position));
+            Transform pen = GenUtil.FindDeep(stageRoot, "FinishPen");
+            if (pen != null) points.Add(new KeyValuePair<string, Vector3>("ゴール後の囲い", pen.position));
+            float minPt = float.MaxValue;
+            foreach (var kv in points)
+            {
+                float d = CourseBarrier.DistToPoint(segs, kv.Value);
+                if (d < minPt) minPt = d;
+                if (d < CourseBarrier.CP_CLEAR_M) warn.Add(tag + "：コースの柵が" + kv.Key + "から " + d.ToString("F1") + "m しか離れていません（" + CourseBarrier.CP_CLEAR_M + "m 以上）");
+            }
+            if (minCp < CourseBarrier.CP_CLEAR_M) warn.Add(tag + "：コースの柵が " + worst + " の箱から " + minCp.ToString("F1") + "m しか離れていません（" + CourseBarrier.CP_CLEAR_M + "m 以上）");
+            info.Add(tag + "：コースの見えない柵 " + segs.Count + " 区間（中心から " + CourseBarrier.OFFSET_M + "m、近づくと見える）、CP の箱まで最小 "
+                + (minCp < float.MaxValue ? minCp.ToString("F1") : "-") + "m、遺物・スタート・囲いまで最小 " + (minPt < float.MaxValue ? minPt.ToString("F1") : "-") + "m");
         }
 
         /// <summary>見どころ：岩橋（板が Ground、溝が 8m 以上深い）、崖下りの近道（段 3〜8m、コースに戻る、CP の線分から 60m 以内、

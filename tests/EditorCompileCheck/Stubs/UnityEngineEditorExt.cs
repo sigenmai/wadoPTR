@@ -181,6 +181,7 @@ namespace UnityEngine
     {
         public Bounds bounds => default(Bounds);
         public Rendering.ShadowCastingMode shadowCastingMode { get; set; }
+        public bool receiveShadows { get; set; }
     }
 
     public class MeshRenderer : Renderer { }
