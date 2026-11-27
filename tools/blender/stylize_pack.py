@@ -10,6 +10,7 @@
 - 色テクスチャを共通パレットに寄せたものに差し替え（recolor_texture.py）
 - 面はフラット表示（ローポリ・トゥーン）
 - --redrock を付けると、灰色の岩を峡谷の赤い岩の色に塗り替える
+- --keep-layout を付けると、部品を並べ替えず元の組み立てた位置のまま書き出す（部品名もそのまま）
 """
 import bpy, sys, os, subprocess
 from mathutils import Vector, Matrix
@@ -22,6 +23,7 @@ argv = sys.argv[sys.argv.index("--") + 1:]
 src, outdir, name, scale = argv[0], argv[1], argv[2], float(argv[3])
 tex_dirs = [a for a in argv[4:] if not a.startswith("--")]
 REDROCK = "--redrock" in argv   # 灰色の岩を赤い岩に塗り替える
+KEEP = "--keep-layout" in argv   # 部品の配置をそのまま残す（銃の部品など、組み立てた形で使うもの）
 os.makedirs(outdir, exist_ok=True)
 
 if src.endswith(".blend"):
@@ -65,10 +67,14 @@ for i, o in enumerate(meshes):
     for v in o.data.vertices:
         v.co -= base
     w = mx.x - mn.x
-    o.location = Vector((x + w / 2, 0, 0))
-    x += w + 1.0
-    o.name = f"{name}_{i + 1:02d}"
-    o.data.name = o.name
+    if KEEP:
+        o.location = base          # 元の位置に戻す（原点だけ部品の底へ）
+    else:
+        o.location = Vector((x + w / 2, 0, 0))
+        x += w + 1.0
+    if not KEEP:
+        o.name = f"{name}_{i + 1:02d}"
+        o.data.name = o.name
     # フラット表示
     for p in o.data.polygons:
         p.use_smooth = False
