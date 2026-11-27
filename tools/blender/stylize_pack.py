@@ -10,6 +10,7 @@
 - 色テクスチャを共通パレットに寄せたものに差し替え（recolor_texture.py）
 - 面はフラット表示（ローポリ・トゥーン）
 - --redrock を付けると、灰色の岩を峡谷の赤い岩の色に塗り替える
+- --no-recolor を付けると、テクスチャの色を変えない
 - --keep-layout を付けると、部品を並べ替えず元の組み立てた位置のまま書き出す（部品名もそのまま）
 """
 import bpy, sys, os, subprocess
@@ -23,7 +24,8 @@ argv = sys.argv[sys.argv.index("--") + 1:]
 src, outdir, name, scale = argv[0], argv[1], argv[2], float(argv[3])
 tex_dirs = [a for a in argv[4:] if not a.startswith("--")]
 REDROCK = "--redrock" in argv   # 灰色の岩を赤い岩に塗り替える
-KEEP = "--keep-layout" in argv   # 部品の配置をそのまま残す（銃の部品など、組み立てた形で使うもの）
+KEEP = "--keep-layout" in argv
+NORECOLOR = "--no-recolor" in argv   # テクスチャの色を変えない（手配書など、すでに世界観に合う絵柄）   # 部品の配置をそのまま残す（銃の部品など、組み立てた形で使うもの）
 os.makedirs(outdir, exist_ok=True)
 
 if src.endswith(".blend"):
@@ -94,6 +96,8 @@ for m in bpy.data.materials:
         n.inputs["Metallic"].default_value = 0.0
         n.inputs["Roughness"].default_value = 0.9
         bc = n.inputs["Base Color"]
+        if NORECOLOR:
+            continue
         if bc.links and bc.links[0].from_node.type == 'TEX_IMAGE':
             img = bc.links[0].from_node.image
             if img is None or img.size[0] == 0:   # size を読むと画像が読み込まれる
