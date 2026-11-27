@@ -5,6 +5,7 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ステージの Terrain（1000m 四方、高さ 200m、解像度 513）を作る。
+    /// 外周 55m は HeightmapGen.ApplyRim で 25〜60m 盛り上げた尾根（端が見えない）。その内側 40m に見えない壁（BoundaryWalls）。
     /// TerrainLayer: 0 = 赤茶の土、1 = 岩（急な斜面）、2 = 砂（HeightmapGen.SandMask。CANYON は高さを渡して谷底だけ）。
     /// 実行時（Udon）からは Terrain の塗りを読めないので、砂の範囲には SandZone のトリガー箱も並べる（25m のマス目を x 方向に連結）。
     /// TerrainData・TerrainLayer・テクスチャは Assets/HorseRace/Generated/Terrain に上書き保存する。
@@ -29,6 +30,9 @@ namespace HorseRace.EditorTools
             sb.goalArc = StageDefinitions.GoalArc(def, sb.courseLocal);
             Vector3[] norm = StageDefinitions.Normalize(sb.courseLocal);
             sb.heights = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, norm);
+            // 外周を尾根にして地形の端を見せない（コースの近くは触らない）
+            HeightmapGen.ApplyRim(sb.heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, HeightmapGen.RIM_WIDTH_M,
+                HeightmapGen.RIM_MIN_M, HeightmapGen.RIM_MAX_M, def.seed, norm);
             sb.sand = HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES, def.kind, def.seed,
                 def.kind == HeightmapGen.KIND_CANYON ? sb.heights : null);
 
@@ -48,7 +52,34 @@ namespace HorseRace.EditorTools
             sb.terrain.drawInstanced = true;
 
             BuildSandZones(sb);
+            BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
             return sb;
+        }
+
+        public const float WALL_INSET_M = 40f;     // 見えない壁：外周から 40m 内側（尾根の斜面の中。コースは 60m 以上内側）
+        public const float WALL_HEIGHT_M = 320f;
+
+        /// <summary>正方形 [origin, origin+size] の各辺から inset m 内側に、見えない壁（Block、描画なし）を 4 枚立てる。</summary>
+        public static GameObject BoundaryWalls(Transform parent, Vector3 origin, float size, float inset, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.position = new Vector3(origin.x + size * 0.5f, origin.y + WALL_HEIGHT_M * 0.5f - 20f, origin.z + size * 0.5f);
+            float s = size - inset * 2f;
+            const float T = 2f;
+            Wall(go.transform, "N", new Vector3(0f, 0f, s * 0.5f), new Vector3(s + T, WALL_HEIGHT_M, T));
+            Wall(go.transform, "S", new Vector3(0f, 0f, -s * 0.5f), new Vector3(s + T, WALL_HEIGHT_M, T));
+            Wall(go.transform, "E", new Vector3(s * 0.5f, 0f, 0f), new Vector3(T, WALL_HEIGHT_M, s + T));
+            Wall(go.transform, "W", new Vector3(-s * 0.5f, 0f, 0f), new Vector3(T, WALL_HEIGHT_M, s + T));
+            GenUtil.SetLayerRecursive(go, WorldLayers.Block);
+            return go;
+        }
+
+        static void Wall(Transform parent, string name, Vector3 local, Vector3 size)
+        {
+            var w = GenUtil.Child(parent, name, local);
+            var b = w.AddComponent<BoxCollider>();
+            b.size = size;
         }
 
         /// <summary>TerrainData を作って Generated/Terrain/&lt;name&gt;.asset に上書き保存する。</summary>

@@ -47,6 +47,7 @@ namespace HorseRace.EditorTools
 
                 Progress("光・中継の素材", 0.02f);
                 Lights(ctx);
+                Atmosphere();
                 ShowBuilder.CreateAssets(ctx);
 
                 for (int i = 0; i < StageDefinitions.All.Length; i++)
@@ -71,6 +72,8 @@ namespace HorseRace.EditorTools
 
                 Progress("つなぐ", 0.9f);
                 Wire(ctx);
+                Backdrop(ctx);
+                StageCameraBounds(ctx);
                 SceneDescriptor(ctx);
                 GenUtil.FlushBehaviours();
             }
@@ -120,6 +123,77 @@ namespace HorseRace.EditorTools
             RenderSettings.sun = light;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.62f, 0.55f, 0.50f);
+        }
+
+        // ---- 見えてはいけない場所の対処（Task 11c）----
+        public const float FOG_START_M = 350f, FOG_END_M = 1100f;
+        public const float BROADCAST_FAR_CLIP = 1100f;     // 中継カメラ（1200m 以下）
+        public const float PLAYER_FAR_CLIP = 1500f;        // 参照カメラ（VRChat のプレイヤーの視界の遠さ）
+        public static readonly Color FogColor = new Color(0.86f, 0.72f, 0.56f);
+        public const string SKY_MAT = GenUtil.GEN_MATERIALS + "/M_DustySky.mat";
+
+        /// <summary>砂ぼこりの霧（線形 350〜1100m、暖かい砂色）と、同じ色味の空・環境光。遠くの空白や背景の切れ目を霧で隠す。</summary>
+        static void Atmosphere()
+        {
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = FogColor;
+            RenderSettings.fogStartDistance = FOG_START_M;
+            RenderSettings.fogEndDistance = FOG_END_M;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.78f, 0.70f, 0.62f);
+            RenderSettings.ambientEquatorColor = new Color(0.72f, 0.58f, 0.45f);
+            RenderSettings.ambientGroundColor = new Color(0.45f, 0.33f, 0.25f);
+            var sh = Shader.Find("Skybox/Procedural");
+            if (sh != null)
+            {
+                GenUtil.EnsureFolder(GenUtil.GEN_MATERIALS);
+                var m = AssetDatabase.LoadAssetAtPath<Material>(SKY_MAT);
+                if (m == null) { m = new Material(sh); AssetDatabase.CreateAsset(m, SKY_MAT); }
+                m.shader = sh;
+                m.SetColor("_SkyTint", new Color(0.80f, 0.62f, 0.45f));
+                m.SetColor("_GroundColor", FogColor);
+                m.SetFloat("_AtmosphereThickness", 1.6f);
+                m.SetFloat("_Exposure", 1.1f);
+                EditorUtility.SetDirty(m);
+                RenderSettings.skybox = m;
+            }
+            else GenUtil.Warn("Skybox/Procedural シェーダーが見つかりません（空は既定のまま）");
+        }
+
+        /// <summary>遠景の山並み（DressingPlan.Backdrop）と、ワールド全体の下の地面の板（ステージの間・外側の空白を埋める）。</summary>
+        static void Backdrop(WorldContext ctx)
+        {
+            var root = GenUtil.Child(ctx.root, "Backdrop", Vector3.zero).transform;
+            root.position = Vector3.zero;
+            var plan = DressingPlan.Backdrop(7);
+            DressingBuilder.Instantiate(plan, root, Vector3.zero);
+            Vector4 f = WorldBounds.FillerRect();
+            var plane = GenUtil.Prim(PrimitiveType.Plane, "GroundFiller", root, Vector3.zero,
+                new Vector3((f.z - f.x) / 10f, 1f, (f.w - f.y) / 10f), new Color(0.80f, 0.62f, 0.44f));
+            plane.transform.position = new Vector3((f.x + f.z) * 0.5f, WorldBounds.FILLER_Y, (f.y + f.w) * 0.5f);
+            var r = plane.GetComponent<Renderer>();
+            if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            DressingBuilder.SetStatic(plane);
+            Debug.Log("[HorseRace] 遠景の山並み " + plan.Count + " 個、地面の板 " + (f.z - f.x).ToString("F0") + "×" + (f.w - f.y).ToString("F0") + "m");
+        }
+
+        /// <summary>中継カメラの範囲：各ステージの見えない壁の少し内側。</summary>
+        static void StageCameraBounds(WorldContext ctx)
+        {
+            if (ctx.director == null) return;
+            int n = ctx.stages.Count;
+            var mn = new Vector3[n];
+            var mx = new Vector3[n];
+            float inset = TerrainBuilder.WALL_INSET_M + 5f;
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 o = ctx.stages[i].def.Origin;
+                mn[i] = new Vector3(o.x + inset, 0f, o.z + inset);
+                mx[i] = new Vector3(o.x + StageDefinitions.SIZE - inset, 0f, o.z + StageDefinitions.SIZE - inset);
+            }
+            ctx.director.stageBoundsMin = mn;
+            ctx.director.stageBoundsMax = mx;
         }
 
         static void Mounts(WorldContext ctx)
@@ -233,6 +307,16 @@ namespace HorseRace.EditorTools
             }
             else Debug.Log("[HorseRace] 既存の VRCSceneDescriptor（" + desc.name + "）のスポーン位置をロビーに設定しました");
             desc.spawns = new[] { ctx.lobbySpawn };
+            // 参照カメラ：プレイヤーの視界の遠さ（霧の向こうまで描かない）。利用者が別に設定していればそのまま
+            if (desc.ReferenceCamera == null || desc.ReferenceCamera.transform.IsChildOf(ctx.root))
+            {
+                var rc = GenUtil.Child(ctx.root, "ReferenceCamera", ctx.lobbySpawn.position + Vector3.up * 1.6f);
+                var cam = rc.AddComponent<Camera>();
+                cam.nearClipPlane = 0.05f;
+                cam.farClipPlane = PLAYER_FAR_CLIP;
+                cam.enabled = false;
+                desc.ReferenceCamera = rc;
+            }
             desc.RespawnHeightY = -60f;
             EditorUtility.SetDirty(desc);
         }

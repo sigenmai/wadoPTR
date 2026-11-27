@@ -17,9 +17,13 @@ namespace HorseRace.EditorTools
     /// </summary>
     public static class LobbyBuilder
     {
-        public static readonly Vector3 CENTER = new Vector3(0f, 0f, -820f);
-        public const float GROUND_SIZE = 420f;
-        public const float GROUND_HEIGHT_RANGE = 20f;
+        public static readonly Vector3 CENTER = WorldBounds.LOBBY_CENTER;
+        public const float GROUND_SIZE = WorldBounds.LOBBY_SIZE;
+        public const float GROUND_HEIGHT_RANGE = 80f;   // 外周の尾根（〜25m）が入る高さ
+        public const float RIM_WIDTH_M = 30f, RIM_MIN_M = 12f, RIM_MAX_M = 25f;   // ロビーの外周の尾根
+        public const float BORDER_INSET_M = 32f;       // 見えない壁：外周から 32m 内側（尾根の手前）
+        public const float BERM_M = 8f, BERM_HEIGHT_M = 0.6f;   // 町の足元のまわりを少し盛って土台の縁を隠す
+        public const float TOWN_ENTRANCE_HALF = 12f;   // 町の南側の入口（見えない壁・岩を置かない）
         public const float GROUND_LEVEL = 2f;            // 地形の高さ 2m（Terrain は y = -2 に置く）→ 地面 y = 0
         public const float STREET_HEIGHT_FALLBACK = 13.75f;
         public static readonly Vector3 PRACTICE_OFFSET = new Vector3(120f, 0f, -40f);
@@ -67,7 +71,7 @@ namespace HorseRace.EditorTools
             {
                 new Vector4(0f, 0f, -2f, 24f), new Vector4(-50f, 0f, -10f, 28f), new Vector4(30f, 0f, -30f, 20f),
                 new Vector4(-11f, 0f, -45f, 23f), new Vector4(PRACTICE_OFFSET.x, 0f, PRACTICE_OFFSET.z, 82f),
-                new Vector4(-184f, 0f, -130f, 10f), new Vector4(0f, 0f, 22f, 14f),
+                new Vector4(-150f, 0f, -100f, 10f), new Vector4(0f, 0f, 22f, 14f),
             };
         }
 
@@ -135,6 +139,28 @@ namespace HorseRace.EditorTools
             Vector3 p = holder.transform.position;
             p.y = CENTER.y - lastStreetHeight + 0.02f;
             holder.transform.position = p;
+            // 丘のある端を北（広場の反対）へ：両端 35m の帯で高い頂点（通り +10m 以上）の数を比べ、南が多ければ 180° 回す
+            {
+                Bounds b0 = GenUtil.RendererBounds(holder);
+                int south = 0, north = 0;
+                foreach (var mf in holder.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (mf.sharedMesh == null) continue;
+                    Matrix4x4 m4 = mf.transform.localToWorldMatrix;
+                    foreach (Vector3 v in mf.sharedMesh.vertices)
+                    {
+                        Vector3 wv = m4.MultiplyPoint3x4(v);
+                        if (wv.y < CENTER.y + 10f) continue;
+                        if (wv.z < b0.min.z + 35f) south++;
+                        else if (wv.z > b0.max.z - 35f) north++;
+                    }
+                }
+                if (south > north * 3 / 2)
+                {
+                    holder.transform.rotation = Quaternion.Euler(0f, 180f, 0f) * holder.transform.rotation;
+                    Debug.Log("[HorseRace] WesternTown の丘が南側にあったので 180° 回しました（丘を広場の反対側へ）");
+                }
+            }
             Bounds b = GenUtil.RendererBounds(holder);
             // 町を広場の北側へ：南端が z = +25
             holder.transform.position += new Vector3(CENTER.x - b.center.x, 0f, CENTER.z + 25f - b.min.z);
@@ -188,7 +214,7 @@ namespace HorseRace.EditorTools
         {
             int res = 129;
             float cell = GROUND_SIZE / (res - 1);
-            Vector3 origin = new Vector3(CENTER.x - GROUND_SIZE * 0.5f, CENTER.y - GROUND_LEVEL, CENTER.z - 150f);
+            Vector3 origin = new Vector3(CENTER.x - GROUND_SIZE * 0.5f, CENTER.y - GROUND_LEVEL, CENTER.z - WorldBounds.LOBBY_SOUTH);
             Bounds tb = GenUtil.RendererBounds(town);
             var h = new float[res, res];
             for (int z = 0; z < res; z++)
@@ -196,8 +222,19 @@ namespace HorseRace.EditorTools
                 {
                     float wx = origin.x + x * cell, wz = origin.z + z * cell;
                     bool under = wx > tb.min.x + 1f && wx < tb.max.x - 1f && wz > tb.min.z + 1f && wz < tb.max.z - 1f;
-                    h[z, x] = (under ? GROUND_LEVEL - 1f : GROUND_LEVEL) / GROUND_HEIGHT_RANGE;
+                    float level = under ? GROUND_LEVEL - 1f : GROUND_LEVEL;
+                    if (!under)
+                    {
+                        // 町の外周の小さな土手（入口は除く）：土台の縁・裏を見せない
+                        float dx = Mathf.Max(0f, Mathf.Max(tb.min.x - wx, wx - tb.max.x));
+                        float dz = Mathf.Max(0f, Mathf.Max(tb.min.z - wz, wz - tb.max.z));
+                        float dd = Mathf.Sqrt(dx * dx + dz * dz);
+                        bool entrance = wz < tb.min.z && Mathf.Abs(wx - tb.center.x) < TOWN_ENTRANCE_HALF + 4f;
+                        if (dd < BERM_M && !entrance) level += BERM_HEIGHT_M * (1f - dd / BERM_M);
+                    }
+                    h[z, x] = level / GROUND_HEIGHT_RANGE;
                 }
+            HeightmapGen.ApplyRim(h, GROUND_SIZE, GROUND_HEIGHT_RANGE, RIM_WIDTH_M, RIM_MIN_M, RIM_MAX_M, 99, null);
             var td = TerrainBuilder.CreateTerrainData("Lobby", h, GROUND_SIZE, GROUND_HEIGHT_RANGE);
             td.terrainLayers = TerrainBuilder.Layers();
             var tgo = Terrain.CreateTerrainGameObject(td);
@@ -206,14 +243,43 @@ namespace HorseRace.EditorTools
             tgo.transform.position = origin;
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
 
-            // 外周の見えない壁（落ちないように）
-            var walls = GenUtil.World(root, "LobbyBorder", new Vector3(origin.x + GROUND_SIZE * 0.5f, CENTER.y, origin.z + GROUND_SIZE * 0.5f));
-            float s = GROUND_SIZE - 4f, hgt = 12f;
-            AddBox(walls.transform, "N", new Vector3(0f, hgt * 0.5f, s * 0.5f), new Vector3(s, hgt, 1f), false);
-            AddBox(walls.transform, "S", new Vector3(0f, hgt * 0.5f, -s * 0.5f), new Vector3(s, hgt, 1f), false);
-            AddBox(walls.transform, "E", new Vector3(s * 0.5f, hgt * 0.5f, 0f), new Vector3(1f, hgt, s), false);
-            AddBox(walls.transform, "W", new Vector3(-s * 0.5f, hgt * 0.5f, 0f), new Vector3(1f, hgt, s), false);
-            GenUtil.SetLayerRecursive(walls, WorldLayers.Block);
+            // 外周の見えない壁（尾根の手前。練習場もこの内側）
+            TerrainBuilder.BoundaryWalls(root, origin, GROUND_SIZE, BORDER_INSET_M, "LobbyBorder");
+            TownWallsAndSkirt(root, town, tb);
+        }
+
+        /// <summary>
+        /// 町（ほぼ見た目だけの建物の模型）の外周：見えない壁（南の入口 24m だけ開ける）で建物の裏へ回り込めないようにし、
+        /// 足元に岩を並べて沈めた土台の縁を隠す。
+        /// </summary>
+        static void TownWallsAndSkirt(Transform root, GameObject town, Bounds tb)
+        {
+            var walls = GenUtil.World(root, "TownWalls", new Vector3(tb.center.x, CENTER.y, tb.center.z)).transform;
+            float w = tb.size.x + 4f, d = tb.size.z + 4f, hgt = 30f;
+            AddBox(walls, "N", new Vector3(0f, hgt * 0.5f, d * 0.5f), new Vector3(w, hgt, 1f), false);
+            AddBox(walls, "E", new Vector3(w * 0.5f, hgt * 0.5f, 0f), new Vector3(1f, hgt, d), false);
+            AddBox(walls, "W", new Vector3(-w * 0.5f, hgt * 0.5f, 0f), new Vector3(1f, hgt, d), false);
+            float seg = (w - TOWN_ENTRANCE_HALF * 2f) * 0.5f;
+            AddBox(walls, "S_L", new Vector3(-(TOWN_ENTRANCE_HALF + seg * 0.5f), hgt * 0.5f, -d * 0.5f), new Vector3(seg, hgt, 1f), false);
+            AddBox(walls, "S_R", new Vector3(TOWN_ENTRANCE_HALF + seg * 0.5f, hgt * 0.5f, -d * 0.5f), new Vector3(seg, hgt, 1f), false);
+            GenUtil.SetLayerRecursive(walls.gameObject, WorldLayers.Block);
+
+            var skirt = GenUtil.World(root, "TownSkirt", CENTER).transform;
+            string[] rocks = { "DesertRocks_10", "DesertRocks_11", "DesertRocks_12", "DesertRocks_13", "DesertRocks_14", "DesertRocks_15" };
+            int k = 0;
+            float perim = 2f * (tb.size.x + tb.size.z);
+            for (float s = 0f; s < perim; s += 6f, k++)
+            {
+                Vector3 p;
+                if (s < tb.size.x) p = new Vector3(tb.min.x + s, CENTER.y, tb.min.z - 1.5f);
+                else if (s < tb.size.x + tb.size.z) p = new Vector3(tb.max.x + 1.5f, CENTER.y, tb.min.z + (s - tb.size.x));
+                else if (s < 2f * tb.size.x + tb.size.z) p = new Vector3(tb.max.x - (s - tb.size.x - tb.size.z), CENTER.y, tb.max.z + 1.5f);
+                else p = new Vector3(tb.min.x - 1.5f, CENTER.y, tb.max.z - (s - 2f * tb.size.x - tb.size.z));
+                if (p.z < tb.min.z && Mathf.Abs(p.x - tb.center.x) < TOWN_ENTRANCE_HALF + 2f) continue;   // 入口
+                var r = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), rocks[k % rocks.Length], skirt, p - Vector3.up * 0.6f,
+                    k * 47f, 1.3f, new Vector3(2.5f, 1.5f, 2.5f), new Color(0.6f, 0.45f, 0.35f));
+                DressingBuilder.SetStatic(r);
+            }
         }
 
         static BoxCollider AddBox(Transform parent, string name, Vector3 local, Vector3 size, bool trigger)
@@ -573,9 +639,9 @@ namespace HorseRace.EditorTools
 
         static void SpareRelics(Transform root, WorldContext ctx)
         {
-            var p = GenUtil.World(root, "SpareRelicPool", L(-190f, -130f)).transform;
+            var p = GenUtil.World(root, "SpareRelicPool", L(-150f, -100f)).transform;
             for (int i = 0; i < 4; i++)
-                ctx.spareRelics.Add(CourseBuilder.Relic(p, "SpareRelic_" + (i + 1), L(-190f + i * 4f, -130f), i, true));
+                ctx.spareRelics.Add(CourseBuilder.Relic(p, "SpareRelic_" + (i + 1), L(-156f + i * 4f, -100f), i, true));
         }
 
         static void Watch(Transform root, WorldContext ctx)

@@ -79,7 +79,7 @@ namespace HorseRace.EditorTools
             cam.targetTexture = ctx.broadcastRT;
             cam.fieldOfView = 50f;
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 400f;
+            cam.farClipPlane = SceneAssembler.BROADCAST_FAR_CLIP;   // 霧の終わり（1100m）まで。1200m 以下
             cam.enabled = false;
             var dir = GenUtil.AddU<SpectatorDirector>(dirGo);
             dir.broadcastCamera = cam;

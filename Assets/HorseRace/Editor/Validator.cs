@@ -98,6 +98,7 @@ namespace HorseRace.EditorTools
             CheckStages(root, warn, info);
             CheckAssets(warn);
             CheckLayers(root, warn);
+            CheckHidden(root, warn, info);
             Transform lobbyDr = GenUtil.FindDeep(root.transform, "TownDressing");
             int lobbyN = 0;
             if (lobbyDr != null) foreach (Transform g in lobbyDr) { if (g.name.StartsWith("WallPoster")) continue; foreach (Transform c in g) lobbyN++; }
@@ -152,6 +153,7 @@ namespace HorseRace.EditorTools
                         : SetPieces.ExcludeArcRange(local, bridge - SetPieces.BRIDGE_HALF_SPAN, bridge + SetPieces.BRIDGE_HALF_SPAN);
                     slope = HeightmapGen.MaxSlopeDegAlong(h, td.size.x, td.size.y, StageDefinitions.Normalize(slopePts));
                     CheckSetPieces(def, tag, stageRoot, local, len, h, allCps, warn, info);
+                    CheckRim(tag, h, td.size.x, td.size.y, warn, info);
                     if (slope > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：コース上の最大勾配 " + slope.ToString("F1") + "° が 25° を超えています");
                     int ar = td.alphamapResolution;
                     if (td.alphamapLayers > TerrainBuilder.LAYER_SAND)
@@ -322,6 +324,67 @@ namespace HorseRace.EditorTools
             foreach (var a in root.GetComponentsInChildren<PracticeArea>(true))
                 if (a.gameObject.layer != WorldLayers.TRIGGERS) warn.Add("練習場のトリガーが Ignore Raycast レイヤーではありません");
             if (!GenUtil.FontAvailable()) warn.Add("日本語の TMP フォントがありません（" + GenUtil.FONT_TTF + "）");
+        }
+
+        /// <summary>外周の尾根：4 辺それぞれ、辺の平均の高さが 120m 内側の平均より 15m 以上高い。</summary>
+        static void CheckRim(string tag, float[,] h, float sizeM, float heightM, List<string> warn, List<string> info)
+        {
+            int n = h.GetLength(0);
+            int inner = Mathf.RoundToInt(120f / (sizeM / (n - 1)));
+            string[] names = { "南", "北", "西", "東" };
+            float minRise = float.MaxValue;
+            for (int e = 0; e < 4; e++)
+            {
+                double edge = 0, ins = 0;
+                for (int k = 0; k < n; k++)
+                {
+                    int ez = e == 0 ? 0 : (e == 1 ? n - 1 : k), ex = e == 2 ? 0 : (e == 3 ? n - 1 : k);
+                    int iz = e == 0 ? inner : (e == 1 ? n - 1 - inner : k), ix = e == 2 ? inner : (e == 3 ? n - 1 - inner : k);
+                    edge += h[ez, ex]; ins += h[iz, ix];
+                }
+                float rise = (float)((edge - ins) / n) * heightM;
+                minRise = Mathf.Min(minRise, rise);
+                if (rise < 15f) warn.Add(tag + "：外周の尾根（" + names[e] + "）が低すぎます（内側より " + rise.ToString("F0") + "m）。地形の端が見えるおそれ");
+            }
+            info.Add(tag + "：外周の尾根（内側より最低 " + minRise.ToString("F0") + "m 高い）");
+        }
+
+        /// <summary>見えてはいけない場所：霧、中継・参照カメラの遠さ、見えない壁、遠景の山並み、地面の板の範囲、中継カメラの範囲。</summary>
+        static void CheckHidden(GameObject root, List<string> warn, List<string> info)
+        {
+            if (!RenderSettings.fog) warn.Add("霧（RenderSettings.fog）が無効です");
+            else if (RenderSettings.fogMode == FogMode.Linear && (RenderSettings.fogEndDistance > 1300f || RenderSettings.fogStartDistance >= RenderSettings.fogEndDistance))
+                warn.Add("霧の距離が想定外です（開始 " + RenderSettings.fogStartDistance + "m、終わり " + RenderSettings.fogEndDistance + "m）");
+            var sd = root.GetComponentInChildren<SpectatorDirector>(true);
+            if (sd != null)
+            {
+                if (sd.broadcastCamera != null && sd.broadcastCamera.farClipPlane > 1200f) warn.Add("中継カメラの Far Clip が 1200m を超えています");
+                if (sd.stageBoundsMin == null || sd.stageBoundsMin.Length < StageDefinitions.All.Length) warn.Add("中継カメラの範囲（stageBoundsMin/Max）が設定されていません");
+            }
+            foreach (StageDef def in StageDefinitions.All)
+            {
+                Transform stageRoot = null;
+                foreach (Transform t in root.transform) if (t.name.StartsWith("Stage" + (def.index + 1) + "_")) stageRoot = t;
+                if (stageRoot != null && GenUtil.FindDeep(stageRoot, "StageBoundary") == null) warn.Add("ステージ" + (def.index + 1) + " の見えない壁（StageBoundary）がありません");
+            }
+            if (GenUtil.FindDeep(root.transform, "LobbyBorder") == null) warn.Add("ロビーの見えない壁（LobbyBorder）がありません");
+            if (GenUtil.FindDeep(root.transform, "TownWalls") == null) warn.Add("町のまわりの見えない壁（TownWalls）がありません");
+            Transform bd = GenUtil.FindDeep(root.transform, "Backdrop");
+            int backdrop = 0;
+            if (bd != null) foreach (Transform g in bd) if (g.name == "Backdrop") backdrop += g.childCount;
+            if (backdrop < 40) warn.Add("遠景の山並みが " + backdrop + " 個しかありません（40 個以上）");
+            Transform filler = bd != null ? GenUtil.FindDeep(bd, "GroundFiller") : null;
+            if (filler == null) warn.Add("地面の板（GroundFiller）がありません。ステージの間に空白が見えます");
+            else
+            {
+                var r = filler.GetComponent<Renderer>();
+                Bounds fb = r != null ? r.bounds : new Bounds(filler.position, Vector3.zero);
+                foreach (var rect in WorldBounds.PlayableRects())
+                    if (fb.min.x > rect.x || fb.max.x < rect.z || fb.min.z > rect.y || fb.max.z < rect.w)
+                    { warn.Add("地面の板が遊べる範囲を覆っていません（空白が見えるおそれ）"); break; }
+            }
+            info.Add("見えない場所の対処：霧 " + (RenderSettings.fog ? RenderSettings.fogStartDistance.ToString("F0") + "〜" + RenderSettings.fogEndDistance.ToString("F0") + "m" : "なし")
+                + "、遠景の山並み " + backdrop + " 個");
         }
 
         /// <summary>飾りの個数（Dressing の下のグループの子。見えない壁・表彰台は数えない）。</summary>

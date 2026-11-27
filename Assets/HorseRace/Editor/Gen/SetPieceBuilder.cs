@@ -92,6 +92,28 @@ namespace HorseRace.EditorTools
             pitBox.size = new Vector3(SetPieces.TRENCH_HALF_LENGTH * 2f + 10f, 8f, (SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND) * 2f);
             pit.layer = WorldLayers.TRIGGERS;
             GenUtil.AddU<ResetVolume>(pit);
+            // 溝の両端と底に岩（掘った地形の切り口を見せない）
+            var cover = GenUtil.Child(bridge.transform, "TrenchRocks", Vector3.zero).transform;
+            for (int s2 = -1; s2 <= 1; s2 += 2)
+            {
+                float endLat = SetPieces.TRENCH_HALF_LENGTH - SetPieces.TRENCH_END_TAPER * 0.5f;
+                for (int e = -1; e <= 1; e += 2)
+                {
+                    Vector3 p = sb.GroundWorld(center + r * (s2 * endLat) + t * (e * 4f));
+                    var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), e < 0 ? "DesertRocks_05" : "DesertRocks_04", cover,
+                        p - Vector3.up * 2f, s2 * 30f + e * 70f, 1.6f, new Vector3(10f, 5f, 7f), Rock);
+                    DressingBuilder.AddCollider(rock, false);
+                    DressingBuilder.SetStatic(rock);
+                }
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 p = sb.GroundWorld(center + r * (s2 * (16f + i * 6f)) + t * ((i % 2 == 0 ? 1f : -1f) * 3f));
+                    var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_0" + (6 + i % 4), cover,
+                        p - Vector3.up * 0.8f, i * 53f, 1.1f, new Vector3(5f, 3f, 5f), Rock);
+                    DressingBuilder.SetStatic(rock);
+                }
+            }
+            DressingBuilder.SetStatic(bridge);
             sb.Exclude(bridge.transform.position, SetPieces.TRENCH_HALF_LENGTH + 10f);
         }
 
@@ -125,6 +147,30 @@ namespace HorseRace.EditorTools
                 Vector3 w = new Vector3(o0.x + lip.x, o0.y + SetPieces.ShortcutHeight(p, p.fDrop - 0.001f), o0.z + lip.z)
                     + WorldLayout.RightOf(dir) * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 0.5f));
                 GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_15", root, w, s * 40f, 1f, new Vector3(1.3f, 1.8f, 1.4f), Rock);
+            }
+            // 段（崖下り）の通路の両脇の斜面と崖の面に岩（盛った地形の切り口を見せない）
+            Vector3 rgt = WorldLayout.RightOf(dir);
+            float L = p.length;
+            for (float f = p.f0; f <= p.fDrop + 1e-4f; f += 7f / L)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    Vector3 q = Vector3.Lerp(p.a, p.b, f);
+                    float hgt = SetPieces.ShortcutHeight(p, Mathf.Min(f, p.fDrop - 0.001f));
+                    Vector3 w = new Vector3(o0.x + q.x, o0.y + hgt, o0.z + q.z) + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND * 0.6f));
+                    var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_1" + (1 + ((int)(f * 97f) % 4)), root,
+                        w - Vector3.up * 1.4f, f * 400f + s * 90f, 1.5f, new Vector3(3f, 2f, 3f), Rock);
+                    DressingBuilder.SetStatic(rock);
+                }
+            {
+                Vector3 q = Vector3.Lerp(p.a, p.b, p.fDrop);
+                float low = SetPieces.ShortcutHeight(p, p.fDrop + 0.001f);
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    Vector3 w = new Vector3(o0.x + q.x, o0.y + low, o0.z + q.z) + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 2.5f));
+                    var face = GenUtil.InstantiatePart(GenUtil.Pack("Cliffs"), "Cliffs_13", root, w - Vector3.up * 1f, WorldLayout.YawDeg(dir) + s * 90f, 0.35f,
+                        new Vector3(6f, 6f, 6f), Rock);
+                    DressingBuilder.SetStatic(face);
+                }
             }
             for (int k = 0; k <= 10; k++)
             {

@@ -64,6 +64,9 @@ namespace HorseRace.EditorTools
                 }
                 if (p.background && (p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE))
                     BackgroundWalls(go, 6f);
+                // 建物（正面だけの模型を含む）：裏へ回って面の裏側を見られないよう、すぐ外側を見えない壁で囲む
+                else if (p.asset.StartsWith("Buildings/") && (p.collider || p.background))
+                    BackgroundWalls(go, 1f);
                 SetStatic(go);
             }
         }

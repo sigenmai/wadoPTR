@@ -180,6 +180,7 @@ namespace UnityEngine
     public partial class Renderer
     {
         public Bounds bounds => default(Bounds);
+        public Rendering.ShadowCastingMode shadowCastingMode { get; set; }
     }
 
     public class MeshRenderer : Renderer { }
@@ -264,6 +265,8 @@ namespace UnityEngine
         public AnimatorCullingMode cullingMode { get; set; }
     }
 
+    public enum FogMode { Linear = 1, Exponential = 2, ExponentialSquared = 3 }
+
     public enum LightType { Spot = 0, Directional = 1, Point = 2 }
     public enum LightShadows { None = 0, Hard = 1, Soft = 2 }
 
@@ -280,6 +283,16 @@ namespace UnityEngine
         public static Light sun { get; set; }
         public static Rendering.AmbientMode ambientMode { get; set; }
         public static Color ambientLight { get; set; }
+        public static Color ambientSkyColor { get; set; }
+        public static Color ambientEquatorColor { get; set; }
+        public static Color ambientGroundColor { get; set; }
+        public static bool fog { get; set; }
+        public static FogMode fogMode { get; set; }
+        public static Color fogColor { get; set; }
+        public static float fogStartDistance { get; set; }
+        public static float fogEndDistance { get; set; }
+        public static float fogDensity { get; set; }
+        public static Material skybox { get; set; }
     }
 
     public enum RenderMode { ScreenSpaceOverlay = 0, ScreenSpaceCamera = 1, WorldSpace = 2 }
@@ -408,6 +421,7 @@ namespace UnityEngine
 namespace UnityEngine.Rendering
 {
     public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3, Custom = 4 }
+    public enum ShadowCastingMode { Off = 0, On = 1, TwoSided = 2, ShadowsOnly = 3 }
 }
 
 namespace UnityEngine.SceneManagement
