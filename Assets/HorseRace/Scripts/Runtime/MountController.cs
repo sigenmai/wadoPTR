@@ -353,6 +353,17 @@ namespace HorseRace
             }
         }
 
+        /// <summary>
+        /// 落とし穴（ResetVolume、岩橋の溝の底など）から呼ばれる。オーナーがレース中・ゴール前なら最後に通った CP（またはスタート）へ戻す。
+        /// </summary>
+        public void ForceResetToLastCp()
+        {
+            if (!Networking.IsOwner(gameObject)) return;
+            if (!raceActive || !hasRespawn || syncFinishAt >= 0.0) return;
+            secondsOffCourse = 0f;
+            TeleportTo(respawnPos, respawnYaw);
+        }
+
         public bool IsLocalRider()
         {
             VRCPlayerApi local = Networking.LocalPlayer;
