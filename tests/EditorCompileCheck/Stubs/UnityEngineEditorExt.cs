@@ -303,6 +303,7 @@ namespace UnityEngine
     {
         public static void IgnoreLayerCollision(int layer1, int layer2, bool ignore) { }
         public static void IgnoreLayerCollision(int layer1, int layer2) { }
+        public static void SyncTransforms() { }
     }
 
     // ---- ParticleSystem modules (real API: struct modules whose setters write through) ----

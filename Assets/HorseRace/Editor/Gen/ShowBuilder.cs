@@ -157,6 +157,14 @@ namespace HorseRace.EditorTools
             f.transform.rotation = Quaternion.LookRotation(-new Vector3(normal.x, 0f, normal.z).normalized, Vector3.up);
             front = f.transform;
 
+            // 枠の左右に手配書（飾り）
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var ph = GenUtil.Child(front, side < 0 ? "PosterL" : "PosterR", new Vector3(side * 1.93f, panelCenter.y - pos.y - 0.35f, -0.02f));
+                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + (side < 0 ? "Wanted_Original" : (mode == 0 ? "Wanted_Horse" : (mode == 1 ? "Wanted_Camel" : "Wanted_Dust"))) + ".png");
+                LobbyBuilder.Poster(ph.transform, "WantedPosters_01", tex, "Poster");
+            }
+
             var text = GenUtil.Text(front, "BoardText", new Vector3(0f, panelCenter.y - pos.y, 0f), Quaternion.identity, "",
                 1.6f, Ink, new Vector2(3.0f, 1.7f));
             var nb = GenUtil.AddU<NoticeBoardDisplay>(holder);

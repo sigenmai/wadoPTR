@@ -48,9 +48,73 @@ namespace HorseRace.EditorTools
             Parking(root, ctx);
             SpareRelics(root, ctx);
             Watch(root, ctx);
+            Dressing(root, town);
         }
 
         static Vector3 L(float x, float z) => CENTER + new Vector3(x, 0f, z);
+
+        // ------------------------------------------------------------------
+        // 町のまわりの飾り（DressingPlan.ForLobby）と町の壁の手配書
+        // ------------------------------------------------------------------
+
+        public const int WALL_POSTERS_MAX = 18;
+        static readonly string[] CardNames = { "Wanted_Original", "Wanted_Horse", "Wanted_Camel", "Wanted_Dust", "Wanted_Lasso", "Wanted_Wall", "Wanted_Ball" };
+
+        /// <summary>置かない円（ロビー中心からの相対 x/z と半径）：広場・柵の馬と厩舎・たまり場・待機場所・練習場・予備の遺物・町の入口。</summary>
+        public static List<Vector4> LobbyExclusions()
+        {
+            return new List<Vector4>
+            {
+                new Vector4(0f, 0f, -2f, 24f), new Vector4(-50f, 0f, -10f, 28f), new Vector4(30f, 0f, -30f, 20f),
+                new Vector4(-11f, 0f, -45f, 23f), new Vector4(PRACTICE_OFFSET.x, 0f, PRACTICE_OFFSET.z, 82f),
+                new Vector4(-184f, 0f, -130f, 10f), new Vector4(0f, 0f, 22f, 14f),
+            };
+        }
+
+        static void Dressing(Transform root, GameObject town)
+        {
+            var dr = GenUtil.Child(root, "TownDressing", Vector3.zero).transform;
+            dr.position = CENTER;
+            Bounds tb = GenUtil.RendererBounds(town);
+            var plan = DressingPlan.ForLobby(new Vector2(tb.min.x - CENTER.x, tb.min.z - CENTER.z), new Vector2(tb.max.x - CENTER.x, tb.max.z - CENTER.z),
+                LobbyExclusions(), 4242);
+            DressingBuilder.Instantiate(plan, dr, CENTER);
+            DressingBuilder.SetStatic(town);
+            int posters = WallPosters(dr, town, tb);
+            Debug.Log("[HorseRace] ロビーの飾り: " + plan.Count + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、町の壁の手配書 " + posters + " 枚");
+        }
+
+        /// <summary>町の南・東・西の外から水平にレイを飛ばし、当たった壁（ほぼ垂直の面）に手配書を貼る。</summary>
+        static int WallPosters(Transform parent, GameObject town, Bounds tb)
+        {
+            Physics.SyncTransforms();
+            int mask = 1 << WorldLayers.Block, n = 0;
+            float y = CENTER.y + 1.7f;
+            var rays = new List<Vector3[]>();
+            for (float x = tb.min.x + 6f; x < tb.max.x - 6f; x += 12f)
+                rays.Add(new[] { new Vector3(x, y, tb.min.z - 4f), Vector3.forward });
+            for (float z = tb.min.z + 6f; z < tb.max.z - 6f; z += 14f)
+            {
+                rays.Add(new[] { new Vector3(tb.min.x - 4f, y, z), Vector3.right });
+                rays.Add(new[] { new Vector3(tb.max.x + 4f, y, z), Vector3.left });
+            }
+            foreach (var r in rays)
+            {
+                if (n >= WALL_POSTERS_MAX) break;
+                RaycastHit hit;
+                if (!Physics.Raycast(r[0], r[1], out hit, 30f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (hit.collider == null || !hit.collider.transform.IsChildOf(town.transform)) continue;
+                if (Mathf.Abs(hit.normal.y) > 0.3f) continue;
+                var holder = new GameObject("WallPoster_" + n);
+                holder.transform.SetParent(parent, false);
+                holder.transform.position = hit.point + hit.normal * 0.03f - Vector3.up * 0.3f;
+                holder.transform.rotation = Quaternion.LookRotation(-new Vector3(hit.normal.x, 0f, hit.normal.z).normalized, Vector3.up);
+                var tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + CardNames[n % CardNames.Length] + ".png");
+                DressingBuilder.SetStatic(Poster(holder.transform, n % 3 == 2 ? "WantedPosters_02" : "WantedPosters_01", tex, "Poster"));
+                n++;
+            }
+            return n;
+        }
 
         // ------------------------------------------------------------------
         // 町と地面
@@ -266,7 +330,7 @@ namespace HorseRace.EditorTools
         static Texture2D OriginalCard() => UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/Wanted_Original.png");
 
         /// <summary>手配書 1 枚（部品の紙の面を壁の手前 = -Z に向ける）。テクスチャはカードごと。</summary>
-        static GameObject Poster(Transform parent, string part, Texture tex, string name)
+        internal static GameObject Poster(Transform parent, string part, Texture tex, string name)
         {
             var holder = GenUtil.InstantiatePart(GenUtil.Pack("WantedPosters"), part, parent, parent.position, 0f, 1f,
                 new Vector3(0.44f, 0.63f, 0.01f), Paper);
@@ -402,6 +466,13 @@ namespace HorseRace.EditorTools
             // 前回のレースの黒板（焚き火の側＝東から読める。文字は yaw の方向を見ている人に読める）
             ctx.rankBoards.Add(CourseBuilder.ChalkBoardAt(h, L(18f, -26f), -90f, "LastRaceBoard", true));
             ShowBuilder.BuildBoards(h, ctx, L(30f, -40f));
+            // 薪の山
+            for (int i = 0; i < 6; i++)
+            {
+                var log = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_0" + (2 + i), h, L(41f + (i % 3) * 0.9f, -17f) + Vector3.up * (i / 3) * 0.3f,
+                    90f + i * 7f, 1.2f, new Vector3(0.3f, 0.3f, 0.8f), Wood);
+                DressingBuilder.SetStatic(log);
+            }
         }
 
         // ------------------------------------------------------------------

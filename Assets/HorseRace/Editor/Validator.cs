@@ -98,6 +98,11 @@ namespace HorseRace.EditorTools
             CheckStages(root, warn, info);
             CheckAssets(warn);
             CheckLayers(root, warn);
+            Transform lobbyDr = GenUtil.FindDeep(root.transform, "TownDressing");
+            int lobbyN = 0;
+            if (lobbyDr != null) foreach (Transform g in lobbyDr) { if (g.name.StartsWith("WallPoster")) continue; foreach (Transform c in g) lobbyN++; }
+            if (lobbyN > DressingPlan.MAX_LOBBY) warn.Add("ロビーの飾りが " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）");
+            info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）");
             CheckWiring(root, warn, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 
@@ -185,6 +190,11 @@ namespace HorseRace.EditorTools
                 if (goals != 1 || (cps.Count > 0 && !cps[cps.Count - 1].isGoal)) warn.Add(tag + "：ゴールの CP が最後の 1 つだけになっていません");
                 float dev = WorldLayout.MaxDeviationFromChords(local, StageDefinitions.START_ARC_M, arcs);
                 if (dev > 60f) warn.Add(tag + "：CP の線分からコースが " + dev.ToString("F0") + "m 離れます（60m 超でリセットされる）");
+
+                int dressing = CountDressing(GenUtil.FindDeep(stageRoot, "Dressing"));
+                if (dressing > DressingPlan.MAX_PER_STAGE) warn.Add(tag + "：飾りが " + dressing + " 個（上限 " + DressingPlan.MAX_PER_STAGE + "）");
+                if (dressing < DressingPlan.MIN_PER_STAGE / 2) warn.Add(tag + "：飾りが少なすぎます（" + dressing + " 個。素材が読み込めていない可能性）");
+                info.Add(tag + "：飾り " + dressing + " 個（上限 " + DressingPlan.MAX_PER_STAGE + "、すべて Static）");
 
                 int relics = 0;
                 foreach (var r in allRelics) if (!r.isSpare && r.transform.IsChildOf(stageRoot)) relics++;
@@ -312,6 +322,19 @@ namespace HorseRace.EditorTools
             foreach (var a in root.GetComponentsInChildren<PracticeArea>(true))
                 if (a.gameObject.layer != WorldLayers.TRIGGERS) warn.Add("練習場のトリガーが Ignore Raycast レイヤーではありません");
             if (!GenUtil.FontAvailable()) warn.Add("日本語の TMP フォントがありません（" + GenUtil.FONT_TTF + "）");
+        }
+
+        /// <summary>飾りの個数（Dressing の下のグループの子。見えない壁・表彰台は数えない）。</summary>
+        static int CountDressing(Transform dressing)
+        {
+            if (dressing == null) return 0;
+            int n = 0;
+            foreach (Transform g in dressing)
+            {
+                if (g.name == "Podium") continue;
+                foreach (Transform c in g) if (!c.name.EndsWith("_InvisibleWalls")) n++;
+            }
+            return n;
         }
 
         static void CheckAssets(List<string> warn)
