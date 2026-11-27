@@ -90,5 +90,7 @@ namespace HorseRace.EditorTools
         public Material parchmentMaterial;
 
         public RaceManager raceManager;
+        /// <summary>Build World が無効にした既存の Directional Light（失敗したら戻す）。</summary>
+        public readonly List<GameObject> disabledLights = new List<GameObject>();
     }
 }

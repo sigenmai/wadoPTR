@@ -4,9 +4,11 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ステージの見どころ（spec 5.5）の純粋な幾何（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。
-    ///   岩橋：コースを横切る溝を高さマップに掘り（コースの下だけ）、その上に橋の板を渡す。
-    ///   崖下りの近道：同じ CP 区間の中でコースの曲がり角を弦で切る枝道。途中に高さ SHORTCUT_DROP（≤ 8m）の段（崖）があり、
-    ///                 落ちると着地の硬直（MountMath.LandingStun は 3m 以上で発生）。CP の連鎖には入らない（区間の中だけ）。
+    ///   岩橋：コースを横切る溝（長さ 90m）を高さマップに掘り、道幅いっぱい（BRIDGE_WIDTH 26m ≥ 平らな道 24m）の橋の板を渡す。
+    ///         溝の縁（道の外）には壁（SetPieceBuilder）、溝の底には落とし穴（ResetVolume → 最後の CP へ戻す）。
+    ///   崖下りの近道：CP SHORTCUT_SPAN（3）区間ぶんのコースの曲がりを弦で切る枝道。途中に高さ SHORTCUT_DROP（≤ 8m）の段（崖）があり、
+    ///                 落ちると着地の硬直（MountMath.LandingStun は 3m 以上で発生）。近道用の CP は増やさず、
+    ///                 弦が横切る途中の CP 2 つの箱を近道まで広げる（どちらの道でも CP を順番どおりに通る）。
     ///   ジャンプ台：コース上の板の坂（JUMP_HEIGHT / JUMP_LENGTH、25° 以下）。
     /// 座標は Terrain ローカル（m）。高さマップは [z,x]、0..1（× heightM）。
     /// </summary>
@@ -19,7 +21,7 @@ namespace HorseRace.EditorTools
         public const float TRENCH_END_TAPER = 12f;     // 溝の両端で浅くなる長さ
         public const float TRENCH_DEPTH = 12f;
         public const float BRIDGE_HALF_SPAN = 11f;     // 橋の板の半分の長さ（溝の縁 10m より長い）
-        public const float BRIDGE_WIDTH = 10f;
+        public const float BRIDGE_WIDTH = 26f;          // 道幅（平らな道 ±12m）いっぱい＋余白
 
         // ジャンプ台
         public const float JUMP_LENGTH = 8f, JUMP_HEIGHT = 1.5f, JUMP_WIDTH = 16f;

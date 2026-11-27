@@ -411,7 +411,7 @@ namespace HorseRace.EditorTools
 
         public const string FONT_TTF = "Assets/HorseRace/Fonts/ipag.ttf";   // IPA ゴシック（IPA フォントライセンス v1.0、同じフォルダに全文）
         public const string GEN_FONTS = GENERATED + "/Fonts";
-        public const string GEN_FONT_ASSET = GEN_FONTS + "/IPAGothic SDF.asset";
+        public const string GEN_FONT_ASSET = GEN_FONTS + "/JPGothic SDF.asset";   // IPA-1 3.1(4) に配慮し、生成物に「IPA」の名前を付けない
 
         /// <summary>
         /// 日本語の TMP フォント。Assets/HorseRace 以下に TMP_FontAsset があればそれ（Generated のものを含む）、
@@ -430,6 +430,13 @@ namespace HorseRace.EditorTools
             return font;
         }
 
+        /// <summary>読むだけの検索（アセットを作らない。Validate 用）：TMP_FontAsset があるか、無ければ元の ttf があるか。</summary>
+        public static bool FontAvailable()
+        {
+            if (AssetDatabase.FindAssets("t:TMP_FontAsset", new[] { "Assets/HorseRace" }).Length > 0) return true;
+            return AssetDatabase.LoadAssetAtPath<UnityEngine.Font>(FONT_TTF) != null;
+        }
+
         static TMPro.TMP_FontAsset CreateFontAsset()
         {
             var ttf = AssetDatabase.LoadAssetAtPath<UnityEngine.Font>(FONT_TTF);
@@ -437,12 +444,12 @@ namespace HorseRace.EditorTools
             var fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf);
             if (fa == null) { Warn("TMP_FontAsset.CreateFontAsset が失敗しました: " + FONT_TTF); return null; }
             EnsureFolder(GEN_FONTS);
-            fa.name = "IPAGothic SDF";
+            fa.name = "JPGothic SDF";
             AssetDatabase.CreateAsset(fa, GEN_FONT_ASSET);
             // アトラスとマテリアルはフォントアセットの中に保存する（別ファイルにしないと参照が切れる）
             if (fa.atlasTextures != null)
-                foreach (var t in fa.atlasTextures) if (t != null) { t.name = "IPAGothic Atlas"; AssetDatabase.AddObjectToAsset(t, fa); }
-            if (fa.material != null) { fa.material.name = "IPAGothic Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+                foreach (var t in fa.atlasTextures) if (t != null) { t.name = "JPGothic Atlas"; AssetDatabase.AddObjectToAsset(t, fa); }
+            if (fa.material != null) { fa.material.name = "JPGothic Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
             EditorUtility.SetDirty(fa);
             AssetDatabase.SaveAssets();
             Debug.Log("[HorseRace] 日本語フォントアセットを作りました（動的）: " + GEN_FONT_ASSET);

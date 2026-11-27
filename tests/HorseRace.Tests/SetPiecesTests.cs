@@ -41,6 +41,14 @@ namespace HorseRace.Tests
             Assert.AreEqual(100f, WorldLayout.SampleHeight(h, 1000f, 200f, 700f, 500f), 0.01f);
         }
 
+        [Test] public void BridgeCoversRoadAndTrenchExtendsBeyondIt()
+        {
+            // 平らな道は中心から ±RUNWAY_M（12m）。橋の板はそれより広く、溝は道の外まで続く（縁の壁で道へ追い込む）
+            Assert.GreaterOrEqual(SetPieces.BRIDGE_WIDTH, 2f * HeightmapGen.RUNWAY_M);
+            Assert.Greater(SetPieces.TRENCH_HALF_LENGTH - SetPieces.TRENCH_END_TAPER, SetPieces.BRIDGE_WIDTH * 0.5f);
+            Assert.Greater(SetPieces.BRIDGE_HALF_SPAN, SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND);
+        }
+
         [Test] public void JumpRampWithin25Deg()
         {
             Assert.LessOrEqual(SetPieces.JumpAngleDeg, 25f);

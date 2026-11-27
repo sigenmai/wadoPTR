@@ -214,6 +214,13 @@ namespace HorseRace.EditorTools
                     float floor = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, c.x, c.z) + def.Origin.y;
                     float depth = deck.position.y - floor;
                     if (depth < 8f) warn.Add(tag + "：岩橋の下の溝が浅すぎます（" + depth.ToString("F1") + "m）");
+                    Transform plankT = GenUtil.FindDeep(deck, "Deck");
+                    if (plankT != null && plankT.localScale.x < 24f) warn.Add(tag + "：岩橋の板の幅 " + plankT.localScale.x.ToString("F0") + "m が道幅 24m より狭い");
+                    Transform pit = GenUtil.FindDeep(deck, "FallPit");
+                    if (pit == null || pit.GetComponent<ResetVolume>() == null || pit.gameObject.layer != WorldLayers.TRIGGERS)
+                        warn.Add(tag + "：溝の底の落とし穴（FallPit / ResetVolume、Ignore Raycast）がありません");
+                    Transform wings = GenUtil.FindDeep(deck, "TrenchWalls");
+                    if (wings == null || wings.childCount == 0) warn.Add(tag + "：溝の縁の壁（TrenchWalls）がありません");
                     info.Add(tag + "：岩橋（溝の深さ " + depth.ToString("F1") + "m）");
                 }
             }
@@ -242,6 +249,17 @@ namespace HorseRace.EditorTools
                         float o = p.crossOffsets[k];
                         if (box == null || o < box.center.x - box.size.x * 0.5f || o > box.center.x + box.size.x * 0.5f)
                             warn.Add(tag + "：CP" + cps[idx].index + " の箱が近道（横 " + o.ToString("F0") + "m）まで届いていません");
+                        else
+                        {
+                            // 近道の床（その CP の位置）が、広げた箱の高さの範囲に入っているか（乗り物の体 0〜1.7m が箱に触れる）
+                            Transform ct = cps[idx].transform;
+                            Vector3 wp = ct.position + ct.right * o;
+                            float floorY = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, wp.x - def.Origin.x, wp.z - def.Origin.z) + def.Origin.y;
+                            float y0 = ct.position.y + box.center.y - box.size.y * 0.5f, y1 = ct.position.y + box.center.y + box.size.y * 0.5f;
+                            if (floorY < y0 || floorY + 1.7f > y1)
+                                warn.Add(tag + "：CP" + cps[idx].index + " の箱の高さ（" + y0.ToString("F1") + "〜" + y1.ToString("F1") + "m）が近道の床 "
+                                    + floorY.ToString("F1") + "m に合っていません");
+                        }
                     }
                     info.Add(tag + "：崖下りの近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + SetPieces.SHORTCUT_SPAN) + "、段 "
                         + drop.ToString("F1") + "m、CP 線分から最大 " + p.maxDevFromCpChord.ToString("F0") + "m）");
@@ -293,7 +311,7 @@ namespace HorseRace.EditorTools
                 if (z.gameObject.layer != WorldLayers.TRIGGERS) { warn.Add("SandZone が Ignore Raycast レイヤーではありません（" + z.name + " ほか）"); break; }
             foreach (var a in root.GetComponentsInChildren<PracticeArea>(true))
                 if (a.gameObject.layer != WorldLayers.TRIGGERS) warn.Add("練習場のトリガーが Ignore Raycast レイヤーではありません");
-            if (GenUtil.Font() == null) warn.Add("日本語の TMP フォントがありません（" + GenUtil.FONT_TTF + "）");
+            if (!GenUtil.FontAvailable()) warn.Add("日本語の TMP フォントがありません（" + GenUtil.FONT_TTF + "）");
         }
 
         static void CheckAssets(List<string> warn)

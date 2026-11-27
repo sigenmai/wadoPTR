@@ -57,14 +57,41 @@ namespace HorseRace.EditorTools
             var deck = GenUtil.Prim(PrimitiveType.Cube, "Deck", bridge.transform, new Vector3(0f, -0.5f, 0f),
                 new Vector3(SetPieces.BRIDGE_WIDTH, 1f, len), Rock, true);
             deck.layer = WorldLayers.Ground;
-            var arch = GenUtil.Prim(PrimitiveType.Cube, "Arch", bridge.transform, new Vector3(0f, -3f, 0f),
+            GenUtil.Prim(PrimitiveType.Cube, "Arch", bridge.transform, new Vector3(0f, -3f, 0f),
                 new Vector3(SetPieces.BRIDGE_WIDTH - 1f, 4f, len - 6f), Rock);
+            float half = SetPieces.BRIDGE_WIDTH * 0.5f;
             for (int s = -1; s <= 1; s += 2)
             {
                 var rail = GenUtil.Prim(PrimitiveType.Cube, s < 0 ? "RailL" : "RailR", bridge.transform,
-                    new Vector3(s * (SetPieces.BRIDGE_WIDTH * 0.5f + 0.3f), 0.7f, 0f), new Vector3(0.6f, 1.4f, len), Rock, true);
+                    new Vector3(s * (half + 0.3f), 0.7f, 0f), new Vector3(0.6f, 1.4f, len), Rock, true);
                 rail.layer = WorldLayers.Block;
             }
+
+            // 溝の縁の壁（道の外 → 橋へ追い込む）：溝の手前と向こうの縁に、手すりの端から溝の端まで 4m ごとの岩の壁
+            Vector3 t = new Vector3(d.x, 0f, d.z).normalized;
+            Vector3 r = WorldLayout.RightOf(t);
+            Vector3 center = WorldLayout.PointAtArc(c, sb.bridgeArc);
+            float lipAlong = SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND + 0.6f;
+            var wings = GenUtil.Child(bridge.transform, "TrenchWalls", Vector3.zero).transform;
+            const float SEG = 4f;
+            for (int e = -1; e <= 1; e += 2)
+                for (int s = -1; s <= 1; s += 2)
+                    for (float lat = half; lat < SetPieces.TRENCH_HALF_LENGTH + 2f; lat += SEG)
+                    {
+                        Vector3 w = sb.GroundWorld(center + t * (e * lipAlong) + r * (s * (lat + SEG * 0.5f)));
+                        var wall = GenUtil.Prim(PrimitiveType.Cube, "Wall", wings, Vector3.zero, new Vector3(SEG + 0.4f, 2.2f, 0.9f), Rock, true);
+                        wall.transform.position = w + Vector3.up * 0.8f;
+                        wall.transform.rotation = Quaternion.LookRotation(t, Vector3.up);
+                        wall.layer = WorldLayers.Block;
+                    }
+
+            // 溝の底の落とし穴：入った騎手を最後に通った CP へ戻す（地形の上なのでコース外判定が働かないことがあるため）
+            var pit = GenUtil.Child(bridge.transform, "FallPit", new Vector3(0f, -SetPieces.TRENCH_DEPTH + 3f, 0f));
+            var pitBox = pit.AddComponent<BoxCollider>();
+            pitBox.isTrigger = true;
+            pitBox.size = new Vector3(SetPieces.TRENCH_HALF_LENGTH * 2f + 10f, 8f, (SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND) * 2f);
+            pit.layer = WorldLayers.TRIGGERS;
+            GenUtil.AddU<ResetVolume>(pit);
             sb.Exclude(bridge.transform.position, SetPieces.TRENCH_HALF_LENGTH + 10f);
         }
 

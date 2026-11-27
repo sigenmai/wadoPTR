@@ -28,22 +28,23 @@ namespace HorseRace.EditorTools
         [MenuItem("HorseRace/Build World")]
         public static void BuildWorld()
         {
-            if (!ProgramAssets.Ensure()) return;
-            GenUtil.Reset();
-            GenUtil.ResetFontCache();
-
-            HorseMaterialBuilder.Create();
-            MountAnimatorBuilder.Build();
-            if (!WorldLayers.Ensure()) return;
-
             Scene scene = SceneManager.GetActiveScene();
-            foreach (GameObject g in scene.GetRootGameObjects())
-                if (g.name == GenUtil.ROOT_NAME) Object.DestroyImmediate(g);
-
             var ctx = new WorldContext();
-            ctx.root = new GameObject(GenUtil.ROOT_NAME).transform;
             try
             {
+                if (!ProgramAssets.Ensure()) return;
+                GenUtil.Reset();
+                GenUtil.ResetFontCache();
+
+                Progress("毛色マテリアル・アニメーター", 0.01f);
+                HorseMaterialBuilder.Create();
+                MountAnimatorBuilder.Build();
+                if (!WorldLayers.Ensure()) return;
+
+                foreach (GameObject g in scene.GetRootGameObjects())
+                    if (g.name == GenUtil.ROOT_NAME) Object.DestroyImmediate(g);
+                ctx.root = new GameObject(GenUtil.ROOT_NAME).transform;
+
                 Progress("光・中継の素材", 0.02f);
                 Lights(ctx);
                 ShowBuilder.CreateAssets(ctx);
@@ -78,6 +79,7 @@ namespace HorseRace.EditorTools
                 // エディタのコードなので try/catch してよい（U# の制約はランタイムだけ）。作りかけは残さない
                 Debug.LogError("[HorseRace] ワールド生成中にエラー: " + e.Message + "\n" + e);
                 if (ctx.root != null) Object.DestroyImmediate(ctx.root.gameObject);
+                foreach (var l in ctx.disabledLights) if (l != null) l.SetActive(true);   // 無効にした既存のライトを戻す
                 EditorUtility.ClearProgressBar();
                 EditorUtility.DisplayDialog("HorseRace/Build World",
                     "ワールド生成中にエラーが起きました:\n" + e.Message + "\n\n作りかけの " + GenUtil.ROOT_NAME + " は削除しました。詳しくは Console を見てください。", "OK");
@@ -105,6 +107,7 @@ namespace HorseRace.EditorTools
                 if (l.type != LightType.Directional || l.transform.IsChildOf(ctx.root)) continue;
                 if (!l.gameObject.activeSelf) continue;
                 l.gameObject.SetActive(false);
+                ctx.disabledLights.Add(l.gameObject);
                 Debug.Log("[HorseRace] 既存の Directional Light を無効にしました（生成した太陽と二重になるため）: " + l.name);
             }
             var sun = GenUtil.Child(ctx.root, "Sun", Vector3.zero);
@@ -265,8 +268,9 @@ namespace HorseRace.EditorTools
             if (created == 0) return true;
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            // U# 1.x の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める（記憶にある API 名。
-            // 無い版では Refresh 後に U# が自動でコンパイルする）
+            // UdonSharp 1.x の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める。
+            // API 名は記憶によるもので未検証。この名前が無い U# の版ではこの行がエディタのコンパイルエラーになるので、その場合は
+            // この 1 行を消せばよい（Refresh の後、U# はプログラムアセットを自動でコンパイルする）。
             UdonSharpProgramAsset.CompileAllCsPrograms(true);
             EditorUtility.DisplayDialog("HorseRace/Build World",
                 "UdonSharp のプログラムアセットを " + created + " 個作り、コンパイルを始めました。\n\n"
