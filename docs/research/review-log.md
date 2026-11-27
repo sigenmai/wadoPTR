@@ -27,3 +27,35 @@
 | art-r1-15 | fixed | 各ステージのコース沿いに砂ぼこり 8 か所（25m の箱、薄い砂色、風に流れる）、野営地の焚き火ごとに炎・煙の柱・灯り、砂漠のジャンプの両脇の砂丘から吹く砂と着地の砂煙。ロビーの焚き火と町の真ん中の建物（WesternTown_084）の煙突から煙 |
 | art-r1-16 | fixed（場所を変更） | 町の裏 `Backlot`（`LobbyLayout.BacklotSpots`）：東の建物の列の裏と線路の間の帯（x 22.6、z 48〜84、6m ごと）に FarmProps_04 の柵・干し草・樽・薪・木箱と Trees ×4（当たり判定なし）。建物の裏と線路の間は 1〜3m しかないので線路の東の通り道の手前に置いた。WesternTown は 1 つの模型の部品なので、建物を回すことはしていない |
 | art-r1-17 | fixed | `tools/preview/preview_world.py`：ロビーの目のショットは前方 12m に物があれば通りの向きへずらす、スポーン → 大通り（15°）、広場 → 南・南東の見晴らしの切れ目、練習場の騎手の目、境目の切り通しを 260m 手前から。`SHOTS=` で一部だけ描ける。Build World と同じ見どころの素材（ゴール・スタート・岩橋・ジャンプ）・岩の冠・ロビーの地面・外の地面を書き出して描く |
+
+## Round 1 — ui
+
+表示（台帳・手配書・懐中時計・黒板・首の札・カウントダウン・ゴール・表彰台・中継・鞍の札・書体・合図・手応え）。
+守ったこと：新しいモデルは作らない（紙 = WantedPosters_01〜05、板 = Props/NoticeBoard、印 = Packs/Gems、段 = HayBales、柱 = DesertProps の杭、号砲 = Packs/Revolver）。
+文字は TMP（3D）だけ（uGUI の Canvas・Image をやめた）。純粋な計算・文言は `HudMath`（Scripts/Logic）と `UiStyle`（Editor/Gen）に置き、`HudMathTests` で確かめる。
+
+| id | 結果 | 内容 |
+|---|---|---|
+| ui-r1-01 | fixed（紙の画像を変更） | `MinimalHud`：VR は `neckAnchor` = 自分の乗り物、位置 = 鞍の点（`SeatMath.DefaultSaddleY/Z(SeatType)`）+ (0, 0.25, 0.55) に固定、向き = 乗り物 × 35° 起こし を Slerp(1-exp(-10dt))。位置は乗り物に固定（世界の座標でなめらかにすると 18 m/s で 1.8m 遅れるため、なめらかにするのは向きだけ）。デスクトップは頭の前、向きだけ 0.15 秒遅れ。`LobbyBuilder.Hud` の Canvas・Image・UguiText を削除し、`BuildNeckCard`：WantedPosters_05 を 0.20 × 0.13m（`PaperSheet`）、TMP 3D の見出し・順位（0.9pt）・残り時間（0.45pt）・進み具合。紙の画像は Wanted_Original（絵柄の上に文字が乗って読みにくい）ではなくパックの紙のまま |
+| ui-r1-02 | fixed（文字盤 0.13m） | `Watch()`：Case・Face・針のプリミティブを削除。WantedPosters_05 の文字盤（0.18pt の数字が紙からはみ出さないよう 0.11 → 0.13m）、TMP の数字 12 個（半径 0.05m、`UiStyle.DialPoint`）、「│」の分針・赤い秒針、真ん中「残り 3:12」0.35pt（自動で縮む）。`PocketWatch`：VR は `HudMath.WristFacing`（内積 > 0.55）のときだけ 0.15 秒でふくらむ。残り 10 秒から `tickAudio` を 1 秒ごと。残り時間は首の札にいつも出る |
+| ui-r1-03 | fixed | 首の札の下に Gems_02_02〜06（0.025m、`GenUtil.FitMax`）。`HudMath.StaminaPips` = ceil(持久力/20)、金（ToonColor Gold）/革（Leather）の材質の差し替え。満タン = 0.8 倍・紙に 30% だけ金を混ぜた色、残り 1 つ以下・ばてた = 赤 (0.9,0.2,0.1) が 3Hz で脈打ち、`MountVisual.breathAlarm` で息を最大音量・高く（ふだんの最大は 0.75 に下げて差を付けた） |
+| ui-r1-04 | fixed | `MountBuilder.BuildPouch`：袋・光・刻印の球を削除。WantedPosters_02（0.07 × 0.10m）に能力の手配書、首の札の右隣（鞍の点 + (0.15, 0.25, 0.55)、35° 起こし、乗り物の種類で高さを合わせる）。使える = 明るい手配書 + 金の火花 Emit(12) + readySound、クールダウン中 = 35% の灰色 + 「あと 7」（0.3pt、`AbilityCaster` の readyAt から）、Lv = Gems_01_02〜04 の 3 つ。乗っている本人にだけ見せる（乗り物の種類ごとの位置を他人の画面で合わせられないため） |
+| ui-r1-05 | fixed | `GenUtil.Text(…, TextStyle, autoSize)`：enableAutoSizing・min = max × 0.45・Ellipsis。台帳・黒板・掲示板（電報を含む）・鞍の札の読み・手配書の説明・名札に使う。`RaceManager.ShortName`（`HudMath.ShortName`、10 文字＝9 文字＋「…」）を板に書く名前すべてに。表は `HudMath.Row4/Row2`（`<pos=0%>1着<pos=15%>名前<pos=70%>+10<pos=85%>計24`）。台帳は 1 人 1 行 |
+| ui-r1-06 | fixed（札は掲示板） | 台帳の Cover・Pages の箱を削除し、机の上に WantedPosters_03（0.33 × 0.45m）2 枚の見開き。左 = 一覧、右 = `EntryLedger.choiceText`（ローカル）：「あなたの選択：馬（栗毛）・投げ縄 ― 台帳に触れてサイン」、サイン済みは赤いインクの「署名済み ✓」（170% ≈ 0.6pt）、次のステージ待ちも同じ、定員は「定員いっぱい」。Interact でペンの音と 1.15 → 1 の跳ね。手配書・柵の馬で選び直すと `RefreshLobbyLocal` が台帳も書き直す。「受付」の札は机の後ろの NoticeBoard ×0.5 の板（`LobbyBuilder.NoticeSign`） |
+| ui-r1-07 | fixed（板は art round で済み） | 各カードの下に WantedPosters_05 の紙（0.52 × 0.26m）とインクの札、`pc.label` を設定。`HudMath.AbilityDescription` は AbilityMath の値（CD・減速・壁の距離と幅など）から文言を作る（テストで CD の数字を照合）。`PosterCard.Interact`：紙のこすれる音、0.25 秒で手前へ 0.15m 引き出しながら 0 に縮める（Update）→ そのあと選択（SetTaken）。壁の板は art round で NoticeBoard ×1.2 に置き換え済み |
+| ui-r1-08 | fixed | `ChalkBoardAt`：NoticeBoard ×0.8、板 (0.17,0.23,0.18)、チョークの文字。コースの黒板はレース中に上位 3 人（2.2pt）＋「あなた 5位」（118% ≈ 2.6pt、3 位以内は金、`GetRankOf(LocalPlayer)`）。ステージ結果・たまり場の黒板は全員の表 |
+| ui-r1-09 | fixed（ステージ名の分 1.2 秒遅らせた） | `StageBuild.skyCountSpot`：中心線上、スタートラインの 30m 先・12m 上、進む向き。`Starter.skySpots` で BeginCountdown ごとに移す（スターターの子ではない）、裏文字 `skyCountBack`。数字ごとに 1.6 → 1（exp(-14t)）、3・2 = 紙の白、1 = 琥珀、「出走！」= 金、看板の文字（縁取り 0.22）。首の札にも `ShowBanner`。空砲は 1.2 / 2.2 / 3.2 秒、号砲 4.2 秒（マスターの打ち切り 6 秒より前） |
+| ui-r1-10 | fixed | `GoalPresenter.Celebrate`：自分なら `hud.ShowFinish` =「3着  +6点\n1:23.4」（`HudMath.FinishText`、4 秒、1.6 → 1、2D の finishAudio）。ゴールゲートの柱・横木は art round で杭・丸太に済み。幕 = WantedPosters_02（1.4m）3 枚に金の「ゴ」「ー」「ル」（看板の文字、表裏）。着順の札 = WantedPosters_04（0.9 × 0.6m） |
+| ui-r1-11 | fixed | `TextStyle {Plain, Ink, Chalk, Sign, Brass}`・`UiStyle.PresetFor`（Chalk dilate 0.05/softness 0.12、Ink dilate 0.12、Sign 縁取り (0.16,0.10,0.05) 0.22・影 (0.6,-0.6) 0.3、Brass 縁取り 0.18）。`GenUtil.StyleMaterial` が Generated/Fonts/TMP_<Style>.mat をフォントのマテリアルから作り `fontSharedMaterial` に。面の色は白にして文字の色は頂点色（`UiStyle.FaceColor`）。見出しは `<b><size=140%>` |
+| ui-r1-12 | fixed | 「受付」= NoticeBoard ×0.5、号砲の札 = WantedPosters_02（杭 DesertProps_05 に留める）、練習場の札 = NoticeBoard ×0.6、レバーの札 = 紙（art round）に「札：出す／しまう」（自動で縮む）。近道の看板 = DesertProps_05 の杭 + WantedPosters_02（1.6 × 0.6m）に青緑 (0.2,0.75,0.7) の「→ 近道」（看板の文字）と青緑の灯り（範囲 6・強さ 1.2）。レバーのプリミティブは art round で FarmProps_02 に済み |
+| ui-r1-13 | fixed | 段 = HayBales_01〜03 を 1.4 × h × 1.4 に引き伸ばし（`GenUtil.FitSize`、見えない箱の当たり判定は残す）。名札 = 段の後ろの杭（DesertProps_05）に WantedPosters_04（1.4 × 0.5m）、段 + 2.6m。後ろに NoticeBoard ×0.8「総合結果」。`Podium.EnterFinal` が「総合1位\n名前  24点」（看板の文字、1 位は金）を書き、総合結果が終わると消す。花火は赤錆・砂金・紫のグラデーションから RandomColor |
+| ui-r1-14 | fixed | `Checkpoint.raceManager`（ビルドで自動）：次の CP を通ったら `hud.CheckpointPassed`（2D の音、ピッチ 1.0 → 1.4、札の跳ね 1.15）、順番を飛ばして先の CP なら `hud.MissedCheckpoint`（赤「関門を通り過ぎた ↩」2 秒）。進み具合 `HudMath.ProgressBar(syncCp, RaceManager.CheckpointCount(stage), 10)`（CP の数は firstCheckpoints から next をたどって数える） |
+| ui-r1-15 | fixed | `RaceManager.StageLabel` →「第1幕 荒野」等（`HudMath.StageName` = StageDefinitions の label、テストで照合。UdonSharp は static フィールドを持てないので配列ではなく分岐）。`RaceManager.StageColor`（赤錆・砂金・紫）。カウントダウンの最初の 1.2 秒に空へステージ名（ステージの色）、首の札の見出し・黒板の見出し（色付き）・電報・中継の字幕も同じ名前 |
+| ui-r1-16 | fixed（効果は SeatFit 側） | 鞍の札に WantedPosters_05 の裏板（0.32 × 0.24m）、見出し・ボタン = 真鍮、他 = インク、KeysHint 0.11pt の 2 行。押したとき（Interact・VR の指先・PC のキー、すべて `SeatFit.Apply` を通る）に `clickAudio` とボタンの字 0.85 → 1（0.12 秒）。ボタン 70 個に Update を持たせないよう、動きは毎フレーム動いている SeatFit が持つ |
+| ui-r1-17 | fixed | 中継の木札 = WantedPosters_04（0.42 × 0.3m）9 枚、「1位」〜「8位」「おまかせ」0.9pt、選んだ札に Gems_03_02 のピン（箱・円柱・球を削除）。字幕は紙の帯の上に「第1幕 荒野｜3位 ○○ を追跡｜残り 2:10」 |
+| ui-r1-18 | fixed | 首の札：`<size=160%>3</size>位`、上がったら 1.35 → 1 の跳ね・金・「↑」、下がったら赤 (0.85,0.25,0.15)・「↓」（1 秒）と任意の風切り音 `whoosh` |
+| ui-r1-19 | fixed（台は art round で済み） | 鐘（街灯の頭）を削除し、スタート台に机（FarmProps_05 ×0.45）と拳銃（Packs/Revolver、0.45m）。`StartBell.PlayRing`：撃鉄（Hammer）を起こして落とし、弾倉（Revolving_Cylinder）を 60° 回し、銃口の煙、空砲の音。マスター以外は撃鉄が半分動いて `tapSound`（カチッ）と紙の札。台は art round で丸太と干し草に済み |
+| ui-r1-20 | fixed（人の形は art round で済み） | スターター：人の形はすでに無い（街灯と馬）。拳銃は新しい杭（DesertProps_03）に、旗は WantedPosters_02 を赤く、「スタート係」の浮いた文字は柱の後ろの NoticeBoard ×0.5（動く物なので static にしない）。新聞売り：WantedPosters_03 の電報の紙が呼び声で屋台の上から電報の掲示板の右へ弧を描いて滑る（`TownCrier.telegramPaper/paperFrom/paperTo`） |
+
+確認：`dotnet test tests/HorseRace.Tests`（`HudMathTests` を追加）・`dotnet build tests/UdonCompileCheck`・`dotnet build tests/EditorCompileCheck`（TMP の自動縮小・overflowMode・fontSharedMaterial・fontStyle、Material のキーワード、Gradient の stub を追加）。
+Unity が無いので、TMP の SDF プリセットの見え方・首の札の位置（馬のたてがみとの重なり）・拳銃の向きは PLAYTEST の「表示（ui round 1）」で確かめる。

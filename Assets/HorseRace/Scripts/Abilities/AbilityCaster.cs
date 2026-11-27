@@ -567,12 +567,12 @@ namespace HorseRace
             if (pouch == null) return;
             if (local)
             {
-                pouch.Show(IsReady(), Level);
+                pouch.Show(IsReady(), Level, readyAt - Time.time, AbilityId(), mount != null ? mount.SeatType() : 0);
                 pouchShownLocal = true;
             }
             else if (pouchShownLocal)
             {
-                pouch.Show(false, 0);
+                pouch.Hide();
                 pouchShownLocal = false;
             }
         }

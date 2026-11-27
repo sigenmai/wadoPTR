@@ -1,3 +1,4 @@
+using TMPro;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
@@ -7,7 +8,8 @@ namespace HorseRace
     /// <summary>
     /// ゴールの町の表彰台（Podium.fbx）。総合結果（FINAL_RESULT）に入ったら：
     ///   - 各クライアントが自分のプレイヤーだけ見る：総合 3 位以内なら乗り物から降りて、その順位の段（steps[0..2]）へ TeleportTo
-    ///   - 花火（ParticleSystem）と任意のファンファーレは全員
+    ///   - 花火（ParticleSystem、3 ステージの色：赤錆・砂金・紫）と任意のファンファーレは全員
+    ///   - 段の上の名札（手配書の紙、看板の文字）に「総合1位\n名前  24点」（1 位は金）。総合結果の間だけ書き、終わったら消す
     /// 総合結果以外の状態になったら花火を止めるだけ（プレイヤーは RaceManager がロビーへ戻す／歩いて降りる）。
     /// RaceManager の同期状態を毎フレーム比べて、stageSeq ごとに 1 回だけ（ローカル）。同期しない。
     /// </summary>
@@ -24,6 +26,10 @@ namespace HorseRace
         public ParticleSystem[] fireworks;
         [Tooltip("任意")]
         public AudioSource fanfare;
+        [Tooltip("段の上の名札（0 = 1 位、1 = 2 位、2 = 3 位）")]
+        public TextMeshPro[] namePlates;
+        [Tooltip("名札の紙（名前が無い段は隠す。namePlates と同じ並び）")]
+        public GameObject[] plateRoots;
 
         private int appliedState = -1;
         private int doneSeq = -1;
@@ -44,7 +50,38 @@ namespace HorseRace
             else if (st != RaceMath.STATE_FINAL_RESULT)
             {
                 StopFireworks();
+                ClearPlates();
             }
+        }
+
+        private void FillPlates(RaceManager rm)
+        {
+            if (namePlates == null) return;
+            int[] overall = rm.GetOverallOrder();
+            for (int k = 0; k < namePlates.Length; k++)
+            {
+                bool has = k < overall.Length && k < PODIUM_PLACES;
+                if (plateRoots != null && k < plateRoots.Length && plateRoots[k] != null) plateRoots[k].SetActive(has);
+                if (namePlates[k] == null) continue;
+                if (!has) { namePlates[k].text = ""; continue; }
+                int slot = overall[k];
+                namePlates[k].text = "<size=70%>総合" + (k + 1).ToString() + "位</size>\n" + RaceManager.ShortName(rm.slotPlayerId[slot])
+                    + "  " + rm.slotTotalPoints[slot].ToString() + "点";
+                namePlates[k].color = k == 0 ? new Color(1f, 0.78f, 0.27f) : new Color(0.96f, 0.90f, 0.76f);
+            }
+        }
+
+        private void ClearPlates()
+        {
+            if (namePlates != null)
+                for (int k = 0; k < namePlates.Length; k++) if (namePlates[k] != null) namePlates[k].text = "";
+            if (plateRoots != null)
+                for (int k = 0; k < plateRoots.Length; k++) if (plateRoots[k] != null) plateRoots[k].SetActive(false);
+        }
+
+        private void Start()
+        {
+            ClearPlates();
         }
 
         private void EnterFinal(RaceManager rm)
@@ -52,6 +89,7 @@ namespace HorseRace
             if (fireworks != null)
                 for (int i = 0; i < fireworks.Length; i++) if (fireworks[i] != null) fireworks[i].Play();
             if (fanfare != null) fanfare.Play();
+            FillPlates(rm);
 
             double elapsed = Networking.GetServerTimeInSeconds() - rm.stateStartServer;
             if (elapsed > TELEPORT_FRESH_SECONDS) return;

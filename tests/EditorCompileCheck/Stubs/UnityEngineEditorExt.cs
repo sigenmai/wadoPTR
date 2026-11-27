@@ -198,6 +198,28 @@ namespace UnityEngine
         public bool useWorldSpace { get; set; }
     }
 
+    public enum ParticleSystemGradientMode { Color = 0, Gradient = 1, TwoColors = 2, TwoGradients = 3, RandomColor = 4 }
+
+    public partial struct GradientColorKey
+    {
+        public Color color;
+        public float time;
+        public GradientColorKey(Color col, float time) { color = col; this.time = time; }
+    }
+
+    public partial struct GradientAlphaKey
+    {
+        public float alpha;
+        public float time;
+        public GradientAlphaKey(float alpha, float time) { this.alpha = alpha; this.time = time; }
+    }
+
+    public partial class Gradient
+    {
+        public Gradient() { }
+        public void SetKeys(GradientColorKey[] colorKeys, GradientAlphaKey[] alphaKeys) { }
+    }
+
     public sealed class Shader : Object
     {
         public static Shader Find(string name) => null;
@@ -218,6 +240,9 @@ namespace UnityEngine
         public float GetFloat(string name) => 0f;
         public void SetColor(string name, Color value) { }
         public Color GetColor(string name) => default(Color);
+        public void EnableKeyword(string keyword) { }
+        public void DisableKeyword(string keyword) { }
+        public void CopyPropertiesFromMaterial(Material mat) { }
     }
 
     public enum TextureFormat { Alpha8 = 1, RGB24 = 3, RGBA32 = 4, ARGB32 = 5 }
@@ -353,7 +378,9 @@ namespace UnityEngine
 
         public struct MinMaxGradient
         {
-            public MinMaxGradient(Color color) { }
+            public MinMaxGradient(Color color) { mode = ParticleSystemGradientMode.Color; }
+            public MinMaxGradient(Gradient gradient) { mode = ParticleSystemGradientMode.Gradient; }
+            public ParticleSystemGradientMode mode { get; set; }
             public static implicit operator MinMaxGradient(Color color) => new MinMaxGradient(color);
         }
 

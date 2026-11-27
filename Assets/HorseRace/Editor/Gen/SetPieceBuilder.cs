@@ -226,9 +226,11 @@ namespace HorseRace.EditorTools
             Vector3 entryW = new Vector3(o0.x + entry.x, o0.y + SetPieces.ShortcutHeight(p, p.f0), o0.z + entry.z);
             var sign = GenUtil.World(root, "ShortcutSign", entryW + WorldLayout.RightOf(dir) * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f), WorldLayout.YawDeg(dir));
             GenUtil.Stake(sign.transform, "DesertProps_05", sign.transform.position, WorldLayout.YawDeg(dir), 0.75f);
-            GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_01", new Vector3(0f, 1.6f, -0.12f), null, 1.6f, 0.6f);
-            GenUtil.Text(sign.transform, "Text", new Vector3(0f, 1.9f, -0.15f), Quaternion.identity, "近道（崖下り）", 1.6f, Ink, new Vector2(1.6f, 0.5f));
-            GenUtil.PointLight(sign.transform, "SignLight", sign.transform.position + Vector3.up * 2.6f, LampWarm, 8f, 1.2f);
+            // 近道の看板（ui-r1-12）：杭（DesertProps_05）に手配書の紙（WantedPosters_02、1.6 × 0.6m）、青緑の「→ 近道」（看板の文字）と青緑の灯り（加速の色の合図）
+            GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_02", new Vector3(0f, 1.6f, -0.12f), null, 1.6f, 0.6f);
+            GenUtil.Text(sign.transform, "Text", new Vector3(0f, 1.9f, -0.15f), Quaternion.identity, "<b>→ 近道</b>", 1.6f, UiStyle.Teal, new Vector2(1.5f, 0.5f),
+                TextStyle.Sign, true);
+            GenUtil.PointLight(sign.transform, "SignLight", sign.transform.position + Vector3.up * 2.6f, UiStyle.Teal, 6f, 1.2f);
             Vector3 lip = Vector3.Lerp(p.a, p.b, p.fDrop);
             for (int s = -1; s <= 1; s += 2)
             {

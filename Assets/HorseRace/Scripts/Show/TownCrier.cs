@@ -26,11 +26,17 @@ namespace HorseRace
         public Transform paperArm;
         public Vector3 paperArmRaisedEuler = new Vector3(-100f, 0f, 0f);
         public float paperRaiseSeconds = 4f;
+        [Tooltip("任意。電報の紙（手配書の紙）。呼び声のときに屋台（paperFrom）から掲示板（paperTo）へ滑って貼られる")]
+        public Transform telegramPaper;
+        public Transform paperFrom;
+        public Transform paperTo;
+        public float paperSlideSeconds = 1.2f;
 
         private int postedSeq = -1;
         private float raiseUntil;
         private Quaternion armRest;
         private bool armCaptured;
+        private float slideAt = -100f;
 
         private void Update()
         {
@@ -42,6 +48,19 @@ namespace HorseRace
                 Post(rm);
             }
             AnimateArm();
+            AnimatePaper();
+        }
+
+        private void AnimatePaper()
+        {
+            if (telegramPaper == null || paperFrom == null || paperTo == null) return;
+            float t = Mathf.Clamp01((Time.time - slideAt) / paperSlideSeconds);
+            if (t >= 1f && slideAt < 0f) return;
+            float e = t * t * (3f - 2f * t);
+            // 弧を描いて滑る（真ん中で 0.6m 浮く）
+            Vector3 p = Vector3.Lerp(paperFrom.position, paperTo.position, e) + Vector3.up * (0.6f * Mathf.Sin(e * Mathf.PI));
+            telegramPaper.SetPositionAndRotation(p, Quaternion.Slerp(paperFrom.rotation, paperTo.rotation, e));
+            if (t >= 1f) slideAt = -100f;
         }
 
         private void Post(RaceManager rm)
@@ -60,6 +79,7 @@ namespace HorseRace
                 else callAudio.Play();
             }
             raiseUntil = Time.time + paperRaiseSeconds;
+            slideAt = Time.time;
         }
 
         private void AnimateArm()
@@ -77,15 +97,15 @@ namespace HorseRace
         /// <summary>今のステージの着順を電報の文面にする（RaceManager の slotStagePlace / slotTotalPoints から）。</summary>
         public static string StageTelegram(RaceManager rm)
         {
-            string s = "電報\n" + RaceManager.StageLabel(rm.stage) + " 着順\n";
+            string s = "<b><size=140%>電報</size></b>\n" + RaceManager.StageLabel(rm.stage) + " 着順\n";
             int lines = 0;
             for (int place = 1; place <= RaceManager.MAX_SLOTS; place++)
             {
                 for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
                 {
                     if (rm.slotPlayerId[i] < 0 || rm.slotStagePlace[i] != place) continue;
-                    s += place.ToString() + "着 " + RaceManager.PlayerName(rm.slotPlayerId[i])
-                        + "　+" + RaceMath.PointsForPlace(place - 1).ToString() + "点（計" + rm.slotTotalPoints[i].ToString() + "点）\n";
+                    s += HudMath.Row4(place.ToString() + "着", RaceManager.ShortName(rm.slotPlayerId[i]),
+                        "+" + RaceMath.PointsForPlace(place - 1).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
                     lines++;
                 }
             }

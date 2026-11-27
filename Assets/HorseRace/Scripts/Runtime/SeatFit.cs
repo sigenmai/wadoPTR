@@ -45,6 +45,10 @@ namespace HorseRace
         [Tooltip("ボタン（高さ＋, 高さ−, 前, 後, 前傾, 後傾, 元に戻す の順）")]
         public Transform[] buttons;
         public TextMeshPro readout;
+        [Tooltip("ボタンの文字（buttons と同じ並び）。押すと 0.85 → 1 に 0.12 秒で戻る")]
+        public Transform[] buttonLabels;
+        [Tooltip("押したときのカチッという音（任意）")]
+        public AudioSource clickAudio;
         public float pokeRadius = 0.04f;
 
         [Header("測定")]
@@ -73,6 +77,8 @@ namespace HorseRace
         private float keySince;
         private int keyFired;
         private bool started;
+        private int flashButton = -1;
+        private float flashAt;
 
         private void Start()
         {
@@ -222,6 +228,28 @@ namespace HorseRace
             if (show && vr) UpdatePoke(local, type);
             else pokeHeld = -1;
             if (!vr) UpdateKeys(type);
+            AnimateFlash();
+        }
+
+        private void FlashButton(int button)
+        {
+            if (flashButton >= 0 && flashButton != button) SetLabelScale(flashButton, 1f);
+            flashButton = button;
+            flashAt = Time.time;
+        }
+
+        private void AnimateFlash()
+        {
+            if (flashButton < 0) return;
+            float t = (Time.time - flashAt) / 0.12f;
+            if (t >= 1f) { SetLabelScale(flashButton, 1f); flashButton = -1; return; }
+            SetLabelScale(flashButton, Mathf.Lerp(0.85f, 1f, t));
+        }
+
+        private void SetLabelScale(int button, float s)
+        {
+            if (buttonLabels == null || button < 0 || button >= buttonLabels.Length || buttonLabels[button] == null) return;
+            buttonLabels[button].localScale = new Vector3(s, s, s);
         }
 
         private void MeasureHips(VRCPlayerApi local)
@@ -352,6 +380,8 @@ namespace HorseRace
                 int dir = (button == BTN_HEIGHT_UP || button == BTN_FORWARD || button == BTN_TILT_FORWARD) ? 1 : -1;
                 user[b + axis] = SeatMath.StepAxis(axis, user[b + axis], dir);
             }
+            if (clickAudio != null) clickAudio.Play();
+            FlashButton(button);
             dirty = true;
             dirtyType = t;
             saveAt = Time.time + 1f;   // 押し終わって 1 秒後にまとめて保存（PlayerData の送信を減らす）

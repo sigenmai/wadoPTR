@@ -14,8 +14,19 @@ namespace TMPro
         public static TMP_FontAsset CreateFontAsset(Font font) => null;
     }
 
+    public enum TextOverflowModes { Overflow = 0, Ellipsis = 1, Masking = 2, Truncate = 3, ScrollRect = 4, Page = 5, Linked = 6 }
+
+    [System.Flags]
+    public enum FontStyles { Normal = 0, Bold = 1, Italic = 2, Underline = 4, LowerCase = 8, UpperCase = 16, SmallCaps = 32, Strikethrough = 64 }
+
     public abstract partial class TMP_Text
     {
+        public bool enableAutoSizing { get; set; }
+        public float fontSizeMin { get; set; }
+        public float fontSizeMax { get; set; }
+        public TextOverflowModes overflowMode { get; set; }
+        public Material fontSharedMaterial { get; set; }
+        public FontStyles fontStyle { get; set; }
         public TextAlignmentOptions alignment { get; set; }
         public bool enableWordWrapping { get; set; }
         public TMP_FontAsset font { get; set; }

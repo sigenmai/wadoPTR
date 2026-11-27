@@ -379,9 +379,12 @@ namespace HorseRace
             }
             int rank = 0;
             for (int k = 0; k < fullOrder.Length; k++) if (fullOrder[k] == target) { rank = k + 1; break; }
-            string who = RaceManager.PlayerName(raceManager.slotPlayerId[target]);
-            string mode = overrideActive ? overrideRank.ToString() + "位を追う" : "おまかせ";
-            captionText.text = "中継：" + who + "（" + rank.ToString() + "位）［" + mode + "］";
+            string who = RaceManager.ShortName(raceManager.slotPlayerId[target]);
+            float rem = raceManager.GetRemainingSeconds();
+            string mode = overrideActive ? "" : "（おまかせ）";
+            string c = RaceManager.StageLabel(raceManager.stage) + "｜" + rank.ToString() + "位 " + who + " を追跡" + mode;
+            if (rem >= 0f && raceManager.state == RaceMath.STATE_RACING) c += "｜残り " + RaceMath.FormatClock(rem);
+            if (captionText.text != c) captionText.text = c;
         }
 
         private void RefreshTags()

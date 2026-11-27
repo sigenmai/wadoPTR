@@ -8,7 +8,9 @@ namespace HorseRace
     /// スタートラインのスターター（人物はプリミティブでよい）。RaceManager.starter に設定する。
     ///
     /// RaceManager が COUNTDOWN の適用時に全クライアントで "BeginCountdown" を送ってくる（stageSeq ごとに 1 回）。
-    ///   0 s / 1 s / 2 s：旗を振りながら空砲 3 発（空に「3」「2」「1」）→ 3 s：号砲（砂煙、空に「出走！」）
+    ///   0〜1.2 s：空にステージ名（「第2幕 砂漠」、ステージの色）
+    ///   1.2 s / 2.2 s / 3.2 s：旗を振りながら空砲 3 発（空に「3」「2」（紙の白）「1」（琥珀））→ 4.2 s：号砲（砂煙、空に金の「出走！」）
+    ///   空の文字はステージのスタートの 30m 先・12m 上の中心線上（skySpots）。数字ごとに 1.6 → 1 に跳ね、首の札（MinimalHud）にも同じ文字。
     /// 号砲の時点でマスターのインスタンスだけ RaceManager.StarterFinished() を呼ぶ → マスターが RACING にして InputLocked = false が全員に届く。
     /// マスター以外は同じ演出をローカルで鳴らすだけ。号砲の前に RACING が届いたら（遅れたクライアント）残りを飛ばしてすぐ号砲。
     /// カウント中の馬の足踏み（Stamp）は MountController（InputLocked かつ停止中 → GAIT_FLAG_STAMP）と MountVisual が既に出す。
@@ -20,6 +22,8 @@ namespace HorseRace
         public const int BLANK_SHOTS = 3;
         public const float SHOT_INTERVAL = 1f;
         public const float AFTER_GUN_SECONDS = 1.5f;
+        /// <summary>最初のこの秒数はステージ名（「第2幕 砂漠」、ステージの色）を空に出し、そのあと 3・2・1・出走！</summary>
+        public const float TITLE_SECONDS = 1.2f;
 
         public RaceManager raceManager;
         [Tooltip("任意。ステージごとのスターターの立ち位置（index = stage）。BeginCountdown でこの GameObject ごと移す（旗・空の数字・砂煙は子に置く）")]
@@ -47,8 +51,12 @@ namespace HorseRace
         public ParticleSystem pistolSmoke;
         [Tooltip("号砲で上がる砂煙（スタートラインに並べる、任意）")]
         public ParticleSystem[] startDust;
-        [Tooltip("空の大きな数字（任意、TextMeshPro）")]
+        [Tooltip("空の大きな数字（任意、TextMeshPro）。騎手のほうを向く")]
         public TextMeshPro skyCountText;
+        [Tooltip("任意。裏側（観客側）の同じ文字")]
+        public TextMeshPro skyCountBack;
+        [Tooltip("ステージごとの空の数字の位置（コースの中心線上、スタートラインの 30m 先・12m 上、騎手のほうを向く。index = stage）")]
+        public Transform[] skySpots;
 
         private bool running;
         private float beginTime;
@@ -57,6 +65,10 @@ namespace HorseRace
         private bool restCaptured;
         private Quaternion flagRest;
         private Quaternion armRest;
+        private float skyPunchAt = -10f;
+        private bool titleShown;
+        private Vector3 skyScale = Vector3.one;
+        private bool skyScaleCaptured;
 
         private void Start()
         {
@@ -82,6 +94,17 @@ namespace HorseRace
                 if (st >= 0 && st < stageSpots.Length && stageSpots[st] != null)
                     transform.SetPositionAndRotation(stageSpots[st].position, stageSpots[st].rotation);
             }
+            // 空の数字はスターターの子ではなく、ステージのスタートの前方の中心線上へ
+            if (raceManager != null && skySpots != null)
+            {
+                int st = raceManager.stage;
+                if (st >= 0 && st < skySpots.Length && skySpots[st] != null)
+                {
+                    if (skyCountText != null) skyCountText.transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation);
+                    if (skyCountBack != null) skyCountBack.transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation * Quaternion.Euler(0f, 180f, 0f));
+                }
+            }
+            titleShown = false;
             running = true;
             beginTime = Time.time;
             step = 0;
@@ -110,12 +133,18 @@ namespace HorseRace
             if (step <= BLANK_SHOTS)
             {
                 if (raceStarted) step = BLANK_SHOTS; // 遅れて届いた：残りの空砲は飛ばす
-                while (step < BLANK_SHOTS && t >= step * SHOT_INTERVAL)
+                if (!titleShown && !raceStarted)
+                {
+                    titleShown = true;
+                    int stg = rm != null ? rm.stage : 0;
+                    SetSky(RaceManager.StageLabel(stg), RaceManager.StageColor(stg), 1.25f);
+                }
+                while (step < BLANK_SHOTS && t >= TITLE_SECONDS + step * SHOT_INTERVAL)
                 {
                     FireBlank(step);
                     step++;
                 }
-                if (step == BLANK_SHOTS && (raceStarted || t >= BLANK_SHOTS * SHOT_INTERVAL))
+                if (step == BLANK_SHOTS && (raceStarted || t >= TITLE_SECONDS + BLANK_SHOTS * SHOT_INTERVAL))
                 {
                     FireGun();
                     step = BLANK_SHOTS + 1;
@@ -123,6 +152,7 @@ namespace HorseRace
             }
 
             Pose(t);
+            PunchSky();
 
             if (gunTime >= 0f && Time.time - gunTime >= AFTER_GUN_SECONDS)
             {
@@ -135,7 +165,8 @@ namespace HorseRace
         {
             PlayClip(blankClip);
             if (pistolSmoke != null) pistolSmoke.Play();
-            SetSky((BLANK_SHOTS - i).ToString());
+            int n = BLANK_SHOTS - i;
+            SetSky(n.ToString(), n == 1 ? new Color(1f, 0.6f, 0.2f) : new Color(0.96f, 0.90f, 0.76f), 1.6f);
         }
 
         private void FireGun()
@@ -145,7 +176,7 @@ namespace HorseRace
             if (pistolSmoke != null) pistolSmoke.Play();
             if (startDust != null)
                 for (int i = 0; i < startDust.Length; i++) if (startDust[i] != null) startDust[i].Play();
-            SetSky("出走！");
+            SetSky("出走！", new Color(1f, 0.78f, 0.27f), 1.8f);
             // マスターのインスタンスだけ。RaceManager 側でもオーナー確認する
             if (raceManager != null && raceManager.IsLocalMaster()) raceManager.StarterFinished();
         }
@@ -181,7 +212,34 @@ namespace HorseRace
 
         private void SetSky(string s)
         {
-            if (skyCountText != null) skyCountText.text = s;
+            SetSky(s, new Color(0.96f, 0.90f, 0.76f), 1f);
+        }
+
+        /// <summary>空の文字（表と裏）を書き、from → 1 で跳ねさせる。首の札にも同じ文字を出す（カウントダウン中・号砲）。</summary>
+        private void SetSky(string s, Color c, float from)
+        {
+            if (skyCountText != null)
+            {
+                if (!skyScaleCaptured) { skyScale = skyCountText.transform.localScale; skyScaleCaptured = true; }
+                skyCountText.text = s;
+                skyCountText.color = c;
+            }
+            if (skyCountBack != null) { skyCountBack.text = s; skyCountBack.color = c; }
+            if (s.Length == 0) return;
+            skyPunchAt = Time.time;
+            skyPunchFrom = from;
+            if (raceManager != null && raceManager.hud != null && raceManager.IsLocalEntered())
+                raceManager.hud.ShowBanner(s, c, s == "出走！" ? 1.2f : 1.05f, from);
+        }
+
+        private float skyPunchFrom = 1f;
+
+        private void PunchSky()
+        {
+            if (!skyScaleCaptured) return;
+            float k = HudMath.PunchScale(Time.time - skyPunchAt, skyPunchFrom);
+            if (skyCountText != null) skyCountText.transform.localScale = skyScale * k;
+            if (skyCountBack != null) skyCountBack.transform.localScale = skyScale * k;
         }
     }
 }

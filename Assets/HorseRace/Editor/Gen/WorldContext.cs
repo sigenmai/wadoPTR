@@ -19,6 +19,8 @@ namespace HorseRace.EditorTools
         public readonly List<Checkpoint> checkpoints = new List<Checkpoint>();
         public Transform finishPen;
         public Transform starterSpot;
+        /// <summary>空のカウントの位置（スタートラインの 30m 先・12m 上の中心線上、騎手のほうを向く）。</summary>
+        public Transform skyCountSpot;
         public GoalPresenter goal;
         public Vector3 goalTownCenter;
         public readonly List<SandZone> sandZones = new List<SandZone>();

@@ -1,43 +1,78 @@
+using TMPro;
 using UdonSharp;
 using UnityEngine;
 
 namespace HorseRace
 {
     /// <summary>
-    /// 腰（鞍の脇）のお守り袋。能力のクールダウンと Lv を数字なしで見せる（spec 5.14）。
-    ///  - 使えるとき：袋が光る（pouchRenderer のマテリアルを readyMaterial に替え、glow を出す）。使えるようになった瞬間に readySound。
-    ///  - Lv：levelMarks（最大 3 個の刻印）のうち Lv 個を点ける（levelMarksUnlit があれば残りはそちらを出す）。
-    /// AbilityCaster が毎フレーム Show を呼ぶ（変化したときだけ反映）。乗っていない人の袋は消灯。
+    /// 能力の札（首の札の右隣、乗り物の首の上）。その能力の手配書（Wanted_砂塵 など）を小さな紙に貼り、使えるかどうかを見せる（spec 5.14）。
+    ///  - 使えるとき：明るい手配書（readyMaterials[能力]）。使えるようになった瞬間に金の火花（sparks.Emit(12)）と readySound。
+    ///  - クールダウン中：35% の灰色の手配書（idleMaterials[能力]）と「あと 7」（cooldownText）。
+    ///  - Lv：宝石 3 つ（levelMarks）のうち Lv 個を点ける（levelMarksUnlit があれば残りはそちら）。
+    /// 乗っている本人だけに出す（AbilityCaster が毎フレーム Show、降りたら Hide）。位置は乗り物の種類（鞍の高さ）に合わせて動かす。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class CharmPouch : UdonSharpBehaviour
     {
-        public Renderer pouchRenderer;
-        public Material readyMaterial;
-        public Material idleMaterial;
-        public GameObject glow;
-        [Tooltip("光る刻印（Lv1..3 の順）")]
+        [Tooltip("札の見た目の親（Hide で隠す）")]
+        public GameObject cardRoot;
+        [Tooltip("手配書の紙の Renderer")]
+        public Renderer[] cardRenderers;
+        [Tooltip("能力ごとの明るい手配書（砂塵・投げ縄・岩壁・鉄球の順）")]
+        public Material[] readyMaterials;
+        [Tooltip("能力ごとの灰色の手配書（クールダウン中）")]
+        public Material[] idleMaterials;
+        public ParticleSystem sparks;
+        public TextMeshPro cooldownText;
+        [Tooltip("光る宝石（Lv1..3 の順）")]
         public GameObject[] levelMarks;
-        [Tooltip("任意。消えている刻印（levelMarks と同じ並び）")]
+        [Tooltip("任意。消えている宝石（levelMarks と同じ並び）")]
         public GameObject[] levelMarksUnlit;
         public AudioSource readySound;
+        [Tooltip("鞍の点からの位置（乗り物ローカル）。首の札（MinimalHud.neckOffset）の 0.09m 右")]
+        public Vector3 neckOffset = new Vector3(0.15f, 0.25f, 0.55f);
+        public float neckPitch = 35f;
 
         private int shownReady = -1;
         private int shownLevel = -1;
+        private int shownAbility = -1;
+        private int shownType = -1;
+        private int shownSeconds = -1;
+        private bool visible = true;
 
-        public void Show(bool ready, int level)
+        private void Start()
         {
-            int r = ready ? 1 : 0;
-            if (r != shownReady)
+            SetVisible(false);
+        }
+
+        public void Show(bool ready, int level, float remaining, int ability, int seatType)
+        {
+            SetVisible(true);
+            if (seatType != shownType)
             {
-                if (shownReady == 0 && ready && readySound != null) readySound.Play();
-                shownReady = r;
-                if (pouchRenderer != null)
+                shownType = seatType;
+                transform.localPosition = new Vector3(neckOffset.x, SeatMath.DefaultSaddleY(seatType) + neckOffset.y, SeatMath.DefaultSaddleZ(seatType) + neckOffset.z);
+                transform.localRotation = Quaternion.Euler(neckPitch, 0f, 0f);
+            }
+            int r = ready ? 1 : 0;
+            if (r != shownReady || ability != shownAbility)
+            {
+                if (shownReady == 0 && ready && ability == shownAbility)
                 {
-                    Material m = ready ? readyMaterial : idleMaterial;
-                    if (m != null) pouchRenderer.sharedMaterial = m;
+                    if (readySound != null) readySound.Play();
+                    if (sparks != null) sparks.Emit(12);
                 }
-                if (glow != null) glow.SetActive(ready);
+                shownReady = r;
+                shownAbility = ability;
+                Material m = PickMaterial(ready ? readyMaterials : idleMaterials, ability);
+                if (m != null && cardRenderers != null)
+                    for (int i = 0; i < cardRenderers.Length; i++) if (cardRenderers[i] != null) cardRenderers[i].sharedMaterial = m;
+            }
+            int secs = ready ? 0 : Mathf.CeilToInt(remaining);
+            if (secs != shownSeconds)
+            {
+                shownSeconds = secs;
+                if (cooldownText != null) cooldownText.text = ready ? "" : HudMath.CooldownLabel(remaining);
             }
             if (level != shownLevel)
             {
@@ -49,6 +84,27 @@ namespace HorseRace
                     for (int i = 0; i < levelMarksUnlit.Length; i++)
                         if (levelMarksUnlit[i] != null) levelMarksUnlit[i].SetActive(i >= level);
             }
+        }
+
+        public void Hide()
+        {
+            SetVisible(false);
+            shownReady = -1;
+            shownSeconds = -1;
+        }
+
+        private Material PickMaterial(Material[] set, int ability)
+        {
+            if (set == null || set.Length == 0) return null;
+            if (ability < 0 || ability >= set.Length) ability = 0;
+            return set[ability];
+        }
+
+        private void SetVisible(bool v)
+        {
+            if (v == visible) return;
+            visible = v;
+            if (cardRoot != null) cardRoot.SetActive(v);
         }
     }
 }

@@ -147,11 +147,16 @@ namespace HorseRace.EditorTools
             panel.transform.localRotation = Quaternion.Euler(55f, 20f, 0f);
             sf.panelRoot = panel;
             var pt = panel.transform;
-            GenUtil.Text(pt, "Title", new Vector3(0f, 0.105f, 0f), Quaternion.identity, "鞍の位置", 0.22f, Gold, new Vector2(0.24f, 0.03f));
+            // 札の裏板（ui-r1-16）：手配書の紙（WantedPosters_05、0.32 × 0.24m）。文字は紙の上にインク／真鍮
+            var plate = GenUtil.PaperSheet(pt, "Backplate", "WantedPosters_05", new Vector3(0.01f, -0.12f, 0.006f), null, 0.32f, 0.24f);
+            foreach (var c in plate.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            var title = GenUtil.Text(pt, "Title", new Vector3(0f, 0.098f, 0f), Quaternion.identity, "鞍の位置", 0.22f, UiStyle.InkFace, new Vector2(0.24f, 0.03f), TextStyle.Brass, true);
+            title.fontStyle = TMPro.FontStyles.Bold;
             string[] heads = { "高さ", "前後", "傾き" };
             for (int c = 0; c < 3; c++)
-                GenUtil.Text(pt, "Head_" + c, new Vector3(-0.075f + 0.075f * c, 0.075f, 0f), Quaternion.identity, heads[c], 0.16f, Gold, new Vector2(0.07f, 0.025f));
+                GenUtil.Text(pt, "Head_" + c, new Vector3(-0.075f + 0.075f * c, 0.072f, 0f), Quaternion.identity, heads[c], 0.16f, UiStyle.InkFace, new Vector2(0.07f, 0.025f), TextStyle.Ink, true);
             var buttons = new Transform[SeatFit.BUTTONS];
+            var labels = new Transform[SeatFit.BUTTONS];
             for (int b = 0; b < SeatFit.BUTTONS; b++)
             {
                 Vector3 p = b == SeatFit.BTN_RESET ? new Vector3(0.115f, -0.03f, 0f)
@@ -164,12 +169,17 @@ namespace HorseRace.EditorTools
                 sab.seatFit = sf;
                 sab.button = b;
                 GenUtil.SetInteractText(sab, ButtonHints[b]);
-                GenUtil.Text(btn.transform, "Label", Vector3.zero, Quaternion.identity, ButtonLabels[b], b == SeatFit.BTN_RESET ? 0.16f : 0.22f, Gold, new Vector2(0.06f, 0.035f));
+                var lab = GenUtil.Text(btn.transform, "Label", Vector3.zero, Quaternion.identity, ButtonLabels[b], b == SeatFit.BTN_RESET ? 0.16f : 0.22f,
+                    UiStyle.BrassFace, new Vector2(0.06f, 0.035f), TextStyle.Brass, true);
+                labels[b] = lab.transform;
                 buttons[b] = btn.transform;
             }
             sf.buttons = buttons;
-            sf.readout = GenUtil.Text(pt, "Readout", new Vector3(-0.02f, -0.05f, 0f), Quaternion.identity, "", 0.13f, Gold, new Vector2(0.2f, 0.05f));
-            GenUtil.Text(pt, "KeysHint", new Vector3(0f, -0.085f, 0f), Quaternion.identity, "PC: PgUp/PgDn 高さ・Home/End 前後・Ins/Del 傾き", 0.07f, Gold, new Vector2(0.3f, 0.02f));
+            sf.buttonLabels = labels;
+            sf.clickAudio = GenUtil.Audio(go, false);
+            sf.readout = GenUtil.Text(pt, "Readout", new Vector3(-0.02f, -0.05f, 0f), Quaternion.identity, "", 0.13f, UiStyle.InkFace, new Vector2(0.2f, 0.05f), TextStyle.Ink, true);
+            GenUtil.Text(pt, "KeysHint", new Vector3(0f, -0.093f, 0f), Quaternion.identity, "PC: PgUp/PgDn 高さ・Home/End 前後\nIns/Del 傾き", 0.11f,
+                UiStyle.InkFace, new Vector2(0.30f, 0.034f), TextStyle.Ink, true);
             // 当たり判定は Rider（物理の衝突なし。CP・砂地のトリガーを踏まない）
             GenUtil.SetLayerRecursive(panel, WorldLayers.Rider);
             panel.SetActive(false);
@@ -249,30 +259,68 @@ namespace HorseRace.EditorTools
         // お守り袋・リボルバー・能力の見た目
         // ------------------------------------------------------------------
 
+        static readonly string[] AbilityCards = { "Wanted_Dust", "Wanted_Lasso", "Wanted_Wall", "Wanted_Ball" };
+
+        /// <summary>
+        /// 能力の札（ui-r1-04）：首の札の右隣（乗り物の首の上、乗っている本人だけに見える）に、その能力の手配書（WantedPosters_02 に Wanted_&lt;能力&gt;.png）。
+        /// 使える = 明るい手配書と金の火花、クールダウン中 = 35% の灰色と「あと 7」、Lv = 宝石（Gems_01_02〜04）3 つ。位置は CharmPouch が鞍の高さに合わせる。
+        /// </summary>
         static CharmPouch BuildPouch(Transform t)
         {
-            var go = GenUtil.Child(t, "CharmPouch", new Vector3(-0.38f, 1.25f, -0.25f));
-            var bag = GenUtil.Prim(PrimitiveType.Sphere, "Bag", go.transform, Vector3.zero, new Vector3(0.14f, 0.18f, 0.1f), Leather);
-            var glow = GenUtil.Prim(PrimitiveType.Sphere, "Glow", go.transform, Vector3.zero, Vector3.one * 0.22f, new Color(1f, 0.9f, 0.5f));
-            glow.SetActive(false);
+            var go = GenUtil.Child(t, "CharmPouch", new Vector3(0.15f, SeatMath.SADDLE_HORSE_Y + 0.25f, SeatMath.SADDLE_HORSE_Z + 0.55f));
+            go.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
+            var cardRoot = GenUtil.Child(go.transform, "Card", Vector3.zero);
+            const float CW = 0.07f, CH = 0.10f;
+            var dustTex = AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + AbilityCards[0] + ".png");
+            var sheet = GenUtil.PaperSheet(cardRoot.transform, "Poster", "WantedPosters_02", new Vector3(0f, -CH * 0.5f, 0.002f), dustTex, CW, CH);
+            foreach (var c in sheet.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            var ready = new Material[AbilityCards.Length];
+            var idle = new Material[AbilityCards.Length];
+            for (int i = 0; i < AbilityCards.Length; i++)
+            {
+                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + AbilityCards[i] + ".png");
+                if (tex == null) GenUtil.Warn("能力の札の手配書が見つかりません: " + AbilityCards[i]);
+                ready[i] = GenUtil.ToonTextureTint(tex, "Pouch_" + AbilityCards[i], Color.white);
+                idle[i] = GenUtil.ToonTextureTint(tex, "Pouch_" + AbilityCards[i], new Color(0.35f, 0.35f, 0.35f));
+            }
+            var cooldown = GenUtil.Text(cardRoot.transform, "Cooldown", new Vector3(0f, -0.015f, -0.004f), Quaternion.identity, "", 0.3f,
+                UiStyle.BrassFace, new Vector2(CW, 0.035f), TextStyle.Brass, true);
+            cooldown.fontStyle = TMPro.FontStyles.Bold;
+            var sparks = GenUtil.Particles(cardRoot.transform, "ReadySparks", new Vector3(0f, 0f, -0.01f), new Color(1f, 0.82f, 0.35f), 0.012f, 0.4f, 0.5f, false, 0f, 0.04f);
             var marks = new GameObject[3];
             var unlit = new GameObject[3];
             for (int i = 0; i < 3; i++)
             {
-                Vector3 p = new Vector3(-0.055f, -0.03f + i * 0.04f, 0f);
-                marks[i] = GenUtil.Prim(PrimitiveType.Sphere, "LevelMark_" + (i + 1), go.transform, p, Vector3.one * 0.025f, Gold);
+                Vector3 p = new Vector3(-0.022f + i * 0.022f, -CH * 0.5f - 0.016f, -0.004f);
+                marks[i] = Gem(cardRoot.transform, "LevelMark_" + (i + 1), "Gems_01_0" + (i + 2), p, GenUtil.ToonColor(Gold));
                 marks[i].SetActive(false);
-                unlit[i] = GenUtil.Prim(PrimitiveType.Sphere, "LevelMarkUnlit_" + (i + 1), go.transform, p, Vector3.one * 0.022f, new Color(0.25f, 0.18f, 0.1f));
+                unlit[i] = Gem(cardRoot.transform, "LevelMarkUnlit_" + (i + 1), "Gems_01_0" + (i + 2), p, GenUtil.ToonColor(new Color(0.25f, 0.18f, 0.1f)));
             }
             var cp = GenUtil.AddU<CharmPouch>(go);
-            cp.pouchRenderer = bag.GetComponent<Renderer>();
-            cp.readyMaterial = GenUtil.ToonColor(Gold);
-            cp.idleMaterial = GenUtil.ToonColor(Leather);
-            cp.glow = glow;
+            cp.cardRoot = cardRoot;
+            cp.cardRenderers = sheet.GetComponentsInChildren<Renderer>(true);
+            cp.readyMaterials = ready;
+            cp.idleMaterials = idle;
+            cp.sparks = sparks;
+            cp.cooldownText = cooldown;
             cp.levelMarks = marks;
             cp.levelMarksUnlit = unlit;
             cp.readySound = GenUtil.Audio(go, false);
+            cp.neckOffset = new Vector3(UiStyle.NECK_CARD_W * 0.5f + UiStyle.POUCH_OFFSET_X * 0.55f, 0.25f, 0.55f);
+            GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
             return cp;
+        }
+
+        /// <summary>小さな宝石 1 つ（Packs/Gems の部品、いちばん長い辺 0.018m、色だけのトゥーン）。</summary>
+        static GameObject Gem(Transform parent, string name, string part, Vector3 local, Material mat)
+        {
+            var g = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), part, parent, parent.position, 0f, 1f, new Vector3(0.015f, 0.018f, 0.015f), Gold);
+            g.name = name;
+            GenUtil.FitMax(g, 0.018f);
+            g.transform.localPosition = local;
+            g.transform.localRotation = Quaternion.identity;
+            foreach (var r in g.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = mat;
+            return g;
         }
 
         static RevolverHolder BuildRevolver(Transform t, AbilityCaster caster)

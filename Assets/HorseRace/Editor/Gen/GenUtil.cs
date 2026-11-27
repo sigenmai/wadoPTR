@@ -319,6 +319,12 @@ namespace HorseRace.EditorTools
             return SaveOrUpdate("Toon_" + key, tex, Color.white);
         }
 
+        /// <summary>画像付きのトゥーンに色を掛けたもの（クールダウン中の灰色の手配書など）。</summary>
+        public static Material ToonTextureTint(Texture tex, string key, Color tint)
+        {
+            return SaveOrUpdate("Toon_" + key + "_" + ColorUtility.ToHtmlStringRGB(tint), tex, tint);
+        }
+
         /// <summary>
         /// モデル内のすべての Renderer のマテリアルを、元のテクスチャを引き継いだトゥーンに差し替える。
         /// assetPath（Models からの相対）・partName を渡すと素材ごとの決まり（ArtPalette：大きな岩は細部を残す・岩の色を暖色へ・町の灰色/青/緑を寄せる）を当てる。
@@ -479,6 +485,28 @@ namespace HorseRace.EditorTools
             return l;
         }
 
+        /// <summary>部品をいちばん長い辺が maxM になるよう等倍で縮める（宝石の印など）。holder の親は拡大していないこと。</summary>
+        public static void FitMax(GameObject holder, float maxM)
+        {
+            Bounds b = RendererBounds(holder);
+            float m = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+            if (m > 1e-4f) holder.transform.localScale = holder.transform.localScale * (maxM / m);
+        }
+
+        /// <summary>部品を size（ワールドの幅・高さ・奥行き、holder の向きで）に引き伸ばす（原点は底のまま）。</summary>
+        public static void FitSize(GameObject holder, Vector3 size)
+        {
+            Quaternion keep = holder.transform.rotation;
+            holder.transform.rotation = Quaternion.identity;
+            Bounds b = RendererBounds(holder);
+            holder.transform.rotation = keep;
+            Vector3 s = holder.transform.localScale;
+            holder.transform.localScale = new Vector3(
+                b.size.x > 1e-4f ? s.x * size.x / b.size.x : s.x,
+                b.size.y > 1e-4f ? s.y * size.y / b.size.y : s.y,
+                b.size.z > 1e-4f ? s.z * size.z / b.size.z : s.z);
+        }
+
         /// <summary>見た目を消す（当たり判定は残す）。プリミティブの板を見えない Collider として使うとき。</summary>
         public static void HideRenderers(GameObject go)
         {
@@ -532,6 +560,14 @@ namespace HorseRace.EditorTools
 
         public static TMPro.TextMeshPro Text(Transform parent, string name, Vector3 localPos, Quaternion localRot, string text,
             float fontSize, Color color, Vector2 size)
+            => Text(parent, name, localPos, localRot, text, fontSize, color, size, TextStyle.Plain, false);
+
+        /// <summary>
+        /// 3D の文字（TextMeshPro）。style = 素材に合わせた文字の見た目（Ink = 紙のインク、Chalk = 黒板のチョーク、Sign = 看板・空の文字（縁取りと影）、
+        /// Brass = 真鍮の札）。autoSize = true なら fontSize を上限に 45% まで縮めて箱に収め、それでも入らなければ「…」で切る（あふれさせない）。
+        /// </summary>
+        public static TMPro.TextMeshPro Text(Transform parent, string name, Vector3 localPos, Quaternion localRot, string text,
+            float fontSize, Color color, Vector2 size, TextStyle style, bool autoSize)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -545,9 +581,65 @@ namespace HorseRace.EditorTools
             t.enableWordWrapping = true;
             var font = Font();
             if (font != null) t.font = font;
+            if (autoSize) AutoSize(t, fontSize);
+            var mat = StyleMaterial(style);
+            if (mat != null) t.fontSharedMaterial = mat;
             var rt = go.GetComponent<RectTransform>();
             if (rt != null) rt.sizeDelta = size;
             return t;
+        }
+
+        /// <summary>あふれ対策：上限 max、下限 max × UiStyle.AUTO_MIN、それでも入らなければ「…」。</summary>
+        public static void AutoSize(TMPro.TMP_Text t, float max)
+        {
+            t.enableAutoSizing = true;
+            t.fontSizeMax = max;
+            t.fontSizeMin = max * UiStyle.AUTO_MIN;
+            t.overflowMode = TMPro.TextOverflowModes.Ellipsis;
+        }
+
+        static readonly Dictionary<TextStyle, Material> styleCache = new Dictionary<TextStyle, Material>();
+
+        /// <summary>
+        /// 文字の見た目のプリセット（Generated/Fonts/TMP_&lt;Style&gt;.mat、フォントのマテリアルを写して値を書く）。
+        /// 面の色は白（文字の色は頂点色＝ UiStyle.FaceColor）、縁取り・太さ・やわらかさ・影は UiStyle の値。Plain はフォントのまま（null）。
+        /// </summary>
+        public static Material StyleMaterial(TextStyle style)
+        {
+            if (style == TextStyle.Plain) return null;
+            Material cached;
+            if (styleCache.TryGetValue(style, out cached) && cached != null) return cached;
+            var f = Font();
+            if (f == null || f.material == null) return null;
+            EnsureFolder(GEN_FONTS);
+            string path = GEN_FONTS + "/TMP_" + style + ".mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                m = new Material(f.material);
+                AssetDatabase.CreateAsset(m, path);
+            }
+            else m.CopyPropertiesFromMaterial(f.material);
+            m.name = "TMP_" + style;
+            UiStyle.Preset p = UiStyle.PresetFor(style);
+            m.SetColor("_FaceColor", Color.white);
+            m.SetFloat("_FaceDilate", p.dilate);
+            m.SetFloat("_OutlineSoftness", p.softness);
+            m.SetFloat("_OutlineWidth", p.outlineWidth);
+            m.SetColor("_OutlineColor", p.outlineColor);
+            if (p.underlay)
+            {
+                m.EnableKeyword("UNDERLAY_ON");
+                m.SetColor("_UnderlayColor", new Color(0f, 0f, 0f, 0.6f));
+                m.SetFloat("_UnderlayOffsetX", p.underlayOffset.x);
+                m.SetFloat("_UnderlayOffsetY", p.underlayOffset.y);
+                m.SetFloat("_UnderlaySoftness", p.underlaySoftness);
+            }
+            else m.DisableKeyword("UNDERLAY_ON");
+            if (p.outlineWidth > 0f) m.EnableKeyword("OUTLINE_ON");
+            EditorUtility.SetDirty(m);
+            styleCache[style] = m;
+            return m;
         }
 
         static TMPro.TMP_FontAsset font;
@@ -604,6 +696,7 @@ namespace HorseRace.EditorTools
         {
             font = null;
             fontSearched = false;
+            styleCache.Clear();
         }
 
         // ------------------------------------------------------------------

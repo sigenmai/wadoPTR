@@ -19,7 +19,7 @@ namespace HorseRace.EditorTools
 
         static readonly Color Wood = new Color(0.45f, 0.30f, 0.18f);
         static readonly Color DarkWood = new Color(0.30f, 0.20f, 0.12f);
-        static readonly Color Chalk = new Color(0.12f, 0.22f, 0.16f);
+        static readonly Color Chalk = new Color(0.17f, 0.23f, 0.18f);   // 黒板の板（ui-r1-08）
         static readonly Color White = new Color(0.95f, 0.93f, 0.88f);
         static readonly Color Red = new Color(0.70f, 0.15f, 0.12f);
         static readonly Color Ink = new Color(0.20f, 0.13f, 0.08f);
@@ -50,6 +50,9 @@ namespace HorseRace.EditorTools
             Vector3 spot = sb.GroundWorld(lineP - r0 * (GATE_HALF + 3f) + t0 * 2f);
             sb.starterSpot = GenUtil.World(root, "StarterSpot", spot, WorldLayout.YawDeg(r0)).transform;
             sb.Exclude(spot, 14f);    // スターターの周りに岩を置かない
+            // 空のカウント（ui-r1-09）：コースの中心線上、スタートラインの 30m 先・12m 上。騎手のほう（コースの進む向きを見る人）に読める
+            Vector3 skyP = sb.GroundWorld(WorldLayout.PointAtArc(c, StageDefinitions.START_ARC_M + 3f + 30f)) + Vector3.up * 12f;
+            sb.skyCountSpot = GenUtil.World(root, "SkyCountSpot", skyP, yaw0).transform;
 
             // ---- CP ----
             float[] arcs = WorldLayout.CheckpointArcs(sb.goalArc, StageDefinitions.CP_SPACING_M);
@@ -137,11 +140,13 @@ namespace HorseRace.EditorTools
         /// <summary>
         /// 黒板 1 枚（art-r1-06）：掲示板の模型（NoticeBoard ×0.75）の板の面に黒板の色を塗り、文字を板の少し手前に置く。
         /// 文字は -Z 側（yaw の方向を見ている人に読める）。模型が無ければ板の代わりに単色の板。
+        /// ui-r1-08/11：模型 ×0.8、板は黒板の色 (0.17,0.23,0.18)、文字はチョーク（UiStyle Chalk）で自動で縮む。
+        /// コースの黒板（showLastRace = false）は走りながら読めるよう 2.2pt（上位 3 人＋自分の順位、RankBoard）、たまり場の黒板は 1.0pt の表。
         /// </summary>
         public static RankBoard ChalkBoardAt(Transform parent, Vector3 worldPos, float yaw, string name, bool showLastRace)
         {
             var go = GenUtil.World(parent, name, worldPos, yaw);
-            const float SC = 0.75f;
+            const float SC = 0.8f;
             var holder = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), go.transform, "Board", worldPos, yaw, SC, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
             var panel = GenUtil.FindDeep(holder.transform, "NoticeBoard_Panel");
             Vector3 textPos = new Vector3(0f, 1.9f, -0.04f);
@@ -161,7 +166,8 @@ namespace HorseRace.EditorTools
             }
             else GenUtil.Prim(PrimitiveType.Quad, "Slate", go.transform, new Vector3(0f, 1.9f, 0f), new Vector3(2.5f, 1.6f, 1f), Chalk)
                 .transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            var text = GenUtil.Text(go.transform, "Chalk", textPos, Quaternion.identity, "出走前", 1.0f, White, textSize);
+            var text = GenUtil.Text(go.transform, "Chalk", textPos, Quaternion.identity, "出走前", showLastRace ? 1.0f : 2.2f, UiStyle.ChalkFace, textSize,
+                TextStyle.Chalk, true);
             var rb = GenUtil.AddU<RankBoard>(go);
             rb.boardText = text;
             rb.maxLines = 8;
@@ -201,12 +207,21 @@ namespace HorseRace.EditorTools
             var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", deco, c + Vector3.up * 6.1f, yaw, 1f, new Vector3(1.5f, 0.3f, 1f), DarkWood);
             beam.transform.localScale = new Vector3((GATE_HALF * 2f + 1f) / 1.5f, 1.8f, 0.6f);
             DressingBuilder.SetStatic(beam);
-            // 幕：手配書の紙を引き伸ばした板（表と裏）、文字は紙の手前
-            GenUtil.PaperSheet(gate, "Banner", "WantedPosters_01", new Vector3(0f, 4.3f, -0.15f), null, 10f, 1.8f);
-            var back = GenUtil.PaperSheet(gate, "BannerBack", "WantedPosters_01", new Vector3(0f, 4.3f, 0.15f), null, 10f, 1.8f);
-            back.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            GenUtil.Text(gate, "BannerText", new Vector3(0f, 5.2f, -0.2f), Quaternion.identity, "ゴール", 8f, Red, new Vector2(10f, 1.4f));
-            GenUtil.Text(gate, "BannerTextBack", new Vector3(0f, 5.2f, 0.2f), Quaternion.Euler(0f, 180f, 0f), "ゴール", 8f, Red, new Vector2(10f, 1.4f));
+            // 幕（ui-r1-10）：手配書の紙（WantedPosters_02、1.4m）3 枚を横木から吊り、1 枚に 1 文字ずつ「ゴ」「ー」「ル」（金・縁取り、看板の文字）。表と裏
+            string[] glyphs = { "ゴ", "ー", "ル" };
+            for (int g = 0; g < 3; g++)
+            {
+                float gx = (g - 1) * 1.6f;
+                for (int side = 0; side < 2; side++)
+                {
+                    float z = side == 0 ? -0.15f : 0.15f;
+                    var sheet = GenUtil.PaperSheet(gate, "Banner_" + g + (side == 0 ? "" : "_Back"), "WantedPosters_02", new Vector3(gx, 4.3f, z), null, 1.4f, 1.6f);
+                    if (side == 1) sheet.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                    var gt = GenUtil.Text(gate, "BannerText_" + g + (side == 0 ? "" : "_Back"), new Vector3(gx, 5.1f, side == 0 ? -0.2f : 0.2f),
+                        Quaternion.Euler(0f, side == 0 ? 0f : 180f, 0f), glyphs[g], 9f, UiStyle.Gold, new Vector2(1.3f, 1.4f), TextStyle.Sign, true);
+                    gt.fontStyle = TMPro.FontStyles.Bold;
+                }
+            }
 
             var gp = GenUtil.AddU<GoalPresenter>(gate.gameObject);
             gp.stageIndex = sb.def.index;
@@ -218,10 +233,12 @@ namespace HorseRace.EditorTools
             var texts = new TMPro.TextMeshPro[8];
             for (int i = 0; i < 8; i++)
             {
-                // 着順の札：手配書の紙（WantedPosters_02）に着順。GoalPresenter が騎手の上へ動かす
+                // 着順の札：手配書の紙（WantedPosters_04、0.9 × 0.6m）に着順。GoalPresenter が騎手の上へ動かす
                 var tag = GenUtil.Child(gate, "PlaceTag_" + (i + 1), new Vector3(0f, 3f, 0f));
-                GenUtil.PaperSheet(tag.transform, "Board", "WantedPosters_02", new Vector3(0f, -0.3f, 0f), null, 1.0f, 0.6f);
-                texts[i] = GenUtil.Text(tag.transform, "Text", new Vector3(0f, 0f, -0.04f), Quaternion.identity, (i + 1) + "着", 2.5f, Ink, new Vector2(1f, 0.45f));
+                GenUtil.PaperSheet(tag.transform, "Board", "WantedPosters_04", new Vector3(0f, -0.3f, 0f), null, 0.9f, 0.6f);
+                texts[i] = GenUtil.Text(tag.transform, "Text", new Vector3(0f, 0f, -0.04f), Quaternion.identity, (i + 1) + "着", 2.5f, UiStyle.InkFace,
+                    new Vector2(0.82f, 0.45f), TextStyle.Ink, true);
+                texts[i].fontStyle = TMPro.FontStyles.Bold;
                 tags[i] = tag.transform;
                 tag.SetActive(false);
             }
@@ -291,18 +308,22 @@ namespace HorseRace.EditorTools
             // 旗：柱の 1.6m に、赤く塗った紙の旗（表裏）
             var flagPivot = GenUtil.Child(body, "FlagPivot", new Vector3(-0.15f, 1.6f, 0f)).transform;
             GenUtil.Stake(flagPivot, "DesertProps_05", flagPivot.position, yaw, 0.4f);
-            var cloth = GenUtil.PaperSheet(flagPivot, "Cloth", "WantedPosters_01", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
+            var cloth = GenUtil.PaperSheet(flagPivot, "Cloth", "WantedPosters_02", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
             cloth.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
             foreach (var r in cloth.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Red);
-            var clothBack = GenUtil.PaperSheet(flagPivot, "ClothBack", "WantedPosters_01", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
+            var clothBack = GenUtil.PaperSheet(flagPivot, "ClothBack", "WantedPosters_02", new Vector3(0.35f, 0.75f, 0f), null, 0.6f, 0.4f);
             clothBack.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
             foreach (var r in clothBack.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Red);
 
-            // 拳銃の腕：柱の 2.4m（PistolArm が回して上げる）
-            var arm = GenUtil.Child(body, "PistolArm", new Vector3(0.2f, 2.4f, 0f)).transform;
+            // 拳銃の柱（ui-r1-20）：街灯の左に杭（DesertProps_03）。拳銃の腕は杭の 2.4m（PistolArm が回して上げる）
+            var pistolPost = GenUtil.Stake(body, "DesertProps_03", pos + go.transform.right * 0.6f, yaw, 1f);
+            pistolPost.name = "PistolPost";
+            var arm = GenUtil.Child(body, "PistolArm", new Vector3(0.6f, 2.4f, -0.12f)).transform;
             var gun = GenUtil.InstantiateModel(GenUtil.Pack("Revolver"), arm, "Revolver");
             if (gun != null) { gun.transform.localPosition = new Vector3(0f, -0.2f, 0.05f); gun.transform.localScale = Vector3.one; }
-            GenUtil.Text(body, "CallOut", new Vector3(0f, 4.6f, 0f), Quaternion.Euler(0f, 180f, 0f), "スタート係", 1.2f, Ink, new Vector2(3f, 0.6f));
+            // 呼び込みの札：宙に浮かせず、柱の後ろの掲示板（NoticeBoard ×0.5）に。コースから読める（読む人はスターターのほうを見る = yaw + 180）
+            LobbyBuilder.NoticeSign(body, "CallOut", pos - go.transform.forward * 2.3f, yaw + 180f, 0.5f, "<b><size=140%>スタート係</size></b>\n号砲 3 発で出走", 1.2f,
+                UiStyle.InkFace, TextStyle.Ink, new Color(0.93f, 0.86f, 0.70f), false);
 
             var st = GenUtil.AddU<Starter>(go);
             st.flagPivot = flagPivot;
@@ -314,11 +335,18 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < 3; i++)
                 dust[i] = GenUtil.Particles(body, "StartDust_" + i, new Vector3(0f, 0.3f, 6f + i * 8f), new Color(0.85f, 0.72f, 0.5f, 0.8f), 1.2f, 2f, 2f, false, 0f, 2.5f);
             st.startDust = dust;
-            st.skyCountText = GenUtil.Text(body, "SkyCount", new Vector3(-12f, 22f, 14f), Quaternion.Euler(0f, -90f, 0f), "", 60f,
-                new Color(1f, 0.95f, 0.8f), new Vector2(30f, 20f));
+            // 空のカウント（ui-r1-09/11）：スターターの子ではなく、ステージごとのスタートの前方の中心線上（skySpots）へ動かす。看板の文字（縁取りと影）、表と裏
+            Transform sky0 = s0.skyCountSpot != null ? s0.skyCountSpot : body;
+            st.skyCountText = GenUtil.Text(ctx.root, "SkyCount", sky0.position, sky0.rotation, "", 60f, UiStyle.SignFace, new Vector2(30f, 12f), TextStyle.Sign, true);
+            st.skyCountText.fontStyle = TMPro.FontStyles.Bold;
+            st.skyCountBack = GenUtil.Text(ctx.root, "SkyCountBack", sky0.position, sky0.rotation * Quaternion.Euler(0f, 180f, 0f), "", 60f, UiStyle.SignFace,
+                new Vector2(30f, 12f), TextStyle.Sign, true);
+            st.skyCountBack.fontStyle = TMPro.FontStyles.Bold;
             var spots = new Transform[ctx.stages.Count];
-            for (int i = 0; i < spots.Length; i++) spots[i] = ctx.stages[i].starterSpot;
+            var skies = new Transform[ctx.stages.Count];
+            for (int i = 0; i < spots.Length; i++) { spots[i] = ctx.stages[i].starterSpot; skies[i] = ctx.stages[i].skyCountSpot; }
             st.stageSpots = spots;
+            st.skySpots = skies;
             ctx.starter = st;
             return st;
         }

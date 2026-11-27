@@ -267,6 +267,7 @@ namespace HorseRace.EditorTools
             rm.posterCards = ctx.posterCards.ToArray();
             rm.mountPickers = ctx.mountPickers.ToArray();
             rm.startBell = ctx.startBell;
+            rm.hud = ctx.hud;
             rm.practiceArea = ctx.practiceArea;
 
             // ---- 全員の raceManager（このビルドで作った UdonSharpBehaviour のうち raceManager フィールドを持つもの）----

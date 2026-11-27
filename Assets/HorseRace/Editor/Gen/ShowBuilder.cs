@@ -91,15 +91,20 @@ namespace HorseRace.EditorTools
 
             string[] titles = { "中継", "電報", "出走表" };
             NoticeBoardDisplay telegram = null;
+            Transform telegramFront = null;
+            float telegramPanelY = 2f;
             for (int mode = 0; mode < 3; mode++)
             {
                 Vector3 side = new Vector3(facing.z, 0f, -facing.x);   // 並ぶ向き（facing と直角）
                 Vector3 p = center + side * ((mode - 1) * 6f);
                 var nb = Board(root, "NoticeBoard_" + titles[mode], p, facing, mode, ctx, out Transform front, out Vector3 panelCenter);
-                if (mode == 1) telegram = nb;
+                if (mode == 1) { telegram = nb; telegramFront = front; telegramPanelY = panelCenter.y - p.y; }
                 if (mode == 0)
                 {
-                    dir.captionText = GenUtil.Text(front, "Caption", new Vector3(0f, 1.05f, 0f), Quaternion.identity, "", 1.2f, Ink, new Vector2(3f, 0.3f));
+                    // 中継の字幕：板の下の紙の帯（WantedPosters_05）に「第1幕 荒野｜3位 ○○ を追跡｜残り 2:10」
+                    GenUtil.PaperSheet(front, "CaptionPaper", "WantedPosters_05", new Vector3(0f, 0.92f, 0.01f), null, 3.1f, 0.28f);
+                    dir.captionText = GenUtil.Text(front, "Caption", new Vector3(0f, 1.06f, -0.01f), Quaternion.identity, "", 1.2f, UiStyle.InkFace,
+                        new Vector2(3f, 0.25f), TextStyle.Ink, true);
                     dir.tags = Tags(front, dir, ctx);
                 }
             }
@@ -118,6 +123,22 @@ namespace HorseRace.EditorTools
             var arm = GenUtil.Child(crierGo.transform, "PaperArm", new Vector3(-0.9f, 1.9f, -0.3f)).transform;
             GenUtil.PaperSheet(arm, "Paper", "WantedPosters_01", new Vector3(0f, -0.5f, -0.05f), null, 0.32f, 0.44f);
             var crier = GenUtil.AddU<TownCrier>(crierGo);
+            // 電報の紙（ui-r1-20）：屋台の上（paperFrom）から電報の掲示板の右の飾りの位置（paperTo）へ、呼び声のときに弧を描いて滑って貼られる
+            if (telegramFront != null)
+            {
+                var from = GenUtil.Child(crierGo.transform, "TelegramFrom", new Vector3(0f, 1.25f, -0.4f)).transform;
+                from.rotation = telegramFront.rotation;
+                var to = GenUtil.Child(telegramFront, "TelegramTo", new Vector3(1.93f, telegramPanelY - 0.35f, -0.05f)).transform;
+                var paperGo = GenUtil.World(root, "TelegramPaper", from.position);
+                paperGo.transform.rotation = from.rotation;
+                GenUtil.PaperSheet(paperGo.transform, "Sheet", "WantedPosters_03", new Vector3(0f, 0f, 0f), null, 0.46f, 0.62f);
+                GenUtil.Text(paperGo.transform, "Text", new Vector3(0f, 0.36f, -0.01f), Quaternion.identity, "<b>電報</b>\n着順は板に", 0.6f, UiStyle.InkFace,
+                    new Vector2(0.4f, 0.4f), TextStyle.Ink, true);
+                paperGo.transform.SetPositionAndRotation(to.position, to.rotation);   // 最初は貼ってある
+                crier.telegramPaper = paperGo.transform;
+                crier.paperFrom = from;
+                crier.paperTo = to;
+            }
             crier.callAudio = GenUtil.Audio(crierGo, true);
             crier.boards = telegram != null ? new[] { telegram } : new NoticeBoardDisplay[0];
             crier.paperArm = arm;
@@ -173,7 +194,7 @@ namespace HorseRace.EditorTools
             }
 
             var text = GenUtil.Text(front, "BoardText", new Vector3(0f, panelCenter.y - pos.y, 0f), Quaternion.identity, "",
-                1.6f, Ink, new Vector2(3.0f, 1.7f));
+                1.6f, UiStyle.InkFace, new Vector2(3.0f, 1.7f), TextStyle.Ink, true);
             var nb = GenUtil.AddU<NoticeBoardDisplay>(holder);
             nb.mode = mode;
             nb.panelRenderer = pr;
@@ -186,30 +207,48 @@ namespace HorseRace.EditorTools
             return nb;
         }
 
+        /// <summary>
+        /// 中継の木札（ui-r1-17）：板の下に手配書の紙（WantedPosters_04、0.42 × 0.3m）を 9 枚ピンで留め、「1位」〜「8位」「おまかせ」（0.9pt）。
+        /// 選んでいる札には宝石のピン（Gems_03_02）。
+        /// </summary>
         static DirectorTag[] Tags(Transform front, SpectatorDirector dir, WorldContext ctx)
         {
             var tags = new DirectorTag[9];
             for (int i = 0; i < 9; i++)
             {
                 int rank = i < 8 ? i + 1 : 0;
-                string label = rank == 0 ? "おまかせ" : rank + "位を追う";
-                var go = GenUtil.Child(front, "Tag_" + (rank == 0 ? "Auto" : rank.ToString()), new Vector3(-2.0f + i * 0.5f, 0.75f, -0.05f));
-                GenUtil.Prim(PrimitiveType.Cube, "Board", go.transform, Vector3.zero, new Vector3(0.45f, 0.25f, 0.04f), Wood);
-                GenUtil.Prim(PrimitiveType.Cylinder, "String", go.transform, new Vector3(0f, 0.2f, 0f), new Vector3(0.01f, 0.08f, 0.01f), DarkWood);
-                GenUtil.Text(go.transform, "Label", new Vector3(0f, 0f, -0.025f), Quaternion.identity, label, 0.7f, Paper, new Vector2(0.43f, 0.22f));
-                var mark = GenUtil.Prim(PrimitiveType.Sphere, "SelectedMark", go.transform, new Vector3(0f, -0.18f, -0.02f), Vector3.one * 0.06f, new Color(0.8f, 0.15f, 0.1f));
+                string label = rank == 0 ? "おまかせ" : rank + "位";
+                string hint = rank == 0 ? "中継：おまかせ" : "中継：" + rank + "位を追う";
+                var go = GenUtil.Child(front, "Tag_" + (rank == 0 ? "Auto" : rank.ToString()), new Vector3(-2.0f + i * 0.5f, 0.6f, -0.05f));
+                GenUtil.PaperSheet(go.transform, "Paper", "WantedPosters_04", new Vector3(0f, -0.15f, 0.01f), null, 0.42f, 0.3f);
+                GenUtil.Text(go.transform, "Label", new Vector3(0f, 0f, -0.01f), Quaternion.identity, label, 0.9f, UiStyle.InkFace, new Vector2(0.38f, 0.24f), TextStyle.Ink, true)
+                    .fontStyle = TMPro.FontStyles.Bold;
+                var mark = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), "Gems_03_02", go.transform, go.transform.position, 0f, 1f,
+                    new Vector3(0.05f, 0.07f, 0.05f), new Color(0.8f, 0.15f, 0.1f));
+                mark.name = "SelectedMark";
+                GenUtil.FitMax(mark, 0.07f);
+                mark.transform.localPosition = new Vector3(0f, 0.11f, -0.03f);
                 mark.SetActive(false);
                 var col = go.AddComponent<BoxCollider>();
-                col.size = new Vector3(0.45f, 0.25f, 0.08f);
+                col.size = new Vector3(0.42f, 0.3f, 0.08f);
                 var tag = GenUtil.AddU<DirectorTag>(go);
                 tag.director = dir;
                 tag.followRank = rank;
                 tag.selectedMark = mark;
-                GenUtil.SetInteractText(tag, label);
+                GenUtil.SetInteractText(tag, hint);
                 tags[i] = tag;
                 ctx.directorTags.Add(tag);
             }
             return tags;
+        }
+
+        /// <summary>表彰台の後ろの「総合結果」の掲示板（NoticeBoard ×0.8、紙の板・看板の文字）。観客は表彰台の正面（+Z）から見る。</summary>
+        static void NoticeSignForPodium(Transform holder, Vector3 pos, float yawFacingAudience)
+        {
+            Vector3 back = holder.TransformPoint(new Vector3(0f, 0f, -3.2f));
+            back.y = pos.y;
+            LobbyBuilder.NoticeSign(holder, "ResultsBanner", back, yawFacingAudience + 180f, 0.8f, "<b><size=150%>総合結果</size></b>", 2.4f,
+                UiStyle.Gold, TextStyle.Sign, new Color(0.36f, 0.24f, 0.15f));
         }
 
         /// <summary>
@@ -233,31 +272,55 @@ namespace HorseRace.EditorTools
             float[] h = { 1.0f, 0.7f, 0.45f };
             string[] label = { "1", "2", "3" };
             var steps = new Transform[3];
+            var plates = new TMPro.TextMeshPro[3];
+            var plateRoots = new GameObject[3];
             for (int i = 0; i < 3; i++)
             {
-                // 段：当たり判定は見えない箱、見た目は木箱（FarmProps_11）を段の大きさに引き伸ばしたもの
+                // 段（ui-r1-13）：当たり判定は見えない箱、見た目は干し草（HayBales_01〜03）を段の大きさ 1.4 × h × 1.4 に引き伸ばしたもの
                 var tier = GenUtil.Prim(PrimitiveType.Cube, "Tier_" + label[i], holder.transform, new Vector3(x[i], baseTop + h[i] * 0.5f, 0f),
                     new Vector3(1.4f, h[i], 1.4f), new Color(0.55f, 0.38f, 0.22f), true);
                 GenUtil.HideRenderers(tier);
-                var crate = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_11", holder.transform, holder.transform.position, 0f, 1f,
-                    new Vector3(1.2f, 1.1f, 1.2f), new Color(0.55f, 0.38f, 0.22f));
-                crate.transform.SetParent(holder.transform, false);
-                crate.transform.localPosition = new Vector3(x[i], baseTop, 0f);
-                crate.transform.localRotation = Quaternion.identity;
-                crate.transform.localScale = new Vector3(1.4f / 1.2f, h[i] / 1.1f, 1.4f / 1.2f);
-                GenUtil.Text(holder.transform, "TierLabel_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.71f), Quaternion.Euler(0f, 180f, 0f),
-                    label[i], 4f, new Color(1f, 0.85f, 0.4f), new Vector2(1.2f, 0.6f));
+                var hay = GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_0" + (i + 1), holder.transform, holder.transform.position, 0f, 1f,
+                    new Vector3(1.4f, h[i], 1.4f), new Color(0.85f, 0.75f, 0.4f));
+                hay.transform.SetParent(holder.transform, false);
+                hay.transform.localPosition = new Vector3(x[i], baseTop, 0f);
+                hay.transform.localRotation = Quaternion.identity;
+                GenUtil.FitSize(hay, new Vector3(1.4f, h[i], 1.4f));
+                GenUtil.Text(holder.transform, "TierLabel_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.72f), Quaternion.Euler(0f, 180f, 0f),
+                    label[i], 4f, UiStyle.Gold, new Vector2(1.2f, 0.6f), TextStyle.Sign, true);
                 steps[i] = GenUtil.Child(holder.transform, "Step_" + label[i], new Vector3(x[i], baseTop + h[i] + 0.05f, 0f)).transform;
                 tier.name = "Tier_" + label[i];
+                // 名札：段の上 2.6m に手配書の紙（WantedPosters_04、1.4 × 0.5m）、看板の文字。観客側（+Z）から読める
+                var plate = GenUtil.Child(holder.transform, "NamePlate_" + label[i], new Vector3(x[i], baseTop + h[i] + 2.6f, -0.6f));
+                plate.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                GenUtil.PaperSheet(plate.transform, "Paper", "WantedPosters_04", new Vector3(0f, -0.25f, 0.01f), null, 1.4f, 0.5f);
+                plates[i] = GenUtil.Text(plate.transform, "Name", new Vector3(0f, 0f, -0.02f), Quaternion.identity, "", 1.2f, UiStyle.SignFace,
+                    new Vector2(1.32f, 0.44f), TextStyle.Sign, true);
+                plates[i].fontStyle = TMPro.FontStyles.Bold;
+                plateRoots[i] = plate;
+                // 名札を吊る杭（DesertProps_05）：段の後ろから立てる（宙に浮かせない）
+                GenUtil.Stake(plate.transform, "DesertProps_05", holder.transform.TransformPoint(new Vector3(x[i], baseTop + h[i], -0.66f)), 0f, 0.95f).name = "PlatePost";
             }
+            // 「総合結果」の掲示板（表彰台の後ろ、観客側から読める）
+            NoticeSignForPodium(holder.transform, pos, yawFacingAudience);
             var fw = new ParticleSystem[4];
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(new Color(0.71f, 0.31f, 0.18f), 0f), new GradientColorKey(new Color(0.88f, 0.69f, 0.31f), 0.5f),
+                new GradientColorKey(new Color(0.54f, 0.42f, 0.66f), 1f) }, new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
             for (int i = 0; i < 4; i++)
             {
                 float a = i * 90f + 45f;
                 Vector3 lp = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, 8f) + Vector3.up * 1f;
                 fw[i] = GenUtil.Particles(holder.transform, "Firework_" + (i + 1), lp, new Color(1f, 0.6f + 0.1f * i, 0.3f), 0.25f, 12f, 1.6f, false, 0f, 0.2f);
+                // 3 ステージの色（赤錆・砂金・紫）からランダム（ui-r1-13）
+                var main = fw[i].main;
+                var grad = new ParticleSystem.MinMaxGradient(g);
+                grad.mode = ParticleSystemGradientMode.RandomColor;
+                main.startColor = grad;
             }
             var pd = GenUtil.AddU<Podium>(holder);
+            pd.namePlates = plates;
+            pd.plateRoots = plateRoots;
             pd.steps = steps;
             pd.fireworks = fw;
             pd.fanfare = GenUtil.Audio(holder, true);

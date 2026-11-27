@@ -1,6 +1,7 @@
 using TMPro;
 using UdonSharp;
 using UnityEngine;
+using VRC.SDKBase;
 
 namespace HorseRace
 {
@@ -8,6 +9,9 @@ namespace HorseRace
     /// 沿道・チェックポイントの黒板。チョーク風の文字で順位を書く（RaceManager が同期を受けるたびに Refresh）。
     /// レース中 = 現在ステージの順位、ステージ結果 = 着順と獲得点、総合結果 = 合計点の順。
     /// showLastRace（たまり場の黒板）ならロビー中は前回のレースの表。
+    /// レース中のコースの黒板（showLastRace = false）は走りながら読めるよう上位 3 人だけを大きく（「1 ○○」）、その下に自分の順位
+    /// （「あなた 5位」、3 位以内は金）。黒板は同期しないので自分の順位はクライアントごとに書ける。
+    /// 名前は 10 文字まで（RaceManager.ShortName）、列は TMP の pos タグでそろえる。文字は自動で縮み、入らなければ「…」。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class RankBoard : UdonSharpBehaviour
@@ -22,9 +26,20 @@ namespace HorseRace
         [Tooltip("コースの黒板：このステージ番号（0..2）。カウントダウン〜ステージ結果の間は、別のステージの黒板は書き直さない（負荷対策）。-1 = 常に書く")]
         public int stageIndex = -1;
 
+        /// <summary>レース中のコースの黒板：上位何人を書くか・大きさ（黒板の基本の文字に対する %）。</summary>
+        public const int TOP_LINES = 3;
+        public const int TOP_SIZE_PCT = 100;
+        public const int LOCAL_SIZE_PCT = 118;
+
         private void Start()
         {
             Refresh();
+        }
+
+        /// <summary>見出し：ステージ名（ステージの色・太字・140%）＋ 後ろの言葉。</summary>
+        private static string Header(int stage, string tail)
+        {
+            return "<b><size=140%><color=" + HudMath.ColorHex(RaceManager.StageColor(stage)) + ">" + RaceManager.StageLabel(stage) + "</color>" + tail + "</size></b>";
         }
 
         public void Refresh()
@@ -41,42 +56,57 @@ namespace HorseRace
             }
             else if (st == RaceMath.STATE_COUNTDOWN)
             {
-                s = RaceManager.StageLabel(rm.stage) + "\nまもなく出走";
+                s = Header(rm.stage, "") + "\nまもなく出走";
+            }
+            else if (st == RaceMath.STATE_RACING && !showLastRace)
+            {
+                s = Header(rm.stage, " 順位") + "\n";
+                int line = 0;
+                for (int p = 0; p < RaceManager.MAX_SLOTS && line < TOP_LINES; p++)
+                {
+                    int slot = rm.order[p];
+                    if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
+                    line++;
+                    s += "<size=" + TOP_SIZE_PCT.ToString() + "%>" + line.ToString() + " " + RaceManager.ShortName(rm.slotPlayerId[slot]) + "</size>\n";
+                }
+                VRCPlayerApi local = Networking.LocalPlayer;
+                int mine = local != null ? rm.GetRankOf(local.playerId) : 0;
+                if (mine > 0)
+                    s += "<size=" + LOCAL_SIZE_PCT.ToString() + "%>" + (mine <= 3 ? "<color=#FFC745>" : "") + "あなた " + mine.ToString() + "位" + (mine <= 3 ? "</color>" : "") + "</size>";
             }
             else if (st == RaceMath.STATE_RACING)
             {
-                s = RaceManager.StageLabel(rm.stage) + " 順位\n";
+                s = Header(rm.stage, " 順位") + "\n";
                 int line = 0;
                 for (int p = 0; p < RaceManager.MAX_SLOTS && line < maxLines; p++)
                 {
                     int slot = rm.order[p];
                     if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
                     line++;
-                    s += line.ToString() + "位 " + RaceManager.PlayerName(rm.slotPlayerId[slot]) + "\n";
+                    s += HudMath.Row2(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot])) + "\n";
                 }
             }
             else if (st == RaceMath.STATE_STAGE_RESULT)
             {
-                s = RaceManager.StageLabel(rm.stage) + " 結果\n";
+                s = Header(rm.stage, " 結果") + "\n";
                 for (int place = 1; place <= RaceManager.MAX_SLOTS && place <= maxLines; place++)
                 {
                     for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
                     {
                         if (rm.slotPlayerId[i] < 0 || rm.slotStagePlace[i] != place) continue;
-                        s += place.ToString() + "位 " + RaceManager.PlayerName(rm.slotPlayerId[i])
-                            + "  +" + RaceMath.PointsForPlace(place - 1).ToString() + "点（計" + rm.slotTotalPoints[i].ToString() + "点）\n";
+                        s += HudMath.Row4(place.ToString() + "着", RaceManager.ShortName(rm.slotPlayerId[i]),
+                            "+" + RaceMath.PointsForPlace(place - 1).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
                     }
                 }
             }
             else
             {
-                s = "総合結果\n";
+                s = "<b><size=140%>総合結果</size></b>\n";
                 int[] overall = rm.GetOverallOrder();
                 for (int k = 0; k < overall.Length && k < maxLines; k++)
                 {
                     int slot = overall[k];
-                    s += (k + 1).ToString() + "位 " + RaceManager.PlayerName(rm.slotPlayerId[slot])
-                        + "  " + rm.slotTotalPoints[slot].ToString() + "点\n";
+                    s += HudMath.Row4((k + 1).ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), "", rm.slotTotalPoints[slot].ToString() + "点") + "\n";
                 }
             }
             if (boardText.text != s) boardText.text = s;
@@ -85,20 +115,20 @@ namespace HorseRace
         /// <summary>前回のレース：「1位 名前  第1 1位／第2 3位／第3 2位  計24点」。</summary>
         private string LastRaceText(RaceManager rm)
         {
-            if (!rm.lastValid) return "前回のレース結果\n\nまだ記録がない";
-            string s = "前回のレース結果\n";
+            if (!rm.lastValid) return "<b><size=140%>前回のレース結果</size></b>\n\nまだ記録がない";
+            string s = "<b><size=140%>前回のレース結果</size></b>\n";
             for (int row = 0; row < RaceManager.MAX_SLOTS && row < maxLines; row++)
             {
                 string name = rm.lastName[row];
                 if (name == null || name.Length == 0) continue;
-                s += (row + 1).ToString() + "位 " + name + "  ";
+                s += "<pos=0%>" + (row + 1).ToString() + "位<pos=12%>" + HudMath.ShortName(name, HudMath.SHORT_NAME_MAX) + "<pos=45%>";
                 for (int st = 0; st < RaceManager.STAGE_COUNT; st++)
                 {
                     int place = rm.lastStagePlace[st * RaceManager.MAX_SLOTS + row];
                     if (st > 0) s += "／";
-                    s += "第" + (st + 1).ToString() + " " + (place > 0 ? place.ToString() + "位" : "―");
+                    s += HudMath.StageName(st) + " " + (place > 0 ? place.ToString() + "位" : "―");
                 }
-                s += "  計" + rm.lastTotal[row].ToString() + "点\n";
+                s += "<pos=88%>計" + rm.lastTotal[row].ToString() + "\n";
             }
             return s;
         }

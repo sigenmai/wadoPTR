@@ -104,6 +104,8 @@ namespace HorseRace
         public PosterCard[] posterCards;
         public MountPicker[] mountPickers;
         public StartBell startBell;
+        [Tooltip("首の札（補助表示）。カウントダウン・ゴール・CP の合図を出す（任意）")]
+        public MinimalHud hud;
         public PracticeArea practiceArea;
 
         [Header("Local selection (このクライアントだけ、同期しない)")]
@@ -1099,6 +1101,9 @@ namespace HorseRace
                     mp.SetChosen(localMount == MountMath.MOUNT_HORSE && mp.coat == localCoat);
                 }
             }
+            // 台帳の右のページ（あなたの選択）も書き直す
+            if (ledgers != null)
+                for (int i = 0; i < ledgers.Length; i++) if (ledgers[i] != null) ledgers[i].Refresh();
         }
 
         // ---- 文言（プレイヤーに見せるので日本語。原作の名称は使わない）----
@@ -1136,6 +1141,12 @@ namespace HorseRace
             return "馬（" + CoatLabel(coat) + "）";
         }
 
+        /// <summary>黒板・台帳・電報用の短い名前（HudMath.SHORT_NAME_MAX 文字まで、超えたら「…」）。</summary>
+        public static string ShortName(int playerId)
+        {
+            return HudMath.ShortName(PlayerName(playerId), HudMath.SHORT_NAME_MAX);
+        }
+
         public static string PlayerName(int playerId)
         {
             VRCPlayerApi p = VRCPlayerApi.GetPlayerById(playerId);
@@ -1143,10 +1154,31 @@ namespace HorseRace
             return p.displayName;
         }
 
-        /// <summary>"第2ステージ" のような表記（stage は 0 始まり）。</summary>
+        /// <summary>"第2幕 砂漠" のような表記（stage は 0 始まり。名前は HudMath.STAGE_NAMES = StageDefinitions の label）。</summary>
         public static string StageLabel(int st)
         {
-            return "第" + (st + 1).ToString() + "ステージ";
+            return HudMath.StageLabel(st);
         }
+
+        /// <summary>ステージの色（荒野 = 赤錆、砂漠 = 砂金、境目 = 紫）。</summary>
+        public static Color StageColor(int st)
+        {
+            return HudMath.StageColor(st);
+        }
+
+        /// <summary>ステージ st の CP の数（ゴールを含む。firstCheckpoints から next をたどって数え、覚えておく）。</summary>
+        public int CheckpointCount(int st)
+        {
+            if (firstCheckpoints == null || st < 0 || st >= firstCheckpoints.Length) return 0;
+            if (cpCountCache == null) cpCountCache = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
+            if (st < cpCountCache.Length && cpCountCache[st] >= 0) return cpCountCache[st];
+            int n = 0;
+            Checkpoint c = firstCheckpoints[st];
+            while (c != null && n < 1000) { n++; c = c.next; }
+            if (st < cpCountCache.Length) cpCountCache[st] = n;
+            return n;
+        }
+
+        private int[] cpCountCache;
     }
 }

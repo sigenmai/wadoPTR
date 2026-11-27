@@ -13,6 +13,7 @@ namespace HorseRace
     ///   ゲートの Trigger そのもの（Checkpoint, isGoal）が syncFinishAt を立てるので、ここでは同期値を見るだけで全クライアントが同じ着順を出せる。
     /// - そのステージで最初のゴール（RaceManager の同期値 firstFinishServer が今のステージの値になった）で教会の鐘を全員が 1 回鳴らす。
     ///   stageSeq ごとに 1 回。途中参加などで古い出来事を受け取ったときは鳴らさない。
+    /// - 自分のゴールは首の札（RaceManager.hud）に「3着  +6点」とステージのタイム（10 分の 1 秒）を 4 秒、跳ねる拡大とゴールの音。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class GoalPresenter : UdonSharpBehaviour
@@ -130,7 +131,13 @@ namespace HorseRace
                 if (confettiBurst > 0) confetti.Emit(confettiBurst);
                 else confetti.Play();
             }
-            if (finishAudio != null) finishAudio.Play();
+            RaceManager rm = raceManager;
+            if (rm != null && slot == rm.LocalSlot() && rm.hud != null && place > 0)
+            {
+                // 自分のゴール：首の札に「3着  +6点」とタイム（2D のゴールの音は札が鳴らす）
+                rm.hud.ShowFinish(place, RaceMath.PointsForPlace(place - 1), (float)(fin[slot] - rm.stageStartServer));
+            }
+            else if (finishAudio != null) finishAudio.Play();
             if (placeTags == null || placeTags.Length == 0 || place <= 0) return;
             int k = nextTag % placeTags.Length;
             nextTag++;

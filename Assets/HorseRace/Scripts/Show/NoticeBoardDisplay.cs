@@ -115,25 +115,24 @@ namespace HorseRace
             int st = rm.state;
             if (st == RaceMath.STATE_COUNTDOWN)
             {
-                string c = "電報\n" + RaceManager.StageLabel(rm.stage) + " まもなく出走\n";
+                string c = "<b><size=140%>電報</size></b>\n" + RaceManager.StageLabel(rm.stage) + " まもなく出走\n";
                 for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
                 {
                     if (rm.slotPlayerId[i] < 0) continue;
-                    c += RaceManager.PlayerName(rm.slotPlayerId[i]) + "（" + RaceManager.AbilityLabel(rm.slotAbility[i]) + "）\n";
+                    c += HudMath.Row2("・", RaceManager.ShortName(rm.slotPlayerId[i]) + "（" + RaceManager.AbilityLabel(rm.slotAbility[i]) + "）") + "\n";
                 }
                 return c;
             }
             if (st == RaceMath.STATE_RACING)
             {
-                string s = RaceManager.StageLabel(rm.stage) + " 順位　残り " + RaceMath.FormatClock(rm.GetRemainingSeconds()) + "\n";
+                string s = "<b>" + RaceManager.StageLabel(rm.stage) + " 順位　残り " + RaceMath.FormatClock(rm.GetRemainingSeconds()) + "</b>\n";
                 int line = 0;
                 for (int p = 0; p < RaceManager.MAX_SLOTS && line < maxLines; p++)
                 {
                     int slot = rm.order[p];
                     if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
                     line++;
-                    s += line.ToString() + "位 " + RaceManager.PlayerName(rm.slotPlayerId[slot])
-                        + "（" + RaceManager.AbilityLabel(rm.slotAbility[slot]) + "）\n";
+                    s += HudMath.Row4(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), RaceManager.AbilityLabel(rm.slotAbility[slot]), "") + "\n";
                 }
                 if (line == 0) s += "（集計中）\n";
                 return s;
@@ -145,35 +144,34 @@ namespace HorseRace
             }
             if (st == RaceMath.STATE_FINAL_RESULT)
             {
-                string f = "電報\n総合結果\n";
+                string f = "<b><size=140%>電報</size></b>\n総合結果\n";
                 int[] overall = rm.GetOverallOrder();
                 for (int k = 0; k < overall.Length && k < maxLines; k++)
                 {
                     int slot = overall[k];
-                    f += (k + 1).ToString() + "位 " + RaceManager.PlayerName(rm.slotPlayerId[slot])
-                        + "　" + rm.slotTotalPoints[slot].ToString() + "点\n";
+                    f += HudMath.Row4((k + 1).ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), "", rm.slotTotalPoints[slot].ToString() + "点") + "\n";
                 }
                 return f;
             }
             // ロビー：最後に貼られた電報を残す
             if (telegram.Length > 0) return telegram;
-            return "電報\n\n次のレースを待つ";
+            return "<b><size=140%>電報</size></b>\n\n次のレースを待つ";
         }
 
         private string EntriesText()
         {
             RaceManager rm = raceManager;
             int count = rm.ActiveCount();
-            string s = "出走表（" + count.ToString() + "/" + RaceManager.MAX_SLOTS.ToString() + "）\n";
+            string s = "<b><size=140%>出走表</size>（" + count.ToString() + "/" + RaceManager.MAX_SLOTS.ToString() + "）</b>\n";
             if (count == 0) return s + "\n受付の台帳にサインして出走登録";
             bool showPoints = rm.state != RaceMath.STATE_LOBBY;
             for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
             {
                 if (rm.slotPlayerId[i] < 0) continue;
-                s += RaceManager.PlayerName(rm.slotPlayerId[i]) + "　"
+                s += "<pos=0%>" + RaceManager.ShortName(rm.slotPlayerId[i]) + "<pos=38%>"
                     + RaceManager.MountLabel(rm.slotMount[i], rm.slotCoat[i]) + "・"
                     + RaceManager.AbilityLabel(rm.slotAbility[i]);
-                if (showPoints) s += "　" + rm.slotTotalPoints[i].ToString() + "点";
+                if (showPoints) s += "<pos=85%>" + rm.slotTotalPoints[i].ToString() + "点";
                 s += "\n";
             }
             return s;

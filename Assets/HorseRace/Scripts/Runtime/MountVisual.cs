@@ -40,7 +40,9 @@ namespace HorseRace
         public float breathPitchCalm = 0.9f;
         public float breathPitchTired = 1.5f;
         public float breathVolumeCalm = 0.25f;
-        public float breathVolumeTired = 1f;
+        public float breathVolumeTired = 0.75f;
+        [Tooltip("首の札の持久力の印が赤く脈打つ間（残り 1 つ以下・ばてた）、MinimalHud が true にする：息をいちばん大きく・高く")]
+        public bool breathAlarm;
         public Transform earLeft;
         public Transform earRight;
         public Vector3 earsBackEuler = new Vector3(-50f, 0f, 0f);
@@ -169,7 +171,8 @@ namespace HorseRace
             if (breathAudio != null)
             {
                 breathAudio.pitch = Mathf.Lerp(breathPitchCalm, breathPitchTired, fatigue);
-                breathAudio.volume = Mathf.Lerp(breathVolumeCalm, breathVolumeTired, fatigue);
+                breathAudio.volume = breathAlarm ? 1f : Mathf.Lerp(breathVolumeCalm, breathVolumeTired, fatigue);
+                if (breathAlarm) breathAudio.pitch = breathPitchTired + 0.15f;
                 if (!breathAudio.isPlaying && breathAudio.gameObject.activeInHierarchy) breathAudio.Play();
             }
 
