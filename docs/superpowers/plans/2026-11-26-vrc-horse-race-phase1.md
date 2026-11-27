@@ -1,5 +1,7 @@
 # 荒野横断ホースレース Phase 1 Implementation Plan
 
+> **注意：この計画は `2026-11-27-vrc-horse-race-phase1-v2.md` に置き換えられました。**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 3ステージ×5分・最大8人・能力4種（砂塵/投げ縄/岩壁/鉄球）で遊べる VRChat ワールドを、Unity メニュー1つで組み上がる形で納品する。
