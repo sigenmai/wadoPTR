@@ -5,6 +5,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 6: 乗り物
 
 ### 事前準備（シーン構成）
+> **Build World が自動で行います（手作業は不要）**。メニュー「HorseRace/Build World」を実行すると、以下の構成・設定・参照がすべて自動で作られます。この節は確認用の説明です（Task 11）。
 - メニュー「HorseRace/Create Horse Materials」→「HorseRace/Build Mount Animator」を実行し、`Assets/HorseRace/Animations/Mount.controller` ができている
 - 乗り物 1 頭の構成:
   - ルート: `MountController`、`VRCStation`（Player Mobility = Immobilize、Station Enter Player Location = SeatAnchor、Disable Station Exit はレース中（`raceActive`）に乗り手がいる間だけコードが true にする（レース中に Jump で降車させないため。ロビー・練習場では降りられる。初期値はどちらでも可））、`Rigidbody`（Is Kinematic）、体の Collider
@@ -35,6 +36,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 7: チェックポイント
 
 ### セットアップ
+> **Build World が自動で行います（手作業は不要）**。メニュー「HorseRace/Build World」を実行すると、以下の構成・設定・参照がすべて自動で作られます。この節は確認用の説明です（Task 11）。
 - 各 CP は Is Trigger の Collider を持つ GameObject に `Checkpoint` を付ける（Collider は乗り物の体より広く、コースを横切る形に）
 - `index`（スタートライン通過 = 0、最初の CP = 1、以降 +1）・`stageIndex`・`isGoal`（最後の CP だけ true）・`next`（次の CP、ゴールは空）を設定
 - 乗り物の体の Collider は Ground Mask に含めない（自分の体を地面と誤認しない）
@@ -56,6 +58,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 8: レース進行・ロビー
 
 ### セットアップ（シーンに置くもの・つなぐもの）
+> **Build World が自動で行います（手作業は不要）**。メニュー「HorseRace/Build World」を実行すると、以下の構成・設定・参照がすべて自動で作られます。この節は確認用の説明です（Task 11）。
 - **前提**: VRChat SDK 3.8 以降・UdonSharp 1.2 以降（引数つきネットワークイベント `[NetworkCallable]` を使う）。TextMeshPro を使用（日本語フォントの TMP Font Asset、台帳は手書き風、黒板はチョーク風を用意）
 - **RaceManager**（空の GameObject 1 つ、Synchronization = Manual）
   - `Mounts` に MountController 8 頭（slot 0〜7 の順。各 MountController の `Slot Index` も同じ番号に）
@@ -101,6 +104,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 9: 能力・遺物・リボルバー
 
 ### セットアップ（シーンに置くもの・つなぐもの）
+> **Build World が自動で行います（手作業は不要）**。メニュー「HorseRace/Build World」を実行すると、以下の構成・設定・参照がすべて自動で作られます。この節は確認用の説明です（Task 11）。
 - **前提**: Task 8 と同じ（VRChat SDK 3.8 以降・UdonSharp 1.2 以降、引数つきネットワークイベント `[NetworkCallable]` を使う）
 - **レイヤー**（例）: `HR_Target`（乗り物の体と騎手の当たり判定）、`HR_Wall`（岩壁）。地形・岩は既存の地面レイヤー
   - 各乗り物の体の Collider を `HR_Target` に置き、騎手の上半身を覆うカプセル Collider（Is Trigger 可）を乗り物の子として追加して `HR_Target` に置く
@@ -160,6 +164,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 10: 観戦・演出
 
 ### セットアップ（シーンに置くもの・つなぐもの）
+> **Build World が自動で行います（手作業は不要）**。メニュー「HorseRace/Build World」を実行すると、以下の構成・設定・参照がすべて自動で作られます。この節は確認用の説明です（Task 11）。
 - **前提**: Task 8・9 と同じ。新しいスクリプトは `Assets/HorseRace/Scripts/Show/`（SpectatorDirector・DirectorTag・NoticeBoardDisplay・Starter・GoalPresenter・Podium・TownCrier）。それぞれ UdonSharp Program Asset を作り、同期モードは None のまま
 - **中継の RenderTexture**: `Assets/HorseRace/Show/BroadcastRT.renderTexture`（960×540、Depth 24、Anti-aliasing なし、Mipmap なし）を作る
   - 中継用マテリアル `M_Broadcast`（Unlit/Texture、Main Texture = BroadcastRT）
@@ -207,3 +212,37 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] 総合結果が終わる（ロビーなど総合結果以外になる）と花火が止まり、表彰台の人もロビーに戻る（Task 8 の動き）
 - [ ] 途中参加: 結果表示の途中で入った人には呼び声・鐘が鳴らない（電報だけ見える）
 - [ ] 被弾・演出で誰のカメラ（視点）も強制的に回らない
+
+## Task 11: ワールド生成
+
+### 手順
+1. 前提：Task 8 と同じ（VRChat SDK 3.8 以降・UdonSharp 1.2 以降）。TextMeshPro の「TMP Essential Resources」を取り込み済み。日本語の TMP Font Asset を `Assets/HorseRace/` 以下のどこかに置いておく（Build World が最初に見つけたものを全部の文字に使う。無いと日本語が□になり、Validate に警告が出る）
+2. 新しいシーン（空でよい）を開き、メニュー「**HorseRace/Build World**」
+   - UdonSharp のプログラムアセットが無いスクリプトがあると、作ってから「もう一度実行してください」と出て止まる。U# のコンパイルが終わったらもう一度「HorseRace/Build World」
+   - 毛色マテリアル（Create Horse Materials）と Mount.controller（Build Mount Animator）も自動で作り直す
+   - レイヤー `Ground`・`Mount`・`Rider`・`Block` が無ければユーザーレイヤー 23〜26（埋まっていれば 22〜31 の空き）に作る。衝突マトリクス：`Rider` は全レイヤーと衝突しない（当たり判定のクエリ専用）、`Mount` は Player / PlayerLocal と衝突しない
+   - シーンの既存の Directional Light は無効にして生成した太陽を使う。既存の VRCSceneDescriptor があればそのスポーンをロビーに設定（無ければ作る）
+   - 生成物はすべて `HorseRace_Generated` の下（実行するたびに消して作り直す）。TerrainData・TerrainLayer・マテリアル・RenderTexture は `Assets/HorseRace/Generated/` に上書き
+3. Build World の最後に Validate が自動で走る。あとで確認するときはメニュー「**HorseRace/Validate**」。Console に日本語のまとめ（ステージごとの全長・最大勾配・CP 数・砂地の割合・遺物の数、素材の欠け、つなぎ忘れ）が出る
+4. シーンを保存 → Build & Test（2 クライアント）
+
+### 作られるもの（概要）
+- ステージ ×3（中心 (-1200,0,0)／(0,0,0)／(1200,0,0)、Terrain 1000m 四方・高さ 200m・解像度 513）：荒野（峡谷）／砂漠（砂丘）／境目（メサ → ゴールの町）。コース約 2.5km、CP 80m ごと（黒板付き）、スタート 8 頭の横一列、ゴールゲート、ゴール後の囲い、遺物 4 個、砂地の SandZone
+- ロビー（中心 (0,0,-820)）：WesternTown（通りの高さだけ沈めて置く）、受付カウンターと台帳、手配書の壁（6 枚）、柵の馬 7 頭、スタート台の鐘、補助表示のレバー、たまり場（焚き火・ベンチ・前回レースの黒板・掲示板 3 枚・中継カメラ・木札 9 枚・新聞売り）、練習場（坂・崖下り・ジャンプ台・干し草・カカシ 2・練習用の馬 2 頭と杭・遺物）、乗り物の待機場所 8、予備の遺物 4、懐中時計
+- 乗り物：レース用 8 頭（slot 0〜7）＋練習用 2 頭（casterId 8・9）。それぞれ能力・お守り袋・リボルバー・砂煙・投げ縄・岩壁・鉄球 3・かすみ付き
+- スターター（3 ステージのスタート脇へ移る）、表彰台（ゴールの町）、RaceManager（全部つないだ状態）
+
+### 確認項目
+- [ ] Build World がエラーなく完了する（Console に赤いエラーが出ない。2 回目の実行でも同じ結果になる）
+- [ ] Validate が「問題は見つかりませんでした」（警告 0 件）
+- [ ] 各ステージを駆歩（W で歩様を上げて駆歩のまま）でスタートからゴールまで 4〜6 分
+- [ ] ロビーの町の土台が地面から浮いていない（通りと地面の高さが合っていて、段差やちらつきがない）
+- [ ] 厩舎（ロビーの柵の奥）とメサ（ステージ 3 の遠景）に近づけない（見えない壁で止まる。乗り物でも徒歩でも）
+- [ ] コースの道が平らで、両脇の岩・崖・サボテン・建物がコースをふさいでいない。CP の黒板が道の右脇に立ち、走ってくる側から読める
+- [ ] 砂地（砂漠のほぼ全域・荒野の谷底の一部・境目の段の下）で馬だけ遅くなる（SandZone）
+- [ ] 練習場の杭・カカシ・木札・台帳・手配書・柵の馬・鐘・レバーに触れられる（大きなトリガーは Ignore Raycast レイヤーなのでインタラクトを遮らない）
+- [ ] 乗り物の向き：馬・ラクダ・骨の馬の頭が進行方向（+Z）を向いている（Build World が Head ボーンの位置から自動で回す）
+- [ ] リボルバー：銃口（Muzzle）が銃身の先にあり、撃つ向きが銃身と合っている。撃鉄・引き金・シリンダーの回転軸がおかしければ `Revolver` の `Cylinder Axis`／`Hammer Axis`／`Trigger Axis` を調整（Build World は銃身・グリップの外形から推定）
+- [ ] 手配書の絵が壁の手前を向いている（紙の面の法線から自動で回す）。掲示板の文字がパネルの手前に重なって読める
+- [ ] 中継カメラが初期状態で無効、Target Texture が `Assets/HorseRace/Generated/BroadcastRT.renderTexture`
+- [ ] 文字の大きさ（黒板・台帳・掲示板・木札）が読みやすい（TMP の大きさは Build World の値。必要なら調整）
