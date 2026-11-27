@@ -100,6 +100,16 @@ namespace HorseRace.EditorTools
                 Vector3 p = sb.Ground(lp.x, lp.z);
                 GenUtil.DustBox(air, "GroundDust_" + i, p + Vector3.up * 0.8f, new Vector3(25f, 1.2f, 25f), dust, wind, 3f);
             }
+            // art-r4-04：切り通しの壁の灯り（壁の真ん中の高さ、日の当たる段を分ける）
+            foreach (var lp in DressingPlan.PassWallLights(sb.def, sb.courseLocal, sb.goalArc))
+            {
+                float a = DressingPlan.NearestArc(sb.courseLocal, DressingPlan.CourseArcs(sb.courseLocal), lp, out float dc);
+                Vector3 road = sb.Ground(WorldLayout.PointAtArc(sb.courseLocal, a).x, WorldLayout.PointAtArc(sb.courseLocal, a).z);
+                Vector3 g = sb.Ground(lp.x, lp.z);
+                float top = Mathf.Max(g.y, road.y) + 8f;
+                GenUtil.PointLight(air, "PassWallLight", new Vector3(g.x, road.y + (top - road.y) * lp.y + 2f, g.z), SetPieceBuilder.LampWarm,
+                    DressingPlan.PASS_WALL_LIGHT_RANGE, DressingPlan.PASS_WALL_LIGHT_INTENSITY);
+            }
             foreach (var q in plan)
             {
                 Vector3 w = o + q.position;
@@ -110,7 +120,15 @@ namespace HorseRace.EditorTools
                     GenUtil.PointLight(air, "CampLight", w + Vector3.up * 1.2f, new Color(1f, 0.6f, 0.3f), 9f, 1.2f);
                     // 切り通しの尾根の焚き火（art-r3-08）：300m 先から見える暖色の灯り（18m）
                     if (q.group == "MesaGate") GenUtil.PointLight(air, "PassBeacon", w + Vector3.up * 3f, SetPieceBuilder.LampWarm, 18f, 2.2f);
+                    // art-r4-15：境目の先へ誘う焚き火の山は 25m の煙の柱と灯り（風車の塔の代わり）
+                    if (q.group == "GuideTower")
+                    {
+                        GenUtil.SmokeColumn(air, "CairnSmoke", w + Vector3.up * 2f, new Color(0.24f, 0.22f, 0.22f, 0.65f), DressingPlan.CAIRN_SMOKE_M, 3.5f);
+                        GenUtil.PointLight(air, "CairnLight", w + Vector3.up * 2.5f, SetPieceBuilder.LampWarm, 24f, 2f);
+                    }
                 }
+                else if (q.lamp)
+                    GenUtil.PointLight(air, "PostLamp", w + Vector3.up * (q.height * 0.5f + 0.2f), SetPieceBuilder.LampWarm, 12f, 1.5f);   // art-r4-14：野の灯りの柱
                 else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"
                     || q.group == "StreetDressing" || q.group == "RailHalt" || q.group == "GoalTown" || q.group == "PassLamp"))   // course-r3-02：切り通しの中の灯り
                     GenUtil.PointLight(air, "CampLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 12f, 1.5f);   // 見どころ・出張所の街灯（art-r2-05/06）

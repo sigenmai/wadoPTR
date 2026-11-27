@@ -58,7 +58,7 @@ def terrain(stage):
     i = stage["index"]
     h = read_grid(os.path.join(ex, f"h{i}.bin")) * 200.0
     s = read_grid(os.path.join(ex, f"s{i}.bin"))
-    step = 2
+    step = 1   # art-r4-17：Unity と同じ 513 の格子（前の 257 は急な壁の頂をのこぎりの歯に見せていた）
     hh = h[::step, ::step]
     n = hh.shape[0]
     size = 1000.0
@@ -80,13 +80,34 @@ def terrain(stage):
     S = np.asarray(Image.fromarray((np.clip(s, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32) / 255
     rock = np.clip((slope - 28) / 12, 0, 1) * (1 - S)
     dirt = stage.get("dirt", DIRT)
-    col = np.array(dirt)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(SAND) * S[..., None] + np.array(ROCK) * rock[..., None]
+    sand_c = stage.get("sand", SAND)   # art-r4-06：ステージの主色の砂
+    col = np.array(dirt)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(sand_c) * S[..., None] + np.array(ROCK) * rock[..., None]
+    # art-r4-02：道の外の粒（3.5m）とまだら（45m）。ToonTerrain の _GrainAmp 0.07・_MottleAmp 0.05 と同じ考え方の値ノイズ
+    ny, nx = slope.shape
+    yy, xx = np.mgrid[0:ny, 0:nx].astype(np.float32) * (size / (nx - 1))
+    def vnoise(px, pz, sc, seed):
+        q = np.stack([px / sc, pz / sc]); i = np.floor(q); f = q - i; u = f * f * (3 - 2 * f)
+        def hsh(a, b): return (np.sin(a * 127.1 + b * 311.7 + seed * 17.0) * 43758.5453) % 1.0
+        a = hsh(i[0], i[1]); b = hsh(i[0] + 1, i[1]); c = hsh(i[0], i[1] + 1); d = hsh(i[0] + 1, i[1] + 1)
+        return (a + (b - a) * u[0]) * (1 - u[1]) + (c + (d - c) * u[0]) * u[1]
+    def noise2(px, pz, sc, seed): return (vnoise(px, pz, sc, seed) * 0.65 + vnoise(px * 2.03 + 17, pz * 2.03 + 17, sc, seed + 1) * 0.35) * 2 - 1
+    grain = noise2(xx, yy, 3.5, 1) * 0.07 + noise2(xx + 311, yy + 311, 45.0, 2) * 0.05
     # 道の踏み固めた土（HeightmapGen.TrailMask、ステージごとの ArtPalette.Trail：art-r2-02）
     tp = os.path.join(ex, f"t{i}.bin")
     if os.path.exists(tp) and stage.get("trail"):
         T = read_grid(tp)
-        T = np.asarray(Image.fromarray((np.clip(T, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32)[..., None] / 255
-        col = col * (1 - T) + np.array(stage["trail"])[None, None] * T
+        T = np.asarray(Image.fromarray((np.clip(T, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1], Image.BILINEAR), np.float32)[..., None] / 255
+        col = col * (1 + grain[..., None] * (1 - T))
+        tc = np.array(stage["trail"])[None, None] * np.ones_like(col)
+        # art-r4-02：轍（G = 道の中心からの距離 / TRAIL_DIST_MAX、ToonTerrain と同じ）と蹄の擦れ
+        gp_ = os.path.join(ex, f"g{i}.bin")
+        if os.path.exists(gp_):
+            Gd = read_grid(gp_) * stage.get("trailDistMax", 16.0)
+            Gd = np.asarray(Image.fromarray(Gd.astype(np.float32), mode="F").resize(slope.shape[::-1], Image.BILINEAR), np.float32)
+            rut = np.abs(Gd - stage.get("rutOffset", 1.8)) < stage.get("rutWidth", 0.6) * 0.5
+            tc = tc * np.where(rut, stage.get("rutShade", 0.75), 1.0)[..., None]
+        tc = tc * (1 + noise2(xx + 77, yy + 77, 1.2, 3) * 0.06)[..., None]
+        col = col * (1 - T) + tc * T
     # スタート・ゴールの線（course-r3-14、HeightmapGen.LineMask）：道の色 × 1.6（ToonTerrain の _LineBoost）
     lp_ = os.path.join(ex, f"l{i}.bin")
     if os.path.exists(lp_) and stage.get("trail"):
@@ -178,16 +199,18 @@ def ground_at(stage, x, z):
     return float(h[int(round(gz)), int(round(gx))]) * 200.0
 
 GRID = {}
+# art-r4-03：下見の目印（コースの線・CP の柱・近道の帯）は実行時には無い。空撮（00_/1_/2_/3_）だけに描き、騎手の目・近景では隠す
+GUIDES = []
 for st in W["stages"]:
     GRID[st["index"]] = read_grid(os.path.join(ex, f"h{st['index']}.bin"))
     terrain(st)
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     pts = [U(p) + off + Vector((0, 0, 0.4)) for p in st["course"]]
     if not NO_GUIDE:
-        polyline(f"Course{st['index']}", [q - Vector((0, 0, 0.3)) for q in pts], 0.5, ROAD)
+        GUIDES.append(polyline(f"Course{st['index']}", [q - Vector((0, 0, 0.3)) for q in pts], 0.5, ROAD))
         for k, p in enumerate(st["cps"]):
             q = U(p) + off
-            box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM)
+            GUIDES.append(box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM))
     # 遺物（art-r3-04）：本物の宝石（Gems_0N_01、1.1m）と足元の小石は extras（CourseBuilder.Relic と同じ）。ここでは青緑の灯り（7m）だけ足す
     for k, p in enumerate(st["relics"]):
         q = U(p) + off
@@ -196,7 +219,7 @@ for st in W["stages"]:
     # スタート・ゴール・岩橋・ジャンプは Build World と同じ素材で置く（world.json の extras、下の place）
     if st["shortcut"] and not NO_GUIDE:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
-        polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
+        GUIDES.append(polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT))
 
 # ---- 色の決まり（GenUtil.Toonify / ArtPalette と同じ：art-r2-13）----
 TINTS = W.get("tints", {})
@@ -214,6 +237,7 @@ def remap_base(asset, c):
     if "WesternTown" not in asset and "Buildings/" not in asset and "RanchCompound" not in asset: return c
     h, s_, v = hsv(c)
     if v < 0.12: return c
+    if v > 0.85 and s_ < 0.25: return lerp3(c, W["wood"], 0.6)   # art-r4-16：白に近いクリーム色
     if s_ < 0.12 and v > 0.25: return lerp3(c, W["wood"], 0.65)
     if 180 <= h <= 260 and s_ >= 0.08: return lerp3(c, W["wood"], 0.7)
     if 75 <= h < 170 and s_ >= 0.15: return lerp3(c, W["sage"], 0.7)
@@ -225,6 +249,9 @@ def styled(mat, asset, tint):
     m = mat.copy()
     bs = m.node_tree.nodes.get("Principled BSDF")
     if bs is None: return m
+    # art-r4-16：トゥーンには鏡面反射が無い（白い筋を出さない）
+    for k_ in ("Specular IOR Level", "Specular"):
+        if k_ in bs.inputs: bs.inputs[k_].default_value = 0.0
     inp = bs.inputs["Base Color"]
     if inp.is_linked:
         m.blend_method = "CLIP"; m.shadow_method = "CLIP"
@@ -438,7 +465,12 @@ nt = sc.node_tree
 for n_ in list(nt.nodes): nt.nodes.remove(n_)
 rl = nt.nodes.new("CompositorNodeRLayers"); mix = nt.nodes.new("CompositorNodeMixRGB"); comp = nt.nodes.new("CompositorNodeComposite")
 mix.inputs[2].default_value = (*srgb2lin((0.86, 0.74, 0.58)), 1)
-nt.links.new(rl.outputs["Mist"], mix.inputs[0]); nt.links.new(rl.outputs["Image"], mix.inputs[1]); nt.links.new(mix.outputs[0], comp.inputs[0])
+nt.links.new(rl.outputs["Mist"], mix.inputs[0]); nt.links.new(rl.outputs["Image"], mix.inputs[1])
+# art-r4-10：空は霧と別の色（Unity の Skybox/Procedural の _SkyTint）。背景は透明で描いて、霧をかけた絵の後ろに空の色を敷く
+sc.render.film_transparent = True
+sky_rgb = nt.nodes.new("CompositorNodeRGB"); aover = nt.nodes.new("CompositorNodeAlphaOver")
+mul_a = nt.nodes.new("CompositorNodeSetAlpha"); nt.links.new(mix.outputs[0], mul_a.inputs[0]); nt.links.new(rl.outputs["Alpha"], mul_a.inputs[1])
+nt.links.new(sky_rgb.outputs[0], aover.inputs[1]); nt.links.new(mul_a.outputs[0], aover.inputs[2]); nt.links.new(aover.outputs[0], comp.inputs[0])
 
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 sc.collection.objects.link(cam)
@@ -452,12 +484,23 @@ def fog_at(x, y):
         c_ = st_["center"]
         if abs(x - c_[0]) <= 600 and abs(y - c_[2]) <= 600: return st_.get("fog", W.get("lobbyFog"))
     return W.get("lobbyFog", (0.86, 0.74, 0.58))
+def sky_at(x, y):
+    """カメラのいる所のステージの空の色（LightingPlan.SkyTint、ロビーは荒野と同じ）。"""
+    for st_ in W["stages"]:
+        c_ = st_["center"]
+        if abs(x - c_[0]) <= 600 and abs(y - c_[2]) <= 600: return st_.get("sky", (0.42, 0.58, 0.78))
+    return W["stages"][0].get("sky", (0.42, 0.58, 0.78))
 def shot(name, loc, target, lens=35):
     if SHOTS and not any(name.startswith(x) for x in SHOTS):
         return
+    for g_ in GUIDES:   # art-r4-03：空撮だけ目印を描く（NO_GUIDE=1 なら最初から作らない）
+        g_.hide_render = not name.startswith(("00_", "1_", "2_", "3_"))
     fc = srgb2lin(fog_at(loc[0], loc[1]))
     world.node_tree.nodes["Background"].inputs[0].default_value = (*fc, 1)
     mix.inputs[2].default_value = (*fc, 1)
+    # 空：天頂の色を霧の色へ 35% 寄せた（地平線の霞を含めた見た目の平均）
+    sk = sky_at(loc[0], loc[1]); fo = fog_at(loc[0], loc[1])
+    sky_rgb.outputs[0].default_value = (*srgb2lin([sk[k] * 0.65 + fo[k] * 0.35 for k in range(3)]), 1)
     cam.location = Vector(loc)
     cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens

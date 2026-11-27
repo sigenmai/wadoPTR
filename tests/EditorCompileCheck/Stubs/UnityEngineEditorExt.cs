@@ -245,10 +245,12 @@ namespace UnityEngine
 
     public enum TextureFormat { Alpha8 = 1, RGB24 = 3, RGBA32 = 4, ARGB32 = 5 }
     public enum TextureWrapMode { Repeat = 0, Clamp = 1, Mirror = 2, MirrorOnce = 3 }
+    public enum FilterMode { Point = 0, Bilinear = 1, Trilinear = 2 }
 
     public partial class Texture
     {
         public TextureWrapMode wrapMode { get; set; }
+        public FilterMode filterMode { get; set; }
     }
 
     public sealed class Texture2D : Texture
@@ -366,6 +368,7 @@ namespace UnityEngine
             public ParticleSystemShapeType shapeType { get; set; }
             public float radius { get; set; }
             public float angle { get; set; }
+            public float radiusThickness { get; set; }
             public Vector3 position { get; set; }
             public Vector3 rotation { get; set; }
             public Vector3 scale { get; set; }

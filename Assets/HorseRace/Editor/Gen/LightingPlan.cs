@@ -67,7 +67,38 @@ namespace HorseRace.EditorTools
             public float fogStart, fogEnd;
             public Color ambientSky, ambientEquator, ambientGround;
             public Color shadow;
+            // art-r4-10：空（Skybox/Procedural）。空の色は霧と分ける（青い天頂の下に暖かい霞）
+            public Color skyTint;
+            public float atmosphere, sunSize, exposure;
         }
+
+        /// <summary>天頂の色（空の色）と霧の明るさの差の最低（art-r4-10：空・霧・遠くの地面が同じ明るさの「霧の帯」にしない）。</summary>
+        public const float SKY_FOG_CONTRAST_MIN = 0.15f;
+        /// <summary>空の地面側の色 = 霧の色 × これ。</summary>
+        public const float SKY_GROUND_FROM_FOG = 0.9f;
+        /// <summary>雲の層（art-r4-10）：ステージの中心から CLOUD_OUT_M 先の輪に、高さ CLOUD_ALT_MIN〜MAX、大きさ CLOUD_SIZE_MIN〜MAX の柔らかい板 CLOUD_COUNT 枚。</summary>
+        public const int CLOUD_COUNT = 14;
+        public const float CLOUD_OUT_M = 1000f, CLOUD_ALT_MIN = 600f, CLOUD_ALT_MAX = 800f, CLOUD_SIZE_MIN = 300f, CLOUD_SIZE_MAX = 600f;
+
+        /// <summary>ステージ i の空の色（tools/preview も同じ値）。</summary>
+        public static Color SkyTint(int i) => ForStage(i).skyTint;
+
+        /// <summary>
+        /// 境目の最後の直線の向きの太陽の yaw（art-r4-10）：ゴールの 300m 手前〜ゴールの進む向きに夕日が正面に来るよう、
+        /// 光の向き（Directional Light の前）を進む向きの反対にする。
+        /// </summary>
+        public static float DuskSunYaw()
+        {
+            var d = StageDefinitions.All[2];
+            var local = StageDefinitions.SampleLocal(d);
+            float goal = StageDefinitions.GoalArc(d, local);
+            Vector3 a = WorldLayout.PointAtArc(local, goal - 300f), b = WorldLayout.PointAtArc(local, goal);
+            Vector3 t = new Vector3(b.x - a.x, 0f, b.z - a.z);
+            if (t.sqrMagnitude < 1e-4f) return -60f;
+            return WorldLayout.YawDeg(t.normalized) + 180f;
+        }
+
+        static float duskYaw = float.NaN;
 
         public const int LOBBY_LIGHT = 3;
 
@@ -80,6 +111,7 @@ namespace HorseRace.EditorTools
                 fogColor = FogColor, fogStart = FOG_START_M, fogEnd = FOG_END_M,
                 ambientSky = AmbientSky, ambientEquator = AmbientEquator, ambientGround = AmbientGround,
                 shadow = ShadowColor,
+                skyTint = new Color(0.42f, 0.58f, 0.78f), atmosphere = 0.8f, sunSize = 0.05f, exposure = 1.25f,
             };
             if (i == 1)
             {
@@ -92,11 +124,13 @@ namespace HorseRace.EditorTools
                 l.ambientEquator = new Color(0.86f, 0.70f, 0.50f);
                 l.ambientGround = new Color(0.66f, 0.50f, 0.36f);
                 l.shadow = new Color(0.74f, 0.58f, 0.52f);
+                l.skyTint = new Color(0.50f, 0.66f, 0.82f); l.atmosphere = 0.7f;
             }
             else if (i == 2)
             {
                 // 境目：地平線近くの夕日（16°）、橙の光、紫がかった霧と影
-                l.sunEuler = new Vector3(16f, -60f, 0f);
+                if (float.IsNaN(duskYaw)) duskYaw = DuskSunYaw();
+                l.sunEuler = new Vector3(16f, duskYaw, 0f);   // art-r4-10：夕日は最後の 300m の直線の正面
                 l.sunColor = new Color(1f, 0.70f, 0.50f);
                 l.sunIntensity = 1.35f;
                 l.fogColor = new Color(0.70f, 0.56f, 0.64f);
@@ -104,6 +138,7 @@ namespace HorseRace.EditorTools
                 l.ambientEquator = new Color(0.82f, 0.60f, 0.58f);
                 l.ambientGround = new Color(0.74f, 0.58f, 0.68f);
                 l.shadow = ShadowColorDusk;
+                l.skyTint = new Color(0.56f, 0.36f, 0.54f); l.atmosphere = 1.2f; l.sunSize = 0.08f;   // 案の (0.62,0.42,0.58) は霧との明るさの差 0.12（< 0.15）なので少し暗く
             }
             return l;
         }

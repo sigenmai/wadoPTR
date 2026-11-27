@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using HorseRace.EditorTools;
@@ -8,9 +9,10 @@ namespace HorseRace.Tests
     {
         [Test] public void BackdropRingOutsidePlayableAreas()
         {
-            var b = DressingPlan.Backdrop(7);
-            TestContext.WriteLine($"backdrop: {b.Count}");
-            Assert.That(b.Count, Is.InRange(70, 200));
+            var all = DressingPlan.Backdrop(7);
+            var b = all.Where(p => p.group != "BackdropNear").ToList();   // art-r4-01：継ぎ目の輪は縁をまたぐ（StageSeamHidden で確かめる）
+            TestContext.WriteLine($"backdrop: {b.Count} + seam {all.Count - b.Count}");
+            Assert.That(b.Count, Is.InRange(70, 220));
             // 崖の板は遊べる範囲から 260m 以上だけ（art-r3-10：霧で柔らかくなる距離）。2 列（内側 320m・外側 520m 付近）
             foreach (var p in b)
                 if (p.asset == DressingPlan.CLIFFS)
@@ -35,6 +37,95 @@ namespace HorseRace.Tests
                 Assert.That(p.position.z - p.radius, Is.GreaterThan(f.y));
                 Assert.That(p.position.z + p.radius, Is.LessThan(f.w));
             }
+        }
+
+        // ---- art-r4-01：ステージの縁の継ぎ目を隠す ----
+        [Test] public void StageSeamHidden()
+        {
+            var seam = DressingPlan.Backdrop(7).Where(p => p.group == "BackdropNear").ToList();
+            var rects = WorldBounds.PlayableRects();
+            var built = new[] { ArtRound2Tests.Stage(0), ArtRound2Tests.Stage(1), ArtRound2Tests.Stage(2) };
+            System.Func<int, float, float, float> ground = (i, x, z) =>
+            {
+                if (i >= 3) return 0f;
+                var o = built[i].def.Origin;
+                return o.y + built[i].Ground(x - o.x, z - o.z);
+            };
+            float[,] grid = WorldBounds.FillerGrid(WorldBounds.FILLER_RES, rects, ground);
+            for (int si = 0; si < 3; si++)
+            {
+                Vector4 r = rects[si];
+                float per = 2f * ((r.z - r.x) + (r.w - r.y));
+                int bare = 0, skipped = 0, measured = 0; float worstGap = 0f;
+                for (float t0 = 0f; t0 < per; t0 += 100f)
+                {
+                    bool covered = false;
+                    for (float t = t0; t < t0 + 100f && !covered; t += 10f)
+                    {
+                        Vector3 c = PerimeterPoint(r, t);
+                        foreach (var q in seam)
+                        {
+                            float foot = (q.asset == DressingPlan.MESA || q.asset == DressingPlan.MESAB) ? q.radius * DressingPlan.MESA_GATE_FOOTPRINT : q.radius * 0.85f;
+                            if (WorldLayout.DistXZ(q.position, c) <= foot + 30f) { covered = true; break; }
+                        }
+                    }
+                    if (!covered) bare++;
+                }
+                // 縁の 10m 外の外の地面と、縁の地面の差
+                var o = built[si].def.Origin;
+                for (float t = 25f; t < per; t += 50f)
+                {
+                    Vector3 c = PerimeterPoint(r, t), n = OutwardNormal(r, t);
+                    Vector3 inPt = c - n * 0.5f, outPt = c + n * 5f;
+                    float edge = o.y + built[si].Ground(inPt.x - o.x, inPt.z - o.z);
+                    // 縁に沿って半マス（約 5m）で 1m 以上変わる所（ゴールの先の切れ込みの壁・尾根の細かい起伏）は外の地面の格子（10.5m）では追えないので数えない
+                    Vector3 tan = new Vector3(-n.z, 0f, n.x);
+                    float e1 = o.y + built[si].Ground(inPt.x + tan.x * 5.5f - o.x, inPt.z + tan.z * 5.5f - o.z), e2 = o.y + built[si].Ground(inPt.x - tan.x * 5.5f - o.x, inPt.z - tan.z * 5.5f - o.z);
+                    if (Mathf.Abs(e1 - edge) > 1f || Mathf.Abs(e2 - edge) > 1f) { skipped++; continue; }
+                    measured++;
+                    float filler = WorldBounds.SampleFiller(grid, outPt.x, outPt.z);
+                    worstGap = Mathf.Max(worstGap, Mathf.Abs(filler - edge));
+                }
+                TestContext.WriteLine($"stage {si}: perimeter windows without a seam rock {bare}, worst |filler - edge| {worstGap:F2} m ({measured} measured, {skipped} on steep edges)");
+                Assert.GreaterOrEqual(measured, 15, "なめらかな縁で確かめる");
+                Assert.AreEqual(0, bare, "100m ごとに縁をまたぐ岩");
+                Assert.Less(worstGap, 2f, "外の地面は縁の高さから始まる");
+            }
+            foreach (var q in seam)
+            {
+                Assert.IsFalse(q.asset == DressingPlan.CLIFFS, "継ぎ目の輪に崖の板は使わない");
+                Assert.IsFalse(q.collider);
+            }
+        }
+
+        static Vector3 PerimeterPoint(Vector4 u, float t)
+        {
+            float w = u.z - u.x, d = u.w - u.y, perim = 2f * (w + d);
+            t = (t % perim + perim) % perim;
+            if (t < w) return new Vector3(u.x + t, 0f, u.y);
+            if (t < w + d) return new Vector3(u.z, 0f, u.y + (t - w));
+            if (t < 2f * w + d) return new Vector3(u.z - (t - w - d), 0f, u.w);
+            return new Vector3(u.x, 0f, u.w - (t - 2f * w - d));
+        }
+
+        static Vector3 OutwardNormal(Vector4 u, float t)
+        {
+            float w = u.z - u.x, d = u.w - u.y, perim = 2f * (w + d);
+            t = (t % perim + perim) % perim;
+            if (t < w) return new Vector3(0f, 0f, -1f);
+            if (t < w + d) return new Vector3(1f, 0f, 0f);
+            if (t < 2f * w + d) return new Vector3(0f, 0f, 1f);
+            return new Vector3(-1f, 0f, 0f);
+        }
+
+        // ---- art-r4-09：崖の板はスポーン・コースから遠い一番外の輪だけ ----
+        [Test] public void NoCliffsNearSpawn()
+        {
+            var cliffs = DressingPlan.Backdrop(7).Where(p => p.asset == DressingPlan.CLIFFS).ToList();
+            TestContext.WriteLine($"far cliffs: {cliffs.Count}");
+            Assert.Greater(cliffs.Count, 0, "素材は使う（霧の奥だけ）");
+            foreach (var p in cliffs) Assert.IsTrue(DressingPlan.CliffFarEnough(p.position), p.part + " " + p.position);
+            foreach (var p in LobbyLayout.VistaHeroes(5)) Assert.AreNotEqual(DressingPlan.CLIFFS, p.asset, "見晴らしの切れ目に崖の板");
         }
 
         [Test] public void BackdropDeterministic()

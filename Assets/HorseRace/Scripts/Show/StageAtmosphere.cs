@@ -7,7 +7,7 @@ namespace HorseRace
     /// <summary>
     /// ステージごとの空気（art-r2-10）：荒野 = 赤錆の昼、砂漠 = 砂金の午後、境目 = 紫の夕景。
     /// RaceManager の同期状態（state / stage）を毎フレーム見て、ロビーかステージが変わったときだけ（ローカル）
-    /// 霧の色と距離・環境光（Trilight 3 色）・太陽（向きと色と強さ）を入れ替え、トゥーンの影の色を
+    /// 霧の色と距離・環境光（Trilight 3 色）・太陽（向きと色と強さ）・空（art-r4-10：skyboxes）を入れ替え、トゥーンの影の色を
     /// グローバルの _Udon_ShadowColor（HorseToon / ToonTerrain が読む。a = 1 で有効）に入れる。
     /// 値は Build World が LightingPlan.ForStage(0〜3) から配列（添字 3 = ロビー）に書き込む。
     /// </summary>
@@ -28,6 +28,8 @@ namespace HorseRace
         public Color[] ambientEquator;
         public Color[] ambientGround;
         public Color[] shadowColor;
+        /// <summary>art-r4-10：ステージごとの空（Skybox/Procedural のマテリアル、添字 3 = ロビー）。null の所は今の空のまま。</summary>
+        public Material[] skyboxes;
 
         private int applied = -1;
         private int shadowId;
@@ -66,6 +68,7 @@ namespace HorseRace
                 if (sunColor != null && i < sunColor.Length) sun.color = sunColor[i];
                 if (sunIntensity != null && i < sunIntensity.Length) sun.intensity = sunIntensity[i];
             }
+            if (skyboxes != null && i < skyboxes.Length && skyboxes[i] != null) RenderSettings.skybox = skyboxes[i];
             if (shadowColor != null && i < shadowColor.Length)
             {
                 if (!idReady) { shadowId = VRCShader.PropertyToID("_Udon_ShadowColor"); idReady = true; }

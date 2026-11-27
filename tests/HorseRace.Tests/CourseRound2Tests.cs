@@ -140,21 +140,23 @@ namespace HorseRace.Tests
             return p;
         }
 
-        /// <summary>course-r2-11：先へ誘う塔（RanchCompound_11）が 4 本以上、塔どうしは離れ、足元に焚き火（煙の柱）。</summary>
+        /// <summary>
+        /// course-r2-11 → art-r4-15：先へ誘う目印はステージに 1 つ、ステージごとに違う形（荒野 = 鐘の塔、砂漠 = 給水塔、境目 = 焚き火の山）、
+        /// 柵の外の 10° 未満の地面、足元に焚き火（煙の柱）。風車の塔（RanchCompound_11）はステージに 1 本まで。
+        /// </summary>
         [Test] public void GuideTowersPullTheRider([Values(0, 1, 2)] int i)
         {
             var plan = Plan(i);
-            var towers = plan.Where(p => p.part == DressingPlan.RANCH_TOWER).ToList();
-            var guides = plan.Where(p => p.group == "GuideTower" && p.part == DressingPlan.RANCH_TOWER).ToList();
-            TestContext.WriteLine($"stage {i}: {towers.Count} towers ({guides.Count} guide towers)");
-            Assert.GreaterOrEqual(towers.Count, 4);
-            Assert.GreaterOrEqual(guides.Count, 2);
-            foreach (var g in guides)
-            {
-                Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(g.position, Local(i)), DressingPlan.TOWER_ROAD_M - 0.01f, "柵の外");
-                Assert.IsTrue(plan.Any(p => p.asset == DressingPlan.CAMPFIRE && WorldLayout.DistXZ(p.position, g.position) < 10f), "足元に煙");
-                foreach (var o in guides) if (o != g) Assert.GreaterOrEqual(WorldLayout.DistXZ(o.position, g.position), DressingPlan.TOWER_SPACING_M - 0.01f);
-            }
+            DressingPlan.GuideAsset(Def(i).kind, out string asset, out string part, out float _);
+            var guides = plan.Where(p => p.group == "GuideTower" && p.part == part).ToList();
+            int windmills = plan.Count(p => p.part == DressingPlan.RANCH_TOWER);
+            TestContext.WriteLine($"stage {i}: {guides.Count} guide ({part}), {windmills} windmills");
+            Assert.AreEqual(1, guides.Count);
+            Assert.LessOrEqual(windmills, 1, "風車の塔はステージに 1 本まで");
+            var g = guides[0];
+            Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(g.position, Local(i)), DressingPlan.TOWER_ROAD_M - 0.01f, "柵の外");
+            Assert.IsTrue(plan.Any(p => p.asset == DressingPlan.CAMPFIRE && WorldLayout.DistXZ(p.position, g.position) < 10f), "足元に煙");
+            if (i != 0 || part != DressingPlan.RANCH_TOWER) Assert.AreNotEqual(DressingPlan.RANCH_TOWER, part);
         }
 
         /// <summary>course-r2-08：急カーブごとに 110・70・35m 手前の外側に ››› ›› › の札（外側の道の縁と柵の間）。</summary>
@@ -219,7 +221,7 @@ namespace HorseRace.Tests
         {
             var c = Plan(0);
             Assert.AreEqual(2, c.Count(p => p.group == "RanchYard" && (p.part == "RanchCompound_07_Building" || p.part == "RanchCompound_09_Building")));
-            Assert.GreaterOrEqual(c.Count(p => p.group == "RanchYard" && p.part == DressingPlan.RANCH_TOWER), 1);
+            Assert.GreaterOrEqual(c.Count(p => p.group == "RanchYard" && p.part == DressingPlan.TOWN_CART), 1, "art-r4-15：庭の出口は荷車（風車は遠くの目印の 1 本）");
             Assert.GreaterOrEqual(c.Count(p => p.group == "RanchYard" && (p.part == "FarmProps_03" || p.part == "FarmProps_04")), 20);
             var d = Plan(1);
             Assert.AreEqual(SetPieces.RAIL_RUNS, d.Count(p => p.group == "Railway" && p.part == DressingPlan.RAIL_TRACK));

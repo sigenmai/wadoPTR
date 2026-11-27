@@ -104,7 +104,22 @@ namespace HorseRace.EditorTools
         public const float TRAIL_DIST_MAX_M = 16f;
 
         /// <summary>道の中心からの距離 d（m）、平らな道の半幅 hw での踏み固めた土の重み（0〜1）。縁は TRAIL_EDGE_M の smoothstep（art-r3-06）。</summary>
-        public static float TrailWeight(float d, float hw) => 1f - Smooth(hw - TRAIL_EDGE_M * 0.5f, hw + TRAIL_EDGE_M * 0.5f, d);
+        public static float TrailWeight(float d, float hw) => TrailWeight(d, hw, TRAIL_EDGE_M);
+
+        /// <summary>縁の幅 edge（m）を指定した重み。砂漠は TRAIL_EDGE_DUNES_M（art-r4-05：のこぎりの歯の縁にしない）。</summary>
+        public static float TrailWeight(float d, float hw, float edge) => 1f - Smooth(hw - edge * 0.5f, hw + edge * 0.5f, d);
+
+        /// <summary>art-r4-05：砂漠の道の縁は 3m のぼかし＋縁の位置を ±0.8m 揺らす（直線の帯・ぎざぎざの縁にしない）。</summary>
+        public const float TRAIL_EDGE_DUNES_M = 3.0f, TRAIL_EDGE_NOISE_M = 0.8f, TRAIL_EDGE_NOISE_SCALE_M = 7f;
+        /// <summary>art-r4-05：砂漠は道の縁（重み 0.5）から外を砂 1 のまま、SAND_KEEP_TO_M から SAND_KEEP_FADE_M でもとの砂へ戻す（土の帯を見せない）。</summary>
+        public const float SAND_KEEP_TO_M = 10f, SAND_KEEP_FADE_M = 10f;
+
+        /// <summary>ステージの種類ごとの道の縁の幅（m）。</summary>
+        public static float TrailEdge(int kind) => kind == KIND_DUNES ? TRAIL_EDGE_DUNES_M : TRAIL_EDGE_M;
+
+        /// <summary>道の縁の揺れ（m、砂漠だけ）：Terrain ローカル (x, z) m の値ノイズ ±TRAIL_EDGE_NOISE_M。</summary>
+        public static float TrailEdgeJitter(int kind, float x, float z)
+            => kind == KIND_DUNES ? TRAIL_EDGE_NOISE_M * (2f * Noise(x / TRAIL_EDGE_NOISE_SCALE_M, z / TRAIL_EDGE_NOISE_SCALE_M, 3, 41) - 1f) : 0f;
 
         /// <summary>轍の重み（0〜1）：中心からの距離 d が ±RUT_OFFSET_M の幅 RUT_WIDTH_M の線の上で 1。</summary>
         public static float RutWeight(float d)
@@ -123,6 +138,14 @@ namespace HorseRace.EditorTools
         /// <summary>踏み固めた土の重みと、各点の道の中心からの距離（m、範囲の外は float.MaxValue）。距離は轍（RutWeight）に使う。</summary>
         public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized, out float[,] dist)
         {
+            float[,] hwMap;
+            return TrailMask(resolution, def, coursePointsNormalized, out dist, out hwMap);
+        }
+
+        /// <summary>重み・道の中心からの距離・その点のいちばん近い所の平らな道の半幅（m、art-r4-05：砂漠の縁の砂に使う）。</summary>
+        public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized, out float[,] dist, out float[,] hwMap)
+        {
+            hwMap = null;
             int n = resolution;
             var m = new float[n, n];
             dist = new float[n, n];
@@ -131,7 +154,7 @@ namespace HorseRace.EditorTools
             float cellM = TERRAIN_SIZE_M / (n - 1);
             float maxHw = RUNWAY_M;
             if (def != null && def.halfWidthM != null) foreach (float hw in def.halfWidthM) maxHw = Mathf.Max(maxHw, hw);
-            float reach = maxHw + TRAIL_FADE_OUT_M + 1f;
+            float reach = maxHw + TRAIL_FADE_OUT_M + 1f + (def != null && def.kind == KIND_DUNES ? SAND_KEEP_TO_M + SAND_KEEP_FADE_M : 0f);
             var arc = new float[n, n];
             int radius = Mathf.CeilToInt(reach / cellM) + 1;
             float s0 = 0f;
@@ -155,10 +178,17 @@ namespace HorseRace.EditorTools
                 }
                 s0 += segLen;
             }
+            int kind = def != null ? def.kind : KIND_CANYON;
+            float edge = TrailEdge(kind);
+            hwMap = new float[n, n];
             for (int z = 0; z < n; z++)
                 for (int x = 0; x < n; x++)
+                {
+                    float hw = def != null ? StageDefinitions.HalfWidthAt(def, arc[z, x]) : RUNWAY_M;
+                    hwMap[z, x] = hw;
                     if (dist[z, x] < reach)
-                        m[z, x] = TrailWeight(dist[z, x], def != null ? StageDefinitions.HalfWidthAt(def, arc[z, x]) : RUNWAY_M);
+                        m[z, x] = TrailWeight(dist[z, x] + TrailEdgeJitter(kind, x * cellM, z * cellM), hw, edge);
+                }
             return m;
         }
 
@@ -198,6 +228,31 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>道の上の砂を消す（踏み固めた土が 0.5 を超える所は 0、その外は 1 − 重み を掛ける）。sand と trail は同じ解像度。</summary>
+        /// <summary>
+        /// art-r4-05：砂漠の道の上の砂を消す。踏み固めた土が 0.5 を超える所だけ 0、その外（縁の半分の外）は砂 1 のまま
+        /// （道の中心から 半幅 + SAND_KEEP_TO_M まで、そこから SAND_KEEP_FADE_M でもとの砂へ）。土（DirtDunes）の帯を道の脇に見せない。
+        /// dist・hwMap は TrailMask の出力。砂漠以外は前の ClearSandOnTrail と同じ。
+        /// </summary>
+        public static void ClearSandOnTrail(float[,] sand, float[,] trail, int kind, float[,] dist, float[,] hwMap)
+        {
+            if (kind != KIND_DUNES || dist == null || hwMap == null) { ClearSandOnTrail(sand, trail); return; }
+            if (sand == null || trail == null) return;
+            int n = Mathf.Min(sand.GetLength(0), trail.GetLength(0)), m = Mathf.Min(sand.GetLength(1), trail.GetLength(1));
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < m; x++)
+                {
+                    if (trail[z, x] > 0.5f) { sand[z, x] = 0f; continue; }
+                    float d = dist[z, x];
+                    if (d == float.MaxValue) continue;
+                    float hw = hwMap[z, x];
+                    float keep = 1f - Smooth(hw + SAND_KEEP_TO_M, hw + SAND_KEEP_TO_M + SAND_KEEP_FADE_M, d);
+                    if (keep > sand[z, x]) sand[z, x] = keep;
+                }
+        }
+
+        /// <summary>道の縁で見えてしまう土の重み（地形の塗りの土 (1 − 砂) × (1 − 道)、art-r4-05 のテスト・Validator 用）。</summary>
+        public static float ExposedDirt(float sand, float trail) => Mathf.Clamp01(1f - sand) * Mathf.Clamp01(1f - trail);
+
         public static void ClearSandOnTrail(float[,] sand, float[,] trail)
         {
             if (sand == null || trail == null) return;
@@ -291,6 +346,48 @@ namespace HorseRace.EditorTools
             return Smooth(0.45f, 0.55f, q - (1f - MESA_SAND_LOW_SHARE) + 0.5f) * (1f - Smooth(MESA_SAND_MAX_SLOPE - 2f, MESA_SAND_MAX_SLOPE + 2f, slope));
         }
 
+        // ---- art-r4-06：砂の形 ----
+        public const float CANYON_SAND_FROM = 0.45f, CANYON_SAND_TO = 0.80f;
+        // 案の 0.70〜0.85・斜面 2〜12° では境目の地面の 1.7% しか砂にならず、帯も短い（主成分の比 2.1）。帯を 0.62〜0.88、斜面 1.5〜16° に広げた（比 5.5、4.4%）
+        public const float MESA_BAND_M = 6f, MESA_BAND_FROM = 0.62f, MESA_BAND_TO = 0.88f, MESA_BAND_SOFT = 0.04f;
+        public const float MESA_BAND_MIN_SLOPE = 1.5f, MESA_BAND_MAX_SLOPE = 16f;   // 平ら（1.5° 未満）は帯にならず大きな塊になるので砂にしない
+        public const int MESA_BAND_BLUR_PASSES = 2;      // 3×3 を 2 回（約 4m）
+
+        /// <summary>境目の砂（art-r4-06）：高さ / 6m の小数部が 0.62〜0.88 の帯、斜面 1.5〜16°。等高線に沿って細長い帯になる。</summary>
+        public static float MesaContourSand(float[,] h, float u, float v)
+        {
+            float px = u * TERRAIN_SIZE_M, pz = v * TERRAIN_SIZE_M;
+            float hm = SampleM(h, px, pz);
+            float f = hm / MESA_BAND_M - Mathf.Floor(hm / MESA_BAND_M);
+            float band = Smooth(MESA_BAND_FROM - MESA_BAND_SOFT, MESA_BAND_FROM + MESA_BAND_SOFT, f) * (1f - Smooth(MESA_BAND_TO - MESA_BAND_SOFT, MESA_BAND_TO + MESA_BAND_SOFT, f));
+            float e = 4f;
+            float gx = (SampleM(h, px + e, pz) - SampleM(h, px - e, pz)) / (2f * e);
+            float gz = (SampleM(h, px, pz + e) - SampleM(h, px, pz - e)) / (2f * e);
+            float slope = Mathf.Atan(Mathf.Sqrt(gx * gx + gz * gz)) * Mathf.Rad2Deg;
+            return band * Smooth(MESA_BAND_MIN_SLOPE - 0.5f, MESA_BAND_MIN_SLOPE + 0.5f, slope) * (1f - Smooth(MESA_BAND_MAX_SLOPE - 2f, MESA_BAND_MAX_SLOPE + 2f, slope));
+        }
+
+        /// <summary>3×3 の平均（端は内側だけ）。</summary>
+        public static float[,] Blur3(float[,] a)
+        {
+            int n = a.GetLength(0), m = a.GetLength(1);
+            var r = new float[n, m];
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < m; x++)
+                {
+                    float s = 0f; int c = 0;
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int zz = z + dz, xx = x + dx;
+                            if (zz < 0 || xx < 0 || zz >= n || xx >= m) continue;
+                            s += a[zz, xx]; c++;
+                        }
+                    r[z, x] = s / c;
+                }
+            return r;
+        }
+
         /// <summary>高さマップ（0〜1）の点 (x, z)（m）の高さ（m、双線形）。</summary>
         static float SampleM(float[,] h, float x, float z)
         {
@@ -321,7 +418,7 @@ namespace HorseRace.EditorTools
                     else if (kind == KIND_CANYON)
                     {
                         float q = Noise(u * 6f, v * 6f, seed, 3);
-                        val = Smooth(0.55f, 0.68f, q);
+                        val = Smooth(CANYON_SAND_FROM, CANYON_SAND_TO, q);   // art-r4-06：やわらかい縁（前の 0.55〜0.68 は硬いしみ）
                         if (heights != null)
                         {
                             int hz = Mathf.Clamp(Mathf.FloorToInt(v * (heights.GetLength(0) - 1) + 0.5f), 0, heights.GetLength(0) - 1);
@@ -331,8 +428,8 @@ namespace HorseRace.EditorTools
                     }
                     else if (heights != null)
                     {
-                        // art-r3-07：色は地形に従う。まわり 60m の中で低い方 35%（くぼ地・谷底）で、斜面 12° 未満の所だけ砂
-                        val = MesaBasinSand(heights, u, v);
+                        // art-r4-06：等高線の帯（6m ごとの段の下の帯 70〜85%、斜面 2〜12°）。くぼ地の塊（MesaBasinSand）はしみに見えた
+                        val = MesaContourSand(heights, u, v);
                     }
                     else
                     {
@@ -342,6 +439,8 @@ namespace HorseRace.EditorTools
                     }
                     m[z, x] = Mathf.Clamp01(val);
                 }
+            if (kind == KIND_MESA && heights != null)
+                for (int pass = 0; pass < MESA_BAND_BLUR_PASSES; pass++) m = Blur3(m);
             return m;
         }
 
@@ -427,6 +526,54 @@ namespace HorseRace.EditorTools
                     rise *= RimHeightFactor(px, pz, seed);
                     h[z, x] = Mathf.Clamp01(h[z, x] + w * rise / heightM);
                 }
+            SmoothSteep(h, terrainSizeM, heightM, course);
+        }
+
+        // ---- art-r4-17：急な壁ののこぎりの歯（高さマップの段）をならす ----
+        public const float STEEP_BLUR_SLOPE_DEG = 45f;
+        public const int STEEP_BLUR_PASSES = 2;
+
+        /// <summary>
+        /// 斜面 45° 以上のマスだけ 3×3 の平均を 2 回（art-r4-17）。コース（course、Terrain ローカル m の間引いた点）から RIM_COURSE_KEEP_M 以内は触らない。
+        /// 峡谷の壁・外周の尾根の頂の段の付いた歯を丸める（道の高さ・勾配は変わらない）。
+        /// </summary>
+        public static void SmoothSteep(float[,] h, float terrainSizeM, float heightM, Vector3[] course)
+        {
+            int n = h.GetLength(0);
+            float cell = terrainSizeM / (n - 1);
+            float tan = Mathf.Tan(STEEP_BLUR_SLOPE_DEG * Mathf.Deg2Rad);
+            var mask = new bool[n, n];
+            for (int z = 1; z < n - 1; z++)
+                for (int x = 1; x < n - 1; x++)
+                {
+                    float gx = (h[z, x + 1] - h[z, x - 1]) * heightM / (2f * cell);
+                    float gz = (h[z + 1, x] - h[z - 1, x]) * heightM / (2f * cell);
+                    if (gx * gx + gz * gz < tan * tan) continue;
+                    if (course != null)
+                    {
+                        float px = x * cell, pz = z * cell, dc = float.MaxValue;
+                        for (int i = 0; i < course.Length; i++)
+                        {
+                            float dx = course[i].x - px, dz = course[i].z - pz;
+                            float dd = dx * dx + dz * dz;
+                            if (dd < dc) dc = dd;
+                        }
+                        if (dc < RIM_COURSE_KEEP_M * RIM_COURSE_KEEP_M) continue;
+                    }
+                    mask[z, x] = true;
+                }
+            for (int pass = 0; pass < STEEP_BLUR_PASSES; pass++)
+            {
+                var src = (float[,])h.Clone();
+                for (int z = 1; z < n - 1; z++)
+                    for (int x = 1; x < n - 1; x++)
+                    {
+                        if (!mask[z, x]) continue;
+                        float s = 0f;
+                        for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) s += src[z + dz, x + dx];
+                        h[z, x] = s / 9f;
+                    }
+            }
         }
 
         // ---- 外周の尾根の形（art-r2-09）：角を丸め、高さを大きくうねらせる（四角いお盆に見せない）----

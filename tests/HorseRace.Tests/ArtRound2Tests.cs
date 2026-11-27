@@ -69,7 +69,7 @@ namespace HorseRace.Tests
                         if (gap < worst) { worst = gap; at = new Vector3(x, 0f, z); }
                     }
                 TestContext.WriteLine($"stage {i}: min (stage - filler) {worst:F2} m at {at}");
-                Assert.GreaterOrEqual(worst, 1f, $"stage {i} at {at}");
+                Assert.GreaterOrEqual(worst, 0.4f, $"stage {i} at {at}");   // art-r4-01：縁の外の頂点は縁の高さ − 0.6m（継ぎ目の段を見せない）。内側は 0.4m 以上下
             }
         }
 
@@ -80,8 +80,12 @@ namespace HorseRace.Tests
             Assert.AreEqual(WorldBounds.FILLER_Y - WorldBounds.FILLER_DEPTH_M, WorldBounds.FillerHeight(50f, 50f, 8f, 8f, rects, flat), 1e-4);
             Assert.LessOrEqual(WorldBounds.FillerHeight(1f, 50f, 8f, 8f, rects, flat), 10f - WorldBounds.FILLER_UNDER_M + 1e-4);
             // 縁の 1 マスはまわり 3×3 の一番低い地面から
-            System.Func<int, float, float, float> pit = (i, x, z) => x > 9f && x < 11f ? -20f : 10f;
-            Assert.LessOrEqual(WorldBounds.FillerHeight(-2f, 50f, 8f, 8f, rects, pit), -20f - WorldBounds.FILLER_UNDER_M + 1e-3);
+            // art-r4-01：縁に沿って ±1 マスのいちばん低い地面（内側の低い斜面は拾わない：縁の尾根から外の地面が崖のように落ちない）
+            System.Func<int, float, float, float> pit = (i, x, z) => z > 45f && z < 47f ? -20f : 10f;
+            Assert.LessOrEqual(WorldBounds.FillerHeight(-2f, 50f, 8f, 8f, rects, pit), -20f - WorldBounds.FILLER_SEAM_M + 1e-3);
+            Assert.LessOrEqual(WorldBounds.FillerHeight(2f, 50f, 8f, 8f, rects, pit), -20f - WorldBounds.FILLER_UNDER_M + 1e-3, "内側の頂点はもっと下");
+            System.Func<int, float, float, float> inward = (i, x, z) => x > 9f && x < 11f ? -20f : 10f;
+            Assert.Greater(WorldBounds.FillerHeight(-2f, 50f, 8f, 8f, rects, inward), 5f);
             Assert.AreEqual(-3f, WorldBounds.SignedDistToRect(new Vector3(3f, 0f, 50f), rects[0]), 1e-4);
         }
 
@@ -94,8 +98,9 @@ namespace HorseRace.Tests
                 TestContext.WriteLine($"stage {i}: trail {t:F3} dirt {d:F3} sand {sand:F3}");
                 // art-r3-06：砂漠の道は砂より 0.08 以上暗い明るい踏み固めた土（前の暗い道はアスファルトに見えた）。砂漠の土とは色合いで分ける
                 Assert.GreaterOrEqual(Mathf.Abs(t - d), i == 1 ? 0.05f : 0.15f, "土 " + i);
-                Assert.GreaterOrEqual(Mathf.Abs(t - sand), i == 1 ? 0.08f : 0.10f, "砂 " + i);
-                if (i == 1) Assert.Less(t, sand, "砂漠の道は砂より暗い");
+                // art-r4-05：砂漠の道は砂 × 約 0.92 の明るさの踏み固めた砂（暗い帯にしない：砂の 85% 以上、砂よりは暗い）
+                if (i == 1) { Assert.GreaterOrEqual(t, 0.85f * sand, "砂漠の道は暗い帯にしない"); Assert.Less(t, sand, "砂漠の道は砂より少し暗い"); }
+                else Assert.GreaterOrEqual(Mathf.Abs(t - sand), 0.10f, "砂 " + i);
             }
             Assert.AreNotEqual(ArtPalette.Trail(0), ArtPalette.Trail(1));
         }
@@ -110,7 +115,8 @@ namespace HorseRace.Tests
             Assert.IsFalse(guides.Any(p => p.part == "DesertProps_06" || p.part == "DesertProps_10"), "柵の列にあばらに見える杭");
             Assert.Greater(guides.Count(p => p.part == "FarmProps_03" || p.part == "FarmProps_04"), guides.Count / 3);
             Assert.IsFalse(guides.Any(p => p.part == "DesertProps_03" || p.part == "DesertProps_05"), "骨の杭（art-r3-02）");
-            Assert.Greater(guides.Count(p => p.part == "FarmProps_02"), 3, "直線の街灯");
+            Assert.Greater(guides.Count(p => p.lamp && p.part == DressingPlan.POST_PART), 3, "直線の灯り（art-r4-14：丸太の柱の上の灯り）");
+            Assert.IsFalse(guides.Any(p => p.part == "FarmProps_02"), "野に吊り下げの街灯（絞首台に見える）を並べない");
             var bones = plan.Where(p => DressingPlan.IsBonePart(p.part)).ToList();
             foreach (var b in bones) Assert.IsTrue(DressingPlan.BoneGroups.Contains(b.group), b.group + " " + b.part);
             Assert.LessOrEqual(bones.Count, DressingPlan.BONE_MAX);

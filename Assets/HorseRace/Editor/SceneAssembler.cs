@@ -158,6 +158,64 @@ namespace HorseRace.EditorTools
                 at.ambientSky[i] = l.ambientSky; at.ambientEquator[i] = l.ambientEquator; at.ambientGround[i] = l.ambientGround;
                 at.shadowColor[i] = l.shadow;
             }
+            // art-r4-10：ステージごとの空（荒野 = 青い天頂、砂漠 = 明るい青、境目 = 紫の夕空・大きな夕日）
+            at.skyboxes = new Material[N];
+            for (int i = 0; i < N; i++) at.skyboxes[i] = SkyMaterial(i);
+            if (at.skyboxes[LightingPlan.LOBBY_LIGHT] != null) RenderSettings.skybox = at.skyboxes[LightingPlan.LOBBY_LIGHT];
+            CloudDecks(ctx);
+        }
+
+        /// <summary>ステージ i（3 = ロビー）の空のマテリアル（Generated/Materials/M_Sky_i.mat、Skybox/Procedural）。地面側の色 = 霧 × 0.9。</summary>
+        static Material SkyMaterial(int i)
+        {
+            var sh = Shader.Find("Skybox/Procedural");
+            if (sh == null) return null;
+            LightingPlan.StageLight l = LightingPlan.ForStage(i);
+            string path = GenUtil.GEN_MATERIALS + "/M_Sky_" + i + ".mat";
+            GenUtil.EnsureFolder(GenUtil.GEN_MATERIALS);
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null) { m = new Material(sh); AssetDatabase.CreateAsset(m, path); }
+            m.shader = sh;
+            m.SetColor("_SkyTint", l.skyTint);
+            float gk = LightingPlan.SKY_GROUND_FROM_FOG;
+            m.SetColor("_GroundColor", new Color(l.fogColor.r * gk, l.fogColor.g * gk, l.fogColor.b * gk, 1f));
+            m.SetFloat("_AtmosphereThickness", l.atmosphere);
+            m.SetFloat("_SunSize", l.sunSize);
+            m.SetFloat("_Exposure", l.exposure);
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>
+        /// 雲の層（art-r4-10）：ステージ・ロビーごとに 1 つのパーティクル（動かない大きな柔らかい板 14 枚、ステージの中心から 1000m 先の輪、
+        /// 高さ 600〜800m、大きさ 300〜600m、ごくゆっくり流れる）。地平線の上に「空の手前の物」を置いて空の奥行きを出す。
+        /// </summary>
+        static void CloudDecks(WorldContext ctx)
+        {
+            var root = GenUtil.Child(ctx.root, "CloudDecks", Vector3.zero).transform;
+            root.position = Vector3.zero;
+            var centers = new System.Collections.Generic.List<Vector3>();
+            foreach (var d in StageDefinitions.All) centers.Add(d.center);
+            centers.Add(WorldBounds.LOBBY_CENTER);
+            for (int k = 0; k < centers.Count; k++)
+            {
+                var ps = GenUtil.Particles(root, "CloudDeck_" + k, centers[k] + Vector3.up * LightingPlan.CLOUD_ALT_MIN, new Color(1f, 0.97f, 0.92f, 0.55f),
+                    LightingPlan.CLOUD_SIZE_MIN, 0f, 100000f, true, 0f, LightingPlan.CLOUD_OUT_M);
+                var main = ps.main;
+                main.maxParticles = LightingPlan.CLOUD_COUNT;
+                main.startSize = new ParticleSystem.MinMaxCurve(LightingPlan.CLOUD_SIZE_MIN, LightingPlan.CLOUD_SIZE_MAX);
+                main.startSpeed = 0.4f;   // ごくゆっくり
+                var em = ps.emission;
+                em.rateOverTime = LightingPlan.CLOUD_COUNT;   // 最初の 1 秒で 14 枚（上限）出て、寿命が長いのでそのまま残る
+                var sh = ps.shape;
+                sh.shapeType = ParticleSystemShapeType.Circle;   // ステージのまわりの輪（水平）
+                sh.radius = LightingPlan.CLOUD_OUT_M;
+                sh.radiusThickness = 0.2f;
+                sh.rotation = new Vector3(-90f, 0f, 0f);
+                sh.position = new Vector3(0f, 0f, 0f);
+                var pos = ps.transform.position;
+                ps.transform.position = new Vector3(pos.x, centers[k].y + 0.5f * (LightingPlan.CLOUD_ALT_MIN + LightingPlan.CLOUD_ALT_MAX), pos.z);
+            }
         }
 
         // ---- 見えてはいけない場所の対処（Task 11c）----

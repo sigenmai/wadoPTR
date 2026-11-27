@@ -30,24 +30,39 @@ namespace HorseRace.EditorTools
 
         // ---- 地形の色（TerrainBuilder の TerrainLayer）----
         public static readonly Color DirtCanyon = new Color(0.62f, 0.36f, 0.22f);    // 赤錆
-        public static readonly Color DirtDunes = new Color(0.62f, 0.44f, 0.27f);     // 砂金の砂漠の土（art-r3-06：明るくした道と分けるため少し暗く）
+        public static readonly Color DirtDunes = new Color(0.80f, 0.63f, 0.42f);     // art-r4-05：砂に近い明るい土（道の脇に見えても暗い帯にならない。前の 0.62/0.44/0.27 はアスファルトの帯に見えた）
         public static readonly Color DirtBorder = new Color(0.62f, 0.40f, 0.40f);    // 紫の夕景（art-r3-07：明るく）
         /// <summary>外の地面（art-r3-10）：3 ステージの土の平均に近い色（クリーム色の砂の板にしない）。</summary>
         public static readonly Color DirtOuter = new Color(0.64f, 0.43f, 0.31f);
         public static readonly Color RockLayer = new Color(0.55f, 0.45f, 0.38f);
+        /// <summary>砂漠の砂（Sand(1)）。前は 3 ステージ共通の砂の色だった（art-r4-06：荒野・境目では黄色いしみに見えた）。</summary>
         public static readonly Color SandLayer = new Color(0.90f, 0.76f, 0.52f);
+        /// <summary>art-r4-06：ステージの主色に合わせた砂（荒野 = 赤錆の砂、砂漠 = 砂金、境目 = 埃っぽいばら色）。</summary>
+        public static readonly Color SandCanyon = new Color(0.80f, 0.54f, 0.38f);
+        public static readonly Color SandBorder = new Color(0.76f, 0.58f, 0.54f);
+        /// <summary>ステージ（0 荒野 / 1 砂漠 / 2 境目、それ以外 = ロビー・外の地面 = 荒野の砂）の砂の色。</summary>
+        public static Color Sand(int stage) => stage == 1 ? SandLayer : (stage == 2 ? SandBorder : SandCanyon);
         /// <summary>地層の縞（峡谷の急斜面）：明るい帯と暗い帯。</summary>
         public static readonly Color StrataLight = new Color(0.74f, 0.46f, 0.30f);
         public static readonly Color StrataDark = new Color(0.52f, 0.30f, 0.20f);
+        /// <summary>art-r4-04：境目の切り通しの壁の縞は明暗をはっきり（段の付いた岩の重なりに見える）。</summary>
+        public static readonly Color StrataLightBorder = new Color(0.80f, 0.50f, 0.34f);
+        public static readonly Color StrataDarkBorder = new Color(0.44f, 0.24f, 0.18f);
+        public static Color StrataLightFor(int stage) => stage == 2 ? StrataLightBorder : StrataLight;
+        public static Color StrataDarkFor(int stage) => stage == 2 ? StrataDarkBorder : StrataDark;
+
+        // ---- 地面の粒（art-r4-02）：ToonTerrain のワールド座標の値ノイズで、道の外の色を少しだけ揺らす ----
+        public const float GRAIN_SCALE_M = 3.5f, GRAIN_AMP = 0.07f, MOTTLE_SCALE_M = 45f, MOTTLE_AMP = 0.05f;
+        public const float SCUFF_SCALE_M = 1.2f, SCUFF_AMP = 0.06f;
 
         /// <summary>ステージ（0 荒野 / 1 砂漠 / 2 境目、それ以外 = ロビー・外の地面）の土の色。</summary>
         public static Color Dirt(int stage) => stage == 1 ? DirtDunes : (stage == 2 ? DirtBorder : DirtCanyon);
 
         // ---- 道の踏み固めた土（art-r2-02）：ステージの土・砂と明るさで 0.15 / 0.10 以上離す（道が読める）----
         public static readonly Color TrailCanyon = new Color(0.82f, 0.63f, 0.46f);   // 明るい踏み固めた粘土（赤錆の土 0.405 → 0.66）
-        public static readonly Color TrailDunes = new Color(0.66f, 0.50f, 0.34f);    // art-r3-06：明るい踏み固めた土（砂より 0.08 以上暗い。前の 0.48 はアスファルトに見えた）
-        /// <summary>轍の色 = 道の色 × RUT_SHADE（art-r3-06）。</summary>
-        public const float RUT_SHADE = 0.85f;
+        public static readonly Color TrailDunes = new Color(0.84f, 0.70f, 0.50f);    // art-r4-05：砂 × 約 0.92 の明るさの踏み固めた砂（色の帯ではなく轍と路肩の小物で読む）
+        /// <summary>轍の色 = 道の色 × RUT_SHADE（art-r3-06 → art-r4-02：0.85 → 0.75、轍で道が読める）。</summary>
+        public const float RUT_SHADE = 0.75f;
         public static readonly Color TrailBorder = new Color(0.78f, 0.63f, 0.56f);   // 夕景の明るい道（紫の土 0.39 → 0.66、砂 0.77 とも 0.11 離す）
 
         /// <summary>ステージの道の色。</summary>
@@ -57,7 +72,9 @@ namespace HorseRace.EditorTools
         /// <summary>町の模型の地面の板（WesternTown_001_Ground）：まわりの砂の地面に合わせた暗めの砂色（明るすぎるクリーム色にしない）。</summary>
         public static readonly Color TownGroundTint = new Color(0.80f, 0.60f, 0.44f);   // art-r3-09：踏み固めた土（TrailCanyon 寄り）で砂の土手へなじむ
         /// <summary>Buildings/*.fbx（画像付き）の青白い壁を古い木の色へ寄せる掛け色（art-r2-14）。</summary>
-        public static readonly Color BuildingTextureTint = new Color(0.98f, 0.78f, 0.58f);   // art-r3-15：もう少し暖かく（遠くでクリーム色の箱に見えた）
+        public static readonly Color BuildingTextureTint = new Color(0.85f, 0.68f, 0.50f);   // art-r4-16：一番明るい成分を 0.85 まで（夕景の紫の地面の上で白く飛ばない）。art-r3-15 の (0.98,0.78,0.58) と同じ色合い
+        /// <summary>画像付きの建物の掛け色の一番明るい成分の上限（art-r4-16）。</summary>
+        public const float BUILDING_TEX_MAX = 0.85f;
 
         /// <summary>素材ごとのトゥーンの設定。</summary>
         public struct Style
@@ -134,6 +151,7 @@ namespace HorseRace.EditorTools
             float h, s, v;
             ToHSV(c, out h, out s, out v);
             if (v < 0.12f) return c;                                   // 黒に近い（窓・影）はそのまま
+            if (v > 0.85f && s < 0.25f) return Lerp(c, WeatheredWood, 0.6f);          // art-r4-16：白に近いクリーム色の壁（夕景で白く飛ぶ）
             if (s < 0.12f && v > 0.25f) return Lerp(c, WeatheredWood, 0.65f);          // 灰色
             if (h >= 180f && h <= 260f && s >= 0.08f) return Lerp(c, WeatheredWood, 0.7f);   // 青
             if (h >= 75f && h < 170f && s >= 0.15f) return Lerp(c, Sage, 0.7f);        // 緑

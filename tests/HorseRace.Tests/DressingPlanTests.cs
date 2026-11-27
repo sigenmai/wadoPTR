@@ -84,6 +84,11 @@ namespace HorseRace.Tests
             {
                 if (p.part == DressingPlan.RAIL_TRACK && p.group == "Railway") continue;   // course-r2-04：踏切の線路は道の内側の固い路盤（当たり判定なし）
                 if (p.group == "RoadIsland" || p.group == "Fork") continue;   // course-r2-03/13：道の中の岩の島・二股の岩の列（線を分ける）
+                if (p.group == "Shoulder")   // art-r4-02：路肩の小石・草は道の縁の外（平らな道の半幅より外）
+                {
+                    Assert.GreaterOrEqual(DressingPlan.RoadClearance(StageDefinitions.All[i], courses[i], null, p.position) - p.radius, HeightmapGen.RUNWAY_M - 0.01f, "路肩");
+                    continue;
+                }
                 // 道幅を考えた距離（絞りでは道に寄せてよい、広場では遠ざける：course-r1-10）
                 float d = DressingPlan.RoadClearance(StageDefinitions.All[i], courses[i], null, p.position) - DressingPlan.FootprintRadius(p);
                 bool roadside = DressingPlan.NearRoadGroups.Contains(p.group);
@@ -363,7 +368,7 @@ namespace HorseRace.Tests
             int left2 = 0, right2 = 0, before = 0;
             foreach (var p in plan)
             {
-                bool building = p.part != DressingPlan.RANCH_TOWER && (p.asset.StartsWith("Buildings/") || (p.part != null && p.part.EndsWith("_Building")));
+                bool building = p.part != DressingPlan.RANCH_TOWER && p.part != DressingPlan.TOWN_TALL_A && (p.asset.StartsWith("Buildings/") || (p.part != null && p.part.EndsWith("_Building")));
                 if (p.group != "GoalTown" || !building) continue;
                 float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
                 Assert.That(a - goals[2], Is.InRange(DressingPlan.GOAL_STREET_FROM - 10f, DressingPlan.GOAL_STREET_TO + 10f));
@@ -376,7 +381,7 @@ namespace HorseRace.Tests
             Assert.GreaterOrEqual(left2, 8); Assert.GreaterOrEqual(right2, 8);
             Assert.GreaterOrEqual(before, 8);
             Assert.Greater(Count(plan, p => p.group == "GoalTown" && p.asset == DressingPlan.HAY), 1);   // course-r3-08：ゴールの手前の見物人は見物の直線（FinishChute）のレールと旗
-            var tower = plan.Single(p => p.group == "GoalTown" && p.part == DressingPlan.RANCH_TOWER);
+            var tower = plan.Single(p => p.group == "GoalTown" && p.part == DressingPlan.TOWN_TALL_A);   // art-r4-15：境目の町の奥は給水塔（風車は切り通しの先の 1 本）
             Assert.Greater(WorldLayout.DistXZ(tower.position, course[course.Length - 1]), 20f);
         }
 

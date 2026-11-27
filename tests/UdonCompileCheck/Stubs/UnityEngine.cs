@@ -292,6 +292,7 @@ namespace UnityEngine
         public struct MinMaxCurve
         {
             public MinMaxCurve(float constant) { }
+            public MinMaxCurve(float min, float max) { }
             public static implicit operator MinMaxCurve(float constant) => new MinMaxCurve(constant);
         }
 

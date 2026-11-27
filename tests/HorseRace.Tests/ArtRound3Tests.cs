@@ -120,7 +120,7 @@ namespace HorseRace.Tests
         [Test] public void DunesTrailIsLightEarthWithHardEdge()
         {
             float t = LightingPlan.Luminance(ArtPalette.TrailDunes), sand = LightingPlan.Luminance(ArtPalette.SandLayer);
-            Assert.GreaterOrEqual(sand - t, 0.08f);
+            Assert.GreaterOrEqual(t, 0.85f * sand, "art-r4-05：砂の 85% 以上の明るさ");
             Assert.Greater(t, 0.45f, "アスファルトの暗さにしない");
             Assert.AreEqual(1f, HeightmapGen.TrailWeight(11.4f, 12f), 1e-3f);
             Assert.AreEqual(0f, HeightmapGen.TrailWeight(12.6f, 12f), 1e-3f);
@@ -131,28 +131,18 @@ namespace HorseRace.Tests
         }
 
         // ---- art-r3-07：境目の色は地形に従い、近景がある ----
-        [Test] public void MesaSandFollowsBasins()
+        /// <summary>art-r4-06 で等高線の帯（ArtRound4Tests.BorderSandIsBanded）に置き換えた。尾根・台地の上に砂の塊が無いことだけ残す。</summary>
+        [Test] public void MesaSandFollowsBasins() => MesaCrestHasLittleSand();
+
+        static void MesaCrestHasLittleSand()
         {
             var b = Stage(2);
             var sand = HeightmapGen.SandMask(129, HeightmapGen.KIND_MESA, b.def.seed, b.h);
-            int n = sand.GetLength(0);
-            float lowSand = 0f, highSand = 0f; int lowN = 0, highN = 0;
-            for (int z = 4; z < n - 4; z++)
-                for (int x = 4; x < n - 4; x++)
-                {
-                    float u = x / (float)(n - 1), v = z / (float)(n - 1);
-                    float h0 = b.Ground(u * 1000f, v * 1000f);
-                    float mean = 0f;
-                    for (int k = 0; k < 8; k++) { float a = k * Mathf.PI / 4f; mean += b.Ground(u * 1000f + Mathf.Sin(a) * 30f, v * 1000f + Mathf.Cos(a) * 30f); }
-                    mean /= 8f;
-                    if (h0 < mean - 2f) { lowSand += sand[z, x]; lowN++; }
-                    else if (h0 > mean + 2f) { highSand += sand[z, x]; highN++; }
-                }
-            float lowAvg = lowSand / Mathf.Max(1, lowN), highAvg = highSand / Mathf.Max(1, highN);
-            TestContext.WriteLine($"basin sand {lowAvg:F2} ({lowN}), crest sand {highAvg:F2} ({highN})");
-            Assert.Greater(lowAvg, 0.1f, "くぼ地に砂");
-            Assert.Less(highAvg, 0.05f, "尾根・台地の上は砂にしない");
-            Assert.Greater(lowAvg, highAvg * 3f, "砂はくぼ地に");
+            float total = 0f; int n = sand.GetLength(0);
+            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) total += sand[z, x];
+            float share = total / (n * n);
+            TestContext.WriteLine($"border sand share {share:F3}");
+            Assert.That(share, Is.InRange(0.02f, 0.35f), "帯の砂は地面の一部だけ");
         }
 
         [Test] public void MesaNearFieldDensity()
@@ -205,7 +195,7 @@ namespace HorseRace.Tests
             Assert.AreEqual(2, b.plan.Count(p => p.group == "MesaGate" && p.asset == DressingPlan.CAMPFIRE), "尾根の焚き火: " + string.Join(",", b.plan.Where(p => p.group == "MesaGate").Select(p => p.asset)));
             Assert.Greater(b.plan.Count(p => p.group == "PassFloor"), 10);
             var cum = DressingPlan.CourseArcs(b.local);
-            foreach (var p in b.plan.Where(q => q.part == DressingPlan.POST_PART && q.rollDeg == 90f))
+            foreach (var p in b.plan.Where(q => q.part == DressingPlan.POST_PART && q.rollDeg == 90f && !q.lamp))   // art-r4-14：切り通しの灯りの柱は別
                 Assert.Greater(Mathf.Abs(DressingPlan.NearestArc(b.local, cum, p.position, out float _) - pass), SetPieces.PASS_HALF_CUT, "切り通しの中に杭");
         }
 

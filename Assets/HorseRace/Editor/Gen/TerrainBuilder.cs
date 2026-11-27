@@ -27,6 +27,12 @@ namespace HorseRace.EditorTools
         public const float FILLER_STRATA_FROM = 18f;                          // art-r3-10：外の地面の斜面も地層の縞
         public const float LAYER_TILE_M = 45f;          // 12m だと斜面に細かい点の繰り返しが見えた（art-r1-14）
         public const float STRATA_BAND_M = 8f;
+        /// <summary>art-r4-04：境目の縞の帯の高さ（ToonTerrain の _StrataScale）。</summary>
+        public const float STRATA_BAND_BORDER_M = 4f;
+        /// <summary>art-r4-05：道のマスクのテクスチャの解像度（双線形、縁がのこぎりの歯にならない）。</summary>
+        public const int TRAIL_TEX_RES = 2048;
+        /// <summary>art-r4-04：法線の y がこれより小さい（約 53° より急な）面だけ縞を濃く（ToonTerrain の _StrataSlope）。</summary>
+        public const float STRATA_SLOPE_NY = 0.6f;
         public const string TERRAIN_SHADER = "HorseRace/ToonTerrain";
         public const string TERRAIN_MAT = GenUtil.GEN_MATERIALS + "/M_ToonTerrain.mat";
         /// <summary>地形のバリエーション：0〜2 = ステージ、LOBBY = ロビーと外の地面。</summary>
@@ -49,9 +55,9 @@ namespace HorseRace.EditorTools
             sb.sand = HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES, def.kind, def.seed,
                 def.kind != HeightmapGen.KIND_DUNES ? sb.heights : null);   // 荒野は谷底だけ、境目はくぼ地（art-r3-07）
             // 道の踏み固めた土（course-r1-09）：道の上の砂は消す（道の外の砂 = 遅くなる危険）
-            float[,] trailDist;
-            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm, out trailDist);
-            HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail);
+            float[,] trailDist, trailHw;
+            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm, out trailDist, out trailHw);
+            HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail, def.kind, trailDist, trailHw);   // art-r4-05：砂漠は道の縁の外を砂のまま
             // 深い砂の区間（system-r2-01）：道の上も砂（ラクダの出番）。踏み跡は薄く残す
             HeightmapGen.ApplyDeepSand(sb.sand, sb.trail, def, sb.courseLocal, StageDefinitions.SIZE);
 
@@ -129,8 +135,11 @@ namespace HorseRace.EditorTools
             {
                 Layer(dirtName, NoiseTexture(dirt, 0.05f, 11 + variant), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
                 Layer("TL_Rock", NoiseTexture(ArtPalette.RockLayer, 0.08f, 12), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
-                Layer("TL_Sand", NoiseTexture(ArtPalette.SandLayer, 0.03f, 13), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
-                Layer("TL_Strata", StrataTexture(), new Vector2(LAYER_TILE_M, STRATA_BAND_M)),
+                // art-r4-06：砂はステージの主色（荒野 = 赤錆の砂、境目 = ばら色）。ロビー・外の地面は荒野の砂
+                Layer(variant == 1 ? "TL_Sand" : (variant == 2 ? "TL_Sand_S3" : "TL_Sand_Rust"), NoiseTexture(ArtPalette.Sand(variant), 0.03f, 13), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
+                // art-r4-04：境目の縞は明暗を強く、帯の高さ 4m（切り通しの壁の段）
+                variant == 2 ? Layer("TL_Strata_S3", StrataTexture(2), new Vector2(LAYER_TILE_M, STRATA_BAND_BORDER_M))
+                             : Layer("TL_Strata", StrataTexture(0), new Vector2(LAYER_TILE_M, STRATA_BAND_M)),
             };
         }
 
@@ -187,7 +196,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>地層の縞のテクスチャ：縦（V）に明るい帯と暗い帯が不規則な幅で並ぶ 2 色（メサの岩の縞と同じ見え方）。</summary>
-        static Texture2D StrataTexture()
+        static Texture2D StrataTexture(int stage)
         {
             const int W = 16, H = 64;
             var tex = new Texture2D(W, H, TextureFormat.RGBA32, true);
@@ -196,7 +205,7 @@ namespace HorseRace.EditorTools
             int y0 = 0;
             for (int b = 0; b < bands.Length; b++)
             {
-                Color c = b % 2 == 0 ? ArtPalette.StrataLight : ArtPalette.StrataDark;
+                Color c = b % 2 == 0 ? ArtPalette.StrataLightFor(stage) : ArtPalette.StrataDarkFor(stage);
                 for (int y = y0; y < Mathf.Min(H, y0 + bands[b]); y++)
                     for (int x = 0; x < W; x++) px[y * W + x] = c;
                 y0 += bands[b];
@@ -217,24 +226,40 @@ namespace HorseRace.EditorTools
         public static Texture2D TrailTexture(string name, float[,] trail, float[,] dist = null, float[,] lines = null)
         {
             int n = trail.GetLength(0), m = trail.GetLength(1);
-            var tex = new Texture2D(m, n, TextureFormat.RGBA32, false);
-            var px = new Color[n * m];
-            for (int z = 0; z < n; z++)
-                for (int x = 0; x < m; x++)
+            // art-r4-05：2048 に双線形で引き伸ばす（512 の 1 マス 2m の段が道の縁ののこぎりの歯に見えた）
+            int R = TRAIL_TEX_RES;
+            var tex = new Texture2D(R, R, TextureFormat.RGBA32, false);
+            var px = new Color[R * R];
+            for (int z = 0; z < R; z++)
+                for (int x = 0; x < R; x++)
                 {
-                    float v = trail[z, x];
-                    float g = dist != null ? Mathf.Clamp01(dist[z, x] / HeightmapGen.TRAIL_DIST_MAX_M) : 1f;
-                    float l = lines != null ? lines[z, x] : 0f;   // B = スタート・ゴールの線（course-r3-14）
-                    px[z * m + x] = new Color(v, g, l, 1f);
+                    float u = x / (float)(R - 1) * (m - 1), w = z / (float)(R - 1) * (n - 1);
+                    float v = Bilinear(trail, u, w);
+                    float g = dist != null ? Mathf.Clamp01(Bilinear(dist, u, w, HeightmapGen.TRAIL_DIST_MAX_M) / HeightmapGen.TRAIL_DIST_MAX_M) : 1f;
+                    float l = lines != null ? Bilinear(lines, u, w) : 0f;   // B = スタート・ゴールの線（course-r3-14）
+                    px[z * R + x] = new Color(v, g, l, 1f);
                 }
             tex.SetPixels(px);
             tex.Apply();
             tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
             GenUtil.EnsureFolder(GenUtil.GEN_TERRAIN);
             string path = GenUtil.GEN_TERRAIN + "/" + name + "_Trail.asset";
             if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null) AssetDatabase.DeleteAsset(path);
             AssetDatabase.CreateAsset(tex, path);
             return tex;
+        }
+
+        /// <summary>格子 a（[z, x]）の (x, z) の双線形補間。cap ≥ 0 なら値をその上限で切ってから混ぜる（範囲の外の float.MaxValue を混ぜない）。</summary>
+        static float Bilinear(float[,] a, float x, float z, float cap = -1f)
+        {
+            int n = a.GetLength(0), m = a.GetLength(1);
+            int x0 = Mathf.Clamp((int)x, 0, m - 2), z0 = Mathf.Clamp((int)z, 0, n - 2);
+            float tx = Mathf.Clamp01(x - x0), tz = Mathf.Clamp01(z - z0);
+            float p = a[z0, x0], q = a[z0, x0 + 1], r = a[z0 + 1, x0], s = a[z0 + 1, x0 + 1];
+            if (cap >= 0f) { p = Mathf.Min(p, cap); q = Mathf.Min(q, cap); r = Mathf.Min(r, cap); s = Mathf.Min(s, cap); }
+            float top = p + (q - p) * tx, bot = r + (s - r) * tx;
+            return top + (bot - top) * tz;
         }
 
         /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>
@@ -253,6 +278,9 @@ namespace HorseRace.EditorTools
             m.SetFloat("_RutOffset", HeightmapGen.RUT_OFFSET_M / HeightmapGen.TRAIL_DIST_MAX_M);
             m.SetFloat("_RutWidth", HeightmapGen.RUT_WIDTH_M / HeightmapGen.TRAIL_DIST_MAX_M);
             m.SetFloat("_RutDarken", 1f - ArtPalette.RUT_SHADE);
+            if (stage == 2) m.SetFloat("_StrataScale", STRATA_BAND_BORDER_M);   // art-r4-04
+            m.SetFloat("_StrataSlope", stage == 1 ? 0f : STRATA_SLOPE_NY);       // art-r4-04：急な面（n.y < 0.6）は地層の縞を濃く（砂丘の崩れ面は除く）
+            // art-r4-12：岩の橋の背は線の明るさ（道の色 × _LineBoost）で溝の底より明るく（SetPieceBuilder が B に塗る）
             EditorUtility.SetDirty(m);
             t.materialTemplate = m;
         }
@@ -276,6 +304,14 @@ namespace HorseRace.EditorTools
             m.SetFloat("_ShadowLightFloor", LightingPlan.SHADOW_LIGHT_FLOOR);
             m.SetFloat("_StrataScale", STRATA_BAND_M);
             m.SetFloat("_StrataTile", LAYER_TILE_M);
+            // art-r4-02：道の外の粒（3.5m）とまだら（45m）、道の上の蹄の擦れ（1.2m）
+            m.SetFloat("_GrainScale", ArtPalette.GRAIN_SCALE_M);
+            m.SetFloat("_GrainAmp", ArtPalette.GRAIN_AMP);
+            m.SetFloat("_MottleScale", ArtPalette.MOTTLE_SCALE_M);
+            m.SetFloat("_MottleAmp", ArtPalette.MOTTLE_AMP);
+            m.SetFloat("_ScuffScale", ArtPalette.SCUFF_SCALE_M);
+            m.SetFloat("_ScuffAmp", ArtPalette.SCUFF_AMP);
+            m.SetFloat("_StrataSlope", 0f);   // 縞の傾きの強調は荒野・境目のマテリアルだけ（下の ApplyToonMaterial(t, trail, …)）
             EditorUtility.SetDirty(m);
             t.materialTemplate = m;
             t.drawInstanced = false;      // 自前の地形シェーダーはインスタンス描画に対応していない

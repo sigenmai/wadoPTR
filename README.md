@@ -28,7 +28,7 @@
 |---|---|
 | `Assets/HorseRace/` | Unity プロジェクトにコピーするもの。`Scripts/`（UdonSharp のランタイムコード）、`Editor/`（Build World・Validate などのメニュー）、`Models/`（FBX・テクスチャ）、`Fonts/`（IPA ゴシック）、`Shaders/` |
 | `tools/blender/` | モデルのリグ・アニメーション・スタイライズ用 Blender スクリプト（下の「Blender のスクリプト」） |
-| `tools/preview/` | ワールドを Unity なしで書き出してプレビューするツール（`cd tools/preview && dotnet run -- <exportフォルダ>` → `blender -b --python tools/preview/preview_world.py -- <exportフォルダ> Assets/HorseRace <出力フォルダ>`。環境変数 `SHOTS=5_rock,7_rider_1` で名前がその文字で始まるショットだけ、`LOBBY_ONLY=1` でロビーだけ描く、`DEBUG_SPOTS=1` で遊びに使う物の位置の円柱も描く（ロビーは LobbyBuilder と同じ本物の素材）。トゥーンの光・霧は Unity でしか確かめられない） |
+| `tools/preview/` | ワールドを Unity なしで書き出してプレビューするツール（`cd tools/preview && dotnet run -- <exportフォルダ>` → `blender -b --python tools/preview/preview_world.py -- <exportフォルダ> Assets/HorseRace <出力フォルダ>`。環境変数 `SHOTS=5_rock,7_rider_1` で名前がその文字で始まるショットだけ、`LOBBY_ONLY=1` でロビーだけ描く、`DEBUG_SPOTS=1` で遊びに使う物の位置の円柱も描く（ロビーは LobbyBuilder と同じ本物の素材）。コースの線・CP の柱・近道の帯（下見の目印）は空撮（`00_`・`1_`〜`3_`）だけに描き、騎手の目・近景・ロビーでは隠す（`NO_GUIDE=1` でどこにも描かない）。実行時の CP は見えない Is Trigger の箱だけ（MeshRenderer なし）なので、目印はゲームには出ない（art-r4-03）。トゥーンの光・霧は Unity でしか確かめられない） |
 | `tests/HorseRace.Tests/` | 計算ロジック（順位・速度補正・遺物・地形など）の単体テスト（`dotnet test tests/HorseRace.Tests`） |
 | `tests/UdonCompileCheck/`, `tests/EditorCompileCheck/` | Unity 無しで型検査するためのプロジェクト（手書きスタブに対して `dotnet build`） |
 | `docs/` | 手順書・チェックリスト・設計・計画・参考資料 |

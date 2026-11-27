@@ -233,9 +233,9 @@ namespace HorseRace.Tests
             var b = Stage(2);
             var wall = b.plan.Where(p => p.group == "WallFace").ToList();
             TestContext.WriteLine($"wall face pieces: {wall.Count}");
-            Assert.That(wall.Count, Is.InRange(80, 200));
+            Assert.That(wall.Count, Is.InRange(80, 320));   // art-r4-04：6m ごと
             Assert.IsTrue(wall.All(p => !p.collider), "当たりは柵");
-            Assert.Greater(wall.Count(p => p.asset.StartsWith("ThirdParty/RockGray/")), 10);
+            Assert.AreEqual(0, wall.Count(p => p.asset.StartsWith("ThirdParty/RockGray/")), "art-r4-04：浮いて見えた RockGray はやめた");
             Assert.Greater(wall.Count(p => p.asset == DressingPlan.MESAB), 10);
             Assert.Greater(wall.Count(p => p.asset == DressingPlan.RSTYL), 5, "がれき");
             Assert.IsFalse(wall.Any(p => p.asset == DressingPlan.CLIFFS), "崖の板は近くに置かない（art-r3-05）");

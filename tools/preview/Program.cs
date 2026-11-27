@@ -141,8 +141,12 @@ class P {
       var sand=HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES,d.kind,d.seed,d.kind!=HeightmapGen.KIND_DUNES?h:null);   // 境目はくぼ地（art-r3-07）
       int n=h.GetLength(0);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"h{d.index}.bin")))){ bw.Write(n); for(int z=0;z<n;z++)for(int x=0;x<n;x++)bw.Write(h[z,x]); }
-      var trail=HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES,d,norm);   // 道の踏み固めた土（art-r2-02）
+      // 道の踏み固めた土（art-r2-02）。art-r4-05：TerrainBuilder と同じく道の上の砂を消し（砂漠は縁の外を砂のまま）、深い砂を足し、轍の距離（G）も書き出す
+      var trail=HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES,d,norm,out float[,] tdist,out float[,] thw);
+      HeightmapGen.ClearSandOnTrail(sand,trail,d.kind,tdist,thw);
+      HeightmapGen.ApplyDeepSand(sand,trail,d,local,StageDefinitions.SIZE);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"t{d.index}.bin")))){ int trn=trail.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(trail[z,x]); }
+      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"g{d.index}.bin")))){ int trn=tdist.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(Mathf.Clamp01(tdist[z,x]/HeightmapGen.TRAIL_DIST_MAX_M)); }
       int m=sand.GetLength(0);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"s{d.index}.bin")))){ bw.Write(m); for(int z=0;z<m;z++)for(int x=0;x<m;x++)bw.Write(sand[z,x]); }
       var ch=SetPieces.WithHeights(local,h);
@@ -171,7 +175,7 @@ class P {
       string pass= ps<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,ps))+",\"t\":"+V(WorldLayout.TangentAtArc(local,ps))+"}";
       string lm="null"; if(DressingPlan.LandmarkSpot(d,local,goal,h,out Vector3 lmp,out float lma)) lm=V(GP(h,lmp));
       var li=LightingPlan.ForStage(d.index);
-      js.Append("{\"index\":"+d.index+",\"trail\":"+C(ArtPalette.Trail(d.index))+",\"dirt\":"+C(ArtPalette.Dirt(d.index))+",\"fog\":"+C(li.fogColor)+",\"sun\":"+V(li.sunEuler)+",\"sunColor\":"+C(li.sunColor)+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"goalK\":"+goalK+",\"scEntryK\":"+scEntryK+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"pass\":"+pass+",\"landmark\":"+lm+",\"shortcut\":"+sc+",\"dress\":["+sbD+"],\"extras\":["+Extras(d,local,h0,h,goal,plan)+"]}");
+      js.Append("{\"index\":"+d.index+",\"trail\":"+C(ArtPalette.Trail(d.index))+",\"dirt\":"+C(ArtPalette.Dirt(d.index))+",\"sand\":"+C(ArtPalette.Sand(d.index))+",\"strata\":["+C(ArtPalette.StrataLightFor(d.index))+","+C(ArtPalette.StrataDarkFor(d.index))+"]"+",\"sky\":"+C(LightingPlan.SkyTint(d.index))+",\"rutShade\":"+F(ArtPalette.RUT_SHADE)+",\"rutOffset\":"+F(HeightmapGen.RUT_OFFSET_M)+",\"rutWidth\":"+F(HeightmapGen.RUT_WIDTH_M)+",\"trailDistMax\":"+F(HeightmapGen.TRAIL_DIST_MAX_M)+",\"fog\":"+C(li.fogColor)+",\"sun\":"+V(li.sunEuler)+",\"sunColor\":"+C(li.sunColor)+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"goalK\":"+goalK+",\"scEntryK\":"+scEntryK+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"pass\":"+pass+",\"landmark\":"+lm+",\"shortcut\":"+sc+",\"dress\":["+sbD+"],\"extras\":["+Extras(d,local,h0,h,goal,plan)+"]}");
       Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, dress {dp.Count}");
     }
     js.Append("],\"lobby\":[");
