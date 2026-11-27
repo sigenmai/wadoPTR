@@ -237,7 +237,7 @@ for st in W["stages"]:
 
 # ロビー（町）：柵の外は外へ向かって上り（0.6 の勾配で最大 12m）、外周 30m は尾根
 lob = Vector((0, -820, 0))
-FR = (-172.0, -112.0, 172.0, 232.0); GR = (-210.0, -150.0, 210.0, 270.0)
+FR = tuple(W['fenceRect']); GR = tuple(W['groundRect'])
 def lobby_h(x, z):
     dx = max(FR[0] - x, 0, x - FR[2]); dz = max(FR[1] - z, 0, z - FR[3])
     d = math.hypot(dx, dz)
@@ -258,7 +258,16 @@ me = bpy.data.meshes.new("LobbyGround"); me.from_pydata(verts, [], faces)
 og = bpy.data.objects.new("LobbyGround", me); sc.collection.objects.link(og)
 og.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
 for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
-    o.location = lob + Vector((0, 0, -13.7))
+    o.location = lob + Vector((0, 107, -13.7))   # 町の南端をロビー中心 +25m（LobbyBuilder と同じ）
+PC = W['practice']
+bpy.ops.mesh.primitive_cylinder_add(radius=PC[2], depth=0.1, location=(lob.x + PC[0], lob.y + PC[1], 0.05))
+bpy.context.active_object.data.materials.append(mat_color('Practice', srgb2lin((0.72, 0.56, 0.38))))
+HAY = mat_color('Hay', srgb2lin((0.85, 0.72, 0.38)))
+for k in range(14):
+    a = k / 14 * 2 * math.pi
+    box('Hay', Vector((lob.x + PC[0] + 24 * math.cos(a), lob.y + PC[1] + 24 * math.sin(a), 0.5)), (1.6, 1.0, 1.0), HAY, a)
+box('Ramp', Vector((lob.x + PC[0] + 14, lob.y + PC[1], 0.6)), (6, 4, 1.2), FENCE if 'FENCE' in dir() else HAY, 0)
+
 FENCE = mat_color("Fence", srgb2lin((0.45, 0.29, 0.18)))
 for a_, b_ in W.get("fence", []):
     A_ = Vector((lob.x + a_[0], lob.y + a_[2], 0)); B_ = Vector((lob.x + b_[0], lob.y + b_[2], 0))
@@ -314,8 +323,13 @@ def shot(name, loc, target, lens=35):
 
 world.mist_settings.start = 3000
 if os.environ.get("LOBBY_ONLY"):
-    for name, eye, tgt in (("9_lobby_eye_N", (0, -825, 1.7), (0, -560, 3)), ("9_lobby_eye_E", (60, -790, 1.7), (400, -790, 3)), ("9_lobby_eye_W", (-60, -790, 1.7), (-400, -790, 3)), ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4)), ("4_lobby_town", (140, -1000, 70), (0, -820, 5))):
-        shot(name, eye, tgt, 24 if name.startswith("9") else 30)
+    for name, eye, tgt, lens in (("L1_aerial", (200, -1030, 170), (25, -735, 0), 24),
+                                 ("L2_top", (26, -750, 560), (26, -749.9, 0), 30),
+                                 ("L3_plaza_to_town", (0, -845, 1.7), (0, -600, 8), 24),
+                                 ("L4_plaza_to_practice", (10, -830, 1.7), (160, -834, 2), 24),
+                                 ("L5_practice_outward", (85, -835, 3.2), (320, -900, 4), 24),
+                                 ("L6_west_outward", (-48, -760, 1.7), (-400, -760, 3), 24)):
+        shot(name, eye, tgt, lens)
     raise SystemExit
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
 world.mist_settings.start = 350

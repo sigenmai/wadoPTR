@@ -31,12 +31,13 @@ class P {
       Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, dress {dp.Count}");
     }
     js.Append("],\"lobby\":[");
-    var lp=DressingPlan.ForLobby(new Vector2(-41f,-82f),new Vector2(41f,82f),new System.Collections.Generic.List<Vector4>(),4242);
+    var lp=DressingPlan.ForLobby(new Vector2(-41f,25f),new Vector2(41f,189f),new System.Collections.Generic.List<Vector4>{ new Vector4(0f,0f,-2f,24f), new Vector4(-50f,0f,-10f,28f), new Vector4(30f,0f,-30f,20f), new Vector4(-11f,0f,-45f,23f), new Vector4(LobbyLayout.PRACTICE_CENTER.x,0f,LobbyLayout.PRACTICE_CENTER.z,LobbyLayout.PRACTICE_RADIUS_M+4f), new Vector4(-44f,0f,-53f,8f), new Vector4(0f,0f,22f,14f) },4242);
     var sbL=new StringBuilder(); foreach(var q in lp){ if(sbL.Length>0)sbL.Append(','); sbL.Append(Pl(q)); } js.Append(sbL);
     js.Append("],\"backdrop\":[");
     var bp=DressingPlan.Backdrop(7);
     var sbB=new StringBuilder(); foreach(var q in bp){ if(sbB.Length>0)sbB.Append(','); sbB.Append(Pl(q)); } js.Append(sbB);
-    js.Append("],\"fence\":[");
+    js.Append("],\"fenceRect\":["+F(LobbyLayout.FENCE_RECT.x)+","+F(LobbyLayout.FENCE_RECT.y)+","+F(LobbyLayout.FENCE_RECT.z)+","+F(LobbyLayout.FENCE_RECT.w)+"],\"groundRect\":["+F(LobbyLayout.GROUND_RECT.x)+","+F(LobbyLayout.GROUND_RECT.y)+","+F(LobbyLayout.GROUND_RECT.z)+","+F(LobbyLayout.GROUND_RECT.w)+"],\"practice\":["+F(LobbyLayout.PRACTICE_CENTER.x)+","+F(LobbyLayout.PRACTICE_CENTER.z)+","+F(LobbyLayout.PRACTICE_RADIUS_M)+"]");
+    js.Append(",\"fence\":[");
     var segs=LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT,LobbyLayout.Gates,LobbyLayout.FENCE_PIECE_M);
     var sbF=new StringBuilder(); foreach(var sg in segs){ if(sbF.Length>0)sbF.Append(','); sbF.Append("["+V(sg[0])+","+V(sg[1])+"]"); } js.Append(sbF);
     js.Append("],\"belt\":[");
