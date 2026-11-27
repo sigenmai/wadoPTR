@@ -50,18 +50,27 @@ class P {
       {float wa=br-SetPieces.BRIDGE_WARN_BEFORE; Vector3 wt=WorldLayout.TangentAtArc(local,wa); SignP(l,GP(h,WorldLayout.PointAtArc(local,wa)+WorldLayout.RightOf(wt)*(hw0(wa)+CourseMarks.CORNER_BOARD_OUT_M)),WorldLayout.YawDeg(wt));}
       for(int s=-1;s<=1;s+=2) for(int e=-1;e<=1;e+=2){ int k=(s+1)+(e+1)/2; float sc0=0.32f+0.04f*k; Vector3 sp=c+r*(s*(SetPieces.SPINE_HALF+3f))+t*(e*3.5f); float mn=float.MaxValue,mx=float.MinValue;
         for(int q=0;q<5;q++){ float an=(45f+q*90f)*Mathf.Deg2Rad; Vector3 pp=q==4?sp:sp+new Vector3(Mathf.Sin(an)*3.5f,0f,Mathf.Cos(an)*3.5f); float gy=G(h,pp.x,pp.z); mn=Mathf.Min(mn,gy); mx=Mathf.Max(mx,gy); }
-        l.Add(X(DR,"DesertRocks_0"+(1+k%3),new Vector3(sp.x,mn-Mathf.Min(mx-mn,4f)-0.1f,sp.z),yaw+(s>0?0f:180f)+k*23f,sc0,0f,new Vector3(sc0,sc0*1.5f,sc0))); } }   // art-r4-12：溝の口の縁へ下ろす
+        string pp0="DesertRocks_0"+(1+k%3); float hk=(k%3==0?12.8f:(k%3==1?12.4f:10.8f))*sc0*1.5f; float by=Mathf.Min(mn-Mathf.Min(mx-mn,4f)-0.1f,c.y-SetPieces.BRIDGE_CLEAR_BELOW_M-hk);   // art-r5-08：てっぺんは背より 0.6m 低く
+        l.Add(X(DR,pp0,new Vector3(sp.x,by,sp.z),yaw+(s>0?0f:180f)+k*23f,sc0,0f,new Vector3(sc0,sc0*1.5f,sc0))); }   // art-r4-12：溝の口の縁へ下ろす
+      // art-r5-08：背の両端の門（ゴールの門 × 0.8：立てた丸太の柱・2 段の横木・紙の幕）
+      {float kk=SetPieces.BRIDGE_GATE_SCALE, half2=SetPieces.TRENCH_HALF_WIDTH+SetPieces.TRENCH_BLEND+1.5f, la2=SetPieces.SPINE_HALF+0.4f;
+       for(int e=-1;e<=1;e+=2){ Vector3 lg=GP(h,c+t*(e*half2)-r*la2), rg=GP(h,c+t*(e*half2)+r*la2); l.Add(Post(lg,yaw,CourseMarks.GATE_POST_H*kk,CourseMarks.GATE_POST_THICK*kk)); l.Add(Post(rg,yaw,CourseMarks.GATE_POST_H*kk,CourseMarks.GATE_POST_THICK*kk));
+         float y0=Mathf.Max(lg.y,rg.y); for(int tier=0;tier<CourseMarks.GATE_BEAM_TIERS;tier++){ Vector3 mid=(lg+rg)*0.5f; mid.y=y0+CourseMarks.GATE_BEAM_Y*kk-tier*CourseMarks.GATE_BEAM_GAP*kk; l.Add(X(WL,"WoodLogs_01",mid,yaw,1f,0f,CourseMarks.PostScale(WorldLayout.DistXZ(lg,rg)+0.6f,CourseMarks.GATE_BEAM_THICK*kk))); }
+         Vector3 bm=(lg+rg)*0.5f; bm.y=y0+CourseMarks.GATE_BANNER_Y*kk; l.Add(Sheet(bm-t*0.05f,yaw,4f*kk,1.3f*kk)); } } }
     // 踏み切り（地形）：杭の列・干し草・骨
     float jp=SetPieces.JumpArc(d,goal);
     if(jp>=0f){ Vector3 t=WorldLayout.TangentAtArc(local,jp),r=WorldLayout.RightOf(t),lp=GP(h,WorldLayout.PointAtArc(local,jp)); float yaw=WorldLayout.YawDeg(t);
       for(int s=-1;s<=1;s+=2){ for(float a=-SetPieces.JUMP_LENGTH;a<=0f;a+=SetPieces.JUMP_LAMP_STEP_M) l.Add(Post(GP(h,lp+t*a+r*(s*(SetPieces.KICKER_HALF_WIDTH+1.5f))),yaw,DressingPlan.LAMP_POST_H,DressingPlan.LAMP_POST_THICK)); Vector3 hp=GP(h,lp+r*(s*9f)-t*0.5f); l.Add(X(HB,"HayBales_01",hp,yaw,1f)); l.Add(X(HB,"HayBales_01",hp+Vector3.up*1.55f,yaw+40f,0.9f));
         SignP(l,GP(h,lp+r*(s*(hw0(jp)+1.5f))-t*1f),yaw,1.3f); }   // course-r3-13：青緑の街灯の対・縁の「跳べ ↑」
       {float wa=jp-SetPieces.JUMP_LENGTH-SetPieces.JUMP_SIGN_BEFORE_M; Vector3 wt=WorldLayout.TangentAtArc(local,wa); SignP(l,GP(h,WorldLayout.PointAtArc(local,wa)+WorldLayout.RightOf(wt)*(hw0(wa)+CourseMarks.CORNER_BOARD_OUT_M)),WorldLayout.YawDeg(wt),1.2f);}
+      foreach(var hv in SetPieces.JumpFunnel()) l.Add(X(HB,"HayBales_01",GP(h,lp+t*hv.x+r*hv.y)-Vector3.up*0.05f,yaw+hv.x*13f,0.85f));   // art-r5-09：干し草の漏斗
+      for(int s=-1;s<=1;s+=2){ Vector3 fp=GP(h,lp+r*(s*(SetPieces.KICKER_CORE_M+1f))-t*0.6f); l.Add(Post(fp,yaw,SetPieces.JUMP_FLAG_POST_H,0.2f)); l.Add(Sheet(fp+Vector3.up*(SetPieces.JUMP_FLAG_POST_H-1.75f)-r*(s*0.6f)-t*0.15f,yaw,1.1f,1.3f)); }   // 縁の青緑の旗（下見は紙の色）
       l.Add(X("SkeletonHorse.fbx",null,GP(h,lp+t*22f+r*18f)-Vector3.up*0.15f,yaw+30f,1f,85f));
       for(int i=0;i<3;i++) l.Add(X(DP,i==0?"DesertProps_07":"DesertProps_08",GP(h,lp+t*(16f+i*6f)-r*(16f+i)),yaw+i*70f,1.1f)); }
     // 近道の入口の街灯と札の柱
     if(sc!=null){ Vector3 dir=new Vector3(sc.b.x-sc.a.x,0f,sc.b.z-sc.a.z).normalized,r=WorldLayout.RightOf(dir); Vector3 e0=Vector3.Lerp(sc.a,sc.b,sc.f0); float yaw=WorldLayout.YawDeg(dir);
-      for(int s=-1;s<=1;s+=2) l.Add(Post(GP(h,e0+r*(s*(SetPieces.SHORTCUT_HALF_WIDTH+1.5f))),yaw,DressingPlan.LAMP_POST_H,DressingPlan.LAMP_POST_THICK));
+      for(int s=-1;s<=1;s+=2) l.Add(X("Packs/FarmProps/FarmProps.fbx","FarmProps_02",GP(h,e0+r*(s*(SetPieces.SHORTCUT_HALF_WIDTH+1.5f))),yaw+(s>0?180f:0f),SetPieces.SHORTCUT_LAMP_SCALE));   // art-r5-09：町の街灯の対
+      {Vector3 fp=GP(h,e0-r*(SetPieces.SHORTCUT_HALF_WIDTH+3.5f)-dir*2f); l.Add(Post(fp,yaw,SetPieces.SHORTCUT_FLAG_POST_H,0.2f)); l.Add(Sheet(fp+Vector3.up*(SetPieces.SHORTCUT_FLAG_POST_H-1.6f)+r*0.55f-dir*0.15f,yaw,1.0f,1.2f)); l.Add(X("Packs/Campfire/Campfire.fbx","Campfire_01",GP(h,e0-r*(SetPieces.SHORTCUT_HALF_WIDTH+7f)-dir*4f),30f,1.1f)); }
       l.Add(X(WL,"WoodLogs_01",GP(h,e0+r*(SetPieces.SHORTCUT_HALF_WIDTH+3.5f)-dir*2f)+Vector3.up*1.3f,yaw,1f,90f,new Vector3(2.6f/1.5f,1.1f,1.1f))); }
     // 急カーブの札（course-r2-08）・区間の門の柱（course-r2-15）：丸太の柱（立てた WoodLogs_01）
     // course-r3-07/11：札の紙も書き出す（70・35m は柵の線の上に 1.8 倍）、頂点の干し草と街灯、外側の干し草の壁（2 段）

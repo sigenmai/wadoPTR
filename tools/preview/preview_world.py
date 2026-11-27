@@ -517,9 +517,22 @@ mix.inputs[2].default_value = (*srgb2lin((0.86, 0.74, 0.58)), 1)
 nt.links.new(rl.outputs["Mist"], mix.inputs[0]); nt.links.new(rl.outputs["Image"], mix.inputs[1])
 # art-r4-10：空は霧と別の色（Unity の Skybox/Procedural の _SkyTint）。背景は透明で描いて、霧をかけた絵の後ろに空の色を敷く
 sc.render.film_transparent = True
-sky_rgb = nt.nodes.new("CompositorNodeRGB"); aover = nt.nodes.new("CompositorNodeAlphaOver")
+# art-r5-14：空は 2 色のグラデーション（地平線 = 霧の色 → 天頂 = 空の色、Skybox/Procedural の地平線の帯の近似）。撮るごとに画像を作り直す
+SKY_IMG = bpy.data.images.new("SkyGradient", 1600, 900, float_buffer=True)
+sky_rgb = nt.nodes.new("CompositorNodeImage"); sky_rgb.image = SKY_IMG
+aover = nt.nodes.new("CompositorNodeAlphaOver")
 mul_a = nt.nodes.new("CompositorNodeSetAlpha"); nt.links.new(mix.outputs[0], mul_a.inputs[0]); nt.links.new(rl.outputs["Alpha"], mul_a.inputs[1])
 nt.links.new(sky_rgb.outputs[0], aover.inputs[1]); nt.links.new(mul_a.outputs[0], aover.inputs[2]); nt.links.new(aover.outputs[0], comp.inputs[0])
+def sky_gradient(zenith, horizon, pitch_deg, vfov_deg):
+    """行ごとの見上げ角で地平線の色から天頂の色へ（地平線から 30° で天頂の色）。色は sRGB、画像は線形。"""
+    H_, W_ = 900, 1600
+    ys = np.arange(H_, dtype=np.float32)
+    elev = pitch_deg + (ys / (H_ - 1) - 0.5) * vfov_deg   # Blender の画像は下の行から
+    t = np.clip(elev / 30.0, 0.0, 1.0)[:, None]
+    z = np.array(srgb2lin(list(zenith)), np.float32)[None, :]; h_ = np.array(srgb2lin(list(horizon)), np.float32)[None, :]
+    rows = h_ * (1 - t) + z * t
+    px = np.ones((H_, W_, 4), np.float32); px[..., :3] = rows[:, None, :]
+    SKY_IMG.pixels.foreach_set(px.ravel())
 
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 sc.collection.objects.link(cam)
@@ -547,12 +560,15 @@ def shot(name, loc, target, lens=35):
     fc = srgb2lin(fog_at(loc[0], loc[1]))
     world.node_tree.nodes["Background"].inputs[0].default_value = (*fc, 1)
     mix.inputs[2].default_value = (*fc, 1)
-    # 空：天頂の色を霧の色へ 35% 寄せた（地平線の霞を含めた見た目の平均）
     sk = sky_at(loc[0], loc[1]); fo = fog_at(loc[0], loc[1])
-    sky_rgb.outputs[0].default_value = (*srgb2lin([sk[k] * 0.65 + fo[k] * 0.35 for k in range(3)]), 1)
     cam.location = Vector(loc)
     cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
+    # art-r5-14：空の 2 色のグラデーション（地平線 = 霧の色、天頂 = 空の色）
+    _dv = Vector(target) - cam.location
+    _pitch = math.degrees(math.atan2(_dv.z, max(1e-3, math.hypot(_dv.x, _dv.y))))
+    _vfov = math.degrees(2 * math.atan(cam.data.sensor_width * 900 / 1600 / (2 * lens)))
+    sky_gradient(sk, fo, _pitch, _vfov)
     sc.render.filepath = os.path.join(out, name + ".png")
     bpy.ops.render.render(write_still=True)
     print("SHOT", name)

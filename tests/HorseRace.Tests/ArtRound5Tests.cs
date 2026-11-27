@@ -260,5 +260,55 @@ namespace HorseRace.Tests
             Assert.AreEqual(0.13f, ArtPalette.GRAIN_AMP, 1e-4f);
             Assert.AreEqual(0.11f, ArtPalette.SCUFF_AMP, 1e-4f);
         }
+
+        // ---- art-r5-08 / 09：岩の橋の門・踏み切りの漏斗と旗・近道の入口 ----
+        [Test] public void SetPieceEntriesAreFramed()
+        {
+            Assert.LessOrEqual(SetPieces.TRENCH_LIGHT_RANGE, 8f);
+            Assert.LessOrEqual(SetPieces.TRENCH_LIGHT_INTENSITY, 1f);
+            Assert.Greater(SetPieces.TrenchLightColor.r, SetPieces.TrenchLightColor.g * 2f, "危険は赤（黄白くしない）");
+            Assert.AreEqual(0.8f, SetPieces.BRIDGE_GATE_SCALE, 1e-4f);
+            var f = SetPieces.JumpFunnel();
+            Assert.Greater(f.Count, 10);
+            float first = f.Min(v => v.x), last = f.Max(v => v.x);
+            Assert.AreEqual(-SetPieces.JUMP_FUNNEL_END_BEFORE_M, last, 0.01f, "縁の 25m 手前で漏斗が閉じる");
+            float wideLat = f.Where(v => v.x == first).Max(v => Mathf.Abs(v.y)), narrowLat = f.Where(v => v.x == last).Max(v => Mathf.Abs(v.y));
+            Assert.Greater(wideLat, narrowLat + 3f, "2 列が寄る");
+            Assert.LessOrEqual(narrowLat, SetPieces.KICKER_CORE_M, "跳ぶ線の幅へ");
+            Assert.AreEqual(15f, SetPieces.SHORTCUT_SMOKE_M, 1e-4f);
+            ArtPalette.ToHSV(new Color(0.2f, 0.9f, 0.85f), out float h, out _, out _);
+            Assert.That(h, Is.InRange(160f, 190f), "加速 = 青緑");
+        }
+
+        // ---- art-r5-15：遠くのごま塩を減らし、カーブの外に大きなシルエット ----
+        [TestCase(0)] [TestCase(2)]
+        public void FewerFarPebblesMoreCornerMasses(int i)
+        {
+            var b = Stage(i);
+            int farSmall = b.plan.Count(p => DressingPlan.IsSmallRock(p) && !DressingPlan.LineGroups.Contains(p.group) && WorldLayout.DistToPolylineXZ(p.position, b.local) >= DressingPlan.FAR_PEBBLE_ROAD_M);
+            int masses = b.plan.Count(p => p.group == "CornerSilhouette" && p.height >= DressingPlan.CORNER_CLUSTER_H_MIN - 0.01f && p.height <= DressingPlan.CORNER_CLUSTER_H_MAX + 0.01f);
+            TestContext.WriteLine($"stage {i}: far small rocks {farSmall}, corner masses {masses}");
+            Assert.Greater(masses, 3);
+            Assert.AreEqual(1.4f, CourseMarks.SECTOR_POST_THICK_K, 1e-4f);
+        }
+
+        // ---- art-r5-14：補色の空と地平線の帯 ----
+        [Test] public void SkiesHaveHorizonBands()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                var l = LightingPlan.ForStage(i);
+                ArtPalette.ToHSV(l.skyTint, out float h, out float sat, out _);
+                Assert.Greater(sat, 0.5f, "昼の空は彩度の高い青");
+                Assert.That(h, Is.InRange(200f, 230f));
+                Assert.AreEqual(0.6f, l.atmosphere, 1e-4f);
+            }
+            var d = LightingPlan.ForStage(2);
+            Assert.AreEqual(1.6f, d.atmosphere, 1e-4f);
+            Assert.AreEqual(0.12f, d.sunSize, 1e-4f);
+            Assert.Greater(d.fogColor.r, d.fogColor.b + 0.2f, "夕景の地平線は暖かい");
+            Assert.Greater(d.skyTint.b, d.skyTint.g, "天頂は紫");
+            Assert.AreEqual(d.fogColor, LightingPlan.SkyHorizon(2));
+        }
     }
 }

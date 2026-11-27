@@ -72,6 +72,11 @@ namespace HorseRace.EditorTools
             public float atmosphere, sunSize, exposure;
         }
 
+        /// <summary>art-r5-14：昼の空（荒野・砂漠・ロビー）と夕景の空（境目）の天頂の色。</summary>
+        public static readonly Color SkyClear = new Color(0.36f, 0.56f, 0.86f), SkyDusk = new Color(0.48f, 0.30f, 0.52f);
+        /// <summary>art-r5-14：空の地平線の色（下見の 2 色のグラデーションの下の色・霧の色に近い）= 霧の色。</summary>
+        public static Color SkyHorizon(int i) => ForStage(i).fogColor;
+
         /// <summary>天頂の色（空の色）と霧の明るさの差の最低（art-r4-10：空・霧・遠くの地面が同じ明るさの「霧の帯」にしない）。</summary>
         public const float SKY_FOG_CONTRAST_MIN = 0.15f;
         /// <summary>空の地面側の色 = 霧の色 × これ。</summary>
@@ -111,7 +116,8 @@ namespace HorseRace.EditorTools
                 fogColor = FogColor, fogStart = FOG_START_M, fogEnd = FOG_END_M,
                 ambientSky = AmbientSky, ambientEquator = AmbientEquator, ambientGround = AmbientGround,
                 shadow = ShadowColor,
-                skyTint = new Color(0.42f, 0.58f, 0.78f), atmosphere = 0.8f, sunSize = 0.05f, exposure = 1.25f,
+                // art-r5-14：荒野・砂漠は彩度の高い青（0.36,0.56,0.86）・atmosphere 0.6（灰色がかった青の平らな空にしない。地面の赤錆・砂金と補色）
+                skyTint = SkyClear, atmosphere = 0.6f, sunSize = 0.05f, exposure = 1.25f,
             };
             if (i == 1)
             {
@@ -124,7 +130,7 @@ namespace HorseRace.EditorTools
                 l.ambientEquator = new Color(0.86f, 0.70f, 0.50f);
                 l.ambientGround = new Color(0.66f, 0.50f, 0.36f);
                 l.shadow = new Color(0.74f, 0.58f, 0.52f);
-                l.skyTint = new Color(0.50f, 0.66f, 0.82f); l.atmosphere = 0.7f;
+                l.skyTint = SkyClear; l.atmosphere = 0.6f;   // art-r5-14
             }
             else if (i == 2)
             {
@@ -133,12 +139,13 @@ namespace HorseRace.EditorTools
                 l.sunEuler = new Vector3(16f, duskYaw, 0f);   // art-r4-10：夕日は最後の 300m の直線の正面
                 l.sunColor = new Color(1f, 0.70f, 0.50f);
                 l.sunIntensity = 1.35f;
-                l.fogColor = new Color(0.70f, 0.56f, 0.64f);
+                l.fogColor = new Color(0.86f, 0.60f, 0.52f);   // art-r5-14：地平線の暖かい帯（前の 0.70/0.56/0.64 は紫の壁）
                 l.ambientSky = new Color(0.66f, 0.56f, 0.74f);
                 l.ambientEquator = new Color(0.82f, 0.60f, 0.58f);
                 l.ambientGround = new Color(0.74f, 0.58f, 0.68f);
                 l.shadow = ShadowColorDusk;
-                l.skyTint = new Color(0.56f, 0.36f, 0.54f); l.atmosphere = 1.2f; l.sunSize = 0.08f;   // 案の (0.62,0.42,0.58) は霧との明るさの差 0.12（< 0.15）なので少し暗く
+                // art-r5-14：紫の天頂（0.48,0.30,0.52）・atmosphere 1.6・太陽 0.12 で、Skybox/Procedural が紫の天頂の下に橙の地平線の帯を描く
+                l.skyTint = SkyDusk; l.atmosphere = 1.6f; l.sunSize = 0.12f;
             }
             return l;
         }

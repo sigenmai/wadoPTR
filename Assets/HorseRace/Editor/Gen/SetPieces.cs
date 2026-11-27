@@ -24,6 +24,13 @@ namespace HorseRace.EditorTools
         public const float TRENCH_END_TAPER = 12f;     // 溝の両端で浅くなる長さ
         public const float TRENCH_DEPTH = 14f;           // art-r4-12：12 → 14m（背の脇が 60m 先から深い溝に見える）
         public const float BRIDGE_HALF_SPAN = 14f;     // 岩の背の勾配の検査から外す半分の長さ（溝の縁 12m より長い）
+        /// <summary>art-r5-08：溝の底の危険の灯り（溝の幅 8m 以内・強さ 1 以下・赤。前の範囲 30・強さ 2 は溝と床を黄白く照らし、溶岩・光漏れに見えた）。</summary>
+        public const float TRENCH_LIGHT_RANGE = 8f, TRENCH_LIGHT_INTENSITY = 1f;
+        public static readonly Color TrenchLightColor = new Color(0.9f, 0.3f, 0.2f);
+        /// <summary>art-r5-08：橋の背の両端の門（ゴールの門と同じ作り：立てた丸太の柱 2 本・丸太の横木・手配書の紙の幕）の大きさ（ゴールの門 × 0.8）。</summary>
+        public const float BRIDGE_GATE_SCALE = 0.8f;
+        /// <summary>art-r5-08：中心線から ±6m 以内の溝の中の岩のてっぺんは背の面より 0.6m 以上低い（手前から背の線・すき間が読める）。</summary>
+        public const float BRIDGE_CLEAR_LAT_M = 6f, BRIDGE_CLEAR_BELOW_M = 0.6f;
         public const float SPINE_HALF = 7f;            // 掘らずに残す地形の背（岩の橋）の半幅（絞り 14m）
         public const float SPINE_EDGE = 2f;            // 背の縁の切り立った斜面（art-r4-12：深さ 14m を 2m で落とす = 平均 82°、≥ 65°）
         /// <summary>art-r4-12：背の縁の斜面の平均の角度（°）。</summary>
@@ -61,7 +68,32 @@ namespace HorseRace.EditorTools
         public const float KICKER_HALF_WIDTH = 13f, KICKER_SHOULDER = 6f;
         public const float JUMP_WIDTH = KICKER_CORE_M * 2f;
         public const float JUMP_RELIC_AHEAD = 14f, JUMP_RELIC_UP = 2.5f;
-        public const float JUMP_LAMP_STEP_M = 5.5f, JUMP_SIGN_BEFORE_M = 10f;   // course-r3-13：坂の両脇の青緑の街灯・坂の 10m 手前の札
+        /// <summary>
+        /// art-r5-09：踏み切りの手前の干し草の漏斗（2 列の HayBales_01 が坂の始まりの手前 JUMP_FUNNEL_END_BEFORE_M で、跳ぶ線（中央 ±KICKER_CORE_M）の幅へ寄る）。
+        /// 縁には青緑に光る旗（加速の色）の柱 2 本と砂のしぶき。
+        /// </summary>
+        public const float JUMP_FUNNEL_END_BEFORE_M = 25f, JUMP_FUNNEL_LEN_M = 24f, JUMP_FUNNEL_STEP_M = 2.4f, JUMP_FUNNEL_WIDE = KICKER_HALF_WIDTH;
+        public const float JUMP_FLAG_POST_H = 4.2f, JUMP_FLAG_GLOW = 1.8f;
+
+        /// <summary>漏斗の干し草の位置（x = 縁からの弧長（負 = 手前）、y = 横、+ = 右）。2 列が JUMP_FUNNEL_WIDE から KICKER_CORE_M − 1 へ寄る。</summary>
+        public static System.Collections.Generic.List<Vector2> JumpFunnel()
+        {
+            var r = new System.Collections.Generic.List<Vector2>();
+            float a1 = -JUMP_FUNNEL_END_BEFORE_M, a0 = a1 - JUMP_FUNNEL_LEN_M;
+            for (float a = a0; a <= a1 + 0.01f; a += JUMP_FUNNEL_STEP_M)
+            {
+                float t = (a - a0) / (a1 - a0);
+                float lat = Mathf.Lerp(JUMP_FUNNEL_WIDE, KICKER_CORE_M - 1f, t);
+                r.Add(new Vector2(a, -lat));
+                r.Add(new Vector2(a, lat));
+            }
+            return r;
+        }
+
+        public const float JUMP_LAMP_STEP_M = 5.5f, JUMP_SIGN_BEFORE_M = 10f;
+        /// <summary>art-r5-09：近道の入口の合図（町の街灯 FarmProps_02 × 1.1 の対と暖色の灯り、赤い紙の旗の柱、15m の煙の柱）。</summary>
+        public const float SHORTCUT_LAMP_SCALE = 1.1f, SHORTCUT_FLAG_POST_H = 3.6f, SHORTCUT_SMOKE_M = 15f;
+        public static readonly Color ShortcutFlagRed = new Color(0.85f, 0.25f, 0.18f);   // course-r3-13：坂の両脇の青緑の街灯・坂の 10m 手前の札
 
         // 境目の台地（course-r1-05）
         public const float MESA_BAND_HALF = 35f;       // 道の中心から 35m（帯 70m）は道と同じ高さ

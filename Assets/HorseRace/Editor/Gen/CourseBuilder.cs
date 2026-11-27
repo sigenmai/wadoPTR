@@ -229,8 +229,9 @@ namespace HorseRace.EditorTools
                 Vector3 l = sb.Ground(posts[2 * k].x, posts[2 * k].z), r = sb.Ground(posts[2 * k + 1].x, posts[2 * k + 1].z);
                 var gate = GenUtil.World(g, "SectorGate_" + (k + 1), (l + r) * 0.5f, yaw).transform;
                 const float H = 6f;
-                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", l, yaw, H, 1.1f);
-                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", r, yaw, H, 1.1f);
+                // art-r5-15：ゴールの門と同じ太い古い木の柱（× SECTOR_POST_THICK_K、色は ArtPalette.PostWood：白い縄の枠・サッカーのゴールに見せない）
+                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", l, yaw, H, 1.1f * CourseMarks.SECTOR_POST_THICK_K);
+                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", r, yaw, H, 1.1f * CourseMarks.SECTOR_POST_THICK_K);
                 float top = Mathf.Max(l.y, r.y) + H - 0.4f;
                 // course-r3-01：横木は丸太の束 ×0.8 を引き伸ばさずにつなぐ（CourseMarks.BeamPieces、柱の外の端から外の端まで。tools/preview も同じ）
                 Vector3 half = rt * 0.55f;

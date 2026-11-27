@@ -275,7 +275,11 @@ namespace HorseRace.EditorTools
                     // art-r4-12 / art-r4-08：溝の口の縁へ下ろす（足元の 5 点のいちばん低い所 − 高さの差 − 0.1m）。前は背の高さのまま溝の上に張り出していた
                     Vector3 lp = center + r * (s * (SetPieces.SPINE_HALF + 3f)) + t * (e * 3.5f);
                     Vector3 w = GroundedLow(sb, lp, 3.5f, out float span);
-                    var c = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, spine, w - Vector3.up * (span + 0.1f), yaw + (s > 0 ? 0f : 180f) + k * 23f, sc, new Vector3(6f, 8f, 6f), Rock);
+                    // art-r5-08：てっぺん（足元 + 高さ × 1.5）が背の面より BRIDGE_CLEAR_BELOW_M 以上低くなるまで下ろす（手前から背の線とすき間が読める）
+                    float h0 = (part == "DesertRocks_01" ? 12.8f : (part == "DesertRocks_02" ? 12.4f : 10.8f)) * sc * 1.5f;
+                    float baseY = w.y - span - 0.1f;
+                    baseY = Mathf.Min(baseY, center.y - SetPieces.BRIDGE_CLEAR_BELOW_M - h0);
+                    var c = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, spine, new Vector3(w.x, baseY, w.z), yaw + (s > 0 ? 0f : 180f) + k * 23f, sc, new Vector3(6f, 8f, 6f), Rock);
                     c.transform.localScale = new Vector3(sc, sc * 1.5f, sc);
                     DressingBuilder.SetStatic(c);
                     GenUtil.Tag(c, "S" + st + "/SetPieceDecor/spine#" + (decorIndex++));
@@ -300,6 +304,7 @@ namespace HorseRace.EditorTools
             }
             SpineEdge(sb, bridge.transform, center, t, r, yaw, st);
             BridgeGate(sb, bridge.transform, center, t, r, yaw, lipAlong, st);
+            DeckGates(sb, bridge.transform, center, t, r, yaw, st);
             // 溝の底の落とし穴：入った騎手を最後に通った CP へ戻す（背の下は地面の中なので触れない）
             var pit = GenUtil.Child(bridge.transform, "FallPit", new Vector3(0f, -SetPieces.TRENCH_DEPTH + 3f, 0f));
             var pitBox = pit.AddComponent<BoxCollider>();
@@ -439,6 +444,42 @@ namespace HorseRace.EditorTools
                 new Vector2(4.2f, 1.3f), TextStyle.Ink, true);
         }
 
+        /// <summary>
+        /// art-r5-08：背（橋の道）の両端の門：ゴールの門と同じ作り（立てた丸太の柱 2 本・2 段の丸太の横木・手配書の紙の幕）を × BRIDGE_GATE_SCALE で、
+        /// 背の縁（±SPINE_HALF）に立てる。手前の岩の壁ではなく「門の中の道」として、120m 先から背の線とすき間が読める。
+        /// 骨の杭（DesertProps_03）は使わない決まり（art-r3-02）なので、柱はゴールの門と同じ立てた丸太。
+        /// </summary>
+        static void DeckGates(StageBuild sb, Transform bridge, Vector3 center, Vector3 t, Vector3 r, float yaw, int st)
+        {
+            var g = GenUtil.Child(bridge, "DeckGates", Vector3.zero).transform;
+            float k = SetPieces.BRIDGE_GATE_SCALE;
+            float half = SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND + 1.5f;
+            float postH = CourseMarks.GATE_POST_H * k, beamY = CourseMarks.GATE_BEAM_Y * k, lat = SetPieces.SPINE_HALF + 0.4f;
+            for (int e = -1; e <= 1; e += 2)
+            {
+                Vector3 l = sb.GroundWorld(center + t * (e * half) - r * lat), rr = sb.GroundWorld(center + t * (e * half) + r * lat);
+                DressingBuilder.SetStatic(UprightLog(g, "WoodLogs_01", l, yaw, postH, CourseMarks.GATE_POST_THICK * k));
+                DressingBuilder.SetStatic(UprightLog(g, "WoodLogs_01", rr, yaw, postH, CourseMarks.GATE_POST_THICK * k));
+                float y0 = Mathf.Max(l.y, rr.y);
+                for (int tier = 0; tier < CourseMarks.GATE_BEAM_TIERS; tier++)
+                {
+                    float by = y0 + beamY - tier * CourseMarks.GATE_BEAM_GAP * k;
+                    Vector3 mid = new Vector3((l.x + rr.x) * 0.5f, by, (l.z + rr.z) * 0.5f);
+                    var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", g, mid, yaw, 1f, new Vector3(1.5f, 0.3f, 0.3f), Wood);
+                    beam.transform.rotation = Quaternion.Euler(0f, yaw, 0f);   // 丸太の長さ（ローカル X）を道を横切る向きへ（BridgeGate の横木と同じ）
+                    beam.transform.localScale = CourseMarks.PostScale(WorldLayout.DistXZ(l, rr) + 0.6f, CourseMarks.GATE_BEAM_THICK * k);
+                    DressingBuilder.SetStatic(beam);
+                }
+                var sheet = GenUtil.World(g, "DeckBanner", new Vector3((l.x + rr.x) * 0.5f, y0 + CourseMarks.GATE_BANNER_Y * k, (l.z + rr.z) * 0.5f), yaw);   // 近づく騎手へ向ける
+                GenUtil.PaperSheet(sheet.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0f, -0.05f), null, 4.0f * k, 1.3f * k);
+                GenUtil.Text(sheet.transform, "Text", new Vector3(0f, 0.05f, -0.12f), Quaternion.identity, e < 0 ? "<b>岩の橋 ↑</b>" : "<b>岩の橋</b>", 6f * k, UiStyle.InkFace,
+                    new Vector2(3.6f * k, 1.1f * k), TextStyle.Ink, true);
+                // 門の柱の上の暖色の灯り（背の線を照らす：明るい「すき間」）
+                GenUtil.PointLight(g, "DeckGateLight", (l + rr) * 0.5f + Vector3.up * (postH - 0.5f), LampWarm, 10f, 1.1f);
+                GenUtil.Tag(sheet, "S" + st + "/SetPieceDecor/deckGate#" + (decorIndex++));
+            }
+        }
+
         /// <summary>岩の橋の合図：背の両端に街灯 2 本ずつと暖色の灯り、焚き火の煙（遠くから入口がわかる）。溝の底は赤い灯り（危険＝赤の色の決まり）。</summary>
         static void BridgeSignals(StageBuild sb, Transform bridge, Vector3 center, Vector3 t, Vector3 r)
         {
@@ -453,10 +494,12 @@ namespace HorseRace.EditorTools
                     DressingBuilder.SetStatic(fire);
                     GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
                     GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, 18f, 1.6f);
-                    GenUtil.PointLight(sig, "FireLight", fp + Vector3.up * 1.2f, LampWarm, 12f, 1.4f);
+                    // art-r5-08：黄色い補助の灯りはやめた（溝と床を黄白く照らしていた）。炎の粒と煙だけ
                 }
+            // art-r5-08：溝の底の危険の灯りは溝の幅の中だけ（範囲 8m・強さ 1・赤）
             for (int s = -1; s <= 1; s += 2)
-                GenUtil.PointLight(sig, "TrenchDanger", center + r * (s * 22f) + Vector3.up * (-SetPieces.TRENCH_DEPTH + 2f), DangerRed, 30f, 2f);   // art-r4-12：範囲 30・強さ 2
+                GenUtil.PointLight(sig, "TrenchDanger", center + r * (s * 22f) + Vector3.up * (-SetPieces.TRENCH_DEPTH + 2f), SetPieces.TrenchLightColor,
+                    SetPieces.TRENCH_LIGHT_RANGE, SetPieces.TRENCH_LIGHT_INTENSITY);
             // course-r3-04：背の縁の街灯（危険 = 橙の灯り、片側 2 本）と、70m 手前の赤インクの札「落ちるな」（急カーブの札と同じ丸太の柱）
             float yaw = WorldLayout.YawDeg(t);
             foreach (var m in SetPieces.SpineEdgeLamps())
@@ -516,8 +559,26 @@ namespace HorseRace.EditorTools
             // 入口：街灯 2 本と札
             Vector3 entry = Vector3.Lerp(p.a, p.b, p.f0);
             Vector3 entryW = new Vector3(o0.x + entry.x, o0.y + SetPieces.ShortcutHeight(p, p.f0), o0.z + entry.z);
+            // art-r5-09：入口の両脇に町の街灯（FarmProps_02）と暖色の灯り、赤い紙の旗の柱、15m の煙の柱（150m 先から入口が分かる）
             for (int s = -1; s <= 1; s += 2)
-                PostLamp(g, sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f))), yaw, SignalOrange, 8f);   // art-r4-14
+            {
+                Vector3 lp = sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f)));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", g, lp, yaw + (s > 0 ? 180f : 0f), SetPieces.SHORTCUT_LAMP_SCALE,
+                    new Vector3(0.6f, 3f, 0.6f), Wood));
+                GenUtil.PointLight(g, "EntryLampLight", lp + Vector3.up * (2.9f * SetPieces.SHORTCUT_LAMP_SCALE), LampWarm, 12f, 1.6f);
+            }
+            {
+                Vector3 fp = sb.GroundWorld(entryW - rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f);
+                DressingBuilder.SetStatic(UprightLog(g, "WoodLogs_01", fp, yaw, SetPieces.SHORTCUT_FLAG_POST_H, 0.8f));
+                var flag = GenUtil.World(g, "EntryFlag", fp + Vector3.up * (SetPieces.SHORTCUT_FLAG_POST_H - 1.0f) + rgt * 0.55f, yaw);
+                var sheet = GenUtil.PaperSheet(flag.transform, "Flag", "WantedPosters_02", new Vector3(0f, 0f, -0.15f), null, 1.0f, 1.2f);
+                GenUtil.RetintToon(sheet, SetPieces.ShortcutFlagRed, "EntryFlag");
+                Vector3 cf = sb.GroundWorld(entryW - rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 7f) - dir * 4f);
+                var fire = GenUtil.InstantiatePart(GenUtil.Pack("Campfire"), "Campfire_01", g, cf, 30f, 1.1f, new Vector3(1.5f, 0.6f, 1.5f), Rock);
+                DressingBuilder.SetStatic(fire);
+                GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
+                GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, SetPieces.SHORTCUT_SMOKE_M, 1.8f);
+            }
             Vector3 signW = sb.GroundWorld(entryW + rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f);
             SignPost(g, "ShortcutSign", signW, yaw, "<b>→ 近道</b>\n全力で " + p.gainSeconds.ToString("0.0") + " 秒速い", UiStyle.Teal,
                 new Color(0f, 0f, 0f, 0f), 0f);
@@ -627,6 +688,28 @@ namespace HorseRace.EditorTools
                     new Vector3(0.9f, 0.6f, 0.7f), SandRamp));
             }
             GenUtil.PointLight(g, "BoostLight", lip - t * 1.2f + Vector3.up * 0.6f, BoostTeal, 8f, 2.2f);
+            // art-r5-09：手前の干し草の漏斗（跳ぶ線へ寄せる）・縁の青緑に光る旗の柱 2 本・縁の砂のしぶき
+            foreach (var hv in SetPieces.JumpFunnel())
+            {
+                Vector3 hp = sb.GroundWorld(lip + t * hv.x + r * hv.y);
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hp - Vector3.up * 0.05f, yaw + hv.x * 13f, 0.85f,
+                    new Vector3(1.3f, 1.3f, 1.3f), SandRamp));
+            }
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 fp = sb.GroundWorld(lip + r * (s * (SetPieces.KICKER_CORE_M + 1f)) - t * 0.6f);
+                DressingBuilder.SetStatic(UprightLog(g, "WoodLogs_01", fp, yaw, SetPieces.JUMP_FLAG_POST_H, 0.9f));
+                var flag = GenUtil.World(g, "BoostFlag_" + (s > 0 ? "R" : "L"), fp + Vector3.up * (SetPieces.JUMP_FLAG_POST_H - 1.1f) - r * (s * 0.6f), yaw);
+                var sheet = GenUtil.PaperSheet(flag.transform, "Flag", "WantedPosters_02", new Vector3(0f, 0f, -0.15f), null, 1.1f, 1.3f);
+                GenUtil.GlowColor(sheet, BoostTeal, SetPieces.JUMP_FLAG_GLOW, "BoostFlag");   // 加速 = 青緑に光る（研究の表の色の決まり）
+            }
+            {
+                var spray = GenUtil.Particles(g, "LipSpray", lip - g.position + Vector3.up * 0.4f + t * 1.5f, SandDust, 0.7f, 5f, 1.1f, true, 24f, SetPieces.KICKER_CORE_M);
+                var sh = spray.shape;
+                sh.shapeType = ParticleSystemShapeType.Cone;
+                sh.angle = 25f;
+                sh.rotation = new Vector3(-60f, 0f, 0f);
+            }
             // 着地の砂煙と、着地の先の骨（走る線の外）
             Vector3 land = sb.GroundWorld(lip + t * 18f);
             GenUtil.DustBox(g, "LandingSand", land - g.position + Vector3.up * 0.5f, new Vector3(14f, 0.5f, 10f), SandDust, new Vector3(0.8f, 0.3f, 0.4f), 6f);

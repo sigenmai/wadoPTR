@@ -333,6 +333,26 @@ namespace HorseRace.EditorTools
             }
         }
 
+        /// <summary>art-r5-09：置いた物のトゥーンの色を c に置き換えて光らせる（_Brightness = brightness）。加速の旗（青緑）など、色の決まりの合図。</summary>
+        public static void GlowColor(GameObject go, Color c, float brightness, string key)
+        {
+            if (go == null) return;
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+                var src = r.sharedMaterials;
+                var dst = new Material[src.Length];
+                for (int i = 0; i < src.Length; i++)
+                {
+                    Material m = src[i];
+                    Texture tex = m != null && m.HasProperty("_MainTex") ? m.GetTexture("_MainTex") : null;
+                    dst[i] = SaveOrUpdate("Toon_Glow_" + key + "_" + ColorUtility.ToHtmlStringRGB(c), tex, c);
+                    if (dst[i] != null && dst[i].HasProperty("_Brightness")) dst[i].SetFloat("_Brightness", brightness);
+                }
+                r.sharedMaterials = dst;
+            }
+        }
+
         public static Material ToonColor(Color c)
         {
             string key = "Toon_Color_" + ColorUtility.ToHtmlStringRGB(c);

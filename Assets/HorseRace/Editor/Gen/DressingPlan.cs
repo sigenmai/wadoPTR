@@ -1121,6 +1121,8 @@ namespace HorseRace.EditorTools
             Roadside(w, goalArc);
             RimSilhouettes(w, def, goalArc);  // 外周の尾根の上のシルエット（art-r2-09）
             RimRing(w, def, goalArc);         // 空いた外周の輪の背景（course-r2-10）
+            ThinFarPebbles(w);                // art-r5-15：道から 60m より遠い小さな岩を半分に
+            CornerClusters(w, def, goalArc);  // art-r5-15：その分で急カーブの外側に 6〜10m の岩のまとまり
             for (int pass = 0; pass < 4; pass++) { EnforceShares(w); TrimSmall(w); }
             return w.list;
         }
@@ -1314,20 +1316,15 @@ namespace HorseRace.EditorTools
             {
                 Vector3 c = w.Side(s.x, s.y);
                 float yaw = w.YawAt(s.x);
-                if (def.kind == HeightmapGen.KIND_MESA)
-                {
-                    float sc = ISLAND_ROCK_R / SizeOf(MESAB, null).r;
-                    w.Add(G, MESAB, null, c, yaw, sc, 0.1f, -1000f, ignoreCircles: true, rOverlap: 0.5f);
-                }
-                else
+                // art-r5-09：島はどのステージも形のある大岩（境目の小さく縮めたメサ B は道の真ん中の切り株に見えた）、中心は道の中心から 4m（ISLAND_LATERAL）
                 {
                     string part = RockBig[(int)(s.x / 7f) % RockBig.Length];
                     float sc = ISLAND_ROCK_R / SizeOf(DROCKS, part).r;
-                    w.Add(G, DROCKS, part, c, yaw + s.x, sc, 0.1f, -1000f, ignoreCircles: true, rOverlap: 0.5f);
+                    w.Add(G, DROCKS, part, c, yaw + s.x, sc, 0.1f, -1000f, ignoreCircles: true, rOverlap: 0.5f, fixedSpot: true);
                 }
-                // 島の前後の小さな岩（形を読ませる）
+                // 島の前後に干し草の対（art-r5-09：島を額縁にして、道の分かれ目として読ませる）
                 for (int e = -1; e <= 1; e += 2)
-                    w.Add(G, DROCKS, "DesertRocks_0" + (6 + (e + 1) / 2), w.Side(s.x + e * 3.5f, s.y), yaw + e * 40f, 0.25f, 0.05f, -1000f, ignoreCircles: true, rOverlap: 0.2f);
+                    w.Add(G, HAY, "HayBales_01", w.Side(s.x + e * 3.8f, s.y), yaw + e * 40f, 1f, 0.05f, -1000f, ignoreCircles: true, rOverlap: 0.2f, fixedSpot: true);
             }
             // 島は乗り越えられない岩（Block の当たり）
             foreach (var p in w.list)
@@ -3692,6 +3689,59 @@ namespace HorseRace.EditorTools
             return false;
         }
 
+        // ---- art-r5-15：遠くの小さな岩の「ごま塩」を減らし、カーブの外側に大きなシルエット ----
+        public const float FAR_PEBBLE_ROAD_M = 60f, FAR_PEBBLE_MAX_H = 1.6f;
+        public const float CORNER_CLUSTER_H_MIN = 6f, CORNER_CLUSTER_H_MAX = 10f, CORNER_CLUSTER_LAT_MIN = 40f, CORNER_CLUSTER_LAT_MAX = 90f;
+
+        /// <summary>小さな岩（高さ FAR_PEBBLE_MAX_H 未満の岩の部品）か。</summary>
+        public static bool IsSmallRock(Placement p) => p.height < FAR_PEBBLE_MAX_H && (p.asset == RCOLL || p.asset == DROCKS || p.asset == RSTYL || ArtPalette.IsRockAsset(p.asset));
+
+        /// <summary>道から FAR_PEBBLE_ROAD_M より遠い小さな岩を 1 つおきに外す（線の目印・形の決まったまとまりは残す）。平原の均一な点々（ごま塩）を減らす。</summary>
+        static void ThinFarPebbles(Work w)
+        {
+            int k = 0;
+            for (int i = w.list.Count - 1; i >= 0; i--)
+            {
+                var p = w.list[i];
+                if (!IsSmallRock(p) || LineGroups.Contains(p.group) || ShareExempt.Contains(p.group) || p.group == "BarrierLine") continue;
+                if (WorldLayout.DistToPolylineXZ(p.position, w.course) < FAR_PEBBLE_ROAD_M) continue;
+                if (k++ % 2 == 0) { w.Count(p, -1); w.list.RemoveAt(i); }
+            }
+        }
+
+        /// <summary>
+        /// 急カーブの外側の岩のまとまり（art-r5-15、BotW の「三角」の決まり）：頂点の外側 40〜90m に 3 つ、高さ 6〜10m のメサ B・大岩・岩のセットの大きな部品。
+        /// 道の先を隠して見せる中くらいの距離（40〜150m）のシルエット。崖の板（Cliffs）は道から 260m 以内に置かない決まり（art-r3-05）なので使わない。
+        /// </summary>
+        static void CornerClusters(Work w, StageDef def, float goalArc)
+        {
+            const string G = "CornerSilhouette";
+            int k = 0;
+            foreach (var c in StageDefinitions.TightCorners(def, w.course))
+            {
+                if (c.apexArc < 120f || c.apexArc > goalArc - 80f) continue;
+                Vector3 rt = WorldLayout.RightOf(WorldLayout.TangentAtArc(w.course, c.apexArc));
+                float outSide = -c.side;   // 右へ曲がる（side > 0）なら外側は左
+                for (int i = 0; i < 3; i++, k++)
+                {
+                    float hgt = Mathf.Lerp(CORNER_CLUSTER_H_MIN, CORNER_CLUSTER_H_MAX, ((k * 7) % 5) / 4f);
+                    string asset, part;
+                    if (i == 0) { asset = MESAB; part = null; }
+                    else if (i == 1) { asset = DROCKS; part = RockBig[k % RockBig.Length]; }
+                    else { asset = RSTYL; part = RstylBig[k % RstylBig.Length]; }
+                    float sc = hgt / SizeOf(asset, part).h;
+                    for (int tries = 0; tries < 6; tries++)
+                    {
+                        float along = (i - 1) * 18f + w.Rand(-6f, 6f);
+                        float lat = Mathf.Lerp(CORNER_CLUSTER_LAT_MIN, CORNER_CLUSTER_LAT_MAX, (i * 0.35f + tries * 0.12f) % 1f);
+                        Vector3 p = WorldLayout.PointAtArc(w.course, c.apexArc + along) + rt * (outSide * lat);
+                        p.y = 0f;
+                        if (w.Add(G, asset, part, p, w.Rand(0f, 360f), sc, 0.15f * hgt, ROAD_CLEAR)) break;
+                    }
+                }
+            }
+        }
+
         public const float CORNER_SIL_EDGE_M = 30f;
         /// <summary>Props/MesaRock（段の付いた八角の岩）を置いてよいコースからの最小距離（course-r3-12）。</summary>
         public const float MESA_ROCK_MIN_DIST_M = 250f;
@@ -5140,6 +5190,8 @@ namespace HorseRace.EditorTools
 
         /// <summary>区間の門の柱の高さ（m）と、横木（柱の上の端の 0.4m 下）。</summary>
         public const float SECTOR_POST_H = 6f;
+        /// <summary>art-r5-15：区間の門の柱の太さの倍率（ゴールの門の太い柱にそろえる）。</summary>
+        public const float SECTOR_POST_THICK_K = 1.4f;
 
         /// <summary>区間の門の横木（course-r3-01）：l・r = 柱の外の端（足元）、top = 横木の中心の高さ。丸太の束 ×SECTOR_BEAM_SCALE をつなぐ。</summary>
         public static List<GatePart> SectorBeamPieces(Vector3 l, Vector3 r, float top) => BeamPieces(l, r, top, SECTOR_BEAM_SCALE);
