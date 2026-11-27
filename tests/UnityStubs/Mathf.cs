@@ -11,10 +11,18 @@ namespace UnityEngine
         public static float Exp(float p) => (float)Math.Exp(p);
         public static float Min(float a, float b) => a < b ? a : b;
         public static float Max(float a, float b) => a > b ? a : b;
+        public static int Min(int a, int b) => a < b ? a : b;
+        public static int Max(int a, int b) => a > b ? a : b;
         public static float Abs(float v) => Math.Abs(v);
         public static float Sin(float v) => (float)Math.Sin(v);
         public static float Cos(float v) => (float)Math.Cos(v);
         public static float Sqrt(float v) => (float)Math.Sqrt(v);
+        public const float PI = (float)Math.PI;
+        public const float Rad2Deg = 360f / (PI * 2f);
+        public static float Floor(float v) => (float)Math.Floor(v);
+        public static int FloorToInt(float v) => (int)Math.Floor(v);
+        public static int CeilToInt(float v) => (int)Math.Ceiling(v);
+        public static float Atan(float v) => (float)Math.Atan(v);
 
         // Deterministic value noise (hash-based, bilinear smoothstep); output in [0,1].
         public static float PerlinNoise(float x, float y)

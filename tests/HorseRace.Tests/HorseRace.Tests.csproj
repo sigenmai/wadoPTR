@@ -12,6 +12,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../Assets/HorseRace/Scripts/Logic/**/*.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/HeightmapGen.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/CoursePath.cs" />
     <ProjectReference Include="../UnityStubs/UnityStubs.csproj" />
   </ItemGroup>
 </Project>
