@@ -103,7 +103,15 @@ namespace HorseRace.EditorTools
             int lobbyN = 0;
             if (lobbyDr != null) foreach (Transform g in lobbyDr) { if (g.name.StartsWith("WallPoster")) continue; foreach (Transform c in g) lobbyN++; }
             if (lobbyN > DressingPlan.MAX_LOBBY) warn.Add("ロビーの飾りが " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）");
-            info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）");
+            Transform fenceT = GenUtil.FindDeep(root.transform, "LobbyFence");
+            Transform beltT = GenUtil.FindDeep(root.transform, "LobbyTreeBelt");
+            int fenceN = fenceT != null ? fenceT.childCount : 0, beltN = 0;
+            if (beltT != null) foreach (Transform g in beltT) beltN += g.childCount;
+            int expectFence = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M).Count;
+            if (fenceN < expectFence) warn.Add("ロビーの柵が " + fenceN + " 区間しかありません（" + expectFence + " 区間で一周）。切れ目から外が見えます");
+            if (beltN < 300) warn.Add("ロビーの柵の外の木の帯が " + beltN + " 本しかありません（300 本以上）");
+            info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
+                + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
             CheckWiring(root, warn, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 

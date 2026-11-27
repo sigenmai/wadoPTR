@@ -20,7 +20,7 @@ namespace HorseRace.EditorTools
         public static readonly Vector3 CENTER = WorldBounds.LOBBY_CENTER;
         public const float GROUND_SIZE = WorldBounds.LOBBY_SIZE;
         public const float GROUND_HEIGHT_RANGE = 80f;   // 外周の尾根（〜25m）が入る高さ
-        public const float RIM_WIDTH_M = 30f, RIM_MIN_M = 12f, RIM_MAX_M = 25f;   // ロビーの外周の尾根
+        public const float RIM_WIDTH_M = LobbyLayout.RIM_WIDTH_M, RIM_MIN_M = LobbyLayout.RIM_MIN_M, RIM_MAX_M = LobbyLayout.RIM_MAX_M;   // ロビーの外周の尾根
         public const float BORDER_INSET_M = 32f;       // 見えない壁：外周から 32m 内側（尾根の手前）
         public const float BERM_M = 8f, BERM_HEIGHT_M = 0.6f;   // 町の足元のまわりを少し盛って土台の縁を隠す
         public const float TOWN_ENTRANCE_HALF = 12f;   // 町の南側の入口（見えない壁・岩を置かない）
@@ -53,6 +53,7 @@ namespace HorseRace.EditorTools
             SpareRelics(root, ctx);
             Watch(root, ctx);
             Dressing(root, town);
+            FenceAndBelt(root);
         }
 
         static Vector3 L(float x, float z) => CENTER + new Vector3(x, 0f, z);
@@ -73,6 +74,31 @@ namespace HorseRace.EditorTools
                 new Vector4(-11f, 0f, -45f, 23f), new Vector4(PRACTICE_OFFSET.x, 0f, PRACTICE_OFFSET.z, 82f),
                 new Vector4(-150f, 0f, -100f, 10f), new Vector4(0f, 0f, 22f, 14f),
             };
+        }
+
+        /// <summary>ロビー全体を囲む木の柵（切れ目なし、柱 ≤ 2.74m、高さ約 1.57m、Block）と、柵の外の木の帯（3 列）。</summary>
+        static void FenceAndBelt(Transform root)
+        {
+            var fence = GenUtil.World(root, "LobbyFence", CENTER).transform;
+            var segs = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
+            foreach (var sg in segs)
+            {
+                Vector3 a = CENTER + sg[0], b = CENTER + sg[1];
+                Vector3 d = b - a;
+                float len = d.magnitude;
+                var piece = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), Fence.PART, fence, (a + b) * 0.5f, WorldLayout.YawDeg(d / len) - 90f, 1f,
+                    new Vector3(Fence.PIECE, 1f, 0.15f), Wood);
+                piece.transform.localScale = new Vector3(len / Fence.PIECE, LobbyLayout.FENCE_SCALE_Y, 1f);
+                var box = piece.AddComponent<BoxCollider>();
+                box.size = new Vector3(Fence.PIECE, 1.05f, 0.4f);
+                box.center = new Vector3(0f, 0.52f, 0f);
+                GenUtil.SetLayerRecursive(piece, WorldLayers.Block);
+                DressingBuilder.SetStatic(piece);
+            }
+            var belt = GenUtil.World(root, "LobbyTreeBelt", CENTER).transform;
+            var trees = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3);
+            DressingBuilder.Instantiate(trees, belt, CENTER);
+            Debug.Log("[HorseRace] ロビーの柵 " + segs.Count + " 区間（切れ目 " + LobbyLayout.Gates.Length + "）、柵の外の木の帯 " + trees.Count + " 本");
         }
 
         static void Dressing(Transform root, GameObject town)
@@ -232,6 +258,9 @@ namespace HorseRace.EditorTools
                         bool entrance = wz < tb.min.z && Mathf.Abs(wx - tb.center.x) < TOWN_ENTRANCE_HALF + 4f;
                         if (dd < BERM_M && !entrance) level += BERM_HEIGHT_M * (1f - dd / BERM_M);
                     }
+                    // 柵の外はすぐ盛り上がる（柵の中から外の平らな地面が見えない）
+                    float dOut = LobbyLayout.DistOutside(LobbyLayout.FENCE_RECT, new Vector3(wx - CENTER.x, 0f, wz - CENTER.z));
+                    if (dOut > 0f) level += LobbyLayout.OutsideRise(dOut);
                     h[z, x] = level / GROUND_HEIGHT_RANGE;
                 }
             HeightmapGen.ApplyRim(h, GROUND_SIZE, GROUND_HEIGHT_RANGE, RIM_WIDTH_M, RIM_MIN_M, RIM_MAX_M, 99, null);

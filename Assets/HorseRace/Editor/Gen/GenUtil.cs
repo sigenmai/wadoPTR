@@ -275,6 +275,7 @@ namespace HorseRace.EditorTools
             mat.SetTexture("_MainTex", tex);
             mat.SetColor("_Tint", tint);
             mat.SetFloat("_Flatten", FLATTEN);
+            mat.enableInstancing = true;   // 同じ木・岩が多いので GPU インスタンシング（静的バッチングされないものに効く）
             EditorUtility.SetDirty(mat);
             toonCache[key] = mat;
             return mat;
