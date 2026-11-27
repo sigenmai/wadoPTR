@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using HorseRace.EditorTools;
@@ -80,11 +81,18 @@ namespace HorseRace.Tests
             var belt = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3);
             TestContext.WriteLine($"belt {belt.Count}");
             Assert.That(belt.Count, Is.InRange(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), LobbyLayout.MAX_BELT));
-            Assert.GreaterOrEqual(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), 140);   // 南（広場の前）は 2 列、見晴らしの切れ目は空ける
+            Assert.GreaterOrEqual(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), 85);   // 南（広場の前）は 2 列、見晴らしの切れ目は空ける。art-r5-11：間隔 ×1.6 のまばらな低木の原
+            // art-r5-11：枯れ木とサボテンが主（緑の木・アカシアは 1/4 程度：サバンナにしない）
+            int dead = belt.Count(t => t.asset == DressingPlan.DEADTREE), cacti = belt.Count(t => t.asset == DressingPlan.CACTI || t.asset == DressingPlan.CGROUP);
+            int green = belt.Count(t => t.asset == DressingPlan.TREES || t.asset == DressingPlan.ACACIA), rocks = belt.Count(t => t.asset == DressingPlan.DROCKS || t.asset == DressingPlan.RSTYL);
+            TestContext.WriteLine($"belt: dead {dead}, cacti {cacti}, green {green}, rocks {rocks}");
+            Assert.Greater(dead + cacti, 2 * green);
+            Assert.Greater(rocks, 0);
             foreach (var t in belt)
             {
                 Assert.Greater(LobbyLayout.DistOutside(LobbyLayout.FENCE_RECT, t.position), 2f);
-                Assert.That(t.scale, Is.InRange(1f, 1.5f));
+                if (t.asset == DressingPlan.DROCKS) Assert.That(t.scale, Is.InRange(LobbyLayout.BELT_BIG_ROCK_SCALE, 1.5f * LobbyLayout.BELT_BIG_ROCK_SCALE));   // art-r5-11：岩の塊
+                else Assert.That(t.scale, Is.InRange(1f, 1.5f));
                 Assert.IsFalse(t.collider);
                 Assert.Less(LobbyLayout.GapFactor(LobbyLayout.FENCE_RECT, t.position), 0.06f, "見晴らしの切れ目に木");
             }

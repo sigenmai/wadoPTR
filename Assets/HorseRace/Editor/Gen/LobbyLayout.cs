@@ -32,6 +32,24 @@ namespace HorseRace.EditorTools
         public static readonly Vector4 GROUND_RECT = new Vector4(FENCE_RECT.x - GROUND_BORDER_M, FENCE_RECT.y - GROUND_BORDER_M,
             FENCE_RECT.z + GROUND_BORDER_M, FENCE_RECT.w + GROUND_BORDER_M);
         /// <summary>
+        /// art-r5-10：ロビーの Terrain（LobbyGround）の範囲 = GROUND_RECT を TERRAIN_EXTEND_M 広げたもの。見える土手と尾根を細かいロビーの高さマップで描く
+        /// （前は外の地面の 10m のセルで段々に見え、南東の角は虚空の上に浮いて見えた）。尾根の形（RimEdgeDistance）は GROUND_RECT のまま、その外は尾根の頂の高さが続く。
+        /// </summary>
+        public const float TERRAIN_EXTEND_M = 200f;
+        public static readonly Vector4 TERRAIN_RECT = new Vector4(GROUND_RECT.x - TERRAIN_EXTEND_M, GROUND_RECT.y - TERRAIN_EXTEND_M,
+            GROUND_RECT.z + TERRAIN_EXTEND_M, GROUND_RECT.w + TERRAIN_EXTEND_M);
+        /// <summary>art-r5-10：町へ近づく道の通路（中心線から APPROACH_CORRIDOR_HALF_M は町の高さ、その外 APPROACH_CORRIDOR_FADE_M でもとの地面へ）。</summary>
+        public const float APPROACH_CORRIDOR_HALF_M = 24f, APPROACH_CORRIDOR_FADE_M = 30f;
+
+        /// <summary>art-r5-10：点 rel（ロビー中心からの相対）を町の高さへ下げる重み（柵の南の外、近づく道の通路で 1）。柵の中は 0（町の地面はそのまま）。</summary>
+        public static float ApproachCorridorWeight(Vector3 rel)
+        {
+            if (rel.z >= FENCE_RECT.y) return 0f;
+            float d = WorldLayout.DistToPolylineXZ(rel, StreetAndApproach());
+            float t = Mathf.Clamp01((d - APPROACH_CORRIDOR_HALF_M) / APPROACH_CORRIDOR_FADE_M);
+            return 1f - t * t * (3f - 2f * t);
+        }
+        /// <summary>
         /// 町の奥の見えない壁（z、町の南端 25 のとき）。町の模型には z ≈ 140〜141 に東西いっぱいの木の柵（高さ約 2m）があり、
         /// その北（教会の裏の空き地・岩山）は背景専用：柵のすぐ北に見えない壁を置いて、柵の両端の隙間と岩山へ行けないようにする。
         /// </summary>
@@ -51,8 +69,9 @@ namespace HorseRace.EditorTools
         public static readonly Vector3 HUD_LEVER = new Vector3(-8f, 0f, 29f);           // 補助表示のレバー
         /// <summary>町の大時計（ui-r2-13）：大通りの軸の上、スタート台の 11m 奥（スポーンの正面 32m）。掲示板 ×1.4（幅 6.3m）を南（スポーン）へ向ける。
         /// 通りの両脇（x -4.6 と 6.4 の建物）とは 2m 以上あける。</summary>
-        public static readonly Vector3 TOWN_CLOCK = new Vector3(0.9f, 0f, 62f);
-        public const float TOWN_CLOCK_SCALE = 1.4f;
+        /// art-r5-16：大通りの軸から外して東寄り（スポーンの視線から約 6m）、スポーンへ 25° 振る・×1.0（前は軸の上に ×1.4 で、通りの奥をふさぐ暗い板に見えた）。
+        public static readonly Vector3 TOWN_CLOCK = new Vector3(3.6f, 0f, 58f);
+        public const float TOWN_CLOCK_SCALE = 1.0f, TOWN_CLOCK_YAW = 25f;
         /// <summary>操作の看板（ui-r2-07）：練習場の看板の東隣。</summary>
         public static readonly Vector3 PRACTICE_CONTROLS = new Vector3(28.4f, 0f, 88f);
         // 西の空き地（西の建物の列 x ≤ -14.6 と町の西の端 x -36 の間）
@@ -110,7 +129,12 @@ namespace HorseRace.EditorTools
 
         /// <summary>ロビーの飾り（DressingPlan.ForLobby）を置かない円（x, _, z, 半径）：南の入口の前（町の南の辺と柵の間＝広場への入口）。
         /// 遊びに使う物はすべて町の中（飾りは町の外形の外だけ）なので、それ以外の円は要らない。</summary>
-        public static List<Vector4> LobbyDressingExclusions() => new List<Vector4> { new Vector4(0f, 0f, TOWN_NOMINAL_RECT.y - 4f, 44f) };
+        public static List<Vector4> LobbyDressingExclusions()
+        {
+            var l = new List<Vector4> { new Vector4(0f, 0f, TOWN_NOMINAL_RECT.y - 4f, 44f) };
+            foreach (var q in LotFill()) l.Add(new Vector4(q.position.x, 0f, q.position.z, q.radius + 1f));   // art-r5-11：埋めた敷地
+            return l;
+        }
 
         /// <summary>遊びに使う物の位置と半径（テストで「柵の中・町の建物の外」を確かめる）。</summary>
         public static List<KeyValuePair<string, Vector4>> FunctionalSpots()
@@ -122,7 +146,7 @@ namespace HorseRace.EditorTools
             for (int i = -1; i <= 1; i++) Add("WantedWall_" + (i + 1), WANTED_WALL + new Vector3(i * 2.1f, 0f, 0f), 1.2f);   // 幅 6.2m・厚さ 0.2m の板
             Add("StartBell", START_BELL, 2.2f);
             Add("HudLever", HUD_LEVER, 0.6f);
-            Add("TownClock", TOWN_CLOCK, 3.3f);   // 板の半分の幅 3.15m
+            Add("TownClock", TOWN_CLOCK, 2.4f);   // 板の半分の幅 2.25m（×1.0）
             for (int i = 0; i < 8; i++) Add("Parking_" + i, PARKING_FIRST + new Vector3(0f, 0f, i * PARKING_STEP), 1.4f);
             for (int i = 0; i < 7; i++) Add("Picker_" + i, CORRAL_FIRST + new Vector3(0f, 0f, i * CORRAL_STEP), 1.4f);
             Add("CorralFenceS", CORRAL_FIRST + new Vector3(-3.5f, 0f, -1.5f), 0.3f);
@@ -170,7 +194,7 @@ namespace HorseRace.EditorTools
         public const float NORTH_BLEND_M = 40f;          // 北の高い尾根へ移る幅（柵の北の辺の 20m 南から）
         public const float GAP_KEEP = 0.15f;
         public const float BERM_VISIBLE_M = 12f;         // 柵の外のこの距離までは盛り上がりの途中の地面（見えてよい）             // 見晴らしの切れ目では盛り上がり・尾根をこの割合に下げる
-        public const float BELT_FIRST_M = 3f, BELT_ROW_GAP_M = 3.5f, BELT_SPACING_M = 8f;
+        public const float BELT_FIRST_M = 3f, BELT_ROW_GAP_M = 3.5f, BELT_SPACING_M = 12.8f;   // art-r5-11：8 → 12.8m（×1.6、まばらな低木の原で遠くのメサが見える）
         public const int BELT_ROWS = 3;
         public const int BELT_ROWS_SOUTH = 2;            // 南（広場の前）は 2 列
         public const int MAX_BELT = 600;
@@ -350,6 +374,30 @@ namespace HorseRace.EditorTools
 
         static readonly string[] TreeParts = { "Trees_01", "Trees_02" };
 
+        public const float BELT_BIG_ROCK_SCALE = 0.27f;
+        static readonly string[] BeltCacti = { "Cacti_01", "Cacti_02", "Cacti_03" };   // 背の高いサワロ（4.1m）
+        static readonly string[] BeltRocks = { "RockSetStylized_01_Rock", "DesertRocks_01", "DesertRocks_02", "DesertRocks_03" };
+
+        /// <summary>art-r5-11：木の帯の 1 本の素材（k = 0〜19：0〜6 枯れ木、7〜12 サボテン（サワロ・サボテンの群れ）、13〜15 木、16〜17 アカシア、18〜19 岩）。</summary>
+        public static void BeltPick(int k, System.Random rng, out string asset, out string part)
+        {
+            part = null;
+            if (k < 7) asset = DressingPlan.DEADTREE;
+            else if (k < 13)
+            {
+                if (k % 3 == 0) asset = DressingPlan.CGROUP;
+                else { asset = DressingPlan.CACTI; part = BeltCacti[rng.Next(BeltCacti.Length)]; }
+            }
+            else if (k < 16) { asset = DressingPlan.TREES; part = TreeParts[rng.Next(2)]; }
+            else if (k < 18) asset = DressingPlan.ACACIA;
+            else
+            {
+                string rp = BeltRocks[rng.Next(BeltRocks.Length)];
+                if (rp.StartsWith("RockSet")) { asset = DressingPlan.RSTYL; part = rp; }
+                else { asset = DressingPlan.DROCKS; part = rp; }
+            }
+        }
+
         /// <summary>柵の外の木の帯（3 列・互い違い、拡大 1.0〜1.5、Collider なし＝柵の外で届かない）。</summary>
         public static List<Placement> TreeBelt(Vector4 rect, int seed)
         {
@@ -372,9 +420,12 @@ namespace HorseRace.EditorTools
                     int k = rng.Next(10);
                     if (south && row >= BELT_ROWS_SOUTH) continue;          // 南（広場の前）は 2 列
                     if (GapFactor(rect, p) > 0.05f) continue;                // 見晴らしの切れ目は空ける
-                    string asset = k < 6 ? DressingPlan.TREES : (k < 9 ? DressingPlan.ACACIA : DressingPlan.DEADTREE);
-                    string part = asset == DressingPlan.TREES ? TreeParts[rng.Next(2)] : null;
+                    // art-r5-11：西部の町のまわりの低木の原（枯れ木 35%・背の高いサボテン 30%・木 15%・アカシア 10%・岩 10%）。
+                    // 前の緑の木とアカシアの帯はサバンナに見え、遠くの景色をふさいでいた
+                    string asset, part;
+                    BeltPick(rng.Next(20), rng, out asset, out part);
                     float scale = 1f + (float)rng.NextDouble() * 0.5f;
+                    if (asset == DressingPlan.DROCKS) scale *= BELT_BIG_ROCK_SCALE;   // 大岩（高さ 11〜13m）は 3〜5m の岩の塊に
                     var sz = DressingPlan.SizeOf(asset, part);
                     list.Add(new Placement
                     {
@@ -684,6 +735,63 @@ namespace HorseRace.EditorTools
         {
             if (dOut <= 0f) return 0f;
             return 1f - Mathf.Clamp01((dOut - PLATE_LIP_M) / PLATE_BLEND_M);
+        }
+
+        // ---- art-r5-11：空いた敷地を埋める（建物の区画・東の裏の暮らし・囲いの馬・線路の終わりの荷の台）----
+        /// <summary>線路（WesternTown_049_Track）の南の端（parts.json の外形から、町の板 TOWN_PLATE と同じ置き方）。</summary>
+        public static readonly Vector3 RAIL_END = new Vector3(20.5f, 0f, 25.3f);
+
+        static Placement Lot(string group, string asset, string part, Vector3 p, float yaw, float scale)
+        {
+            var sz = DressingPlan.SizeOf(asset, part);
+            return new Placement
+            {
+                group = group, asset = asset, part = part, position = new Vector3(p.x, -0.05f, p.z), yawDeg = yaw, scale = scale,
+                radius = sz.r * scale, height = sz.h * scale, collider = sz.h * scale >= DressingPlan.COLLIDER_MIN_H, shape = DressingPlan.SHAPE_BOX,
+            };
+        }
+
+        /// <summary>
+        /// art-r5-11：空いた敷地の埋め（ロビー中心からの相対、y = 通りの高さ − 0.05）。
+        ///   建物の区画：町の東と西の縁に TownBlock（2 軒続きの建物）を 1 つずつ（町を向く）＝ 大通りの並びの外にもう 2 区画ずつ。
+        ///   東の裏（大通りの東の並びの裏）：厩舎（×0.8）・テント 2 張り（×0.7）・薪の山・焚き火、その北に柵の囲いとつないだ馬 2 頭。
+        ///   線路の南の端（RAIL_END）に木箱の荷の台（FarmProps_11/12 と丸太の床）。
+        /// </summary>
+        public static List<Placement> LotFill()
+        {
+            var l = new List<Placement>();
+            const string G = "TownLots";
+            l.Add(Lot(G, DressingPlan.TOWNBLOCK, null, new Vector3(39f, 0f, 50f), -90f, 1f));   // 東の縁の 2 区画（西＝町を向く）
+            l.Add(Lot(G, DressingPlan.TOWNBLOCK, null, new Vector3(-40f, 0f, 108f), 90f, 1f));  // 西の縁の 2 区画（東を向く）
+            const string E = "EastYard";
+            l.Add(Lot(E, DressingPlan.STABLE, null, new Vector3(41.5f, 0f, 75f), -90f, 0.8f));
+            l.Add(Lot(E, DressingPlan.TENT, null, new Vector3(37.8f, 0f, 63.5f), -70f, 0.7f));
+            l.Add(Lot(E, DressingPlan.TENT, null, new Vector3(44.2f, 0f, 62f), -110f, 0.7f));
+            l.Add(Lot(E, DressingPlan.CAMPFIRE, "Campfire_01", new Vector3(40.8f, 0f, 66.8f), 0f, 1f));
+            string[] logs = { "WoodLogs_02", "WoodLogs_03", "WoodLogs_06", "WoodLogs_07" };
+            for (int i = 0; i < logs.Length; i++) l.Add(Lot(E, DressingPlan.LOGS, logs[i], new Vector3(36.4f + (i % 2) * 1.1f, 0f, 84f + (i / 2) * 0.9f), 90f, 1.4f));
+            // 柵の囲い（8.2m 四方、FarmProps_03 を 3 枚ずつ）とつないだ馬 2 頭
+            const string C = "EastCorral";
+            Vector3 c0 = new Vector3(38.6f, 0f, 92f);
+            for (int i = 0; i < 3; i++)
+            {
+                l.Add(Lot(C, DressingPlan.FARM, "FarmProps_03", c0 + new Vector3(1.37f + i * FENCE_PIECE_M, 0f, 0f), 0f, 1f));                 // 南
+                l.Add(Lot(C, DressingPlan.FARM, "FarmProps_03", c0 + new Vector3(1.37f + i * FENCE_PIECE_M, 0f, 3f * FENCE_PIECE_M), 0f, 1f));  // 北
+                l.Add(Lot(C, DressingPlan.FARM, "FarmProps_03", c0 + new Vector3(3f * FENCE_PIECE_M, 0f, 1.37f + i * FENCE_PIECE_M), 90f, 1f)); // 東
+                if (i != 1) l.Add(Lot(C, DressingPlan.FARM, "FarmProps_03", c0 + new Vector3(0f, 0f, 1.37f + i * FENCE_PIECE_M), 90f, 1f));    // 西（真ん中は門）
+            }
+            l.Add(Lot(C, DressingPlan.HORSE, null, c0 + new Vector3(3.2f, 0f, 3.4f), 20f, 1f));
+            l.Add(Lot(C, DressingPlan.HORSE, null, c0 + new Vector3(5.6f, 0f, 5.4f), 200f, 1f));
+            l.Add(Lot(C, DressingPlan.HAY, "HayBales_01", c0 + new Vector3(6.6f, 0f, 1.8f), 0f, 1f));
+            // 線路の終わりの荷の台
+            const string R = "RailPlatform";
+            for (int i = 0; i < 3; i++) l.Add(Lot(R, DressingPlan.LOGS, "WoodLogs_01", RAIL_END + new Vector3(2.4f, 0f, -1.2f + i * 1.0f), 0f, 2f));
+            l.Add(Lot(R, DressingPlan.FARM, "FarmProps_11", RAIL_END + new Vector3(2.0f, 0f, -0.6f), 10f, 1f));
+            l.Add(Lot(R, DressingPlan.FARM, "FarmProps_12", RAIL_END + new Vector3(3.2f, 0f, 0.4f), -15f, 1f));
+            l.Add(Lot(R, DressingPlan.FARM, "FarmProps_11", RAIL_END + new Vector3(2.6f, 0f, 1.4f), 40f, 1f));
+            foreach (var q in l) if (q.part != null && q.part.StartsWith("WoodLogs")) { q.collider = false; q.shape = DressingPlan.SHAPE_NONE; }
+            foreach (var q in l) if (q.asset == DressingPlan.HORSE || q.asset == DressingPlan.CAMPFIRE) { q.collider = false; q.shape = DressingPlan.SHAPE_NONE; }
+            return l;
         }
 
         public const float BACKLOT_X = 22.6f;

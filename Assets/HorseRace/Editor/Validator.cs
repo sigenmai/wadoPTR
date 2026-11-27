@@ -133,6 +133,7 @@ namespace HorseRace.EditorTools
             if (beltN < minBelt) warn.Add("ロビーの柵の外の木の帯が " + beltN + " 本しかありません（" + minBelt + " 本以上）");
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
+            CheckLobbySeam(root, warn, info);
             CheckWiring(root, warn, info);
             CheckAudio(root, warn, info);
             CheckLook(warn, info);
@@ -406,6 +407,35 @@ namespace HorseRace.EditorTools
             }
             if (bad > 0) warn.Add(tag + "：浮いている飾り " + bad + " 個（最大 " + worst.ToString("F2") + "m：" + which + "、art-r5-03）");
             else info.Add(tag + "：飾り " + plan.Count + " 個はどれも地面に着いている");
+        }
+
+        /// <summary>
+        /// art-r5-10：ロビーの地面（LobbyGround）の縁と外の地面（OuterGround）の継ぎ目：縁に沿って 5m ごと、縁の内 0.5m のロビーの地面と
+        /// 縁の外 2m の外の地面の高さの差が 1m 以内（宙に浮いた縁・のこぎりの歯の段を見せない）。
+        /// </summary>
+        static void CheckLobbySeam(GameObject root, List<string> warn, List<string> info)
+        {
+            Transform lt = GenUtil.FindDeep(root.transform, "LobbyGround"), ot = GenUtil.FindDeep(root.transform, "OuterGround");
+            Terrain lobby = lt != null ? lt.GetComponent<Terrain>() : null, outer = ot != null ? ot.GetComponent<Terrain>() : null;
+            if (lobby == null || outer == null) { warn.Add("ロビーの地面か外の地面（Terrain）が見つかりません"); return; }
+            Vector4 r = WorldBounds.LobbyTerrainRect();
+            float w = r.z - r.x, d = r.w - r.y, per = 2f * (w + d);
+            int bad = 0, n = 0; float worst = 0f;
+            for (float t = 2.5f; t < per; t += 5f, n++)
+            {
+                Vector3 p, nrm;
+                if (t < w) { p = new Vector3(r.x + t, 0f, r.y); nrm = Vector3.back; }
+                else if (t < w + d) { p = new Vector3(r.z, 0f, r.y + (t - w)); nrm = Vector3.right; }
+                else if (t < 2f * w + d) { p = new Vector3(r.z - (t - w - d), 0f, r.w); nrm = Vector3.forward; }
+                else { p = new Vector3(r.x, 0f, r.w - (t - 2f * w - d)); nrm = Vector3.left; }
+                Vector3 pin = p - nrm * 0.5f, pout = p + nrm * 2f;
+                float yl = lobby.SampleHeight(pin) + lobby.transform.position.y, yo = outer.SampleHeight(pout) + outer.transform.position.y;
+                float diff = Mathf.Abs(yl - yo);
+                worst = Mathf.Max(worst, diff);
+                if (diff > 1f) bad++;
+            }
+            if (bad > 0) warn.Add("ロビーの地面の縁と外の地面の段が 1m を超える所が " + bad + " / " + n + " か所（最大 " + worst.ToString("F1") + "m、art-r5-10）");
+            else info.Add("ロビー：地面の縁と外の地面の差 最大 " + worst.ToString("F2") + "m（" + n + " か所）");
         }
 
         static void CheckAudio(GameObject root, List<string> warn, List<string> info)

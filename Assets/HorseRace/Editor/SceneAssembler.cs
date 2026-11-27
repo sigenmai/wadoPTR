@@ -286,7 +286,7 @@ namespace HorseRace.EditorTools
             foreach (var p in vista)
             {
                 float wx = lc.x + p.position.x, wz = lc.z + p.position.z;
-                float g = filler != null ? filler.SampleHeight(new Vector3(wx, 0f, wz)) + filler.transform.position.y : lc.y;
+                float g = filler != null ? WorldGround(ctx, filler, new Vector3(wx, 0f, wz)) : lc.y;   // art-r5-10：ロビーの Terrain の上も
                 p.position = new Vector3(p.position.x, g - lc.y + p.position.y, p.position.z);
             }
             var vroot = GenUtil.Child(root, "LobbyVista", Vector3.zero).transform;
@@ -308,6 +308,10 @@ namespace HorseRace.EditorTools
                 if (sb.terrain == null || p.x < o.x || p.z < o.z || p.x > o.x + StageDefinitions.SIZE || p.z > o.z + StageDefinitions.SIZE) continue;
                 y = Mathf.Max(y, sb.terrain.SampleHeight(new Vector3(p.x, 0f, p.z)) + sb.terrain.transform.position.y);
             }
+            // art-r5-10：広げたロビーの Terrain の上（外の地面はその下に埋まっている）
+            Vector4 lr = WorldBounds.LobbyTerrainRect();
+            if (ctx.lobbyTerrain != null && p.x > lr.x && p.x < lr.z && p.z > lr.y && p.z < lr.w)
+                y = Mathf.Max(y, ctx.lobbyTerrain.SampleHeight(new Vector3(p.x, 0f, p.z)) + ctx.lobbyTerrain.transform.position.y);
             return y;
         }
 

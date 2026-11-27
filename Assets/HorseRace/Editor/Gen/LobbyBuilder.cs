@@ -155,6 +155,18 @@ namespace HorseRace.EditorTools
             var plan = DressingPlan.ForLobby(new Vector2(tb.min.x - CENTER.x, tb.min.z - CENTER.z), new Vector2(tb.max.x - CENTER.x, tb.max.z - CENTER.z),
                 LobbyExclusions(), 4242);
             DressingBuilder.Instantiate(plan, dr, CENTER, "Lobby");
+            // art-r5-11：空いた敷地（建物の区画・東の裏の暮らし・囲いの馬・線路の終わりの荷の台）。地形の高さへ置き直す
+            var lots = LobbyLayout.LotFill();
+            foreach (var q in lots) q.position = new Vector3(q.position.x, TerrainY(q.position) - 0.05f, q.position.z);
+            DressingBuilder.Instantiate(lots, dr, CENTER, "Lots");
+            foreach (var q in lots)
+                if (q.asset == DressingPlan.CAMPFIRE)
+                {
+                    Vector3 w = CENTER + q.position;
+                    GenUtil.Particles(dr, "LotFlames", w - dr.position + Vector3.up * 0.4f, new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
+                    GenUtil.SmokeColumn(dr, "LotSmoke", w - dr.position + Vector3.up * 1f, SetPieceBuilder.SmokeGrey, 14f, 1.4f);
+                    GenUtil.PointLight(dr, "LotFireLight", w + Vector3.up * 1.2f, SetPieceBuilder.LampWarm, 8f, 1.1f);
+                }
             // 大通りの街灯の暖かい灯り（art-r3-09）
             foreach (var q in plan)
                 if ((q.group == "StreetDressing" || q.group == "PlazaApron") && q.part == "FarmProps_02")
@@ -315,10 +327,12 @@ namespace HorseRace.EditorTools
         static void Ground(Transform root, GameObject town)
         {
             // 長方形の Terrain（TerrainData.size の x と z が別）：高さマップは正方形の格子のまま、セルが長方形になる
-            int res = 257;   // 練習場の小さな丘を地形で作るので細かめ（約 0.7m × 1m）
-            float sizeX = GROUND_RECT.z - GROUND_RECT.x, sizeZ = GROUND_RECT.w - GROUND_RECT.y;
+            // art-r5-10：Terrain は GROUND_RECT を 200m 広げた TERRAIN_RECT（見える土手・尾根を細かい高さマップで。約 1.1m × 1.3m のセル）
+            int res = 513;
+            Vector4 TR = LobbyLayout.TERRAIN_RECT;
+            float sizeX = TR.z - TR.x, sizeZ = TR.w - TR.y;
             float cellX = sizeX / (res - 1), cellZ = sizeZ / (res - 1);
-            Vector3 origin = new Vector3(CENTER.x + GROUND_RECT.x, CENTER.y - GROUND_LEVEL, CENTER.z + GROUND_RECT.y);
+            Vector3 origin = new Vector3(CENTER.x + TR.x, CENTER.y - GROUND_LEVEL, CENTER.z + TR.y);
             Bounds tb = GenUtil.RendererBounds(town);
             // 町の模型の地面の板（art-r2-11）：板の外 2m は板の上面の高さ、その先 8m で元の地面へ（板の縁・側面を見せない）、砂で塗る
             var plateT = GenUtil.FindContains(town.transform, "WesternTown_001_Ground");
@@ -345,6 +359,9 @@ namespace HorseRace.EditorTools
                     float noise = Mathf.Clamp01(0.8f * HeightmapGen.Noise01(lx / 140f, lz / 140f, 99, 21) + 0.2f * HeightmapGen.Noise01(lx / 35f, lz / 35f, 99, 22));
                     level += LobbyLayout.GroundHeight(fenceRect, rel, noise);
                     level = LobbyLayout.PlateBlend(PlateOut(wx, wz), level, GROUND_LEVEL);
+                    // art-r5-10：近づく道の通路は町の高さ（南の切れ目から外の地面までそのまま走れる。尾根の下にもぐらない）
+                    float cw = LobbyLayout.ApproachCorridorWeight(rel);
+                    if (cw > 0f) level = Mathf.Lerp(level, GROUND_LEVEL, cw);
                     // 練習場の小さな丘（上面は通り +0.45m、半径 5m でなめらかに）：当たり判定は見えない台（Bump）
                     float db = WorldLayout.DistXZ(rel, LobbyLayout.PRACTICE_BUMP);
                     if (db < 6f) level = Mathf.Max(level, GROUND_LEVEL + 0.45f - 1.45f * Mathf.Clamp01((db - 1.5f) / 4.5f));
@@ -397,7 +414,7 @@ namespace HorseRace.EditorTools
         static void PaintLobby(TerrainData td, float[,] h, float cellX, float cellZ, Vector3 origin)
         {
             td.terrainLayers = TerrainBuilder.Layers(TerrainBuilder.VARIANT_LOBBY);
-            int res = 256, n = h.GetLength(0);
+            int res = 512, n = h.GetLength(0);   // art-r5-10：広げた地面（約 1.3m）
             td.alphamapResolution = res;
             var a = new float[res, res, 4];
             for (int z = 0; z < res; z++)
@@ -516,7 +533,8 @@ namespace HorseRace.EditorTools
             stage.layer = WorldLayers.Block;
             for (int i = 0; i < 2; i++)
             {
-                var plank = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", root, sb + new Vector3(0f, 0f, -0.9f + i * 1.8f), 90f * i, 2f,
+                // art-r5-12：2 枚を同じ向きで端と端に（前は 90° ずらして重ね、崩れた床に見えた）
+                var plank = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", root, sb + new Vector3(0f, 0f, (i - 0.5f) * CourseMarks.WOODLOG_01_W * 2f), 0f, 2f,
                     new Vector3(1.5f, 0.3f, 1f), Wood);
                 plank.name = "Plank_" + i;
                 DressingBuilder.SetStatic(plank);
@@ -1139,8 +1157,9 @@ namespace HorseRace.EditorTools
             Vector3 p = P(LobbyLayout.TOWN_CLOCK);
             float sc = LobbyLayout.TOWN_CLOCK_SCALE;
             const float LIFT = 0.8f;
-            var go = GenUtil.World(root, "TownClock", p, 0f);
-            var board = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), go.transform, "Board", p + Vector3.up * LIFT, 0f, sc, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
+            float yaw0 = LobbyLayout.TOWN_CLOCK_YAW;   // art-r5-16：スポーンへ 25° 振る
+            var go = GenUtil.World(root, "TownClock", p, yaw0);
+            var board = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), go.transform, "Board", p + Vector3.up * LIFT, yaw0, sc, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
             var panel = GenUtil.FindDeep(board.transform, "NoticeBoard_Panel");
             Vector3 textPos = new Vector3(0f, 2.15f * sc + LIFT, -0.04f);
             if (panel != null)
@@ -1156,21 +1175,23 @@ namespace HorseRace.EditorTools
             }
             DressingBuilder.AddCollider(board, false);
             DressingBuilder.SetStatic(board);
-            // 持ち上げた脚の下の杭（板の外形の左右の端の少し内側）
-            Bounds bb = GenUtil.RendererBounds(board);
+            // 持ち上げた脚の下の杭（板の左右の端の少し内側。板の向き（go）のローカルで）
+            float halfW = 2.25f * sc;
             for (int i = 0; i < 2; i++)
             {
-                Vector3 sp = new Vector3(i == 0 ? bb.min.x + 0.35f : bb.max.x - 0.35f, p.y, bb.center.z);
-                var st = GenUtil.WoodPost(go.transform, sp, 0f, 1.72f, 0.16f);
+                float sx = i == 0 ? -halfW + 0.35f : halfW - 0.35f;
+                Vector3 sp = go.transform.TransformPoint(new Vector3(sx, 0f, 0f));
+                var st = GenUtil.WoodPost(go.transform, sp, yaw0, 1.72f, 0.16f);
                 st.name = "Stilt_" + i;
                 DressingBuilder.SetStatic(st);
-                // 街灯：杭のさらに外、灯りは板を照らす高さ
-                Vector3 lp = sp + new Vector3(i == 0 ? -0.9f : 0.9f, 0f, -0.4f);
-                var lamp = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", go.transform, lp, 180f, 1f, new Vector3(0.3f, 3f, 0.3f), DarkWood);
+                // 街灯：杭のさらに外、灯りは板を照らす高さ（art-r5-16：板の上の暖かい灯り）
+                Vector3 lp = go.transform.TransformPoint(new Vector3(sx + (i == 0 ? -0.9f : 0.9f), 0f, -0.4f));
+                var lamp = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", go.transform, lp, yaw0 + 180f, 1f, new Vector3(0.3f, 3f, 0.3f), DarkWood);
                 lamp.name = "ClockLamp_" + i;
                 DressingBuilder.SetStatic(lamp);
-                GenUtil.PointLight(go.transform, "ClockLight_" + i, lp + new Vector3(0f, 2.9f, -0.3f), SetPieceBuilder.LampWarm, 9f, 1.3f);
+                GenUtil.PointLight(go.transform, "ClockLight_" + i, lp + Vector3.up * 2.9f - go.transform.forward * 0.3f, SetPieceBuilder.LampWarm, 9f, 1.3f);
             }
+            GenUtil.PointLight(go.transform, "ClockTopLight", p + Vector3.up * (LIFT + 3.6f * sc + 0.6f) - go.transform.forward * 1.2f, SetPieceBuilder.LampWarm, 7f, 1.2f);
             var holder = GenUtil.Child(go.transform, "ClockText", textPos).transform;
             var text = GenUtil.Text(holder, "Text", Vector3.zero, Quaternion.identity, "台帳にサイン", 3f, UiStyle.InkFace,
                 new Vector2(3.0f * sc, 1.6f * sc), TextStyle.Ink, true);

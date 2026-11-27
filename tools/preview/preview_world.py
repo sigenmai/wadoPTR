@@ -422,7 +422,7 @@ LH = np.frombuffer(_ld[8:], dtype="<f4").reshape(LNZ, LNX)
 def lobby_h(x, z):
     i = min(max(int(round(x - GR[0])), 0), LNX - 1); j = min(max(int(round(z - GR[1])), 0), LNZ - 1)
     return float(LH[j, i])
-nx, nz = 106, 106
+nx, nz = int((GR[2] - GR[0]) / 2) + 1, int((GR[3] - GR[1]) / 2) + 1   # art-r5-10：広げたロビーの地面を 2m の格子で（段々にしない）
 verts = []; faces = []
 for j in range(nz):
     for i in range(nx):
@@ -689,7 +689,7 @@ for gi, gaz in enumerate(W.get("vistaGaps", [])):   # 広場 → 南・南東の
     a_ = math.radians(gaz)
     shot(f"9_lobby_vista_{gi + 1}", tuple(lob + _V((sp[0], sp[2], 1.7))), tuple(lob + _V((sp[0] + math.sin(a_) * 400, sp[2] + math.cos(a_) * 400, 8))), 24)
 shot("9_lobby_practice_rider", tuple(lob + _V((27.5, 89, 2.6))), tuple(lob + _V((28, 130, 1.5))), 24)   # 練習場を騎手の目の高さで
-shot("9_lobby_ride_SE", tuple(lob + _V((120, -60, 3.2))), tuple(lob + _V((300, -180, 4))), 24)
+shot("9_lobby_ride_SE", tuple(lob + _V((120, -60, lobby_h(120, -60) + 3.2))), tuple(lob + _V((300, -180, lobby_h(300, -180) + 4))), 24)   # art-r5-10：地面の高さ + 3.2m
 # 境目の切り通し（300m 手前から：三角の切れ込みが見えるか）
 pa = S[2].get("pass")
 if pa:

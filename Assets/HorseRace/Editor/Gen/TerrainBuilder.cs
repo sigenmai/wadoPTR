@@ -449,13 +449,26 @@ namespace HorseRace.EditorTools
                 rects.Add(new Vector4(o.x, o.z, o.x + StageDefinitions.SIZE, o.z + StageDefinitions.SIZE));
                 terrains.Add(sb.terrain);
             }
-            if (ctx.lobbyTerrain != null) { rects.Add(WorldBounds.LobbyRect()); terrains.Add(ctx.lobbyTerrain); }
+            if (ctx.lobbyTerrain != null) { rects.Add(WorldBounds.LobbyTerrainRect()); terrains.Add(ctx.lobbyTerrain); }   // art-r5-10：広げたロビーの Terrain の下に埋める
             System.Func<int, float, float, float> ground = (i, x, z) =>
             {
                 Terrain t = terrains[i];
                 return t == null ? WorldBounds.FILLER_Y : t.SampleHeight(new Vector3(x, 0f, z)) + t.transform.position.y;
             };
             float[,] world = WorldBounds.FillerGrid(n, rects.ToArray(), ground);
+            // art-r5-10：町へ近づく道の通路（LobbyLayout.ApproachCorridorWeight）は町の地面の高さへ下げる（南・南東の切れ目の外が町より高くならない）
+            {
+                Vector4 lr = WorldBounds.LobbyTerrainRect();
+                float lobbyY = WorldBounds.LOBBY_CENTER.y - 0.05f;
+                for (int z = 0; z < n; z++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        float wx = f.x + x * cellX, wz = f.y + z * cellZ;
+                        if (wx > lr.x && wx < lr.z && wz > lr.y && wz < lr.w) continue;   // ロビーの地面の下（埋めたまま）
+                        float cw = LobbyLayout.ApproachCorridorWeight(new Vector3(wx - WorldBounds.LOBBY_CENTER.x, 0f, wz - WorldBounds.LOBBY_CENTER.z));
+                        if (cw > 0f) world[z, x] = Mathf.Lerp(world[z, x], lobbyY, cw);
+                    }
+            }
             var h = new float[n, n];
             for (int z = 0; z < n; z++)
                 for (int x = 0; x < n; x++)

@@ -4026,6 +4026,12 @@ namespace HorseRace.EditorTools
 
         // ---- art-r4-07：広場の手前（スポーンの視線の両脇） ----
         public const float APRON_LANE_HALF_M = 2.5f, APRON_X_MIN = 5f, APRON_X_MAX = 12f, APRON_Z_MIN = 32f, APRON_Z_MAX = 48f;
+        /// <summary>art-r5-12：スポーンの縁の小さなまとまりの視線からの横（≥ 4m：大通りが掲示板までまっすぐ読める）。</summary>
+        public const float SPAWN_GROUP_OFF_M = 6.5f;
+        /// <summary>art-r5-12：建物の正面の板張り（丸太 WoodLogs_01 を平らに、奥行き 2m、端と端でつなぐ、地面 + 0.05m）。大通りの始まりの BOARDWALK_LEN_M。</summary>
+        public const float BOARDWALK_DEPTH_M = 2f, BOARDWALK_LEN_M = 16f, BOARDWALK_TOP_M = 0.05f, BOARDWALK_THICK_K = 0.4f;
+        /// <summary>板 1 枚の板張りの線に沿った長さ（m）：丸太の幅 WOODLOG_01_W × 拡大（奥行き 2m = 長さ 1.45m × 拡大）。</summary>
+        public static float BoardwalkPieceLen => CourseMarks.WOODLOG_01_W * (BOARDWALK_DEPTH_M / CourseMarks.WOODLOG_01_LEN);
 
         /// <summary>スポーンからの視線（向き SPAWN_YAW）の z での x（ロビー中心からの相対）。</summary>
         public static float SpawnAxisX(float z) => LobbyLayout.SPAWN.x + Mathf.Tan(LobbyLayout.SPAWN_YAW * Mathf.Deg2Rad) * (z - LobbyLayout.SPAWN.z);
@@ -4044,13 +4050,7 @@ namespace HorseRace.EditorTools
             for (int sd = -1; sd <= 1; sd += 2)
             {
                 float X(float off, float z) => SpawnAxisX(z) + sd * off;
-                // 板張りの縁：丸太の束を平らに 4 枚（2.9m × 2m × 0.26m）
-                for (int i = 0; i < 4; i++)
-                {
-                    float z = 37f + i * 2.9f;
-                    var p = new Vector3(X(7.5f, z), 0f, z);
-                    if (ClearOfSpots(p, 1.5f)) w.Add(G, LOGS, POST_PART, p, 90f, 2f, 0.02f, ROAD_CLEAR, ignoreCircles: true, scaleY: 0.4f, rOverlap: 0f);
-                }
+                // art-r5-12：ばらばらの板の山（広場・練習場の地面の板）はやめた。板は建物の正面に沿った途切れない板張りだけ（StreetBoardwalks）
                 // つなぎ柵と馬
                 {
                     float z = 40f;
@@ -4063,22 +4063,18 @@ namespace HorseRace.EditorTools
                         w.Add(G, HORSE, null, rp + new Vector3(sd * 1.6f, 0f, 0.3f), sd > 0 ? -90f : 90f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
                     }
                 }
-                // 樽の山・荷車（西）／木箱（東）・木箱と樽・街灯・干し草
-                var bp = new Vector3(X(6.5f, 46.5f), 0f, 46.5f);
-                if (ClearOfSpots(bp, 1.8f)) w.Add(G, WTOWN, TOWN_BARRELS, bp, sd * 30f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
-                var cp = new Vector3(X(5.5f, 34.5f), 0f, 34.5f);
-                if (ClearOfSpots(cp, 1.2f))
-                    w.Add(G, sd < 0 ? WTOWN : FARM, sd < 0 ? TOWN_CART : FarmCrates[0], cp, sd < 0 ? 20f : 15f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
-                var kp = new Vector3(X(4f, 43.5f), 0f, 43.5f);
-                if (ClearOfSpots(kp, 1f))
+                // art-r5-12：スポーンの縁の小さなまとまりは片側 1 つだけ（画像付きの木箱・樽 FarmProps_11/12/15 と干し草の積み、視線から 6m 以上）。
+                // 前の色だけの町の樽・木箱（WesternTown_117 など）は暗い灰茶の箱に見えた
+                var bp = new Vector3(X(SPAWN_GROUP_OFF_M, 46.5f), 0f, 46.5f);
+                if (ClearOfSpots(bp, 1.8f))
                 {
-                    w.Add(G, WTOWN, TownCrates[(sd + 1) % TownCrates.Length], kp, sd * 12f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
-                    w.Add(G, FARM, FarmBarrels[0], kp + new Vector3(sd * 1.2f, 0f, 1.1f), 0f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    w.Add(G, FARM, sd < 0 ? "FarmProps_11" : "FarmProps_12", bp, sd * 20f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    w.Add(G, FARM, FarmBarrels[0], bp + new Vector3(sd * 1.1f, 0f, 0.9f), sd * 35f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    w.Add(G, HAY, "HayBales_01", bp + new Vector3(sd * 1.4f, 0f, -1.2f), sd * 10f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    w.Add(G, HAY, "HayBales_01", bp + new Vector3(sd * 1.4f, 1.3f, -1.2f), sd * 50f, 0.85f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
                 }
                 var lp = new Vector3(X(3.6f, 48.5f), 0f, 48.5f);
                 if (ClearOfSpots(lp, 0.8f)) w.Add(G, FARM, FARM_LAMP, lp, sd > 0 ? -90f : 90f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
-                var hp = new Vector3(X(8f, 48f), 0f, 48f);
-                if (ClearOfSpots(hp, 1f)) w.Add(G, HAY, "HayBales_02", hp, sd * 20f, 1.4f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
             }
             w.hasRect = rect;
         }
@@ -4129,6 +4125,7 @@ namespace HorseRace.EditorTools
                     StreetProp(w, p, face, n + li, ROAD_CLEAR, true);
                 }
             }
+            StreetBoardwalks(w, lines);
             // 通りの真ん中：町の小石と草
             float cx = (lines[0][0].x + lines[1][0].x) * 0.5f;
             int k = 0;
@@ -4141,6 +4138,32 @@ namespace HorseRace.EditorTools
                 else w.Add("StreetDressing", DPROPS, DpGrass[k % 2], p, w.Rand(0f, 360f), w.Rand(0.7f, 1f), 0.05f, ROAD_CLEAR, ignoreCircles: true);
             }
             w.hasRect = rect;
+        }
+
+        /// <summary>
+        /// art-r5-12：建物の正面に沿った途切れない板張り：大通りの 2 本の板張りの縁の線の始まり BOARDWALK_LEN_M に、丸太 WoodLogs_01 を平らに
+        /// （長さ = 奥行き 2m を正面に直角、幅の向きを線に沿わせて）すき間なく並べる。上の面は地面 + 0.05m。当たりなし。
+        /// </summary>
+        static void StreetBoardwalks(Work w, Vector3[][] lines)
+        {
+            const string G = "Boardwalk";
+            float step = BoardwalkPieceLen, sc = BOARDWALK_DEPTH_M / CourseMarks.WOODLOG_01_LEN;
+            float thick = CourseMarks.WOODLOG_01_H * sc * BOARDWALK_THICK_K;
+            for (int li = 0; li < 2; li++)
+            {
+                Vector3 a = lines[li][0], b = lines[li][1];
+                float len = Mathf.Min(BOARDWALK_LEN_M, WorldLayout.DistXZ(a, b));
+                Vector3 d = new Vector3(b.x - a.x, 0f, b.z - a.z).normalized;
+                Vector3 inward = li == 0 ? new Vector3(-1f, 0f, 0f) : new Vector3(1f, 0f, 0f);   // 建物の側（西の線は西、東の線は東）
+                float facadeYaw = WorldLayout.YawDeg(d);
+                for (float t = step * 0.5f; t <= len; t += step)
+                {
+                    Vector3 p = a + d * t + inward * (BOARDWALK_DEPTH_M * 0.5f);
+                    if (!w.Add(G, LOGS, POST_PART, p, facadeYaw + 90f, sc, Mathf.Max(0f, thick - BOARDWALK_TOP_M), ROAD_CLEAR, ignoreCircles: true, scaleY: BOARDWALK_THICK_K, rOverlap: 0f))
+                        continue;
+                    var q = w.list[w.list.Count - 1]; q.collider = false; q.shape = SHAPE_NONE;
+                }
+            }
         }
 
         /// <summary>町の地面の板（WesternTown_001_Ground）の外形（町の南端 z = 25・中心 x = 0 のとき、Blender で測った値）。</summary>
@@ -4165,6 +4188,9 @@ namespace HorseRace.EditorTools
                 Vector3 p; float yaw;
                 PerimeterPoint(mn, mx, d, w.Rand(-0.8f, 0.8f), out p, out yaw);
                 if (!ClearOfSpots(p, 1f)) continue;
+                bool inLot = false;   // art-r5-11：埋めた敷地（建物の区画・東の裏）の上には置かない
+                foreach (var q in LobbyLayout.LotFill()) if (q.radius > 3f && WorldLayout.DistXZ(p, q.position) < q.radius * 0.7f) inLot = true;
+                if (inLot) continue;
                 if (k % 2 == 0)
                 {
                     string part = TownRocksSmall[k / 2 % TownRocksSmall.Length];
@@ -4502,10 +4528,17 @@ namespace HorseRace.EditorTools
         /// 霧がほぼかかる距離（LightingPlan.FogHiddenDistance）より遠い（LobbyLayoutTests.StagesHiddenFromLobby）。
         /// </summary>
         public static readonly Vector3 LOBBY_CENTER = new Vector3(0f, 0f, -1580f);
-        /// <summary>ロビーの地面（Terrain）のワールド座標の長方形 = LOBBY_CENTER + LobbyLayout.GROUND_RECT（柵 + 38m）。</summary>
+        /// <summary>ロビーの遊べる地面のワールド座標の長方形 = LOBBY_CENTER + LobbyLayout.GROUND_RECT（柵 + 38m）。背景の山並みの輪・遊べる範囲はこれで数える。</summary>
         public static Vector4 LobbyRect()
         {
             Vector4 g = LobbyLayout.GROUND_RECT;
+            return new Vector4(LOBBY_CENTER.x + g.x, LOBBY_CENTER.z + g.y, LOBBY_CENTER.x + g.z, LOBBY_CENTER.z + g.w);
+        }
+
+        /// <summary>art-r5-10：ロビーの Terrain（LobbyGround）のワールド座標の長方形 = LOBBY_CENTER + LobbyLayout.TERRAIN_RECT（GROUND_RECT + 200m）。外の地面はこの下に埋める。</summary>
+        public static Vector4 LobbyTerrainRect()
+        {
+            Vector4 g = LobbyLayout.TERRAIN_RECT;
             return new Vector4(LOBBY_CENTER.x + g.x, LOBBY_CENTER.z + g.y, LOBBY_CENTER.x + g.z, LOBBY_CENTER.z + g.w);
         }
         public const float BACKDROP_OFFSET_M = 320f;       // 遊べる範囲の外側、この距離から山並み（1 列目）

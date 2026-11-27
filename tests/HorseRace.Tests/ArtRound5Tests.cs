@@ -310,5 +310,89 @@ namespace HorseRace.Tests
             Assert.Greater(d.skyTint.b, d.skyTint.g, "天頂は紫");
             Assert.AreEqual(d.fogColor, LightingPlan.SkyHorizon(2));
         }
+
+        // ---- art-r5-11：低木の原と埋めた敷地 ----
+        [Test] public void LobbyLotsAreFilledWithoutBlockingPlay()
+        {
+            var lots = LobbyLayout.LotFill();
+            var f = LobbyLayout.FENCE_RECT;
+            Assert.AreEqual(2, lots.Count(q => q.asset == DressingPlan.TOWNBLOCK), "建物の区画");
+            Assert.AreEqual(1, lots.Count(q => q.asset == DressingPlan.STABLE));
+            Assert.AreEqual(2, lots.Count(q => q.asset == DressingPlan.TENT));
+            Assert.AreEqual(2, lots.Count(q => q.asset == DressingPlan.HORSE));
+            Assert.AreEqual(1, lots.Count(q => q.asset == DressingPlan.CAMPFIRE));
+            Assert.Greater(lots.Count(q => q.group == "EastCorral" && q.part == "FarmProps_03"), 8);
+            Assert.Greater(lots.Count(q => q.group == "RailPlatform" && (q.part == "FarmProps_11" || q.part == "FarmProps_12")), 1);
+            foreach (var q in lots)
+            {
+                float foot = q.asset == DressingPlan.TOWNBLOCK ? 4f : (q.asset == DressingPlan.STABLE ? 3.5f : Mathf.Min(q.radius, 2f));
+                Assert.That(q.position.x, Is.InRange(f.x + foot * 0.5f, f.z - foot * 0.5f), q.asset);
+                Assert.That(q.position.z, Is.InRange(f.y + 1f, f.w - 1f), q.asset);
+                foreach (var kv in LobbyLayout.FunctionalSpots())
+                    Assert.Greater(WorldLayout.DistXZ(q.position, new Vector3(kv.Value.x, 0f, kv.Value.z)), kv.Value.w + foot * 0.5f, q.asset + " / " + kv.Key);
+                Assert.IsFalse(q.position.x > LobbyLayout.PRACTICE_RECT.x - 1f && q.position.x < LobbyLayout.PRACTICE_RECT.z + 1f
+                    && q.position.z > LobbyLayout.PRACTICE_RECT.y - 1f && q.position.z < LobbyLayout.PRACTICE_RECT.w + 1f, "練習場 " + q.asset);
+            }
+            // 低木の原の飾り（ForLobby）は埋めた敷地を避ける
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            var dress = DressingPlan.ForLobby(new Vector2(t.x, t.y), new Vector2(t.z, t.w), LobbyLayout.LobbyDressingExclusions(), 4242);
+            foreach (var q in lots.Where(x => x.radius > 3f))
+                foreach (var d in dress.Where(x => x.height > DressingPlan.LARGE_MIN_H)) Assert.Greater(WorldLayout.DistXZ(q.position, d.position), q.radius * 0.6f, d.group + " " + d.part + " / " + q.asset);
+        }
+
+        // ---- art-r5-12：板は建物の正面の途切れない板張りだけ・スポーンの縁は画像付きの小さなまとまり ----
+        [Test] public void BoardwalksAreContinuousAndSpawnEdgeIsClean()
+        {
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            var l = DressingPlan.ForLobby(new Vector2(t.x, t.y), new Vector2(t.z, t.w), LobbyLayout.LobbyDressingExclusions(), 4242);
+            var boards = l.Where(p => p.group == "Boardwalk").ToList();
+            Assert.Greater(boards.Count, 10);
+            Assert.IsFalse(l.Any(p => p.group == "PlazaApron" && p.part == DressingPlan.POST_PART && Mathf.Abs(p.rollDeg) < 1f), "広場のばらばらの板");
+            foreach (var side in boards.GroupBy(p => p.position.x < 0f))
+            {
+                var row = side.OrderBy(p => p.position.z).ToList();
+                for (int i = 1; i < row.Count; i++)
+                {
+                    float gap = row[i].position.z - row[i - 1].position.z - DressingPlan.BoardwalkPieceLen;
+                    Assert.LessOrEqual(gap, 0.1f, "端と端でつなぐ");
+                    Assert.AreEqual(row[0].position.x, row[i].position.x, 1e-3f, "正面に沿う");
+                    Assert.AreEqual(row[0].yawDeg, row[i].yawDeg, 1e-3f);
+                }
+            }
+            var apron = l.Where(p => p.group == "PlazaApron").ToList();
+            Assert.IsFalse(apron.Any(p => p.asset == DressingPlan.WTOWN), "色だけの町の樽・木箱はスポーンに置かない");
+            foreach (var p in apron.Where(q => q.asset == DressingPlan.FARM && (q.part == "FarmProps_11" || q.part == "FarmProps_12")))
+                Assert.GreaterOrEqual(Mathf.Abs(p.position.x - DressingPlan.SpawnAxisX(p.position.z)), 4f, "通りの中心線から 4m 以上");
+        }
+
+        // ---- art-r5-10：近づく道は町の高さ・ロビーの地面は広く ----
+        [Test] public void ApproachCorridorStaysAtTownLevel()
+        {
+            float x = LobbyLayout.SPAWN.x;
+            Assert.AreEqual(1f, LobbyLayout.ApproachCorridorWeight(new Vector3(x, 0f, -100f)), 1e-4f, "道の上");
+            Assert.AreEqual(1f, LobbyLayout.ApproachCorridorWeight(new Vector3(x + LobbyLayout.APPROACH_CORRIDOR_HALF_M - 1f, 0f, -100f)), 1e-4f);
+            Assert.AreEqual(0f, LobbyLayout.ApproachCorridorWeight(new Vector3(x + LobbyLayout.APPROACH_CORRIDOR_HALF_M + LobbyLayout.APPROACH_CORRIDOR_FADE_M + 1f, 0f, -100f)), 1e-4f);
+            Assert.AreEqual(0f, LobbyLayout.ApproachCorridorWeight(new Vector3(x, 0f, 60f)), 1e-4f, "町の中は触らない");
+            var g = LobbyLayout.GROUND_RECT; var t = LobbyLayout.TERRAIN_RECT;
+            Assert.AreEqual(g.x - 200f, t.x, 1e-3f); Assert.AreEqual(g.w + 200f, t.w, 1e-3f);
+            var lr = WorldBounds.LobbyTerrainRect();
+            Assert.AreEqual(WorldBounds.LOBBY_CENTER.z + t.y, lr.y, 1e-3f);
+            // 広げた地面の外の地面（FillerGrid）は広げた長方形の下に埋まる
+            Assert.Greater(lr.z - lr.x, (WorldBounds.LobbyRect().z - WorldBounds.LobbyRect().x) + 399f);
+        }
+
+        // ---- art-r5-16：大時計の板は通りの軸から外してスポーンへ振る ----
+        [Test] public void TownClockIsOffTheStreetAxis()
+        {
+            Vector3 c = LobbyLayout.TOWN_CLOCK;
+            float off = Mathf.Abs(c.x - DressingPlan.SpawnAxisX(c.z));
+            TestContext.WriteLine($"town clock {off:F1} m off the spawn axis");
+            Assert.GreaterOrEqual(off, 5f);
+            Assert.AreEqual(25f, LobbyLayout.TOWN_CLOCK_YAW, 1e-4f);
+            // 板の面（yaw の −forward）がスポーンの側を向く
+            float a = LobbyLayout.TOWN_CLOCK_YAW * Mathf.Deg2Rad;
+            Vector3 face = new Vector3(-Mathf.Sin(a), 0f, -Mathf.Cos(a)), toSpawn = (LobbyLayout.SPAWN - c).normalized;
+            Assert.Greater(face.x * toSpawn.x + face.z * toSpawn.z, 0.95f);
+        }
     }
 }
