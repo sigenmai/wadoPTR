@@ -4,7 +4,7 @@ using System;
 
 namespace UnityEngine
 {
-    public struct Vector3
+    public partial struct Vector3
     {
         public float x, y, z;
         public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
@@ -36,7 +36,7 @@ namespace UnityEngine
         public static Vector3 ProjectOnPlane(Vector3 v, Vector3 n) => v - n * Dot(v, n);
     }
 
-    public struct Quaternion
+    public partial struct Quaternion
     {
         public float x, y, z, w;
         public Quaternion(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; }
@@ -54,7 +54,7 @@ namespace UnityEngine
         public static Vector3 operator *(Quaternion q, Vector3 v) => v;
     }
 
-    public struct Color
+    public partial struct Color
     {
         public float r, g, b, a;
         public Color(float r, float g, float b, float a) { this.r = r; this.g = g; this.b = b; this.a = a; }
@@ -63,7 +63,7 @@ namespace UnityEngine
         public static Color black => new Color(0f, 0f, 0f, 1f);
     }
 
-    public static class Mathf
+    public static partial class Mathf
     {
         public const float PI = (float)Math.PI;
         public const float Rad2Deg = 360f / (PI * 2f);
@@ -96,7 +96,7 @@ namespace UnityEngine
         public static float PerlinNoise(float x, float y) => 0.5f;
     }
 
-    public struct LayerMask
+    public partial struct LayerMask
     {
         private int m_Mask;
         public int value { get => m_Mask; set => m_Mask = value; }
@@ -113,13 +113,13 @@ namespace UnityEngine
 
     public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, LeftShift = 304, RightShift = 303 }
 
-    public class Object
+    public partial class Object
     {
         public string name { get; set; }
         public static implicit operator bool(Object exists) => exists != null;
     }
 
-    public class GameObject : Object
+    public partial class GameObject : Object
     {
         public Transform transform => null;
         public bool activeSelf => true;
@@ -131,7 +131,7 @@ namespace UnityEngine
         public T GetComponentInChildren<T>() => default(T);
     }
 
-    public class Component : Object
+    public partial class Component : Object
     {
         public GameObject gameObject => null;
         public Transform transform => null;
@@ -142,7 +142,7 @@ namespace UnityEngine
         public T[] GetComponentsInChildren<T>() => null;
     }
 
-    public class Transform : Component
+    public partial class Transform : Component
     {
         public Vector3 position { get; set; }
         public Vector3 localPosition { get; set; }
@@ -164,28 +164,28 @@ namespace UnityEngine
         public void SetParent(Transform parent) { }
     }
 
-    public class Behaviour : Component
+    public partial class Behaviour : Component
     {
         public bool enabled { get; set; }
         public bool isActiveAndEnabled => true;
     }
 
-    public class MonoBehaviour : Behaviour { }
+    public partial class MonoBehaviour : Behaviour { }
 
-    public class Collider : Component
+    public partial class Collider : Component
     {
         public bool enabled { get; set; }
         public bool isTrigger { get; set; }
         public Rigidbody attachedRigidbody => null;
     }
 
-    public class Rigidbody : Component
+    public partial class Rigidbody : Component
     {
         public bool isKinematic { get; set; }
         public Vector3 velocity { get; set; }
     }
 
-    public struct RaycastHit
+    public partial struct RaycastHit
     {
         public Vector3 point { get; set; }
         public Vector3 normal { get; set; }
@@ -194,7 +194,7 @@ namespace UnityEngine
         public Transform transform => null;
     }
 
-    public static class Physics
+    public static partial class Physics
     {
         public static Vector3 gravity { get; set; }
         public static bool Raycast(Vector3 origin, Vector3 direction) => false;
@@ -209,7 +209,7 @@ namespace UnityEngine
         public static Collider[] OverlapSphere(Vector3 position, float radius, int layerMask, QueryTriggerInteraction queryTriggerInteraction) => new Collider[0];
     }
 
-    public static class Time
+    public static partial class Time
     {
         public static float deltaTime => 0f;
         public static float time => 0f;
@@ -218,7 +218,7 @@ namespace UnityEngine
         public static int frameCount => 0;
     }
 
-    public static class Input
+    public static partial class Input
     {
         public static bool GetKey(KeyCode key) => false;
         public static bool GetKeyDown(KeyCode key) => false;
@@ -231,27 +231,27 @@ namespace UnityEngine
         public static bool GetMouseButtonDown(int button) => false;
     }
 
-    public static class Debug
+    public static partial class Debug
     {
         public static void Log(object message) { }
         public static void LogWarning(object message) { }
         public static void LogError(object message) { }
     }
 
-    public class Material : Object { }
+    public partial class Material : Object { }
 
-    public class Texture : Object
+    public partial class Texture : Object
     {
         public virtual int width { get; set; }
         public virtual int height { get; set; }
     }
 
-    public class RenderTexture : Texture
+    public partial class RenderTexture : Texture
     {
         public RenderTexture(int width, int height, int depth) { }
     }
 
-    public class Camera : Behaviour
+    public partial class Camera : Behaviour
     {
         public RenderTexture targetTexture { get; set; }
         public float fieldOfView { get; set; }
@@ -259,7 +259,7 @@ namespace UnityEngine
         public float farClipPlane { get; set; }
     }
 
-    public class Renderer : Component
+    public partial class Renderer : Component
     {
         public bool enabled { get; set; }
         public Material sharedMaterial { get; set; }
@@ -267,13 +267,13 @@ namespace UnityEngine
         public Material[] sharedMaterials { get; set; }
     }
 
-    public class LineRenderer : Renderer
+    public partial class LineRenderer : Renderer
     {
         public int positionCount { get; set; }
         public void SetPosition(int index, Vector3 position) { }
     }
 
-    public class ParticleSystem : Component
+    public partial class ParticleSystem : Component
     {
         public bool isPlaying => false;
         public void Play() { }
@@ -282,19 +282,19 @@ namespace UnityEngine
         public void Emit(int count) { }
     }
 
-    public class RuntimeAnimatorController : Object
+    public partial class RuntimeAnimatorController : Object
     {
         public AnimationClip[] animationClips => null;
     }
 
-    public class Motion : Object { }
+    public partial class Motion : Object { }
 
-    public class AnimationClip : Motion
+    public partial class AnimationClip : Motion
     {
         public float length => 0f;
     }
 
-    public class AnimatorOverrideController : RuntimeAnimatorController
+    public partial class AnimatorOverrideController : RuntimeAnimatorController
     {
         public AnimatorOverrideController() { }
         public AnimatorOverrideController(RuntimeAnimatorController controller) { }
@@ -306,7 +306,7 @@ namespace UnityEngine
         public void ApplyOverrides(System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<AnimationClip, AnimationClip>> overrides) { }
     }
 
-    public class Animator : Behaviour
+    public partial class Animator : Behaviour
     {
         public float speed { get; set; }
         public RuntimeAnimatorController runtimeAnimatorController { get; set; }
@@ -323,9 +323,9 @@ namespace UnityEngine
         public static int StringToHash(string name) => 0;
     }
 
-    public class AudioClip : Object { }
+    public partial class AudioClip : Object { }
 
-    public class AudioSource : Behaviour
+    public partial class AudioSource : Behaviour
     {
         public float pitch { get; set; }
         public float volume { get; set; }
@@ -339,17 +339,17 @@ namespace UnityEngine
     }
 
     [AttributeUsage(AttributeTargets.Field, AllowMultiple = true)]
-    public class HeaderAttribute : Attribute { public HeaderAttribute(string header) { } }
+    public partial class HeaderAttribute : Attribute { public HeaderAttribute(string header) { } }
 
     [AttributeUsage(AttributeTargets.Field)]
-    public class TooltipAttribute : Attribute { public TooltipAttribute(string tooltip) { } }
+    public partial class TooltipAttribute : Attribute { public TooltipAttribute(string tooltip) { } }
 
     [AttributeUsage(AttributeTargets.Field)]
-    public class SerializeField : Attribute { }
+    public partial class SerializeField : Attribute { }
 
     [AttributeUsage(AttributeTargets.Field)]
-    public class HideInInspector : Attribute { }
+    public partial class HideInInspector : Attribute { }
 
     [AttributeUsage(AttributeTargets.Field)]
-    public class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }
+    public partial class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }
 }

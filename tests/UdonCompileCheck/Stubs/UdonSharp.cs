@@ -13,18 +13,18 @@ namespace UdonSharp
     public enum UdonSyncMode { NotSynced, None, Linear, Smooth }
 
     [AttributeUsage(AttributeTargets.Field)]
-    public class UdonSyncedAttribute : Attribute
+    public partial class UdonSyncedAttribute : Attribute
     {
         public UdonSyncedAttribute(UdonSyncMode networkSyncTypeIn = UdonSyncMode.None) { }
     }
 
     [AttributeUsage(AttributeTargets.Class)]
-    public class UdonBehaviourSyncModeAttribute : Attribute
+    public partial class UdonBehaviourSyncModeAttribute : Attribute
     {
         public UdonBehaviourSyncModeAttribute(BehaviourSyncMode behaviourSyncMode = BehaviourSyncMode.Any) { }
     }
 
-    public abstract class UdonSharpBehaviour : MonoBehaviour
+    public abstract partial class UdonSharpBehaviour : MonoBehaviour
     {
         public void RequestSerialization() { }
         public void SendCustomEvent(string eventName) { }

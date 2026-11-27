@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Type-checks the Unity editor tools (Assets/HorseRace/Editor/**) together with the runtime scripts
+    (Assets/HorseRace/Scripts/**) against hand-written stubs of the Unity 2022.3 UnityEngine/UnityEditor,
+    TextMeshPro 3.0, VRChat SDK3 and UdonSharp 1.1 (incl. UdonSharpEditor) APIs they use.
+    Reuses the runtime stubs of tests/UdonCompileCheck (declared partial) and extends them in Stubs/.
+    This is NOT a Unity compile: it only catches C# type/signature errors.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0414;CS0169;CS0649;CS0108;CS0618</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../UdonCompileCheck/Stubs/**/*.cs" />
+    <Compile Include="Stubs/**/*.cs" />
+    <Compile Include="../../Assets/HorseRace/Scripts/**/*.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/**/*.cs" />
+  </ItemGroup>
+</Project>

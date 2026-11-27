@@ -4,11 +4,11 @@ using UnityEngine;
 
 namespace VRC.SDKBase
 {
-    public class VRCPlayerApi
+    public partial class VRCPlayerApi
     {
         public enum TrackingDataType { Head = 0, LeftHand = 1, RightHand = 2, Origin = 3, AvatarRoot = 4 }
 
-        public struct TrackingData
+        public partial struct TrackingData
         {
             public Vector3 position;
             public Quaternion rotation;
@@ -40,7 +40,7 @@ namespace VRC.SDKBase
         public void PlayHapticEventInHand(VRC_Pickup.PickupHand hand, float duration, float amplitude, float frequency) { }
     }
 
-    public static class Networking
+    public static partial class Networking
     {
         public static VRCPlayerApi LocalPlayer => null;
         public static bool IsMaster => false;
@@ -52,7 +52,7 @@ namespace VRC.SDKBase
         public static int GetServerTimeInMilliseconds() => 0;
     }
 
-    public class VRC_Pickup : MonoBehaviour
+    public partial class VRC_Pickup : MonoBehaviour
     {
         public enum PickupHand { None = 0, Left = 1, Right = 2 }
         public bool pickupable = true;
@@ -63,7 +63,7 @@ namespace VRC.SDKBase
     }
 
     /// <summary>Mirrors VRC.SDKBase.VRCStation (abstract base of VRC.SDK3.Components.VRCStation).</summary>
-    public abstract class VRCStation : MonoBehaviour
+    public abstract partial class VRCStation : MonoBehaviour
     {
         public enum Mobility { Mobile = 0, Immobilize = 1, ImmobilizeForVehicle = 2 }
         public Mobility PlayerMobility;
@@ -80,7 +80,7 @@ namespace VRC.SDKBase
 
 namespace VRC.SDK3.Components
 {
-    public class VRCStation : VRC.SDKBase.VRCStation
+    public partial class VRCStation : VRC.SDKBase.VRCStation
     {
         public override void UseStation(VRC.SDKBase.VRCPlayerApi player) { }
         public override void ExitStation(VRC.SDKBase.VRCPlayerApi player) { }
@@ -92,7 +92,7 @@ namespace VRC.Udon.Common
     public enum UdonInputEventType { BUTTON = 0, AXIS = 1 }
     public enum HandType { RIGHT = 0, LEFT = 1 }
 
-    public struct UdonInputEventArgs
+    public partial struct UdonInputEventArgs
     {
         public UdonInputEventType eventType;
         public bool boolValue;
@@ -101,7 +101,7 @@ namespace VRC.Udon.Common
     }
 
 
-    public struct SerializationResult
+    public partial struct SerializationResult
     {
         public bool success;
         public int byteCount;
@@ -122,7 +122,7 @@ namespace VRC.SDK3.UdonNetworkCalling
 {
     /// <summary>Mirrors VRC.SDK3.UdonNetworkCalling.NetworkCallableAttribute (SDK 3.8+): marks a method callable by network events with parameters.</summary>
     [System.AttributeUsage(System.AttributeTargets.Method)]
-    public class NetworkCallableAttribute : System.Attribute
+    public partial class NetworkCallableAttribute : System.Attribute
     {
         public int MaxEventsPerSecond { get; }
         public NetworkCallableAttribute() { MaxEventsPerSecond = 5; }
@@ -130,7 +130,7 @@ namespace VRC.SDK3.UdonNetworkCalling
     }
 
     /// <summary>Mirrors VRC.SDK3.UdonNetworkCalling.NetworkCalling (SDK 3.8+).</summary>
-    public static class NetworkCalling
+    public static partial class NetworkCalling
     {
         public static VRC.SDKBase.VRCPlayerApi CallingPlayer => null;
         public static bool InNetworkCall => false;
