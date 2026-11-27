@@ -123,6 +123,7 @@ namespace HorseRace
                 {
                     if (m == owner.mount || m.riderPlayerId < 0) continue;
                     if (detect) owner.ReportBallHit(m, vel);
+                    if (owner.spectator != null) owner.spectator.NotifyHitMount(m);
                     if (hitSound != null) hitSound.Play();
                     Stop();
                     return;

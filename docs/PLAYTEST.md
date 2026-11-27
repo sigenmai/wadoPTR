@@ -156,3 +156,51 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] 被弾（リボルバー・鉄球・投げ縄・砂塵）で視点が回らない
 - [ ] 練習場: 練習用の馬で手配書で選んだ能力が使え、手配書を取り替えると能力も替わる。クールダウンが 1/3、弾が減らない。カカシに当てると揺れる（外し扱いにならない）
 - [ ] レース外（ロビー・カウントダウン中・ゴール後の囲い）ではレース用の乗り物で能力・リボルバーが使えない
+
+## Task 10: 観戦・演出
+
+### セットアップ（シーンに置くもの・つなぐもの）
+- **前提**: Task 8・9 と同じ。新しいスクリプトは `Assets/HorseRace/Scripts/Show/`（SpectatorDirector・DirectorTag・NoticeBoardDisplay・Starter・GoalPresenter・Podium・TownCrier）。それぞれ UdonSharp Program Asset を作り、同期モードは None のまま
+- **中継の RenderTexture**: `Assets/HorseRace/Show/BroadcastRT.renderTexture`（960×540、Depth 24、Anti-aliasing なし、Mipmap なし）を作る
+  - 中継用マテリアル `M_Broadcast`（Unlit/Texture、Main Texture = BroadcastRT）
+  - 羊皮紙マテリアル `M_Parchment`（`Packs/WantedPosters` の紙のテクスチャを流用、Unlit 推奨）
+- **SpectatorDirector**（たまり場のどこか、空の GameObject）
+  - 子に Camera を 1 台（Target Texture = BroadcastRT、FOV 50 前後、Far Clip 400 程度、Audio Listener は**付けない**、**初期状態でコンポーネントを無効**）。`Broadcast Camera` にこの Camera、`Render Texture` に BroadcastRT、`Race Manager` を設定
+  - `Follow Distance` 9 / `Follow Height` 4.5 / `Look Height` 1.2 を目安に調整
+  - `Caption Text`（任意）: 掲示板の下の小さな札の TextMeshPro（「中継：名前（2位）［おまかせ］」と出る）
+  - `Tags`: 下の木札 9 枚
+- **木札（DirectorTag）×9**: 掲示板の下に吊るす小さな板（`Packs/WoodLogs` か Cube）＋ Collider。`Director` = SpectatorDirector、`Follow Rank` = 1〜8（「1位を追う」…「8位を追う」）と 0（「おまかせ」）。Interaction Text に同じ文言。`Selected Mark`（任意）に選択中の印
+- **AbilityCaster**（Task 9 の 10 個すべて）: `Spectator` に SpectatorDirector を設定（命中の場面に切り替えるため。未設定でも動く）
+- **掲示板（NoticeBoard.fbx）×3 程度**: たまり場に置き、それぞれに `NoticeBoardDisplay`
+  - `Panel Renderer` = 子の `NoticeBoard_Panel`、`Broadcast Material` = M_Broadcast、`Parchment Material` = M_Parchment、`Race Manager` を設定
+  - `Board Text`: Panel の少し手前に重ねた TextMeshPro（古い活字風の日本語フォント、黒っぽい茶色）
+  - 中継の板は `Mode` = 0 で `Director` を設定。順位表（電報）の板は `Mode` = 1。エントリー一覧の板は `Mode` = 2
+- **Starter**: スタートライン脇のスターター人物（Capsule＋旗＝細い Cylinder と Quad）。ルートに `Starter`、RaceManager の `Starter` にこれを設定
+  - `Flag Pivot`（旗の付け根）、`Pistol Arm`（腕の付け根。手に `Packs/Revolver` を持たせてよい）、`Audio Source`（2D 推奨）、`Blank Clip`（空砲）、`Start Clip`（号砲）、`Pistol Smoke`、`Start Dust`（スタートラインに並べた砂煙）、`Sky Count Text`（空の大きな TextMeshPro）
+  - `Stage Spots`（任意）: 3 ステージのスタートライン脇の立ち位置。BeginCountdown のたびにスターターごと移す（旗・砂煙・空の文字はスターターの子に置く）
+- **GoalPresenter**: 各ステージのゴールゲート（ゲートの模型はプリミティブか `Packs/FarmProps` の柱＋横木）に 1 つずつ。`Stage Index` = 0/1/2、`Race Manager` を設定
+  - `Confetti`（ゲートの上の紙吹雪 ParticleSystem。Play On Awake OFF、Looping OFF。Emit で出す）、`Bell Audio`（教会の鐘、**2D**＝Spatial Blend 0 で全員に聞こえる。3 ステージで共用してよい）、`Finish Audio`（任意）
+  - `Place Tags`: 着順の木札 8 枚（Cube を薄くした木の板＋子に TextMeshPro）。`Place Tag Texts` に各札の TextMeshPro。最初は非表示でよい
+  - ゴールの判定は既存のゴール用 Checkpoint（`Is Goal`）のまま（ここでは同期値 syncFinishAt を見るだけ。新しい Trigger は不要）
+- **Podium**: ゴールの町に `Podium.fbx`。`Steps` に段の上の立ち位置（空の Transform、0 = 1 位、1 = 2 位、2 = 3 位、向きは観客側）、`Fireworks` に花火の ParticleSystem（数個、Play On Awake OFF）、`Fanfare`（任意）
+- **TownCrier**: たまり場の新聞売り（Capsule でよい）。`Call Audio`（呼び声、2D 推奨）、`Call Clip`（任意）、`Boards` に Mode 1 の掲示板、`Paper Arm`（任意、新聞を掲げる腕）
+- **音の仮素材**: 空砲・号砲・鐘・呼び声・ファンファーレは Phase 2 で差し替え。今は手持ちの短い効果音か無音のクリップでよい（未設定でも例外にはならない）
+
+### 確認項目
+- [ ] ロビーにいる人（エントリーしていない人）の掲示板（Mode 0）に、カウントダウン〜レース中だけ中継が映る。レースが無いときは羊皮紙に「レースが始まるとここに映ります」
+- [ ] 中継は基本先頭を追い、2 頭が 8m 以内で競り合うとそちら、能力（鉄球・投げ縄・リボルバー）が当たると数秒その場面に切り替わる。1 カットは最短 5 秒・最長 15 秒（ストップウォッチで確認）
+- [ ] 追従はなめらか（後方斜め上）。カットが変わるときだけ 0.3 秒ほどで素早く移る
+- [ ] 木札「2位を追う」を押すと自分の掲示板だけ 2 位の馬に切り替わる（別のクライアントの中継は変わらない）。「おまかせ」で自動に戻る。順位が入れ替わると追う馬も替わる
+- [ ] レース参加者のクライアントではカメラが無効（掲示板には「出走中の方には映りません」）。フレームレートが落ちない
+- [ ] 順位表（Mode 1）: レース中は順位・名前・能力・残り時間が 0.5 秒ごとに更新。ステージ結果で着順の電報、総合結果で合計点
+- [ ] エントリー一覧（Mode 2）: 台帳にサインすると名前・乗り物・能力が増える。レース中は合計点も出る
+- [ ] カウントダウン: スターターが旗を振り、空砲 3 発（1 秒おき、空に「3」「2」「1」）→ 号砲（「出走！」、砂煙）で全員動けるようになる。カウント中は馬が足踏み（Stamp）
+- [ ] 号砲で動けるタイミングは、マスターでもマスター以外でもずれない（マスター以外の旗・音は同じ流れで出る）。Starter が無い／マスターが号砲前に抜けても 6 秒で始まる
+- [ ] 第 2・第 3 ステージでもスターターがそのステージのスタート脇に移って同じ演出になる
+- [ ] ゴール: ゴールゲートを通ると紙吹雪が出て、その馬の上に「1着！」「2着」…の木札が跳ねる（全クライアントで同じ着順）
+- [ ] ステージで最初のゴールのときだけ教会の鐘が鳴る（全員、どこにいても聞こえる、1 ステージ 1 回）
+- [ ] ステージ結果に入ると新聞売りの呼び声が鳴り、Mode 1 の掲示板に「電報 第Nステージ 着順 … 1着 名前 +10点（計…）」が貼られる（1 ステージ 1 回）
+- [ ] 総合結果: 上位 3 人が乗り物から降りて表彰台の 1〜3 位の段に移る（各自のクライアントで自分だけ）。花火は全員に見える。4 位以下とロビーの人はそのまま
+- [ ] ロビーに戻ると花火が止まり、表彰台の人もロビーに戻る（Task 8 の動き）
+- [ ] 途中参加: 結果表示の途中で入った人には呼び声・鐘が鳴らない（電報だけ見える）
+- [ ] 被弾・演出で誰のカメラ（視点）も強制的に回らない

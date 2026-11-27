@@ -55,6 +55,8 @@ namespace HorseRace
         public GameObject haze;
         public AudioSource castSound;
         public AudioSource relicSound;
+        [Tooltip("任意（Task 10）。命中の場面を中継カメラに知らせる（全員向けの見た目イベントからローカルに呼ぶだけ）")]
+        public SpectatorDirector spectator;
 
         [Header("判定")]
         [Tooltip("乗り物の体・騎手の当たり判定のレイヤー")]
@@ -387,6 +389,7 @@ namespace HorseRace
         {
             EnsureInit();
             if (lasso != null) lasso.Show(mount, end, hit, hit ? AbilityMath.LASSO_SELF_SECONDS : 0f);
+            if (hit && spectator != null) spectator.NotifyHitNear(end, mount);
         }
 
         [NetworkCallable(10)]

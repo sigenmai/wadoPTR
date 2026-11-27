@@ -433,6 +433,8 @@ namespace HorseRace
             if (muzzleFlash != null) muzzleFlash.Play();
             if (smoke != null) smoke.Play();
             if (gunshot != null) gunshot.Play();
+            // 中継カメラ（Task 10）：着弾点のすぐ近くに乗り物がいれば命中の場面とみなす（ローカルのみ）
+            if (caster != null && caster.spectator != null) caster.spectator.NotifyHitNear(end, caster.mount);
             if (tracer != null)
             {
                 tracer.SetPosition(0, origin);
