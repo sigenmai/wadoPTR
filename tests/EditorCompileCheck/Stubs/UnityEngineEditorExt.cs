@@ -216,6 +216,7 @@ namespace UnityEngine
         public void SetFloat(string name, float value) { }
         public float GetFloat(string name) => 0f;
         public void SetColor(string name, Color value) { }
+        public Color GetColor(string name) => default(Color);
     }
 
     public enum TextureFormat { Alpha8 = 1, RGB24 = 3, RGBA32 = 4, ARGB32 = 5 }

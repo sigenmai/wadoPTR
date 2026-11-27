@@ -318,11 +318,26 @@ namespace HorseRace.EditorTools
                     Material s = src[i];
                     if (s != null && s.shader != null && s.shader.name == TOON_SHADER && overrideTex == null) { dst[i] = s; continue; }
                     Texture tex = overrideTex != null ? overrideTex : MainTextureOf(s, r);
-                    string key = (s != null ? s.name : "none") + "_" + (tex != null ? tex.name : "notex");
-                    dst[i] = SaveOrUpdate("Toon_" + key, tex, Color.white);
+                    // 画像を使わず「色だけ」で塗られた素材が多い（町・小物のパック）。元の色を Tint に引き継ぐ
+                    // （画像があるときは白のまま。Blender から来た FBX は画像付きでも灰色の基本色を持っていて、掛けると暗くなる）
+                    Color tint = tex != null ? Color.white : BaseColorOf(s);
+                    string key = (s != null ? s.name : "none") + "_" + (tex != null ? tex.name : "notex")
+                        + "_" + ColorUtility.ToHtmlStringRGB(tint);
+                    dst[i] = SaveOrUpdate("Toon_" + key, tex, tint);
                 }
                 r.sharedMaterials = dst;
             }
+        }
+
+        /// <summary>元のマテリアルの基本色（Standard の _Color、URP の _BaseColor、HDRP の _BaseColor）。無ければ白。</summary>
+        static Color BaseColorOf(Material m)
+        {
+            if (m == null) return Color.white;
+            Color c = Color.white;
+            if (m.HasProperty("_Color")) c = m.GetColor("_Color");
+            else if (m.HasProperty("_BaseColor")) c = m.GetColor("_BaseColor");
+            c.a = 1f;
+            return c;
         }
 
         static Texture MainTextureOf(Material m, Renderer r)
