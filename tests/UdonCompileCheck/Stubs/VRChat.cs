@@ -147,6 +147,8 @@ namespace VRC.SDK3.Persistence
         public static float GetFloat(VRC.SDKBase.VRCPlayerApi player, string key) => 0f;
         public static bool TryGetFloat(VRC.SDKBase.VRCPlayerApi player, string key, out float value) { value = 0f; return false; }
         public static bool HasKey(VRC.SDKBase.VRCPlayerApi player, string key) => false;
+        public static void SetInt(string key, int value) { }
+        public static bool TryGetInt(VRC.SDKBase.VRCPlayerApi player, string key, out int value) { value = 0; return false; }
     }
 }
 

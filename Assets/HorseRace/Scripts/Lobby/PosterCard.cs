@@ -11,12 +11,15 @@ namespace HorseRace
     /// 取るとき：紙のこすれる音（takeSound）と、紙が 0.25 秒で手前へ 0.15m 引き出されながら縮んで消える動き。そのあと選択が決まる。
     /// カードの下の札（label）：「手配　砂塵」と効果・クールダウン（HudMath.AbilityDescription / MountDescription）。
     /// 文言: 乗り物 = 馬／ラクダ、能力 = 砂塵／投げ縄／岩壁／鉄球。
+    /// KIND_PICK（system-r2-15）：電報の掲示板の下の予想の札。value = スロット、札の文字は RaceManager が乗り手の名前に書き換える。
+    /// 取ると RaceManager.PickWinner（このクライアントだけの予想）。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class PosterCard : UdonSharpBehaviour
     {
         public const int KIND_MOUNT = 0;
         public const int KIND_ABILITY = 1;
+        public const int KIND_PICK = 2;
         public const float TAKE_SECONDS = 0.25f;
         public const float TAKE_PULL_M = 0.15f;
 
@@ -42,7 +45,7 @@ namespace HorseRace
         private void Start()
         {
             CaptureRest();
-            if (label != null) label.text = "<b><size=130%>手配　" + Caption() + "</size></b>\n" + Description();
+            if (label != null && kind != KIND_PICK) label.text = "<b><size=130%>手配　" + Caption() + "</size></b>\n" + Description();
         }
 
         private void CaptureRest()
@@ -92,7 +95,14 @@ namespace HorseRace
             taking = false;
             if (raceManager == null) return;
             if (kind == KIND_MOUNT) raceManager.SelectMount(value);
+            else if (kind == KIND_PICK) raceManager.PickWinner(value);
             else raceManager.SelectAbility(value);
+        }
+
+        /// <summary>予想の札の文字（RaceManager から、ローカル）。</summary>
+        public void SetPickLabel(string text)
+        {
+            if (label != null && label.text != text) label.text = text;
         }
 
         /// <summary>RaceManager から呼ばれる（ローカル表示のみ）。</summary>

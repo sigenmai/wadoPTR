@@ -73,7 +73,7 @@ namespace HorseRace
         public Vector3 vrHandAimAxis = new Vector3(0f, 0f, 1f);
 
         [Header("調整値（AbilityMath にない細部）")]
-        public float dustHitSeconds = 1.5f;
+        public float dustHitSeconds = AbilityMath.DUST_HIT_SECONDS;
         public float dustBehind = 4f;
         public float ballSpeed = 26f;   // 最高速 18 m/s の馬が自分の鉄球に追いつかない
         public float ballLoft = 4f;
@@ -179,9 +179,16 @@ namespace HorseRace
             if (!mount.raceActive || mount.InputLocked) return false;
             if (mount.syncFinishAt >= 0.0) return false;
             if (raceManager != null && raceManager.state != RaceMath.STATE_RACING) return false;
-            // 開幕 8 秒は使えない（system-r1-07：スタートの混乱を防ぐ）
-            if (raceManager != null && raceManager.InStartGrace()) return false;
+            // 開幕は使えない（system-r1-07）。解禁はレーンの順に 8〜13.25 秒（system-r2-11：猶予明けの一斉発動を防ぐ）
+            if (OpeningLeft() > 0f) return false;
             return true;
+        }
+
+        /// <summary>この乗り物の能力が開幕の解禁まであと何秒か（0 = 使える。練習用・レース外は 0）。AbilityMath.OpeningReady（レーン順）。</summary>
+        public float OpeningLeft()
+        {
+            if (practiceMount || raceManager == null || mount == null) return 0f;
+            return raceManager.OpeningLeft(mount.slotIndex);
         }
 
         /// <summary>今、開幕の猶予で使えない（お守り袋を消し、リボルバーは「封」）。</summary>
@@ -310,10 +317,18 @@ namespace HorseRace
         {
             Vector3 origin = mount.transform.position + Vector3.up * aimHeight;
             Vector3 dir = FlatAim();
-            bool hit = FindTarget(origin, dir, AbilityMath.LassoRange(Level), lassoRadius);
+            float range = AbilityMath.LassoRange(Level);
+            bool hit = FindTarget(origin, dir, range, lassoRadius);
+            // 相手の今の位置（描いている 0.22 秒前の位置ではない、system-r2-07）で届くかを確かめ直す
+            if (hit && foundMount != null)
+            {
+                Vector3 pp = foundMount.PredictedPosition() - mount.transform.position;
+                pp.y = 0f;
+                if (pp.magnitude > range + lassoRadius) { hit = false; foundMount = null; }
+            }
             if (hit)
             {
-                Vector3 to = foundMount != null ? foundMount.transform.position : foundPoint;
+                Vector3 to = foundMount != null ? foundMount.PredictedPosition() : foundPoint;
                 mount.ApplyPull(to, AbilityMath.LassoPullBonus(Level), AbilityMath.LASSO_SELF_SECONDS);
                 if (foundMount != null)
                 {
@@ -474,7 +489,8 @@ namespace HorseRace
         public void FxWall(Vector3 center, float yaw, int count, float width)
         {
             EnsureInit();
-            if (rockWall != null) rockWall.Show(center, yaw, count, width, AbilityMath.WALL_SECONDS);
+            // 壁の枚数 = Lv（AbilityMath.WallCount）。道の幅に合わせて減らす・寄せる・乗り物の足元に立てない（system-r2-10）
+            if (rockWall != null) rockWall.ShowFor(center, yaw, count, width, AbilityMath.WALL_SECONDS, mount, count);
         }
 
         [NetworkCallable(10)]
@@ -659,8 +675,10 @@ namespace HorseRace
             if (local)
             {
                 // 開幕の猶予の間は「封」（使えない札）
-                bool locked = LockedByStartGrace();
-                float rem = locked ? raceManager.StartGraceLeft() : readyAt - Time.time;
+                // 開幕の解禁（レーン順、system-r2-11）までは「封」とその秒数（各自の札に自分の番が出る）
+                float open = OpeningLeft();
+                bool locked = open > 0f;
+                float rem = locked ? open : readyAt - Time.time;
                 MinimalHud hud = raceManager != null ? raceManager.hud : null;
                 if (pouch.hud == null) pouch.hud = hud;
                 VRCPlayerApi lp = Networking.LocalPlayer;

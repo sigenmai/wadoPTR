@@ -179,6 +179,8 @@ namespace HorseRace
             }
             if (!m.raceActive || m.InputLocked || m.syncFinishAt >= 0.0) return false;
             if (caster.LockedByStartGrace()) return false;   // 開幕 8 秒は撃てない（system-r1-07）
+            // 号砲から 15 秒までは 1 発だけ（system-r2-11：猶予が明けた瞬間の一斉射撃を防ぐ）
+            if (caster.raceManager != null && !RevolverMath.OpeningAllows(ammo, caster.raceManager.SecondsSinceGun())) return false;
             int st = caster.raceManager != null ? caster.raceManager.state : RaceMath.STATE_RACING;
             return RevolverMath.CanShoot(ammo, st);
         }

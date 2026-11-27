@@ -113,7 +113,7 @@ namespace UnityEngine
 
     public enum QueryTriggerInteraction { UseGlobal = 0, Ignore = 1, Collide = 2 }
 
-    public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, Delete = 127, Insert = 277, Home = 278, End = 279, PageUp = 280, PageDown = 281, LeftShift = 304, RightShift = 303 }
+    public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, R = 114, Delete = 127, Insert = 277, Home = 278, End = 279, PageUp = 280, PageDown = 281, LeftShift = 304, RightShift = 303 }
 
     public partial class Object
     {
@@ -146,6 +146,7 @@ namespace UnityEngine
 
     public partial class Transform : Component
     {
+        public bool IsChildOf(Transform parent) => false;
         public Vector3 position { get; set; }
         public Vector3 localPosition { get; set; }
         public Quaternion rotation { get; set; }
@@ -209,6 +210,7 @@ namespace UnityEngine
         public static bool Raycast(Vector3 origin, Vector3 direction, out RaycastHit hitInfo, float maxDistance, int layerMask, QueryTriggerInteraction queryTriggerInteraction) { hitInfo = default; return false; }
         public static RaycastHit[] SphereCastAll(Vector3 origin, float radius, Vector3 direction, float maxDistance, int layerMask, QueryTriggerInteraction queryTriggerInteraction) => new RaycastHit[0];
         public static Collider[] OverlapSphere(Vector3 position, float radius, int layerMask, QueryTriggerInteraction queryTriggerInteraction) => new Collider[0];
+        public static bool CheckBox(Vector3 center, Vector3 halfExtents, Quaternion orientation, int layermask, QueryTriggerInteraction queryTriggerInteraction) => false;
     }
 
     public static partial class Time

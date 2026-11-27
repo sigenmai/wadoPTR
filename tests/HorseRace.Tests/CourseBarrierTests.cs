@@ -125,17 +125,22 @@ namespace HorseRace.Tests
                     }
         }
 
-        [Test] public void CheckpointsAreClearOfWalls()
+        /// <summary>system-r2-02：CP の箱は柵から柵まで（柵から 2m 内側）。柵沿いの外の線でも CP を飛ばさない。</summary>
+        [Test] public void CheckpointBoxesReachTheFence()
         {
             foreach (var st in Stages())
             {
                 var boxes = CourseBarrier.CheckpointBoxes(st.def, st.local, st.goal, st.shortcut);
                 int twins = st.shortcut != null ? st.shortcut.twinFractions.Length : 0;
-                Assert.AreEqual(WorldLayout.CheckpointArcs(st.goal, StageDefinitions.CP_SPACING_M).Length + twins, boxes.Count);
-                float min = float.MaxValue;
-                foreach (var b in boxes) min = Mathf.Min(min, CourseBarrier.DistToQuad(st.segs, b));
-                TestContext.WriteLine(st.def.label + ": min wall–CP box " + min.ToString("F1") + " m");
-                Assert.GreaterOrEqual(min, CourseBarrier.CP_CLEAR_M, st.def.label);
+                float[] arcs = WorldLayout.CheckpointArcs(st.goal, StageDefinitions.CP_SPACING_M);
+                Assert.AreEqual(arcs.Length + twins, boxes.Count);
+                foreach (float a in arcs)
+                {
+                    float off = CourseBarrier.OffsetAtArc(st.def, st.local, st.goal, a);
+                    float half = CourseBarrier.CpHalfWidth(st.def, st.local, st.goal, a);
+                    Assert.GreaterOrEqual(half, off - 2f - 1e-3f, st.def.label + " arc " + a);
+                    Assert.Less(half, off, st.def.label + " arc " + a);
+                }
             }
         }
 

@@ -92,6 +92,9 @@ namespace HorseRace.EditorTools
         public SpectatorDirector director;
         public readonly List<NoticeBoardDisplay> noticeBoards = new List<NoticeBoardDisplay>();
         public readonly List<DirectorTag> directorTags = new List<DirectorTag>();
+        /// <summary>予想の札（system-r2-15、電報の掲示板の下、value = スロット）と札の上の紙の文字。</summary>
+        public readonly List<PosterCard> pickCards = new List<PosterCard>();
+        public TMPro.TextMeshPro pickStatus;
         public TownCrier crier;
         public Starter starter;
         public Podium podium;

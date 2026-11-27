@@ -47,6 +47,8 @@ namespace HorseRace.EditorTools
             // 道の踏み固めた土（course-r1-09）：道の上の砂は消す（道の外の砂 = 遅くなる危険）
             sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm);
             HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail);
+            // 深い砂の区間（system-r2-01）：道の上も砂（ラクダの出番）。踏み跡は薄く残す
+            HeightmapGen.ApplyDeepSand(sb.sand, sb.trail, def, sb.courseLocal, StageDefinitions.SIZE);
 
             sb.courseWorld = new Vector3[sb.courseLocal.Length];
             for (int i = 0; i < sb.courseLocal.Length; i++) sb.courseWorld[i] = sb.Ground(sb.courseLocal[i].x, sb.courseLocal[i].z);
@@ -373,20 +375,36 @@ namespace HorseRace.EditorTools
             return terrain;
         }
 
+        static int NearestIndex(Vector3[] pts, Vector3 p)
+        {
+            int best = 0;
+            float bd = float.MaxValue;
+            for (int i = 0; i < pts.Length; i++)
+            {
+                float d = WorldLayout.DistXZ(pts[i], p);
+                if (d < bd) { bd = d; best = i; }
+            }
+            return best;
+        }
+
         /// <summary>砂の範囲に SandZone（Is Trigger の BoxCollider）を並べる。乗り物は sandZoneCount で砂地を知る。</summary>
         static void BuildSandZones(StageBuild sb)
         {
             var parent = GenUtil.Child(sb.root, "SandZones", Vector3.zero).transform;
             parent.position = sb.def.Origin;
             float cell = StageDefinitions.SIZE / SAND_CELLS;
-            // 道の上のマス（中心がコースから SAND_ROAD_SKIP_M 以内）は砂にしない（course-r1-09：遅くなるのは道の外だけ）
+            // 道の上のマス（中心がコースから SAND_ROAD_SKIP_M 以内）は砂にしない（course-r1-09：遅くなるのは道の外だけ）。
+            // ただし深い砂の区間（StageDef.sandTrailArcs、system-r2-01）は道の上も砂のまま
             var mask = (float[,])sb.sand.Clone();
             int mn = mask.GetLength(0);
+            float[] acc = new float[sb.courseLocal.Length];
+            for (int i = 1; i < acc.Length; i++) acc[i] = acc[i - 1] + WorldLayout.DistXZ(sb.courseLocal[i - 1], sb.courseLocal[i]);
             for (int cz = 0; cz < SAND_CELLS; cz++)
                 for (int cx = 0; cx < SAND_CELLS; cx++)
                 {
                     var c = new Vector3((cx + 0.5f) * cell, 0f, (cz + 0.5f) * cell);
                     if (WorldLayout.DistToPolylineXZ(c, sb.courseLocal) >= SAND_ROAD_SKIP_M) continue;
+                    if (StageDefinitions.InDeepSand(sb.def, acc[NearestIndex(sb.courseLocal, c)])) continue;
                     int p0 = Mathf.FloorToInt(cz * cell / StageDefinitions.SIZE * mn), p1 = Mathf.Min(mn, Mathf.CeilToInt((cz + 1) * cell / StageDefinitions.SIZE * mn));
                     int q0 = Mathf.FloorToInt(cx * cell / StageDefinitions.SIZE * mn), q1 = Mathf.Min(mn, Mathf.CeilToInt((cx + 1) * cell / StageDefinitions.SIZE * mn));
                     for (int z = p0; z < p1; z++) for (int x = q0; x < q1; x++) mask[z, x] = 0f;

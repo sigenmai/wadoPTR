@@ -1,5 +1,7 @@
+using TMPro;
 using UdonSharp;
 using UnityEngine;
+using VRC.SDK3.Persistence;
 using VRC.SDKBase;
 using VRC.SDK3.UdonNetworkCalling;
 using VRC.Udon.Common.Interfaces;
@@ -13,7 +15,11 @@ namespace HorseRace
     ///       → STAGE_RESULT 20 s（ポイント加算・能力/弾/遺物のリセット・途中参加の受付・乗り物と能力の乗り換え）→ 次の COUNTDOWN
     ///       （RACING は 1 位ゴール 60 秒後・5:30・全員ゴールのいちばん早いもので終わる）
     ///       ステージ中（COUNTDOWN / RACING）のサインは pending* に預かり、STAGE_RESULT に入るときに空き枠へ入れる（次のステージから走る）
-    ///       … 3 ステージ後 FINAL_RESULT 20 s → LOBBY（エントリーとポイントを消す）
+    ///       … 3 ステージ後 FINAL_RESULT 20 s → LOBBY（もう一戦：同じ顔ぶれのまま点だけ消し、30 秒で次のレース。system-r2-06）
+    ///       台帳でいつでも取り消せる（RequestWithdraw、system-r2-05）。号砲から 20 秒たっても最初の CP に届かず止まっている人は「不在」で、次の合間で枠を空ける。
+    ///       ひとりでも 30 秒で出走する（タイムアタック、system-r2-04）。ステージの最速タイムはコース記録（stageBest*）に残る。
+    ///       順位（order / firstFinishServer）は子の RaceOrder が小さく同期する（system-r2-13）。RaceManager は状態・枠が変わったときだけ同期する。
+    ///       観客の予想（system-r2-15）：電報の掲示板の札で勝つと思う人を選び、ステージ結果で 1 着 3 点・3 着まで 1 点（PlayerData に通算を保存）。
     ///
     /// 依頼（クライアント → マスター）は引数つきネットワークイベント（[NetworkCallable]）。マスター側で必ず検証する。
     /// 順位は各 MountController の同期値（syncCp / syncDistToCp / syncFinishAt）からマスターが RaceMath.ComputeOrder で計算する。
@@ -45,7 +51,8 @@ namespace HorseRace
         [UdonSynced] public int state;
         [UdonSynced] public int stage;
         [UdonSynced] public double stageStartServer;
-        [UdonSynced] public double firstFinishServer = -1.0;
+        /// <summary>最初のゴールのサーバー時刻（-1 = まだ）。RaceOrder が運ぶ（同期しない、system-r2-13）。</summary>
+        public double firstFinishServer = -1.0;
         /// <summary>現在の状態に入ったサーバー時刻（COUNTDOWN / 結果表示のタイマー）。</summary>
         [UdonSynced] public double stateStartServer;
         /// <summary>COUNTDOWN に入るたびに +1。クライアントはこれでステージ開始処理を 1 回だけ行う。</summary>
@@ -57,8 +64,8 @@ namespace HorseRace
         [UdonSynced] public int[] slotTotalPoints = new int[MAX_SLOTS];
         /// <summary>直近のステージの着順（1 始まり、0 = なし）。</summary>
         [UdonSynced] public int[] slotStagePlace = new int[MAX_SLOTS];
-        /// <summary>現在のステージ順位（スロット番号、先頭から。空きは -1）。</summary>
-        [UdonSynced] public int[] order = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
+        /// <summary>現在のステージ順位（スロット番号、先頭から。空きは -1）。RaceOrder が運ぶ（同期しない、system-r2-13）。</summary>
+        public int[] order = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
         /// <summary>今のレースのステージ別着順。index = stage * 8 + slot（1 始まり、0 = なし）。</summary>
         [UdonSynced] public int[] stagePlace = new int[STAGE_COUNT * MAX_SLOTS];
         /// <summary>ステージ中にサインした人（次のステージから走る）。-1 = 空き。STAGE_RESULT に入るときに枠へ移す。</summary>
@@ -70,6 +77,13 @@ namespace HorseRace
         [UdonSynced] public double lobbyDeadlineServer = -1.0;
         /// <summary>スロットごとのスタートのレーン（COUNTDOWN に入るときにマスターが RaceMath.GridOrder で決める。system-r1-14）。</summary>
         [UdonSynced] public int[] gridLane = new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+        /// <summary>出走しなかった（号砲から 20 秒、最初の CP に届かず止まっている）スロットのビット（system-r2-05）。次の STAGE_RESULT で枠を空ける。</summary>
+        [UdonSynced] public int noStartMask;
+        /// <summary>総合結果の後、同じ顔ぶれでロビーに戻った（もう一戦、system-r2-06）。号砲で false。</summary>
+        [UdonSynced] public bool rematch;
+        /// <summary>コース記録（system-r2-04）：ステージごとの最速のゴールのタイム（秒、-1 = なし）と名前。このインスタンスの間だけ。</summary>
+        [UdonSynced] public float[] stageBestTime = new float[] { -1f, -1f, -1f };
+        [UdonSynced] public string[] stageBestName = new string[] { "", "", "" };
 
         // ---- 前回のレース（総合結果に入った時点の写し。ロビーに戻っても消さない。たまり場の黒板用）----
         /// <summary>true なら last* が有効。</summary>
@@ -104,6 +118,9 @@ namespace HorseRace
         [Tooltip("任意（Task 10）。中継カメラ。AbilityCaster / RevolverHolder が命中の場面を知らせる先（乗り物ごとの設定がなければこれ）")]
         public SpectatorDirector spectator;
 
+        [Tooltip("順位を運ぶ小さな同期（子の GameObject、system-r2-13）")]
+        public RaceOrder raceOrder;
+
         [Header("Lobby / UI")]
         public EntryLedger[] ledgers;
         public RankBoard[] rankBoards;
@@ -113,6 +130,10 @@ namespace HorseRace
         [Tooltip("首の札（補助表示）。カウントダウン・ゴール・CP の合図を出す（任意）")]
         public MinimalHud hud;
         public PracticeArea practiceArea;
+        [Tooltip("予想の札（system-r2-15）：value = スロット。電報の掲示板の下")]
+        public PosterCard[] pickCards;
+        [Tooltip("予想の札の上の紙：自分の予想・前回の結果・通算")]
+        public TextMeshPro pickStatusText;
 
         [Header("Local selection (このクライアントだけ、同期しない)")]
         public int localMount = MountMath.MOUNT_HORSE;
@@ -136,6 +157,18 @@ namespace HorseRace
         private bool starterDone;
         /// <summary>直近の UpdateOrderMaster で、エントリー者全員がゴール済みだったか。</summary>
         private bool allFinishedMaster;
+        private bool orderDirty;
+        private int lastLobbyEntrants = -1;
+        private bool recordDirty;
+
+        // ---- 予想（ローカル、system-r2-15）----
+        public const string PICK_KEY = "hr_pick_total";
+        private int localPickSlot = -1;
+        private int localPickPlayer = -1;
+        private int localPickSeq = -1;
+        private int pickTotal;
+        private bool pickLoaded;
+        private string pickLastText = "";
 
         private void Start()
         {
@@ -277,6 +310,24 @@ namespace HorseRace
             return RaceMath.StartGraceLeft(Networking.GetServerTimeInSeconds(), stageStartServer);
         }
 
+        /// <summary>
+        /// スロットの能力が開幕の解禁まであと何秒か（system-r2-11）：号砲から AbilityMath.OpeningReady(レーン) 秒（8〜13.25 秒、前のレーンから）。
+        /// RACING 以外は 0（COUNTDOWN 中は CanCast が別に止める）。
+        /// </summary>
+        public float OpeningLeft(int slot)
+        {
+            if (state != RaceMath.STATE_RACING) return 0f;
+            double left = stageStartServer + AbilityMath.OpeningReady(LaneOf(slot), MAX_SLOTS) - Networking.GetServerTimeInSeconds();
+            return left > 0.0 ? (float)left : 0f;
+        }
+
+        /// <summary>号砲からの秒数（RACING 以外は -1）。</summary>
+        public float SecondsSinceGun()
+        {
+            if (state != RaceMath.STATE_RACING) return -1f;
+            return (float)(Networking.GetServerTimeInSeconds() - stageStartServer);
+        }
+
         /// <summary>ステージの残り秒数。RACING 中は終了条件の早いほうまで、COUNTDOWN 中は 330。それ以外は -1。</summary>
         public float GetRemainingSeconds()
         {
@@ -323,6 +374,35 @@ namespace HorseRace
             RefreshDisplays();
         }
 
+        /// <summary>RaceOrder が順位を受け取った（マスター以外）。同期しないフィールドへ写して表示を更新する。</summary>
+        public void OnOrderReceived()
+        {
+            if (raceOrder == null || Networking.IsOwner(gameObject)) return;
+            for (int p = 0; p < MAX_SLOTS && p < raceOrder.order.Length; p++) order[p] = raceOrder.order[p];
+            firstFinishServer = raceOrder.firstFinishServer;
+            RefreshDisplays();
+        }
+
+        /// <summary>マスター：順位を RaceOrder で送る（変わっていなければ送らない）。</summary>
+        private void PushOrderMaster()
+        {
+            if (raceOrder != null) raceOrder.Push(order, firstFinishServer, stageSeq);
+        }
+
+        /// <summary>出走しなかったスロットか（system-r2-05、台帳に「（不在）」）。</summary>
+        public bool IsNoStart(int slot)
+        {
+            if (slot < 0 || slot >= MAX_SLOTS) return false;
+            return (noStartMask & (1 << slot)) != 0;
+        }
+
+        /// <summary>ステージ st のコース記録の 1 行（「記録 3:21.4 名前」、なければ空）。</summary>
+        public string CourseRecordLine(int st)
+        {
+            if (stageBestTime == null || st < 0 || st >= stageBestTime.Length || stageBestTime[st] < 0f) return "";
+            return StageLabel(st) + " 記録 " + HudMath.FormatClockTenths(stageBestTime[st]) + " " + HudMath.ShortName(stageBestName[st], HudMath.SHORT_NAME_MAX);
+        }
+
         // =====================================================================
         // ローカル選択（手配書・柵の馬・台帳・鐘から呼ぶ）
         // =====================================================================
@@ -364,6 +444,12 @@ namespace HorseRace
         {
             int coat = localMount == MountMath.MOUNT_CAMEL ? 0 : localCoat;
             SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(RequestEntry), localMount, coat, localAbility);
+        }
+
+        /// <summary>台帳の取り消し（system-r2-05）：エントリー（またはステージ中の預かり）をやめる。</summary>
+        public void WithdrawLedger()
+        {
+            SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(RequestWithdraw));
         }
 
         /// <summary>号砲を撃つ：マスター、または締め切り 30 秒前からのエントリー者が開始を依頼する。</summary>
@@ -426,6 +512,32 @@ namespace HorseRace
             ApplyLocal();
         }
 
+        /// <summary>
+        /// エントリーの取り消し（system-r2-05）。ロビーとステージの合間だけ枠を空ける（レース中は預かりの取り消しだけ）。
+        /// 観る側に回る・席を外す人が、出走時計や「全員乗ったら 15 秒」を止めないように。
+        /// </summary>
+        [NetworkCallable]
+        public void RequestWithdraw()
+        {
+            if (!Networking.IsOwner(gameObject)) return;
+            VRCPlayerApi caller = GetCaller();
+            if (caller == null || !caller.IsValid()) return;
+            bool changed = IsPending(caller.playerId);
+            RemovePending(caller.playerId);
+            if (state == RaceMath.STATE_LOBBY || state == RaceMath.STATE_STAGE_RESULT)
+            {
+                int s = FindSlot(caller.playerId);
+                if (s >= 0)
+                {
+                    ClearSlot(s);
+                    changed = true;
+                }
+            }
+            if (!changed) return;
+            RequestSerialization();
+            ApplyLocal();
+        }
+
         [NetworkCallable]
         public void RequestStart()
         {
@@ -447,6 +559,7 @@ namespace HorseRace
         {
             stage = 0;
             lobbyDeadlineServer = -1.0;
+            rematch = false;
             for (int i = 0; i < MAX_SLOTS; i++)
             {
                 slotTotalPoints[i] = 0;
@@ -546,6 +659,7 @@ namespace HorseRace
                     stageStartServer = now;
                     stateStartServer = now;
                     firstFinishServer = -1.0;
+                    orderDirty = true;
                     nextRaceEval = now + RACE_EVAL_INTERVAL;
                     changed = true;
                 }
@@ -554,13 +668,16 @@ namespace HorseRace
             {
                 if (ActiveCount() == 0)
                 {
-                    GoLobbyMaster(now);
+                    GoLobbyMaster(now, false);
                     changed = true;
                 }
                 else if (now >= nextRaceEval)
                 {
                     nextRaceEval = now + RACE_EVAL_INTERVAL;
-                    if (UpdateOrderMaster()) changed = true;
+                    // 順位は RaceOrder だけで送る（system-r2-13）。RaceManager はコース記録・不在の印が変わったときだけ
+                    if (UpdateOrderMaster()) orderDirty = true;
+                    if (recordDirty) { recordDirty = false; changed = true; }
+                    if (MarkNoStartsMaster(now)) changed = true;
                     if (RaceMath.ShouldEndStage(now, stageStartServer, firstFinishServer) || allFinishedMaster)
                     {
                         EndStageMaster(now);
@@ -572,7 +689,7 @@ namespace HorseRace
             {
                 if (ActiveCount() == 0)
                 {
-                    GoLobbyMaster(now);
+                    GoLobbyMaster(now, false);
                     changed = true;
                 }
                 else if (PromotePendingMaster())
@@ -601,15 +718,19 @@ namespace HorseRace
             {
                 if (elapsed >= FINAL_RESULT_SECONDS)
                 {
-                    GoLobbyMaster(now);
+                    GoLobbyMaster(now, true);   // もう一戦（system-r2-06）
                     changed = true;
                 }
             }
             else if (state == RaceMath.STATE_LOBBY)
             {
-                // 出走時計（system-r1-09）：2 人以上で 60 秒、全員がスタートで待っている・ワールドの全員がエントリーで 15 秒。締め切りで自動で出走
+                // 出走時計（system-r1-09）：2 人以上で 60 秒、全員がスタートで待っている・ワールドの全員がエントリーで 15 秒。締め切りで自動で出走。
+                // ひとりなら 30 秒（乗って待てば 10 秒）でタイムアタック（system-r2-04）
                 int entrants = ActiveCount();
-                double d = RaceMath.LobbyDeadline(now, entrants, CountReadyMaster(), VRCPlayerApi.GetPlayerCount(), lobbyDeadlineServer);
+                int prev = lastLobbyEntrants;
+                lastLobbyEntrants = entrants;
+                if (rematch) prev = entrants;   // もう一戦の 30 秒は決め直さない
+                double d = RaceMath.LobbyDeadline(now, entrants, CountReadyMaster(), VRCPlayerApi.GetPlayerCount(), lobbyDeadlineServer, prev);
                 if (d != lobbyDeadlineServer)
                 {
                     lobbyDeadlineServer = d;
@@ -627,6 +748,31 @@ namespace HorseRace
                 RequestSerialization();
                 ApplyLocal();
             }
+            if (orderDirty)
+            {
+                orderDirty = false;
+                PushOrderMaster();
+                if (!changed) RefreshDisplays();
+            }
+        }
+
+        /// <summary>号砲から 20 秒、最初の CP に届かず止まっている人に「不在」の印（system-r2-05）。印が増えたら true。</summary>
+        private bool MarkNoStartsMaster(double now)
+        {
+            double since = now - stageStartServer;
+            if (since < RaceMath.NO_START_SECONDS) return false;
+            bool changed = false;
+            int n = SlotCount();
+            for (int i = 0; i < n; i++)
+            {
+                if (slotPlayerId[i] < 0 || mounts[i] == null || IsNoStart(i)) continue;
+                MountController m = mounts[i];
+                if (m.syncFinishAt >= 0.0 && m.syncFinishAt >= stageStartServer) continue;
+                if (!RaceMath.IsNoStart(m.syncCp, m.syncSpeed, since)) continue;
+                noStartMask |= 1 << i;
+                changed = true;
+            }
+            return changed;
         }
 
         /// <summary>
@@ -664,7 +810,9 @@ namespace HorseRace
             for (int i = 0; i < MAX_SLOTS; i++) gridLane[i] = i < lanes.Length ? lanes[i] : i;
             starterDone = false;
             allFinishedMaster = false;
+            noStartMask = 0;
             for (int p = 0; p < MAX_SLOTS; p++) order[p] = -1;
+            orderDirty = true;
         }
 
         /// <summary>同期された乗り物の進行から順位と最初のゴール時刻を更新する。変化があれば true。</summary>
@@ -693,7 +841,24 @@ namespace HorseRace
                 }
             }
             int[] o = RaceMath.ComputeOrder(cp, dist, fin, act);
-            allFinishedMaster = RaceMath.AllFinished(fin, act);
+            // 出走しなかった人（不在）はゴールを待たない（system-r2-05）
+            bool[] racing = new bool[MAX_SLOTS];
+            for (int i = 0; i < MAX_SLOTS; i++) racing[i] = act[i] && !IsNoStart(i);
+            allFinishedMaster = RaceMath.AllFinished(fin, racing);
+            // コース記録（system-r2-04）：ゴールしたタイムがステージの最速なら書き換える
+            if (stage >= 0 && stage < stageBestTime.Length)
+            {
+                for (int i = 0; i < MAX_SLOTS; i++)
+                {
+                    if (fin[i] < 0.0) continue;
+                    float t = (float)(fin[i] - stageStartServer);
+                    if (t <= 0f) continue;
+                    if (stageBestTime[stage] >= 0f && t >= stageBestTime[stage]) continue;
+                    stageBestTime[stage] = t;
+                    stageBestName[stage] = PlayerName(slotPlayerId[i]);
+                    recordDirty = true;
+                }
+            }
             bool changed = first != firstFinishServer;
             firstFinishServer = first;
             for (int p = 0; p < MAX_SLOTS; p++)
@@ -707,7 +872,11 @@ namespace HorseRace
 
         private void EndStageMaster(double now)
         {
+            // 出走しなかった人（不在）は点をもらわずに枠を空ける（system-r2-05）
+            for (int i = 0; i < MAX_SLOTS; i++) if (IsNoStart(i)) ClearSlot(i);
+            noStartMask = 0;
             UpdateOrderMaster();
+            orderDirty = true;
             for (int i = 0; i < MAX_SLOTS; i++) slotStagePlace[i] = 0;
             int place = 0;
             for (int p = 0; p < MAX_SLOTS; p++)
@@ -743,16 +912,36 @@ namespace HorseRace
             lastValid = overall.Length > 0;
         }
 
-        private void GoLobbyMaster(double now)
+        /// <summary>
+        /// ロビーへ。keepEntrants（総合結果の後、system-r2-06）なら、まだいる人の枠・乗り物・毛色・能力を残し、点・着順・順位だけ消して
+        /// 30 秒後（RaceMath.RematchDeadline）に次のレース（もう一戦）。台帳で取り消せる・新しい人もサインできる。
+        /// </summary>
+        private void GoLobbyMaster(double now, bool keepEntrants)
         {
             state = RaceMath.STATE_LOBBY;
             stage = 0;
             stateStartServer = now;
-            lobbyDeadlineServer = -1.0;
             firstFinishServer = -1.0;
-            for (int i = 0; i < MAX_SLOTS; i++) ClearSlot(i);
+            noStartMask = 0;
+            int kept = 0;
+            for (int i = 0; i < MAX_SLOTS; i++)
+            {
+                int pid = slotPlayerId[i];
+                VRCPlayerApi p = pid >= 0 ? VRCPlayerApi.GetPlayerById(pid) : null;
+                if (keepEntrants && p != null && p.IsValid())
+                {
+                    slotTotalPoints[i] = 0;
+                    slotStagePlace[i] = 0;
+                    for (int st = 0; st < STAGE_COUNT; st++) stagePlace[st * MAX_SLOTS + i] = 0;
+                    kept++;
+                }
+                else ClearSlot(i);
+            }
             for (int p = 0; p < MAX_SLOTS; p++) order[p] = -1;
+            orderDirty = true;
             ClearPending();
+            rematch = kept > 0;
+            lobbyDeadlineServer = rematch ? RaceMath.RematchDeadline(now) : -1.0;
         }
 
         private void ClearSlot(int i)
@@ -763,6 +952,7 @@ namespace HorseRace
             slotAbility[i] = 0;
             slotTotalPoints[i] = 0;
             slotStagePlace[i] = 0;
+            noStartMask &= ~(1 << i);
             // 途中離脱はその時点で集計から外す／空いた枠を次の人が使うときに前の人の着順を持ち越さない
             for (int st = 0; st < STAGE_COUNT; st++) stagePlace[st * MAX_SLOTS + i] = 0;
         }
@@ -835,6 +1025,7 @@ namespace HorseRace
                 nextMasterTick = 0f;
                 nextRaceEval = 0.0;
                 starterDone = false;
+                if (raceOrder != null && !Networking.IsOwner(raceOrder.gameObject)) Networking.SetOwner(player, raceOrder.gameObject);
                 RequestSerialization();
             }
         }
@@ -1063,6 +1254,7 @@ namespace HorseRace
                     lm.InputLocked = stage + 1 >= STAGE_COUNT;
                 }
                 InvokeStageResetHooks();
+                ScorePickLocal();
             }
             else if (state == RaceMath.STATE_FINAL_RESULT)
             {
@@ -1083,7 +1275,15 @@ namespace HorseRace
                         mounts[i].SetRaceActive(false);
                         mounts[i].InputLocked = false;
                     }
-                    if (localWasRider) SendCustomEventDelayedFrames(nameof(_TeleportLocalToLobby), 3);
+                    if (rematch && lm != null)
+                    {
+                        // もう一戦（system-r2-06）：乗ったまま待機場所へ（台帳・手配書・乗り直しは要らない）
+                        localWasRider = false;
+                        if (Networking.IsOwner(lm.gameObject) && mountParking != null && localSlot < mountParking.Length && mountParking[localSlot] != null)
+                            lm.TeleportTo(mountParking[localSlot].position, mountParking[localSlot].eulerAngles.y);
+                        SendCustomEventDelayedFrames(nameof(_ReseatLobbyLocal), 3);
+                    }
+                    else if (localWasRider) SendCustomEventDelayedFrames(nameof(_TeleportLocalToLobby), 3);
                 }
             }
         }
@@ -1175,6 +1375,7 @@ namespace HorseRace
 
         private void RefreshDisplays()
         {
+            RefreshPicksLocal();
             if (ledgers != null)
                 for (int i = 0; i < ledgers.Length; i++) if (ledgers[i] != null) ledgers[i].Refresh();
             if (rankBoards != null)
@@ -1291,5 +1492,125 @@ namespace HorseRace
         }
 
         private int[] cpCountCache;
+
+        // =====================================================================
+        // 予想（system-r2-15）：観客がステージの勝者を当てる（ローカル、通算は PlayerData）
+        // =====================================================================
+
+        /// <summary>
+        /// 予想の札を取った（PosterCard KIND_PICK から）。走る人は選べない。号砲の後（RACING）と総合結果の間は変えられない。
+        /// ロビー・合間に選んだら次のステージ、カウントダウン中ならそのステージの予想。
+        /// </summary>
+        public void PickWinner(int slot)
+        {
+            if (slot < 0 || slot >= MAX_SLOTS || slotPlayerId[slot] < 0) return;
+            if (IsLocalEntered()) { pickLastText = "走る人は予想できない"; RefreshPicksLocal(); return; }
+            if (state == RaceMath.STATE_RACING || state == RaceMath.STATE_FINAL_RESULT) { pickLastText = "号砲の後は変えられない"; RefreshPicksLocal(); return; }
+            if (state == RaceMath.STATE_STAGE_RESULT && stage + 1 >= STAGE_COUNT) return;
+            localPickSlot = slot;
+            localPickPlayer = slotPlayerId[slot];
+            localPickSeq = state == RaceMath.STATE_COUNTDOWN ? stageSeq : stageSeq + 1;
+            RefreshPicksLocal();
+        }
+
+        private void EnsurePickLoaded()
+        {
+            if (pickLoaded) return;
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null) return;
+            int v;
+            if (PlayerData.TryGetInt(local, PICK_KEY, out v)) { pickTotal = v; pickLoaded = true; }
+        }
+
+        public override void OnPlayerRestored(VRCPlayerApi player)
+        {
+            if (player == null || !player.isLocal) return;
+            pickLoaded = false;
+            EnsurePickLoaded();
+            pickLoaded = true;
+            RefreshPicksLocal();
+        }
+
+        /// <summary>STAGE_RESULT に入ったとき：このステージの予想を着順で採点（1 着 3 点・2〜3 着 1 点）して通算に足す。</summary>
+        private void ScorePickLocal()
+        {
+            if (localPickSeq != stageSeq || localPickSlot < 0) return;
+            int slot = localPickSlot;
+            localPickSeq = -1;
+            localPickSlot = -1;
+            if (slotPlayerId[slot] != localPickPlayer) { pickLastText = "予想した人が抜けた"; return; }
+            int place = slotStagePlace[slot];
+            int pts = DirectorMath.PickPoints(place);
+            EnsurePickLoaded();
+            pickTotal += pts;
+            pickLoaded = true;
+            PlayerData.SetInt(PICK_KEY, pickTotal);
+            string who = ShortName(localPickPlayer);
+            pickLastText = pts > 0 ? "的中！ " + who + " " + place.ToString() + "着  +" + pts.ToString() + "点"
+                : "はずれ " + who + (place > 0 ? " " + place.ToString() + "着" : "");
+        }
+
+        /// <summary>予想の札と札の上の紙を書き直す（ローカル）。札は枠に人がいるスロットだけ出す。</summary>
+        private void RefreshPicksLocal()
+        {
+            bool open = state != RaceMath.STATE_FINAL_RESULT && !(state == RaceMath.STATE_STAGE_RESULT && stage + 1 >= STAGE_COUNT);
+            bool pickedValid = localPickSlot >= 0 && localPickSlot < MAX_SLOTS && slotPlayerId[localPickSlot] == localPickPlayer;
+            if (pickCards != null)
+            {
+                for (int i = 0; i < pickCards.Length; i++)
+                {
+                    PosterCard c = pickCards[i];
+                    if (c == null) continue;
+                    int slot = c.value;
+                    bool has = slot >= 0 && slot < MAX_SLOTS && slotPlayerId[slot] >= 0 && open;
+                    if (c.gameObject.activeSelf != has) c.gameObject.SetActive(has);
+                    if (!has) continue;
+                    bool mine = pickedValid && localPickSlot == slot;
+                    c.SetPickLabel("<b>" + ShortName(slotPlayerId[slot]) + "</b>\n<size=70%>" + MountKindLabel(slotMount[slot]) + "・" + AbilityLabel(slotAbility[slot]) + "</size>");
+                    c.SetTaken(mine);
+                }
+            }
+            if (pickStatusText == null) return;
+            EnsurePickLoaded();
+            string s = "<b>予想</b>（1着 3点・3着まで 1点）　通算 " + pickTotal.ToString() + "点\n";
+            string line = "";
+            if (pickedValid) line = "あなたの予想：" + ShortName(localPickPlayer);
+            else if (IsLocalEntered()) line = "走る人は予想できない";
+            else line = "勝つと思う人の札を取る";
+            if (pickLastText.Length > 0) line += "　／　" + pickLastText;
+            pickStatusText.text = s + line;
+        }
+
+        /// <summary>たまり場の黒板の「予想の名人」：このインスタンスにいる人の通算（PlayerData）の上位 3 人。誰も点が無ければ空。</summary>
+        public string PickMastersText()
+        {
+            int count = VRCPlayerApi.GetPlayerCount();
+            if (count <= 0) return "";
+            VRCPlayerApi[] players = new VRCPlayerApi[count];
+            players = VRCPlayerApi.GetPlayers(players);
+            int[] best = new int[] { 0, 0, 0 };
+            string[] names = new string[] { "", "", "" };
+            for (int i = 0; i < players.Length; i++)
+            {
+                VRCPlayerApi p = players[i];
+                if (p == null || !p.IsValid()) continue;
+                int v;
+                if (!PlayerData.TryGetInt(p, PICK_KEY, out v) || v <= 0) continue;
+                string n = p.displayName;
+                for (int k = 0; k < 3; k++)
+                {
+                    if (v <= best[k]) continue;
+                    for (int j = 2; j > k; j--) { best[j] = best[j - 1]; names[j] = names[j - 1]; }
+                    best[k] = v;
+                    names[k] = n;
+                    break;
+                }
+            }
+            if (best[0] <= 0) return "";
+            string s = "<b>予想の名人</b>\n";
+            for (int k = 0; k < 3; k++)
+                if (best[k] > 0) s += HudMath.Row2((k + 1).ToString() + "位", HudMath.ShortName(names[k], HudMath.SHORT_NAME_MAX) + "  " + best[k].ToString() + "点") + "\n";
+            return s;
+        }
     }
 }

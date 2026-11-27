@@ -21,7 +21,7 @@ namespace HorseRace.EditorTools
         public const float SIDE_M = 16f;              // 平らな道の縁から柵まで
         public const float CORNER_SIDE_M = 10f;       // 急カーブ（StageDefinitions.TIGHT_CORNER_MAX_R 未満）の前後 CORNER_PAD_M
         public const float CORNER_PAD_M = 15f;
-        public const float CP_SIDE_CLEAR_M = 8f;      // CP の箱の端から柵まで（CP_CLEAR_M ＋カーブでの箱の角のふくらみ）
+        public const float CP_SIDE_CLEAR_M = 2f;      // CP の箱の端から柵まで（system-r2-02：柵沿いの外の線でも箱を通る。トリガーなので柵と重なってもよい）
         public const float SEGMENT_M = 5f;            // 柵 1 区間の長さ（4〜6m）
         public const float GRID_M = 1f;               // 距離場のマス目
         public const float WALL_HEIGHT_M = 8f;        // 両端の地面の高い方から上へ
@@ -151,13 +151,20 @@ namespace HorseRace.EditorTools
             return hw + SIDE_M;
         }
 
-        /// <summary>弧長 arc の CP の箱の半幅（m）：道幅 12m で CP_WIDTH/2、道幅に合わせて広げ・狭め、柵から CP_SIDE_CLEAR_M 内側まで。</summary>
+        /// <summary>
+        /// 弧長 arc の CP の箱の半幅（m）：柵から CP_SIDE_CLEAR_M（2m）内側まで＝柵から柵まで（system-r2-02）。
+        /// 以前は道幅に合わせて狭め、柵との間に 8m の抜け道が残り、カーブの外の線で CP を飛ばして戻らされた。
+        /// </summary>
         public static float CpHalfWidth(StageDef def, Vector3[] courseLocal, float goalArc, float arc)
         {
+            return OffsetAtArc(def, courseLocal, goalArc, arc) - CP_SIDE_CLEAR_M;
+        }
+
+        /// <summary>弧長 arc での柵の距離（中心線から、m）。</summary>
+        public static float OffsetAtArc(StageDef def, Vector3[] courseLocal, float goalArc, float arc)
+        {
             var corners = StageDefinitions.Corners(courseLocal, StageDefinitions.TIGHT_CORNER_MAX_R, goalArc);
-            float off = OffsetAt(def, corners, SetPieces.BridgeArc(def, goalArc), arc);
-            float hw = StageDefinitions.HalfWidthAt(def, arc);
-            return Mathf.Min(CP_WIDTH * 0.5f + (hw - HeightmapGen.RUNWAY_M), off - CP_SIDE_CLEAR_M);
+            return OffsetAt(def, corners, SetPieces.BridgeArc(def, goalArc), arc);
         }
 
         /// <summary>ゴールの GOAL_GAP_BEFORE_M 手前から流しの終点までのコース（この通り道に属する柵は張らない）。</summary>

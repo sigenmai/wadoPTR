@@ -23,7 +23,8 @@ namespace HorseRace.EditorTools
         static readonly Dictionary<Type, string[]> Required = new Dictionary<Type, string[]>
         {
             { typeof(RaceManager), new[] { "mounts", "startPoints", "firstCheckpoints", "finishPens", "lobbySpawn", "starter", "stageResetTargets",
-                "refillTargets", "spectator", "ledgers", "rankBoards", "posterCards", "mountPickers", "startBell", "practiceArea", "hud" } },
+                "refillTargets", "spectator", "ledgers", "rankBoards", "posterCards", "mountPickers", "startBell", "practiceArea", "hud", "raceOrder", "pickCards", "pickStatusText" } },
+            { typeof(RaceOrder), new[] { "raceManager" } },
             { typeof(MountController), new[] { "station", "seatAnchor", "visual", "vrInput", "seatFit" } },
             { typeof(SeatFit), new[] { "mount", "seatAnchor", "saddleY", "saddleZ", "panelRoot", "buttons", "readout" } },
             { typeof(SeatAdjustButton), new[] { "seatFit" } },
@@ -688,6 +689,8 @@ namespace HorseRace.EditorTools
                 if (cp != null && !cp.isGoal && cp.next == null) warn.Add(Path(b.transform) + " の Checkpoint.next が空です（ゴール以外）");
                 var ac = b as AbilityCaster;
                 if (ac != null && ac.practiceMount && ac.practiceArea == null) warn.Add(Path(b.transform) + " の練習用 AbilityCaster.practiceArea が空です");
+                var rw = b as RockWall;
+                if (rw != null && (rw.obstacleMask.value == 0 || rw.mountMask.value == 0)) warn.Add(Path(b.transform) + " の RockWall の obstacleMask / mountMask が 0 です（道をふさぎきらない判定が効かない）");
                 var rp = b as RelicPickup;
                 if (rp != null && rp.isSpare && Problem(rp.pool) != null) warn.Add(Path(b.transform) + " の予備の遺物の pool が空です");
                 var nb = b as NoticeBoardDisplay;

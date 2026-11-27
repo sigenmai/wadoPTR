@@ -99,21 +99,59 @@ namespace HorseRace
         /// <summary>締め切りまでこれ未満になったら、エントリーした人なら誰でも号砲を撃てる。</summary>
         public const float LOBBY_ANYONE_SECONDS = 30f;
 
+        /// <summary>1 人だけのエントリー（タイムアタック、system-r2-04）：30 秒後に出走、その人が乗って待っていれば 10 秒後まで縮める。</summary>
+        public const float LOBBY_SOLO_SECONDS = 30f;
+        public const float LOBBY_SOLO_READY_SECONDS = 10f;
+
         /// <summary>
-        /// ロビーの出走の締め切り（サーバー時刻、-1 = なし）。エントリー 2 人以上で 60 秒後に決め、全員が乗った・ワールドの全員がエントリーしたら 15 秒後まで縮める。
-        /// 2 人未満なら -1。縮めるだけで延ばさない。
+        /// ロビーの出走の締め切り（サーバー時刻、-1 = なし）。
+        /// 2 人以上：60 秒後に決め、全員が乗った・ワールドの全員がエントリーしたら 15 秒後まで縮める。
+        /// 1 人（system-r2-04：マスターが不在でもひとりで走れる）：30 秒後、乗って待っていれば 10 秒後まで縮める。
+        /// 0 人なら -1。縮めるだけで延ばさない（もう一戦の 30 秒（RematchDeadline）もそのまま）。
         /// </summary>
         public static double LobbyDeadline(double now, int entrants, int seated, int players, double current)
         {
-            if (entrants < 2) return -1.0;
+            if (entrants < 1) return -1.0;
+            bool solo = entrants == 1;
             double d = current;
-            if (d < 0.0) d = now + LOBBY_WAIT_SECONDS;
+            if (d < 0.0) d = now + (solo ? LOBBY_SOLO_SECONDS : LOBBY_WAIT_SECONDS);
             if (seated >= entrants || entrants >= players)
             {
-                double ready = now + LOBBY_READY_SECONDS;
+                double ready = now + (solo ? LOBBY_SOLO_READY_SECONDS : LOBBY_READY_SECONDS);
                 if (ready < d) d = ready;
             }
             return d;
+        }
+
+        /// <summary>
+        /// prevEntrants = 前の判定のときのエントリー数。ひとりの時計（30 秒・10 秒）が動いている間に 2 人目がサインしたら、
+        /// 2 人以上の時計（60 秒・全員乗ったら 15 秒）で決め直す（友だちを待つ時間を残す）。それ以外は LobbyDeadline と同じ。
+        /// </summary>
+        public static double LobbyDeadline(double now, int entrants, int seated, int players, double current, int prevEntrants)
+        {
+            if (prevEntrants == 1 && entrants >= 2) current = -1.0;
+            return LobbyDeadline(now, entrants, seated, players, current);
+        }
+
+        /// <summary>もう一戦（system-r2-06）：総合結果の後、同じ顔ぶれのまま 30 秒（LOBBY_READY_SECONDS × 2）で次のレースへ。</summary>
+        public static double RematchDeadline(double now)
+        {
+            return now + LOBBY_READY_SECONDS * 2f;
+        }
+
+        // ---- 出走しない人（system-r2-05）----
+        /// <summary>号砲からこの秒数たっても最初の CP に届かず止まっている人は「不在」（次の合間で枠を空ける）。</summary>
+        public const float NO_START_SECONDS = 20f;
+        public const float NO_START_SPEED = 1f;
+
+        /// <summary>判定するのは号砲の 20 秒後から 2 秒だけ（後でスタートへ戻された人を「不在」にしない）。</summary>
+        public const float NO_START_WINDOW = 2f;
+
+        /// <summary>号砲から sinceGun 秒、CP（syncCp）と速さから「出走しなかった（AFK）」か（20〜22 秒の間だけ判定）。</summary>
+        public static bool IsNoStart(int cp, float speed, double sinceGun)
+        {
+            if (sinceGun < NO_START_SECONDS || sinceGun >= NO_START_SECONDS + NO_START_WINDOW) return false;
+            return cp <= 0 && speed < NO_START_SPEED;
         }
 
         /// <summary>号砲（スタート台の拳銃）を撃てるか：マスター、または締め切りまで 30 秒未満のときのエントリー者。</summary>
@@ -297,10 +335,50 @@ namespace HorseRace
             return n > 0;
         }
 
+        // ---- コース外・立ち往生・やり直し（system-r2-03）----
+        /// <summary>コースの線からこれより離れて 3 秒で戻す（柵は 28m なので 60m では起きなかった）。</summary>
+        public const float OFF_COURSE_M = 40f;
+        public const float OFF_COURSE_SECONDS = 3f;
+        /// <summary>駆歩以上を指示しているのに 1 m/s 未満のまま 4 秒（岩に挟まった・段の溝）で自動で戻す。</summary>
+        public const float STUCK_SPEED = 1f;
+        public const int STUCK_CRUISE = 2;
+        public const float STUCK_SECONDS = 4f;
+        /// <summary>やり直し（デスクトップ R 長押し・VR スティック長押し）の長押し秒数と、戻した後のよろけ秒数（自力で戻るより速くならない）。</summary>
+        public const float MANUAL_RESET_HOLD = 1.2f;
+        public const float MANUAL_RESET_PENALTY = 2f;
+
         public static bool NeedsReset(float heightAboveTerrain, float distFromCourse, float secondsOffCourse)
         {
+            return NeedsReset(heightAboveTerrain, distFromCourse, secondsOffCourse, 0f);
+        }
+
+        /// <summary>地形の下・コース外 3 秒・立ち往生 4 秒（secondsStuck は StuckNow が続いた秒数）のどれかで戻す。</summary>
+        public static bool NeedsReset(float heightAboveTerrain, float distFromCourse, float secondsOffCourse, float secondsStuck)
+        {
             if (heightAboveTerrain < -2f) return true;
-            return distFromCourse > 60f && secondsOffCourse >= 3f;
+            if (secondsStuck >= STUCK_SECONDS) return true;
+            return distFromCourse > OFF_COURSE_M && secondsOffCourse >= OFF_COURSE_SECONDS;
+        }
+
+        /// <summary>このフレーム立ち往生しているか：駆歩以上（cruiseLevel ≥ 2）を指示していて 1 m/s 未満。</summary>
+        public static bool StuckNow(float speed, int cruiseLevel)
+        {
+            return speed < STUCK_SPEED && cruiseLevel >= STUCK_CRUISE;
+        }
+
+        // ---- CP を 1 つ飛ばしてもよい（system-r2-02）----
+        /// <summary>柵沿いの外の線で CP の箱の横を抜けても戻らせない：次の CP か、その次（1 つ飛ばし）まで受け付ける。</summary>
+        public const int MAX_CP_SKIP = 1;
+
+        public static bool AcceptCheckpoint(int lastCp, int cpIndex)
+        {
+            return cpIndex > lastCp && cpIndex <= lastCp + 1 + MAX_CP_SKIP;
+        }
+
+        /// <summary>首の札の「関門を通り過ぎた」：受け付けられる範囲より先の CP に入った。</summary>
+        public static bool MissedCheckpoint(int lastCp, int cpIndex)
+        {
+            return cpIndex > lastCp + 1 + MAX_CP_SKIP;
         }
     }
 }

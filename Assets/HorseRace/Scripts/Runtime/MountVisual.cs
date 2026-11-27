@@ -50,6 +50,22 @@ namespace HorseRace
         public bool earsAnimated = true;
         public float tiredStamina = 40f;
 
+        [Header("相手から見える持久力（system-r2-08）・加速の合図（r2-14）")]
+        [Tooltip("体から出る汗（持久力が少ないほど多い。ほかの人の乗り物は同期した帯で）")]
+        public ParticleSystem sweat;
+        [Tooltip("ばてた瞬間の砂ぼこりのひと吹き（誰の画面でも）")]
+        public ParticleSystem exhaustPuff;
+        [Tooltip("金の火花（きれいな着地・カーブの立ち上がり）")]
+        public ParticleSystem boostSparkle;
+        [Tooltip("ほかの人の乗り物の上の札「ばてている」（25m 以内でばてている間だけ）")]
+        public GameObject spentTag;
+        public float spentTagRange = 25f;
+        /// <summary>MountController が毎フレーム入れる：ほかの人が乗っている乗り物（自分の画面では相手）。</summary>
+        [HideInInspector] public bool remoteRider;
+        private bool lastSpent;
+        private bool tagShown;
+        private bool sweatOn;
+
         private int appliedMount = -1;
         private int appliedCoat = -1;
         private Animator activeAnim;
@@ -159,7 +175,31 @@ namespace HorseRace
             }
             lastFlags = flags;
 
+            bool spent = MountMath.IsSpent(gaitWithFlags);
+            if (spent && !lastSpent && exhaustPuff != null) exhaustPuff.Emit(36);   // ばてた瞬間：みんなに見える砂ぼこり
+            lastSpent = spent;
+            UpdateSpentTag(spent);
             UpdateStaminaFeedback(gait, stamina);
+        }
+
+        /// <summary>金の火花（きれいな着地・カーブの立ち上がり：system-r2-14）。</summary>
+        public void PlayBoostSparkle()
+        {
+            if (boostSparkle != null) boostSparkle.Emit(24);
+        }
+
+        private void UpdateSpentTag(bool spent)
+        {
+            if (spentTag == null) return;
+            bool show = false;
+            if (spent && remoteRider)
+            {
+                VRC.SDKBase.VRCPlayerApi lp = VRC.SDKBase.Networking.LocalPlayer;
+                if (lp != null) show = Vector3.Distance(lp.GetPosition(), transform.position) <= spentTagRange;
+            }
+            if (show == tagShown) return;
+            tagShown = show;
+            spentTag.SetActive(show);
         }
 
         private void UpdateStaminaFeedback(int gait, float stamina)
@@ -174,6 +214,18 @@ namespace HorseRace
                 breathAudio.volume = breathAlarm ? 1f : Mathf.Lerp(breathVolumeCalm, breathVolumeTired, fatigue);
                 if (breathAlarm) breathAudio.pitch = breathPitchTired + 0.15f;
                 if (!breathAudio.isPlaying && breathAudio.gameObject.activeInHierarchy) breathAudio.Play();
+            }
+
+            if (sweat != null)
+            {
+                // 汗：持久力 40 未満（相手の疲れが見える。ほかの人の乗り物は同期した帯で）
+                bool on = stamina >= 0f && stamina < tiredStamina;
+                if (on != sweatOn)
+                {
+                    sweatOn = on;
+                    if (on) sweat.Play();
+                    else sweat.Stop();
+                }
             }
 
             float earTarget = (stamina >= 0f && stamina < tiredStamina) ? 1f : 0f;

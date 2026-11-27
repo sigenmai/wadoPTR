@@ -37,6 +37,11 @@ namespace HorseRace.EditorTools
         public float passFraction = -1f;       // 境目：メサの切り通し（道を下げて両脇の地形を盛り、メサの門で挟む）
         public float mesaClimbFraction = -1f;  // 境目：台地の上（mesaClimbFraction〜mesaTopEndFraction、この間は道幅 70m の帯ごと持ち上がる）
         public float mesaTopEndFraction = -1f;
+        /// <summary>
+        /// 深い砂（system-r2-01）：区間 [sandTrailArcs[2k], sandTrailArcs[2k+1]]（m）は道の上も砂（Terrain の砂の塗り・SandZone）。
+        /// ここだけ馬は ×MountMath.HORSE_SAND_FACTOR、ラクダが速い。区間の入口に風で削れた岩・砂の吹きだまり・「深い砂」の札。null = なし。
+        /// </summary>
+        public float[] sandTrailArcs;
 
         public Vector3 Origin => new Vector3(center.x - StageDefinitions.HALF, center.y, center.z - StageDefinitions.HALF);
     }
@@ -110,6 +115,7 @@ namespace HorseRace.EditorTools
                 widthArc = new[] { 1240f, 1316f, 1980f, 2050f, 1140f, 1230f, 1480f, 1680f },
                 halfWidthM = new[] { 7f, 7f, 18f, 18f },
                 jumpFraction = 1320f / 2443f,
+                sandTrailArcs = new[] { 500f, 900f, 1500f, 1850f },   // 稜線越えの 400m と、急カーブ 2 の後の広場から最後の上りまで
                 hasShortcut = true, shortcutFrom = 0.25f, shortcutTo = 0.75f,
             },
             new StageDef
@@ -133,6 +139,7 @@ namespace HorseRace.EditorTools
                 halfWidthM = new[] { 7f, 7f, 18f, 18f, 18f },
                 passFraction = 1000f / 2494f,   // 台地へ登る手前のメサの門（切り通し）
                 mesaClimbFraction = 1372f / 2494f, mesaTopEndFraction = 1796f / 2494f,
+                sandTrailArcs = new[] { 300f, 520f },   // 西の長い直線の吹きだまり
                 hasShortcut = true, shortcutFrom = 1700f / 2494f, shortcutTo = 2300f / 2494f,
             },
         };
@@ -167,6 +174,25 @@ namespace HorseRace.EditorTools
                 if (w > bestW) { bestW = w; best = Mathf.Lerp(HeightmapGen.RUNWAY_M, s.halfWidthM[k], w); }
             }
             return best;
+        }
+
+        /// <summary>弧長 arc が深い砂の区間の中か（system-r2-01）。</summary>
+        public static bool InDeepSand(StageDef s, float arc)
+        {
+            if (s == null || s.sandTrailArcs == null) return false;
+            for (int k = 0; 2 * k + 1 < s.sandTrailArcs.Length; k++)
+                if (arc >= s.sandTrailArcs[2 * k] && arc <= s.sandTrailArcs[2 * k + 1]) return true;
+            return false;
+        }
+
+        /// <summary>深い砂の区間の合計がスタートからゴールまでに占める割合（0..1）。</summary>
+        public static float DeepSandShare(StageDef s, float goalArc)
+        {
+            if (s == null || s.sandTrailArcs == null || goalArc <= 0f) return 0f;
+            float sum = 0f;
+            for (int k = 0; 2 * k + 1 < s.sandTrailArcs.Length; k++)
+                sum += Mathf.Max(0f, Mathf.Min(s.sandTrailArcs[2 * k + 1], goalArc) - Mathf.Max(s.sandTrailArcs[2 * k], 0f));
+            return Mathf.Clamp01(sum / goalArc);
         }
 
         /// <summary>最後の下りの始まり（全力の合図の位置）の弧長。</summary>

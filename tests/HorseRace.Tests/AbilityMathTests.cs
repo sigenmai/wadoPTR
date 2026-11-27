@@ -7,7 +7,7 @@ namespace HorseRace.Tests
     {
         [Test] public void Level_Caps() { Assert.AreEqual(2, AbilityMath.LevelAfterRelic(1)); Assert.AreEqual(3, AbilityMath.LevelAfterRelic(3)); }
         [Test] public void Cooldowns() { Assert.AreEqual(18f, AbilityMath.Cooldown(0)); Assert.AreEqual(15f, AbilityMath.Cooldown(3)); Assert.AreEqual(20f, AbilityMath.Cooldown(99)); }
-        [Test] public void Scaling() { Assert.AreEqual(8f, AbilityMath.DustRadius(3)); Assert.AreEqual(45f, AbilityMath.LassoRange(2)); Assert.AreEqual(3, AbilityMath.WallCount(3)); Assert.AreEqual(1, AbilityMath.BallCount(1)); Assert.AreEqual(4f, AbilityMath.DustDuration(1)); Assert.AreEqual(8f, AbilityMath.DustRadius(9)); Assert.AreEqual(4f, AbilityMath.DustRadius(0)); }
+        [Test] public void Scaling() { Assert.AreEqual(8f, AbilityMath.DustRadius(3)); Assert.AreEqual(45f, AbilityMath.LassoRange(2)); Assert.AreEqual(3, AbilityMath.WallCount(3)); Assert.AreEqual(1, AbilityMath.BallCount(1)); Assert.AreEqual(3f, AbilityMath.DustDuration(1)); Assert.AreEqual(5f, AbilityMath.DustDuration(3)); Assert.AreEqual(8f, AbilityMath.DustRadius(9)); Assert.AreEqual(4f, AbilityMath.DustRadius(0)); }
         [Test] public void RelicGain_ByRank()
         {
             Assert.AreEqual(1, AbilityMath.RelicGain(1, 1));   // 1 人：+1
@@ -36,7 +36,7 @@ namespace HorseRace.Tests
         }
         [Test] public void SecondaryConstants()
         {
-            Assert.AreEqual(0.8f, AbilityMath.DUST_SLOW_FACTOR);
+            Assert.AreEqual(0.85f, AbilityMath.DUST_SLOW_FACTOR);
             Assert.AreEqual(5f, AbilityMath.LASSO_SELF_BONUS_MPS); Assert.AreEqual(2f, AbilityMath.LASSO_SELF_SECONDS);
             Assert.AreEqual(0.7f, AbilityMath.LASSO_TARGET_FACTOR); Assert.AreEqual(1f, AbilityMath.LASSO_TARGET_SECONDS);
             Assert.AreEqual(6f, AbilityMath.WALL_WIDTH); Assert.AreEqual(28f, AbilityMath.WALL_AHEAD); Assert.AreEqual(6f, AbilityMath.WALL_SECONDS);

@@ -154,6 +154,7 @@ namespace HorseRace
                     int slot = overall[k];
                     f += HudMath.Row4((k + 1).ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), "", rm.slotTotalPoints[slot].ToString() + "点") + "\n";
                 }
+                f += "<b>" + HudMath.RematchLine() + "</b>";   // system-r2-06
                 return f;
             }
             // ロビー：最後に貼られた電報を残す
@@ -169,7 +170,8 @@ namespace HorseRace
             if (count == 0) return s + "\n受付の台帳にサインして出走登録";
             float left = rm.GetLobbySecondsLeft();
             if (left >= 0f) s += "<b>出走まで " + RaceMath.FormatClock(left) + "</b>\n";
-            else if (rm.state == RaceMath.STATE_LOBBY && count == 1) s += "あと 1 人で出走時計が動く\n";
+            if (left >= 0f && rm.state == RaceMath.STATE_LOBBY && count == 1) s += "ひとりで走る（タイムアタック）\n";   // system-r2-04
+            else if (left >= 0f && rm.state == RaceMath.STATE_LOBBY && rm.rematch) s += "もう一戦（台帳で取り消せる）\n";   // system-r2-06
             bool showPoints = rm.state != RaceMath.STATE_LOBBY;
             for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
             {
@@ -177,7 +179,8 @@ namespace HorseRace
                 s += "<pos=0%>" + RaceManager.ShortName(rm.slotPlayerId[i]) + "<pos=38%>"
                     + RaceManager.MountLabel(rm.slotMount[i], rm.slotCoat[i]) + "・"
                     + RaceManager.AbilityLabel(rm.slotAbility[i]);
-                if (showPoints) s += "<pos=85%>" + rm.slotTotalPoints[i].ToString() + "点";
+                if (rm.IsNoStart(i)) s += "<pos=85%>（不在）";   // system-r2-05
+                else if (showPoints) s += "<pos=85%>" + rm.slotTotalPoints[i].ToString() + "点";
                 s += "\n";
             }
             return s;

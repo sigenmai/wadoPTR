@@ -9,7 +9,7 @@ namespace HorseRace
     /// ローカルの騎手（かつオーナー）の乗り物が入ったときだけ MountController.ReachCheckpoint を呼ぶ。
     /// 進行の判定（順番通りか）は MountController 側。
     /// 表示（ローカル）：次の CP を通ったら首の札（RaceManager.hud）でピッチの上がる音と札の跳ね、
-    /// 順番を飛ばして先の CP に入ったら「◀ 関門を通り過ぎた」を 2 秒。
+    /// 1 つ飛ばしまでは進む（RaceMath.AcceptCheckpoint、system-r2-02）。2 つ以上先の CP に入ったら「◀ 関門を通り過ぎた」を 2 秒。
     /// 近道の入口の双子の CP（isShortcut、ui-r2-17）：自分なら首の札に青緑の「近道！」、誰が入っても（各自の画面で）札の横に青緑の火花。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -59,12 +59,13 @@ namespace HorseRace
         {
             if (raceManager == null || raceManager.hud == null) return;
             if (stageIndex != mount.currentStage || !mount.raceActive || mount.InputLocked) return;
-            if (mount.syncCp == index && before == index - 1)
+            // 1 つ飛ばしまでは受け付ける（system-r2-02：柵沿いの外の線で CP の箱の横を抜けても戻らなくてよい）
+            if (mount.syncCp == index && RaceMath.AcceptCheckpoint(before, index))
             {
                 raceManager.hud.CheckpointPassed(index, raceManager.CheckpointCount(stageIndex));
                 if (isShortcut) raceManager.hud.ShowShortcut();
             }
-            else if (index > before + 1)
+            else if (RaceMath.MissedCheckpoint(before, index))
                 raceManager.hud.MissedCheckpoint();
         }
     }

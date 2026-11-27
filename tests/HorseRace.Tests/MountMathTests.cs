@@ -8,7 +8,7 @@ namespace HorseRace.Tests
         [Test] public void GaitSpeeds()
         {
             float[] horse = { 4f, 8f, 14f, 18f };
-            float[] camel = { 4f, 7.5f, 12f, 15f };
+            float[] camel = { 4f, 7.5f, 13f, 15.5f };
             for (int g = 0; g < 4; g++)
             {
                 Assert.AreEqual(horse[g], MountMath.GaitSpeed(MountMath.MOUNT_HORSE, g));
@@ -36,23 +36,23 @@ namespace HorseRace.Tests
             float camelAvg = (0.75f * MountMath.GaitSpeed(1, 2) + 0.25f * MountMath.GaitSpeed(1, 3)) * 0.9f;
             Assert.Less(2500f / camelAvg, 270f);
         }
-        [Test] public void HorseSlowsOnSand_CamelDoesNot() { Assert.AreEqual(14f * 0.78f, MountMath.TargetSpeed(0, 2, 0f, false, true), 1e-4); Assert.AreEqual(12f, MountMath.TargetSpeed(1, 2, 0f, false, true), 1e-4); }
-        [Test] public void CamelFasterOnSand_ByAboutSevenPercent()
+        [Test] public void HorseSlowsOnSand_CamelDoesNot() { Assert.AreEqual(14f * 0.82f, MountMath.TargetSpeed(0, 2, 0f, false, true), 1e-4); Assert.AreEqual(13f, MountMath.TargetSpeed(1, 2, 0f, false, true), 1e-4); }
+        [Test] public void CamelFasterOnSand_AtTopSpeed()
         {
             float horse = MountMath.TargetSpeed(0, 3, 0f, false, true);
             float camel = MountMath.TargetSpeed(1, 3, 0f, false, true);
-            Assert.Greater(camel / horse, 1.05f); Assert.Less(camel / horse, 1.10f);
+            Assert.Greater(camel / horse, 1.03f); Assert.Less(camel / horse, 1.10f);
             // 砂でなければ馬が速い（荒野・境目は馬、砂漠はラクダ）
             Assert.Greater(MountMath.TargetSpeed(0, 3, 0f, false, false), MountMath.TargetSpeed(1, 3, 0f, false, false));
         }
-        [Test] public void CamelWorseUphill() => Assert.AreEqual(12f * (1 - 0.195f), MountMath.TargetSpeed(1, 2, 10f, false, false), 1e-4);
+        [Test] public void CamelWorseUphill() => Assert.AreEqual(13f * (1 - 0.195f), MountMath.TargetSpeed(1, 2, 10f, false, false), 1e-4);
         [Test] public void Exhausted_CapsAtTrot() { Assert.AreEqual(8f, MountMath.TargetSpeed(0, 3, 0f, true, false), 1e-4); Assert.AreEqual(7.5f, MountMath.TargetSpeed(1, 2, 0f, true, false), 1e-4); }
         [Test] public void SlopeClamp() => Assert.AreEqual(7f, MountMath.TargetSpeed(0, 2, 60f, false, false), 1e-4);
         [Test] public void Approach() { Assert.AreEqual(5.5f, MountMath.Approach(0, 18, 1), 1e-4); Assert.AreEqual(7f, MountMath.Approach(18, 0, 1), 1e-4); Assert.AreEqual(18f, MountMath.Approach(15, 18, 1), 1e-4); }
         [Test] public void Stamina()
         {
             Assert.AreEqual(88f, MountMath.StepStamina(0, 100, true, false, 3, 1), 1e-4);
-            Assert.AreEqual(92.5f, MountMath.StepStamina(1, 100, true, false, 3, 1), 1e-4);
+            Assert.AreEqual(94f, MountMath.StepStamina(1, 100, true, false, 3, 1), 1e-4);
             Assert.AreEqual(0f, MountMath.StepStamina(0, 5, true, false, 3, 1));
             Assert.AreEqual(100f, MountMath.StepStamina(0, 98, false, false, 2, 1));
             Assert.AreEqual(62f, MountMath.StepStamina(0, 50, false, false, 1, 1), 1e-4);   // 速歩 +12

@@ -152,6 +152,42 @@ namespace HorseRace.EditorTools
                     sand[z, x] = trail[z, x] > 0.5f ? 0f : sand[z, x] * (1f - trail[z, x]);
         }
 
+        /// <summary>深い砂（system-r2-01）が道の中心線から何 m まで覆うか（柵 28m の外まで）。端の 6m でなめらかに戻す。</summary>
+        public const float DEEP_SAND_REACH_M = 30f, DEEP_SAND_FADE_M = 6f;
+        /// <summary>深い砂の区間に残す踏み跡の濃さ（踏み固めた道の重みに掛ける。0.5 未満なので砂の上の轍に見える）。</summary>
+        public const float DEEP_SAND_TRAIL_KEEP = 0.25f;
+
+        /// <summary>
+        /// 深い砂の区間（StageDef.sandTrailArcs）だけ、道の上も砂にする（ClearSandOnTrail の後で呼ぶ）。sand と trail は同じ解像度（Terrain 全体）、
+        /// courseLocal は Terrain ローカル（m）のサンプル点。区間の中の点から DEEP_SAND_REACH_M 以内を砂 1（端はなめらかに）、踏み跡は薄く。
+        /// </summary>
+        public static void ApplyDeepSand(float[,] sand, float[,] trail, StageDef def, Vector3[] courseLocal, float sizeM)
+        {
+            if (sand == null || def == null || def.sandTrailArcs == null || courseLocal == null || courseLocal.Length < 2) return;
+            int n = sand.GetLength(0), m = sand.GetLength(1);
+            float cell = sizeM / (n - 1);
+            int r = Mathf.CeilToInt(DEEP_SAND_REACH_M / cell) + 1;
+            float acc = 0f;
+            for (int i = 0; i < courseLocal.Length; i++)
+            {
+                if (i > 0) acc += WorldLayout.DistXZ(courseLocal[i - 1], courseLocal[i]);
+                if (!StageDefinitions.InDeepSand(def, acc)) continue;
+                Vector3 p = courseLocal[i];
+                int cx = Mathf.RoundToInt(p.x / cell), cz = Mathf.RoundToInt(p.z / cell);
+                for (int z = Mathf.Max(0, cz - r); z <= Mathf.Min(n - 1, cz + r); z++)
+                    for (int x = Mathf.Max(0, cx - r); x <= Mathf.Min(m - 1, cx + r); x++)
+                    {
+                        float dx = x * cell - p.x, dz = z * cell - p.z;
+                        float d = Mathf.Sqrt(dx * dx + dz * dz);
+                        if (d > DEEP_SAND_REACH_M) continue;
+                        float w = 1f - Smooth(DEEP_SAND_REACH_M - DEEP_SAND_FADE_M, DEEP_SAND_REACH_M, d);
+                        if (w > sand[z, x]) sand[z, x] = w;
+                        if (trail != null && z < trail.GetLength(0) && x < trail.GetLength(1))
+                            trail[z, x] *= Mathf.Lerp(1f, DEEP_SAND_TRAIL_KEEP, w);
+                    }
+            }
+        }
+
         public static float MaxSlopeDegAlong(float[,] h, float terrainSizeM, float heightM, Vector3[] coursePointsNormalized)
         {
             int n = h.GetLength(0);

@@ -5,9 +5,12 @@ namespace HorseRace
 {
     /// <summary>
     /// 砂塵の砂煙（1 つの AbilityCaster に 1 つ）。見た目は全クライアントで出す（AbilityCaster.FxDust から Show）。
+    /// 砂煙は発動者の乗り物の dustBehind m 後ろについて動く（system-r2-09：後ろにつく相手への対抗手段。各クライアントが
+    /// 自分の画面の発動者の乗り物を追うので、新しい同期はいらない）。パーティクルはワールド空間なので、動くと後ろに尾を引く。
     /// 発動者のクライアントだけ detect = true で、checkInterval ごとに OverlapSphere で中にいる相手を探し、
-    /// AbilityCaster.ReportDustHit で相手のオーナーへ知らせる（同じ相手は dustHitSeconds 経つまで再送しない）。
-    /// visual は半径 baseRadius で作っておく（球状のパーティクルなど）。Start で親から外す（乗り物と一緒に動かない）。
+    /// AbilityCaster.ReportDustHit で相手のオーナーへ知らせる（同じ相手には dustHitSeconds ごとに当たり直す：ついてくる相手には何度も）。
+    /// 中にいる間はドラフトしない（MountController.ScanMounts が Contains で調べる）。
+    /// visual は半径 baseRadius で作っておく（球状のパーティクルなど）。Start で親から外す。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class DustCloud : UdonSharpBehaviour
@@ -76,6 +79,7 @@ namespace HorseRace
                 if (visual != null) visual.SetActive(false);
                 return;
             }
+            Follow();
             if (!detect || owner == null || Time.time < nextCheck) return;
             nextCheck = Time.time + checkInterval;
             Collider[] cs = Physics.OverlapSphere(center, radius, owner.targetMask, QueryTriggerInteraction.Collide);
@@ -88,6 +92,26 @@ namespace HorseRace
                 if (RecentlyHit(m)) continue;
                 owner.ReportDustHit(m);
             }
+        }
+
+        /// <summary>発動者の乗り物の後ろへ（乗り物が無い・練習用でも同じ）。</summary>
+        private void Follow()
+        {
+            if (owner == null || owner.mount == null) return;
+            Transform mt = owner.mount.transform;
+            Vector3 f = mt.forward;
+            f.y = 0f;
+            if (f.sqrMagnitude < 0.01f) f = Vector3.forward; else f = f.normalized;
+            center = mt.position - f * owner.dustBehind;
+            transform.position = center;
+        }
+
+        /// <summary>点 p が今出ている砂煙の中か（水平距離）。</summary>
+        public bool Contains(Vector3 p)
+        {
+            if (!active) return false;
+            float dx = p.x - center.x, dz = p.z - center.z;
+            return dx * dx + dz * dz < radius * radius;
         }
 
         /// <summary>直近 dustHitSeconds 以内に当てた相手なら true。そうでなければ今の時刻を記録して false。</summary>

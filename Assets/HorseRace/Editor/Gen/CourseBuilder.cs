@@ -68,7 +68,7 @@ namespace HorseRace.EditorTools
                 var go = GenUtil.World(cpRoot, goal ? "CP" + (k + 1) + "_Goal" : "CP" + (k + 1), p, WorldLayout.YawDeg(t));
                 var box = go.AddComponent<BoxCollider>();
                 box.isTrigger = true;
-                // 箱の幅は道幅に合わせる（絞りでは狭く、広場では広く。柵から CourseBarrier.CP_SIDE_CLEAR_M 内側：course-r1-10）
+                // 箱の幅は柵から柵まで（柵から CourseBarrier.CP_SIDE_CLEAR_M 内側：system-r2-02。柵沿いの外の線でも CP を通る）
                 float half = CourseBarrier.CpHalfWidth(sb.def, sb.courseLocal, sb.goalArc, arcs[k]);
                 box.size = new Vector3(half * 2f, CP_HEIGHT, CP_DEPTH);
                 box.center = new Vector3(0f, CP_HEIGHT * 0.5f - 1f, 0f);

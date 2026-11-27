@@ -100,7 +100,6 @@ namespace UnityEngine
         public Transform GetChild(int index) => null;
         public Transform Find(string n) => null;
         public void SetParent(Transform parent, bool worldPositionStays) { }
-        public bool IsChildOf(Transform parent) => false;
         public Vector3 lossyScale => Vector3.one;
         public Matrix4x4 localToWorldMatrix => default(Matrix4x4);
         public Matrix4x4 worldToLocalMatrix => default(Matrix4x4);

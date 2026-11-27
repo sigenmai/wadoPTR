@@ -8,6 +8,18 @@ namespace HorseRace
         public const float BATTLE_GAP = 11f;   // 18 m/s で約 0.6 秒差（旧 8m ＝ 13 m/s で約 0.6 秒差）
         public const float HIT_SHOW = 3f;
 
+        // ---- 予想（system-r2-15：観客の勝ち馬当て）----
+        public const int PICK_WIN = 3;
+        public const int PICK_PODIUM = 1;
+
+        /// <summary>予想した人の着順（1 始まり、0 = なし）から点：1 着 3 点、2・3 着 1 点。</summary>
+        public static int PickPoints(int place)
+        {
+            if (place == 1) return PICK_WIN;
+            if (place == 2 || place == 3) return PICK_PODIUM;
+            return 0;
+        }
+
         /// <summary>order: slots leader first. gapToAhead[k] = metres between order[k] and order[k-1] (index 0 unused).</summary>
         public static int ChooseTarget(int current, float shotTime, int[] order, float[] gapToAhead, int lastHitSlot, float sinceHit)
         {

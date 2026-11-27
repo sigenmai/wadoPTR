@@ -169,7 +169,7 @@ namespace HorseRace
         }
 
         /// <summary>
-        /// 開幕の猶予（RaceMath.START_GRACE_SECONDS）が終わったら、もう 1 発の空砲（2 発目の音）と「撃ち合い解禁」で知らせる（system-r1-07）。
+        /// 開幕の猶予（RaceMath.START_GRACE_SECONDS）が終わったら、もう 1 発の空砲（2 発目の音）と「順に解禁」で知らせる（system-r1-07 / r2-11）。
         /// 猶予を見ていたステージ（途中から来た人の取りこぼしで鳴らさない）だけ、1 ステージ 1 回。
         /// </summary>
         private void UpdateWeaponsFree()
@@ -181,7 +181,8 @@ namespace HorseRace
             weaponsFreeSeq = rm.stageSeq;
             PlayClip(blankClip);
             if (pistolSmoke != null) pistolSmoke.Play();
-            if (rm.hud != null && rm.IsLocalEntered()) rm.hud.ShowBanner("撃ち合い解禁", new Color(1f, 0.78f, 0.27f), 1.4f, 1.4f);
+            // 能力はレーンの順に 13 秒まで、リボルバーは 15 秒まで 1 発（system-r2-11）
+            if (rm.hud != null && rm.IsLocalEntered()) rm.hud.ShowBanner("順に解禁", new Color(1f, 0.78f, 0.27f), 1.4f, 1.4f);
         }
 
         private void FireBlank(int i)

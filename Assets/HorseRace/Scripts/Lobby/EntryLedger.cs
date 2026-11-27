@@ -12,6 +12,8 @@ namespace HorseRace
     ///    サインが通ったら赤いインクで「署名済み ✓」、定員なら「定員いっぱい」。サインした瞬間にペンの音と文字が 1.15 → 1 に跳ねる。
     /// ページの更新は RaceManager が同期を受け取るたび・自分の選択が変わるたびに Refresh() で行う。
     /// ステージ中のサインは「次のステージから」の欄に載り、ステージ結果に入ると枠へ移る（RaceManager.pendingPlayerId）。
+    /// 取り消し（system-r2-05）：署名済みで選択を変えていなければ、もう一度触れると「取り消す」（RaceManager.WithdrawLedger）。
+    /// 選択を変えてから触れるとサインし直し（乗り物・能力の変更）。出走しなかった人は一覧に「（不在）」。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class EntryLedger : UdonSharpBehaviour
@@ -38,9 +40,23 @@ namespace HorseRace
         {
             if (raceManager == null) return;
             if (signSound != null) signSound.Play();
-            raceManager.SignLedger();
+            if (WillWithdraw(raceManager)) raceManager.WithdrawLedger();
+            else raceManager.SignLedger();
             punchAt = Time.time;
             punching = true;
+        }
+
+        /// <summary>今触れると取り消しになるか：署名済み（枠か預かり）で、選択がサインした内容と同じ（変えていない）。</summary>
+        public static bool WillWithdraw(RaceManager rm)
+        {
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null) return false;
+            if (rm.IsPending(local.playerId)) return true;
+            int s = rm.FindSlot(local.playerId);
+            if (s < 0) return false;
+            if (rm.state != RaceMath.STATE_LOBBY && rm.state != RaceMath.STATE_STAGE_RESULT) return false;
+            int coat = rm.localMount == MountMath.MOUNT_CAMEL ? 0 : rm.localCoat;
+            return rm.slotMount[s] == rm.localMount && rm.slotCoat[s] == coat && rm.slotAbility[s] == rm.localAbility;
         }
 
         private void Update()
@@ -68,6 +84,7 @@ namespace HorseRace
                     if (pid < 0) continue;
                     count++;
                     string pts = st != RaceMath.STATE_LOBBY ? rm.slotTotalPoints[i].ToString() + "点" : "";
+                    if (rm.IsNoStart(i)) pts = "（不在）";   // system-r2-05：次の合間で外れる
                     // 列：番号 0% / 名前 7% / 乗り物・能力 50%（80%）/ 点 86%
                     s += "<pos=0%>" + count.ToString() + ".<pos=7%>" + RaceManager.ShortName(pid) + "<pos=50%><size=80%>"
                         + RaceManager.MountKindLabel(rm.slotMount[i]) + "・" + RaceManager.AbilityLabel(rm.slotAbility[i]) + "</size><pos=86%>" + pts + "\n";
@@ -95,6 +112,8 @@ namespace HorseRace
                 for (int i = 0; i < RaceManager.MAX_SLOTS; i++) if (rm.slotPlayerId[i] >= 0) count++;
             }
             if (choiceText != null) choiceText.text = ChoiceText(rm, count);
+            string prompt = WillWithdraw(rm) ? "台帳：取り消す" : "台帳にサイン";
+            if (InteractionText != prompt) InteractionText = prompt;
         }
 
         private string ChoiceText(RaceManager rm, int count)
@@ -103,10 +122,11 @@ namespace HorseRace
             int pid = local != null ? local.playerId : -1;
             int coat = rm.localMount == MountMath.MOUNT_CAMEL ? 0 : rm.localCoat;
             string choice = "あなたの選択：\n" + RaceManager.MountLabel(rm.localMount, coat) + "・" + RaceManager.AbilityLabel(rm.localAbility);
+            string undo = WillWithdraw(rm) ? "\n<size=80%>― もう一度触れると取り消す</size>" : "";
             if (rm.FindSlot(pid) >= 0)
-                return "<color=#B81F14><size=170%><b>署名済み ✓</b></size></color>\n" + choice;
+                return "<color=#B81F14><size=170%><b>署名済み ✓</b></size></color>\n" + choice + undo;
             if (rm.IsPending(pid))
-                return "<color=#B81F14><size=150%><b>署名済み ✓</b></size></color>\n次のステージから\n" + choice;
+                return "<color=#B81F14><size=150%><b>署名済み ✓</b></size></color>\n次のステージから\n" + choice + undo;
             if (rm.SlotCount() > 0 && count >= rm.SlotCount())
                 return "<color=#B81F14><size=150%><b>定員いっぱい</b></size></color>\n" + choice;
             return choice + "\n<size=80%>― 台帳に触れてサイン</size>";

@@ -97,6 +97,19 @@ namespace HorseRace
             return c + err * Mathf.Clamp01(dt * CLOCK_GAIN);
         }
 
+        /// <summary>
+        /// 描いている位置（DELAY 秒前）から今の本当の位置を予測する（system-r2-07）：pos + 向き yawDeg へ speed × delay。
+        /// ずれは SNAP_DISTANCE まで（テレポートの直後などで遠くへ飛ばさない）。
+        /// </summary>
+        public static Vector3 Lead(Vector3 pos, float yawDeg, float speed, float delay)
+        {
+            float d = speed * delay;
+            if (d > SNAP_DISTANCE) d = SNAP_DISTANCE;
+            if (d < -SNAP_DISTANCE) d = -SNAP_DISTANCE;
+            float r = yawDeg * Mathf.Deg2Rad;
+            return pos + new Vector3(Mathf.Sin(r), 0f, Mathf.Cos(r)) * d;
+        }
+
         /// <summary>Exponential decay multiplier for dt with time constant tau (0 = immediate).</summary>
         public static float DecayFactor(float dt, float tau)
         {

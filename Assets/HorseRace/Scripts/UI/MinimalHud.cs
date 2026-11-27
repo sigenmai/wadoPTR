@@ -349,10 +349,13 @@ namespace HorseRace
             // 進み具合（CP の知らせが出ている間は知らせ）
             string p;
             MountController lmp = rm.LocalMount();
-            if (now < noteUntil) p = "<color=" + HudMath.ColorHex(noteColor) + ">" + noteText + "</color>";
+            if (st == RaceMath.STATE_RACING && lmp != null && lmp.ResetHoldProgress > 0f)
+                p = "<color=" + HudMath.ColorHex(Red) + ">" + HudMath.ResetHoldText(lmp.ResetHoldProgress) + "</color>";   // system-r2-03
+            else if (now < noteUntil) p = "<color=" + HudMath.ColorHex(noteColor) + ">" + noteText + "</color>";
+            else if (st == RaceMath.STATE_FINAL_RESULT) p = "<size=70%>" + HudMath.RematchLine() + "</size>";   // system-r2-06
             else if (st == RaceMath.STATE_RACING && lmp != null && lmp.WrongWay) p = "<color=" + HudMath.ColorHex(Red) + "><b>◀ 逆走</b></color>";   // system-r1-17（U+21A9 の矢印はフォントに無い：ui-r2-04）
             else if (between && localSlot >= 0) p = HudMath.BetweenStagesLine(rm.slotTotalPoints[localSlot], LeaderPoints(rm), rm.stage + 1, RaceManager.STAGE_COUNT);
-            else if (st == RaceMath.STATE_RACING && rm.InStartGrace()) p = "撃ち合いまで " + Mathf.CeilToInt(rm.StartGraceLeft()).ToString();   // system-r1-07
+            else if (st == RaceMath.STATE_RACING && rm.InStartGrace()) p = "撃ち合いまで " + Mathf.CeilToInt(rm.StartGraceLeft()).ToString() + "<size=70%>（順に解禁）</size>";   // system-r1-07 / r2-11
             else
             {
                 p = st == RaceMath.STATE_RACING && lmp != null ? HudMath.ProgressBar(lmp.syncCp, rm.CheckpointCount(rm.stage), HudMath.PROGRESS_SEGMENTS) : "";

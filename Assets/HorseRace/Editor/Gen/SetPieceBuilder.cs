@@ -47,7 +47,52 @@ namespace HorseRace.EditorTools
                 else GenUtil.Warn("ステージ" + (def.index + 1) + "：近道を置ける区間が見つかりませんでした");
             }
             if (sb.jumpArc >= 0f) Jump(sb, root);
+            DeepSand(sb, root);
             Relics(sb, ctx);
+        }
+
+        /// <summary>
+        /// 深い砂の区間の目印（system-r2-01。道の上も砂で、馬は遅くラクダが速い）。入口の両脇に風で削れた岩（DesertRocks_04/05/06、道の外・当たり判定なし）、
+        /// 入口を横切る砂の吹きだまり（パーティクル）、右の縁に立て札「深い砂」。出口の札は「固い地面」。モデルは作らない（既存の部品だけ）。
+        /// </summary>
+        static void DeepSand(StageBuild sb, Transform root)
+        {
+            float[] arcs = sb.def.sandTrailArcs;
+            if (arcs == null) return;
+            var g = GenUtil.Child(root, "DeepSand", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            string[] rocks = { "DesertRocks_04", "DesertRocks_05", "DesertRocks_06" };
+            for (int k = 0; 2 * k + 1 < arcs.Length; k++)
+            {
+                for (int end = 0; end < 2; end++)
+                {
+                    float a = arcs[2 * k + end];
+                    Vector3 c = WorldLayout.PointAtArc(sb.courseWorld, a);
+                    Vector3 t = WorldLayout.TangentAtArc(sb.courseWorld, a);
+                    t = new Vector3(t.x, 0f, t.z).normalized;
+                    Vector3 r = WorldLayout.RightOf(t);
+                    float yaw = WorldLayout.YawDeg(t);
+                    float hw = StageDefinitions.HalfWidthAt(sb.def, a);
+                    string label = end == 0 ? "<b>深い砂</b>\n馬は重い・ラクダは速い" : "<b>固い地面</b>\nここから馬が速い";
+                    SignPost(g, "DeepSandSign_" + k + "_" + end, sb.GroundWorld(c + r * (hw + 3f) - t * 8f), yaw, label,
+                        end == 0 ? UiStyle.Gold : UiStyle.Teal, new Color(0f, 0f, 0f, 0f), 0f);
+                    sb.Exclude(c, 10f);
+                    if (end != 0) continue;
+                    // 入口の両脇の風で削れた岩（道の縁の外、2 つずつ）
+                    for (int s2 = -1; s2 <= 1; s2 += 2)
+                        for (int j = 0; j < 2; j++)
+                        {
+                            string part = rocks[(k + j + (s2 > 0 ? 1 : 0)) % rocks.Length];
+                            Vector3 rp = sb.GroundWorld(c + r * (s2 * (hw + 5f + j * 3.5f)) + t * (j * 6f - 3f)) - Vector3.up * 0.3f;
+                            DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, g, rp, yaw + 35f * s2 + j * 50f, 1f,
+                                new Vector3(3.2f, 2.2f + j, 2.6f), SandRamp));
+                        }
+                    // 入口を横切る砂の吹きだまり（風で道の上を流れる）
+                    Vector3 dp = sb.GroundWorld(c + t * 6f);
+                    GenUtil.DustBox(g, "SandDrift_" + k, dp - g.position + Vector3.up * 0.6f, new Vector3(hw * 2f + 10f, 0.8f, 14f), SandDust,
+                        new Vector3(r.x * 2.2f, 0.2f, r.z * 2.2f), 9f);
+                }
+            }
         }
 
         /// <summary>遺物 4 つ（SetPieces.RelicSpots）。宝石は CourseBuilder.Relic。踏み切りの先の遺物は 2.5m の空中（跳んだ人だけ）。</summary>

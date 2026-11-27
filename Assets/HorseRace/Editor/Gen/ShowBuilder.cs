@@ -109,6 +109,9 @@ namespace HorseRace.EditorTools
                 }
             }
 
+            // 予想の札（system-r2-15）：電報の掲示板の下に、走る人の名前の札 8 枚
+            if (telegramFront != null) PickCards(telegramFront, ctx);
+
             // 新聞売りの屋台（art-r1-12：人の模型は無いので、木箱を積んだ屋台と街灯。号外の紙は街灯の腕に吊り、呼び込みのときに振り上げる）
             var crierGo = GenUtil.World(root, "TownCrier", crierPos, crierYaw);
             Vector3 cp = crierGo.transform.position, cr = crierGo.transform.right, cf = crierGo.transform.forward;
@@ -243,6 +246,46 @@ namespace HorseRace.EditorTools
                 ctx.directorTags.Add(tag);
             }
             return tags;
+        }
+
+        /// <summary>
+        /// 予想の札（system-r2-15）：電報の板の下に手配書の紙（WantedPosters_04、0.44 × 0.32m）を 8 枚（value = スロット 0..7）。
+        /// 札の文字は RaceManager が乗り手の名前・乗り物・能力に書き換え、枠が空いている札は隠す。選んだ札は別の紙（WantedPosters_05）と宝石のピン。
+        /// 札の上の紙の帯（WantedPosters_05）に「予想（1着 3点・3着まで 1点） 通算 N点／あなたの予想：…」。モデルは作らない（既存の紙と宝石）。
+        /// </summary>
+        internal static void PickCards(Transform front, WorldContext ctx)
+        {
+            GenUtil.PaperSheet(front, "PickPaper", "WantedPosters_05", new Vector3(0f, 0.86f, 0.01f), null, 3.1f, 0.3f);
+            ctx.pickStatus = GenUtil.Text(front, "PickStatus", new Vector3(0f, 1.01f, -0.01f), Quaternion.identity, "予想", 1.0f, UiStyle.InkFace,
+                new Vector2(3f, 0.27f), TextStyle.Ink, true);
+            for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
+            {
+                var go = GenUtil.Child(front, "Pick_" + (i + 1), new Vector3(-1.75f + i * 0.5f, 0.55f, -0.05f));
+                var paper = GenUtil.Child(go.transform, "Poster", Vector3.zero);
+                GenUtil.PaperSheet(paper.transform, "Paper", "WantedPosters_04", new Vector3(0f, -0.16f, 0.01f), null, 0.44f, 0.32f);
+                var taken = GenUtil.Child(go.transform, "Taken", Vector3.zero);
+                GenUtil.PaperSheet(taken.transform, "Paper", "WantedPosters_05", new Vector3(0f, -0.16f, 0.01f), null, 0.44f, 0.32f);
+                var mark = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), "Gems_03_02", taken.transform, go.transform.position, 0f, 1f,
+                    new Vector3(0.05f, 0.07f, 0.05f), new Color(0.95f, 0.75f, 0.2f));
+                mark.name = "PickedMark";
+                GenUtil.FitMax(mark, 0.07f);
+                mark.transform.localPosition = new Vector3(0f, 0.12f, -0.03f);
+                taken.SetActive(false);
+                var label = GenUtil.Text(go.transform, "Label", new Vector3(0f, 0f, -0.012f), Quaternion.identity, "", 0.8f, UiStyle.InkFace,
+                    new Vector2(0.4f, 0.27f), TextStyle.Ink, true);
+                var col = go.AddComponent<BoxCollider>();
+                col.size = new Vector3(0.44f, 0.32f, 0.08f);
+                var pc = GenUtil.AddU<PosterCard>(go);
+                pc.kind = PosterCard.KIND_PICK;
+                pc.value = i;
+                pc.posterVisual = paper;
+                pc.takenVisual = taken;
+                pc.label = label;
+                pc.takeSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.RUSTLE));
+                GenUtil.SetInteractText(pc, "予想：この人が勝つ");
+                go.SetActive(false);   // 枠に人がいる札だけ RaceManager が出す
+                ctx.pickCards.Add(pc);
+            }
         }
 
         /// <summary>表彰台の後ろの「総合結果」の掲示板（NoticeBoard ×0.8、紙の板・看板の文字）。観客は表彰台の正面（+Z）から見る。</summary>

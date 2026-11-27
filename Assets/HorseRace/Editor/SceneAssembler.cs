@@ -276,6 +276,9 @@ namespace HorseRace.EditorTools
             var go = GenUtil.Child(ctx.root, "RaceManager", Vector3.zero);
             var rm = GenUtil.AddU<RaceManager>(go);
             ctx.raceManager = rm;
+            // 順位だけを運ぶ小さな同期（system-r2-13）。raceManager は下の「全員の raceManager」でつなぐ
+            var orderGo = GenUtil.Child(go.transform, "RaceOrder", Vector3.zero);
+            rm.raceOrder = GenUtil.AddU<RaceOrder>(orderGo);
             StageAtmosphere(ctx);
 
             // ---- 乗り物・コース ----
@@ -316,6 +319,8 @@ namespace HorseRace.EditorTools
             rm.startBell = ctx.startBell;
             rm.hud = ctx.hud;
             rm.practiceArea = ctx.practiceArea;
+            rm.pickCards = ctx.pickCards.ToArray();
+            rm.pickStatusText = ctx.pickStatus;
 
             // ---- 全員の raceManager（このビルドで作った UdonSharpBehaviour のうち raceManager フィールドを持つもの）----
             foreach (var b in GenUtil.Behaviours)

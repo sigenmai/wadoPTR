@@ -8,6 +8,7 @@ namespace HorseRace
     /// スタート台の号砲（机に置いた拳銃。クラス名は以前の鐘のまま）。Interact で撃つ＝レース開始（RaceManager.RequestStart）。
     /// 撃てるのはマスター、または出走時計の締め切りまで 30 秒未満のときのエントリー者（RaceMath.CanRingStart、system-r1-09）。
     /// 撃てない人が触ると撃鉄が少し動いてカチッ（tapSound）と鳴るだけ。紙の札（noteText）には出走時計「出走まで 0:42」を書く。
+    /// ひとりのエントリーは「ひとりで走る（タイムアタック）」とコース記録（system-r2-04）、総合結果の後は「もう一戦」（system-r2-06）。
     /// 開始が通ると RaceManager が全員の手元で PlayRing() を呼ぶ：撃鉄が落ち、弾倉が 1 発分回り、銃口から煙、空砲の音（ringSound）。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -133,19 +134,27 @@ namespace HorseRace
         {
             if (rm.state != RaceMath.STATE_LOBBY) return "レース中";
             float left = rm.GetLobbySecondsLeft();
+            bool solo = rm.ActiveCount() == 1;
             if (left >= 0f)
             {
-                string s = "<b><size=150%>出走まで " + RaceMath.FormatClock(left) + "</size></b>";
+                string s = "";
+                if (solo) s += "<b>ひとりで走る（タイムアタック）</b>\n";   // system-r2-04
+                else if (rm.rematch) s += "<b>もう一戦</b>（台帳で取り消せる）\n";   // system-r2-06
+                s += "<b><size=150%>出走まで " + RaceMath.FormatClock(left) + "</size></b>";
                 if (left < RaceMath.LOBBY_ANYONE_SECONDS) s += "\n号砲：出走者なら誰でも";
+                if (solo)
+                {
+                    string rec = rm.CourseRecordLine(0);
+                    if (rec.Length > 0) s += "\n<size=80%>" + rec + "</size>";
+                }
                 return s;
             }
-            if (rm.ActiveCount() == 1) return "あと 1 人サインで出走時計が動く\n（主催者は今すぐ号砲を撃てる）";
             return DefaultNote();
         }
 
         public static string DefaultNote()
         {
-            return "台帳に 2 人サインで出走時計が動く";
+            return "台帳にサインで出走時計が動く\n（ひとりなら 30 秒でタイムアタック）";
         }
 
         public void _ClearNote()

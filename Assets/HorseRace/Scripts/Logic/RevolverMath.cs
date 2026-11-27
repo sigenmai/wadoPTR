@@ -6,6 +6,16 @@ namespace HorseRace
     public class RevolverMath : UdonSharp.UdonSharpBehaviour
     {
         public const int AMMO_PER_STAGE = 6;
+        /// <summary>開幕（号砲から OPENING_SECONDS 秒まで）に撃てる弾の数（system-r2-11：猶予が明けた瞬間の一斉射撃を防ぐ）。</summary>
+        public const int OPENING_AMMO = 1;
+        public const float OPENING_SECONDS = 15f;
+
+        /// <summary>号砲から sinceGun 秒、残り ammo 発で、開幕の 1 発の制限の中で撃てるか（弾の有無は CanShoot）。</summary>
+        public static bool OpeningAllows(int ammo, float sinceGun)
+        {
+            if (sinceGun >= OPENING_SECONDS) return true;
+            return AMMO_PER_STAGE - ammo < OPENING_AMMO;
+        }
         // system-r1-05：撃つ方が得（外しの損 ≒ 1.7m、当てた相手の損 ≒ 7.8m @14 m/s）
         public const float AIM_FACTOR = 0.95f;
         public const float MISS_FACTOR = 0.92f;

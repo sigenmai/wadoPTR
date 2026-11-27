@@ -39,6 +39,8 @@ namespace UdonSharp
 
         /// <summary>UdonSharp 1.1+ / SDK 3.1+: hides the interact prompt (UdonBehaviour.DisableInteractive).</summary>
         public bool DisableInteractive { get; set; }
+        /// <summary>UdonSharp 1.1+: the interact prompt text (UdonBehaviour.interactText).</summary>
+        public string InteractionText { get; set; }
         public virtual void Interact() { }
         public virtual void OnDeserialization() { }
         public virtual void OnPreSerialization() { }

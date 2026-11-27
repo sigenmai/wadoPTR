@@ -33,18 +33,20 @@ namespace HorseRace.Tests
         }
         [Test] public void LobbyDeadline()
         {
-            Assert.AreEqual(-1.0, RaceMath.LobbyDeadline(100, 1, 0, 5, -1));          // 1 人では時計は動かない
+            Assert.AreEqual(-1.0, RaceMath.LobbyDeadline(100, 0, 0, 5, -1));          // 0 人では時計は動かない
             Assert.AreEqual(160.0, RaceMath.LobbyDeadline(100, 2, 0, 5, -1));         // 2 人で 60 秒
             Assert.AreEqual(160.0, RaceMath.LobbyDeadline(110, 3, 1, 5, 160));        // 延ばさない
             Assert.AreEqual(135.0, RaceMath.LobbyDeadline(120, 3, 3, 5, 160));        // 全員乗った：15 秒
             Assert.AreEqual(115.0, RaceMath.LobbyDeadline(100, 4, 0, 4, -1));         // ワールドの全員がエントリー
             Assert.AreEqual(150.0, RaceMath.LobbyDeadline(140, 2, 2, 5, 150));        // 縮めるだけ
-            Assert.AreEqual(-1.0, RaceMath.LobbyDeadline(140, 1, 1, 5, 150));         // 2 人未満に戻ったら消す
+            Assert.AreEqual(150.0, RaceMath.LobbyDeadline(140, 1, 1, 5, 150));        // 1 人に戻っても残す（ひとりで走る）
+            Assert.AreEqual(-1.0, RaceMath.LobbyDeadline(140, 0, 0, 5, 150));         // 誰もいなくなったら消す
         }
         [Test] public void AnyEntrantCanStartNearDeadline()
         {
             Assert.IsTrue(RaceMath.CanRingStart(true, false, 100, -1));
             Assert.IsFalse(RaceMath.CanRingStart(false, true, 100, -1));
+            Assert.IsTrue(RaceMath.CanRingStart(false, true, 100, 129));   // system-r2-04：ひとりでも 30 秒前から撃てる
             Assert.IsFalse(RaceMath.CanRingStart(false, true, 100, 140));
             Assert.IsTrue(RaceMath.CanRingStart(false, true, 100, 129));
             Assert.IsFalse(RaceMath.CanRingStart(false, false, 100, 129));
@@ -154,6 +156,6 @@ namespace HorseRace.Tests
         [Test] public void RemainingClampsAtZero() { Assert.AreEqual(0f, RaceMath.RemainingSeconds(1400, 1000, -1)); Assert.AreEqual(0f, RaceMath.RemainingSeconds(1300, 1000, 1200)); }
         [Test] public void RemainingLargeServerTime() => Assert.AreEqual(30f, RaceMath.RemainingSeconds(5_000_300.0, 5_000_000.0, -1), 1e-3f);
         [Test] public void Clock() { Assert.AreEqual("3:12", RaceMath.FormatClock(192f)); Assert.AreEqual("0:05", RaceMath.FormatClock(4.2f)); Assert.AreEqual("5:30", RaceMath.FormatClock(330f)); Assert.AreEqual("0:00", RaceMath.FormatClock(-3f)); }
-        [Test] public void Reset() { Assert.IsTrue(RaceMath.NeedsReset(-2.1f, 0, 0)); Assert.IsFalse(RaceMath.NeedsReset(0, 70, 2.9f)); Assert.IsTrue(RaceMath.NeedsReset(0, 70, 3f)); }
+        [Test] public void Reset() { Assert.IsTrue(RaceMath.NeedsReset(-2.1f, 0, 0)); Assert.IsFalse(RaceMath.NeedsReset(0, 70, 2.9f)); Assert.IsTrue(RaceMath.NeedsReset(0, 70, 3f)); Assert.IsTrue(RaceMath.NeedsReset(0, 41, 3f)); Assert.IsFalse(RaceMath.NeedsReset(0, 39, 10f)); }
     }
 }

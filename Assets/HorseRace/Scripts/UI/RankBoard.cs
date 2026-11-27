@@ -65,6 +65,11 @@ namespace HorseRace
             if (st == RaceMath.STATE_LOBBY)
             {
                 s = showLastRace ? LastRaceText(rm) : "出走前";
+                if (showLastRace)
+                {
+                    string masters = rm.PickMastersText();   // system-r2-15：観客の予想の通算（PlayerData）
+                    if (masters.Length > 0) s += "\n" + masters;
+                }
             }
             else if (st == RaceMath.STATE_COUNTDOWN)
             {

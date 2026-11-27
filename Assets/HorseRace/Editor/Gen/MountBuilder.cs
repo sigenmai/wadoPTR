@@ -81,6 +81,7 @@ namespace HorseRace.EditorTools
             var visualGo = GenUtil.Child(t, "Visual", Vector3.zero);
             // 練習用は slot = -1 なので、練習用の番号（casterId - 8 = 0, 1）で毛色を変える
             mc.visual = BuildVisual(visualGo, practice ? GenUtil.Mod(casterId - RaceManager.MAX_SLOTS, CoatPaths.Length) : 0);
+            BuildStaminaCues(mc.visual, visualGo.transform);
 
             var reins = GenUtil.Child(t, "ReinsVR", Vector3.zero);
             var vr = GenUtil.AddU<MountInputVR>(reins);
@@ -249,6 +250,26 @@ namespace HorseRace.EditorTools
             if (mv.camelModel != null) mv.camelModel.SetActive(false);
             if (mv.skeletonModel != null) mv.skeletonModel.SetActive(false);
             return mv;
+        }
+
+        /// <summary>
+        /// 相手から見える持久力（system-r2-08）と加速の合図（r2-14）：汗（持久力 40 未満で出る白い粒）、ばてた瞬間の砂ぼこり、
+        /// 金の火花（きれいな着地・カーブの立ち上がり）、頭の上の札「ばてている」（後ろから読める向き、ほかの人の乗り物が 25m 以内でばてている間）。
+        /// パーティクルと文字だけ（モデルは作らない）。
+        /// </summary>
+        static void BuildStaminaCues(MountVisual mv, Transform visual)
+        {
+            var sweat = GenUtil.Particles(visual, "Sweat", new Vector3(0f, 1.35f, 0.4f), new Color(0.95f, 0.97f, 1f, 0.75f), 0.06f, 0.5f, 0.7f, true, 16f, 0.5f);
+            var sm = sweat.main;
+            sm.playOnAwake = false;
+            sweat.Stop();
+            mv.sweat = sweat;
+            mv.exhaustPuff = GenUtil.Particles(visual, "ExhaustPuff", new Vector3(0f, 0.4f, 0f), Sand, 1.3f, 2.2f, 1.4f, false, 0f, 0.9f);
+            mv.boostSparkle = GenUtil.Particles(visual, "BoostSparkle", new Vector3(0f, 1.2f, 0.2f), Gold, 0.14f, 3.5f, 0.6f, false, 0f, 0.7f);
+            var tag = GenUtil.Text(visual, "SpentTag", new Vector3(0f, 3.2f, -0.4f), Quaternion.identity, "<b>ばてている</b>", 2.2f, UiStyle.Gold,
+                new Vector2(2.6f, 0.6f), TextStyle.Sign, true);
+            tag.gameObject.SetActive(false);
+            mv.spentTag = tag.gameObject;
         }
 
         static GameObject Model(string path, Transform parent, string name, RuntimeAnimatorController ctrl, out Animator anim)
@@ -500,6 +521,8 @@ namespace HorseRace.EditorTools
             rw.segments = segs;
             rw.height = 4f;
             rw.groundMask = WorldLayers.GroundMask;
+            rw.obstacleMask = WorldLayers.ObstacleMask;   // 道の空いている幅を測る（見えない柵・岩、system-r2-10）
+            rw.mountMask = WorldLayers.MountMask;         // 乗り物の足元に立てない
             rw.riseSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
             return rw;
         }

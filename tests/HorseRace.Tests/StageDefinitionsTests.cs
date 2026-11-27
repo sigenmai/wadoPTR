@@ -217,7 +217,7 @@ namespace HorseRace.Tests
             Assert.AreEqual(CourseGeometry.CP_WIDTH, CourseBarrier.CP_WIDTH);
         }
 
-        /// <summary>course-r1-10：絞りでは CP の箱を狭め（2·(半幅+4〜6)）、柵から CP_CLEAR_M 以上離れる。</summary>
+        /// <summary>course-r1-10 / system-r2-02：CP の箱は道幅より広く、柵の 2m 内側まで届く。</summary>
         [TestCaseSource(nameof(Stages))]
         public void CheckpointBoxesFollowWidth(int i)
         {
@@ -229,7 +229,8 @@ namespace HorseRace.Tests
                 float half = CourseBarrier.CpHalfWidth(s, local, goal, a);
                 float hw = StageDefinitions.HalfWidthAt(s, a);
                 Assert.GreaterOrEqual(half, hw + 2f, "arc " + a);
-                if (hw <= StageDefinitions.CHOKE_HALF_M + 0.01f) Assert.LessOrEqual(half, hw + 6f);
+                // system-r2-02：箱は柵の 2m 内側まで（絞りでも柵との間に抜け道を残さない）
+                Assert.AreEqual(CourseBarrier.OffsetAtArc(s, local, goal, a) - CourseBarrier.CP_SIDE_CLEAR_M, half, 1e-3f);
             }
         }
 

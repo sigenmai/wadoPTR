@@ -29,23 +29,51 @@ namespace HorseRace
         }
 
         /// <summary>
-        /// ステージの地形と有利な乗り物（ステージの合間の電報・囲いの手配書。system-r1-08 / r1-21）。
-        /// 荒野・境目は馬（砂なし）、砂漠はラクダ（馬は砂で ×0.78）。最終ステージは得点 1.5 倍。
+        /// ステージの「深い砂」（道の上も砂、馬は ×0.82）の割合（%）。StageDefinitions の sandTrailArcs ÷ ゴールまでの長さ（単体テストで確かめる。system-r2-01）。
+        /// </summary>
+        public static int DeepSandPercent(int st)
+        {
+            if (st == 1) return DEEP_SAND_DUNES_PCT;
+            if (st == 2) return DEEP_SAND_MESA_PCT;
+            return 0;
+        }
+
+        public const int DEEP_SAND_DUNES_PCT = 31;
+        public const int DEEP_SAND_MESA_PCT = 9;
+
+        /// <summary>
+        /// ステージの地形と有利な乗り物（ステージの合間の電報・囲いの手配書。system-r1-08 / r1-21 / r2-01）。
+        /// 深い砂の割合が多いほどラクダ（固い地面は馬が約 8% 速く、深い砂はラクダが約 13% 速い）。最終ステージは得点 1.5 倍。
         /// </summary>
         public static string StageHint(int st)
         {
-            if (st == 0) return "荒野 ― 馬有利（岩場・崖の近道）";
-            if (st == 1) return "砂漠 ― ラクダ有利（砂で馬は遅い）";
-            if (st == 2) return "境目 ― 馬有利　最終ステージ 得点1.5倍";
+            if (st == 0) return "荒野 ― 深い砂なし・馬有利（岩場・崖の近道）";
+            if (st == 1) return "砂漠 ― 深い砂 " + DeepSandPercent(1).ToString() + "%・ラクダ有利";
+            if (st == 2) return "境目 ― 深い砂 " + DeepSandPercent(2).ToString() + "%・馬有利　最終ステージ 得点1.5倍";
             return "";
         }
 
-        /// <summary>ステージの合間の電報の締め：「次：砂漠 ― ラクダ有利…」。最後のステージの後は空。</summary>
+        /// <summary>ステージの合間の電報の締め：「次：砂漠 ― 深い砂 31%・ラクダ有利…」。最後のステージの後は空。</summary>
         public static string NextStageLine(int stage, int stageCount)
         {
             int next = stage + 1;
             if (next >= stageCount) return "";
             return "次：" + StageHint(next) + "\n囲いの手配書で乗り物・能力を選び直せる";
+        }
+
+        /// <summary>総合結果の締め（system-r2-06）：同じ顔ぶれのまま 30 秒後にもう一戦。</summary>
+        public static string RematchLine()
+        {
+            return "もう一戦？ " + Mathf.RoundToInt(RaceMath.LOBBY_READY_SECONDS * 2f).ToString() + " 秒後に出走（台帳で取り消し可）";
+        }
+
+        /// <summary>やり直しの長押しの札（system-r2-03）："やり直し… ■■■□□"。</summary>
+        public static string ResetHoldText(float progress)
+        {
+            int n = Mathf.Clamp(Mathf.FloorToInt(progress * 5f + 0.0001f), 0, 5);
+            string bar = "";
+            for (int i = 0; i < 5; i++) bar += i < n ? "■" : "□";
+            return "やり直し… " + bar;
         }
 
         /// <summary>"第1幕 荒野"（st は 0 始まり）。範囲外は "第4幕"。</summary>
