@@ -26,6 +26,7 @@ namespace UnityEditor
         public static string CreateFolder(string parentFolder, string newFolderName) => "";
         public static void SaveAssets() { }
         public static void Refresh() { }
+        public static void ImportAsset(string path) { }
         public static string[] FindAssets(string filter) => new string[0];
         public static string[] FindAssets(string filter, string[] searchInFolders) => new string[0];
         public static string GUIDToAssetPath(string guid) => "";

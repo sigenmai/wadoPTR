@@ -99,6 +99,7 @@ namespace HorseRace.EditorTools
             CheckAssets(warn);
             CheckLayers(root, warn);
             CheckHidden(root, warn, info);
+            CheckCustom(root, warn, info);
             Transform lobbyDr = GenUtil.FindDeep(root.transform, "TownDressing");
             int lobbyN = 0;
             if (lobbyDr != null) foreach (Transform g in lobbyDr) { if (g.name.StartsWith("WallPoster")) continue; foreach (Transform c in g) lobbyN++; }
@@ -402,6 +403,60 @@ namespace HorseRace.EditorTools
             }
             info.Add("見えない場所の対処：霧 " + (RenderSettings.fog ? RenderSettings.fogStartDistance.ToString("F0") + "〜" + RenderSettings.fogEndDistance.ToString("F0") + "m" : "なし")
                 + "、遠景の山並み " + backdrop + " 個");
+        }
+
+        /// <summary>
+        /// 手直しと HorseRace_Custom：手直しの件数、id 付きの飾りの数。Custom の物が道（コース中心から 12m 以内）に乗っていないか、
+        /// CP・遺物・スタート位置・ゴール後の囲い・スターターの立ち位置をふさいでいないか。
+        /// </summary>
+        static void CheckCustom(GameObject root, List<string> warn, List<string> info)
+        {
+            int tagged = 0;
+            foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) if (LayoutOverrides.ParseId(t.name) != null) tagged++;
+            int overrides = 0;
+            if (System.IO.File.Exists(LayoutOverrides.FILE))
+            {
+                try { overrides = LayoutOverrides.FromJson(System.IO.File.ReadAllText(LayoutOverrides.FILE)).Count; }
+                catch (System.Exception e) { warn.Add(LayoutOverrides.FILE + " を読めません（" + e.Message + "）"); }
+            }
+            GameObject custom = null;
+            foreach (GameObject g in SceneManager.GetActiveScene().GetRootGameObjects()) if (g.name == LayoutTools.CUSTOM_ROOT) custom = g;
+            int n = custom != null ? custom.transform.childCount : 0;
+            info.Add("配置の手直し：id 付きの飾り " + tagged + " 個、手直し " + overrides + " 件（" + LayoutOverrides.FILE + "）、" + LayoutTools.CUSTOM_ROOT + " に " + n + " 個");
+            if (custom == null || n == 0) return;
+
+            var courses = new List<Vector3[]>();
+            foreach (StageDef def in StageDefinitions.All)
+            {
+                Vector3[] local = StageDefinitions.SampleLocal(def);
+                var w = new Vector3[local.Length];
+                for (int i = 0; i < local.Length; i++) w[i] = def.Origin + local[i];
+                courses.Add(w);
+            }
+            var critical = new List<KeyValuePair<string, Vector3>>();
+            foreach (var c in root.GetComponentsInChildren<Checkpoint>(true)) critical.Add(new KeyValuePair<string, Vector3>("CP" + c.index + "（ステージ" + (c.stageIndex + 1) + "）", c.transform.position));
+            foreach (var r in root.GetComponentsInChildren<RelicPickup>(true)) if (!r.isSpare) critical.Add(new KeyValuePair<string, Vector3>("遺物 " + r.name, r.transform.position));
+            var rm = root.GetComponentInChildren<RaceManager>(true);
+            if (rm != null)
+            {
+                if (rm.startPoints != null) foreach (var t in rm.startPoints) if (t != null) critical.Add(new KeyValuePair<string, Vector3>("スタート位置", t.position));
+                if (rm.finishPens != null) foreach (var t in rm.finishPens) if (t != null) critical.Add(new KeyValuePair<string, Vector3>("ゴール後の囲い", t.position));
+            }
+            var st = root.GetComponentInChildren<Starter>(true);
+            if (st != null && st.stageSpots != null) foreach (var t in st.stageSpots) if (t != null) critical.Add(new KeyValuePair<string, Vector3>("スターターの立ち位置", t.position));
+
+            foreach (Transform c in custom.transform)
+            {
+                Bounds b = GenUtil.RendererBounds(c.gameObject);
+                Vector3 p = b.size.sqrMagnitude > 0f ? b.center : c.position;
+                float r = Mathf.Max(b.extents.x, b.extents.z);
+                foreach (var course in courses)
+                    if (WorldLayout.DistToPolylineXZ(p, course) - r < 12f)
+                    { warn.Add(LayoutTools.CUSTOM_ROOT + "/" + c.name + " が道（コース中心から 12m 以内）に乗っています"); break; }
+                foreach (var kv in critical)
+                    if (WorldLayout.DistXZ(p, kv.Value) - r < 6f && Mathf.Abs(p.y - kv.Value.y) < 20f)
+                    { warn.Add(LayoutTools.CUSTOM_ROOT + "/" + c.name + " が" + kv.Key + "をふさいでいます"); break; }
+            }
         }
 
         /// <summary>飾りの個数（Dressing の下のグループの子。見えない壁・表彰台は数えない）。</summary>

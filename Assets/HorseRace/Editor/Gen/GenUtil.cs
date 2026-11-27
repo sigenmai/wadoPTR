@@ -37,6 +37,19 @@ namespace HorseRace.EditorTools
         /// <summary>このビルドで作った UdonSharpBehaviour（最後に CopyProxyToUdon する）。</summary>
         public static readonly List<UdonSharpBehaviour> Behaviours = new List<UdonSharpBehaviour>();
 
+        /// <summary>このビルドで id を付けた飾り（手直しの対象）。id → GameObject。</summary>
+        public static readonly Dictionary<string, GameObject> Tagged = new Dictionary<string, GameObject>();
+
+        /// <summary>手直しできる飾りに安定した id を付ける（名前の末尾 " {id}"）。重複した id は "~2" などを足して警告。</summary>
+        public static void Tag(GameObject go, string id)
+        {
+            string unique = id;
+            for (int k = 2; Tagged.ContainsKey(unique); k++) unique = id + "~" + k;
+            if (unique != id) Debug.LogWarning("[HorseRace] 配置の id が重複したので " + unique + " にしました");
+            go.name = LayoutOverrides.NameWithId(go.name, unique);
+            Tagged[unique] = go;
+        }
+
         static readonly Dictionary<string, Material> toonCache = new Dictionary<string, Material>();
         static Shader toonShader;
 
@@ -44,6 +57,7 @@ namespace HorseRace.EditorTools
         {
             Missing.Clear();
             Behaviours.Clear();
+            Tagged.Clear();
             toonCache.Clear();
             toonShader = null;
         }

@@ -19,7 +19,7 @@ namespace HorseRace.EditorTools
             var root = GenUtil.Child(sb.root, "Dressing", Vector3.zero).transform;
             root.position = Vector3.zero;
             List<Placement> plan = DressingPlan.For(sb.def, sb.courseLocal, sb.heights, sb.goalArc, sb.shortcut);
-            Instantiate(plan, root, sb.def.Origin);
+            Instantiate(plan, root, sb.def.Origin, "S" + (sb.def.index + 1));
             if (sb.def.kind == HeightmapGen.KIND_MESA)
             {
                 Vector3 pp = DressingPlan.PodiumLocal(sb.courseLocal, sb.goalArc);
@@ -34,11 +34,12 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>計画をモデルにする。origin = 計画の座標の原点（Terrain の角、ロビーなら中心）。グループごとに親を分ける。</summary>
-        public static void Instantiate(List<Placement> plan, Transform root, Vector3 origin)
+        public static void Instantiate(List<Placement> plan, Transform root, Vector3 origin, string scope)
         {
             var groups = new Dictionary<string, Transform>();
-            foreach (Placement p in plan)
+            for (int index = 0; index < plan.Count; index++)
             {
+                Placement p = plan[index];
                 Transform parent;
                 if (!groups.TryGetValue(p.group ?? "Misc", out parent))
                 {
@@ -54,6 +55,8 @@ namespace HorseRace.EditorTools
                     ? GenUtil.InstantiatePart(path, p.part, parent, w, p.yawDeg, p.scale, fb, Fallback)
                     : GenUtil.PlaceModel(path, parent, System.IO.Path.GetFileNameWithoutExtension(p.asset), w, p.yawDeg, p.scale, fb, Fallback);
                 if (p.rollDeg != 0f) go.transform.rotation = Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
+                // 手直し用の安定した id（名前の末尾）。見えない壁の名前にも付くよう、壁を作る前に付ける
+                GenUtil.Tag(go, LayoutOverrides.IdFor(scope, p, index));
                 if (p.asset == DressingPlan.SKELETON)
                     foreach (var a in go.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(a);
                 if (p.collider)

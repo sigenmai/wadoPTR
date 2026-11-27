@@ -100,6 +100,7 @@ namespace HorseRace.EditorTools
         {
             var fence = GenUtil.World(root, "LobbyFence", CENTER).transform;
             var segs = LobbyLayout.FenceSegments(fenceRect, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
+            int fi = 0;
             foreach (var sg in segs)
             {
                 Vector3 a = CENTER + sg[0], b = CENTER + sg[1];
@@ -115,10 +116,11 @@ namespace HorseRace.EditorTools
                 box.center = new Vector3(0f, colH * 0.5f, 0f);
                 GenUtil.SetLayerRecursive(piece, WorldLayers.Block);
                 DressingBuilder.SetStatic(piece);
+                GenUtil.Tag(piece, "Fence/LobbyFence/FarmProps|" + Fence.PART + "#" + fi++);
             }
             var belt = GenUtil.World(root, "LobbyTreeBelt", CENTER).transform;
             var trees = LobbyLayout.TreeBelt(fenceRect, 3);
-            DressingBuilder.Instantiate(trees, belt, CENTER);
+            DressingBuilder.Instantiate(trees, belt, CENTER, "Belt");
             Debug.Log("[HorseRace] ロビーの柵 " + segs.Count + " 区間（切れ目 " + LobbyLayout.Gates.Length + "）、柵の外の木の帯 " + trees.Count + " 本");
         }
 
@@ -129,7 +131,7 @@ namespace HorseRace.EditorTools
             Bounds tb = GenUtil.RendererBounds(town);
             var plan = DressingPlan.ForLobby(new Vector2(tb.min.x - CENTER.x, tb.min.z - CENTER.z), new Vector2(tb.max.x - CENTER.x, tb.max.z - CENTER.z),
                 LobbyExclusions(), 4242);
-            DressingBuilder.Instantiate(plan, dr, CENTER);
+            DressingBuilder.Instantiate(plan, dr, CENTER, "Lobby");
             DressingBuilder.SetStatic(town);
             int posters = WallPosters(dr, town, tb);
             Debug.Log("[HorseRace] ロビーの飾り: " + plan.Count + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、町の壁の手配書 " + posters + " 枚");
@@ -162,6 +164,7 @@ namespace HorseRace.EditorTools
                 holder.transform.rotation = Quaternion.LookRotation(-new Vector3(hit.normal.x, 0f, hit.normal.z).normalized, Vector3.up);
                 var tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + CardNames[n % CardNames.Length] + ".png");
                 DressingBuilder.SetStatic(Poster(holder.transform, n % 3 == 2 ? "WantedPosters_02" : "WantedPosters_01", tex, "Poster"));
+                GenUtil.Tag(holder, "Lobby/WallPoster/WantedPosters|#" + n);
                 n++;
             }
             return n;
@@ -339,6 +342,7 @@ namespace HorseRace.EditorTools
                 var r = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), rocks[k % rocks.Length], skirt, p - Vector3.up * 0.6f,
                     k * 47f, 1.3f, new Vector3(2.5f, 1.5f, 2.5f), new Color(0.6f, 0.45f, 0.35f));
                 DressingBuilder.SetStatic(r);
+                GenUtil.Tag(r, "Lobby/TownSkirt/DesertRocks|" + rocks[k % rocks.Length] + "#" + k);
             }
         }
 
@@ -598,6 +602,7 @@ namespace HorseRace.EditorTools
                 var log = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_0" + (2 + i), h, L(41f + (i % 3) * 0.9f, -17f) + Vector3.up * (i / 3) * 0.3f,
                     90f + i * 7f, 1.2f, new Vector3(0.3f, 0.3f, 0.8f), Wood);
                 DressingBuilder.SetStatic(log);
+                GenUtil.Tag(log, "Lobby/Woodpile/WoodLogs|WoodLogs_0" + (2 + i) + "#" + i);
             }
         }
 

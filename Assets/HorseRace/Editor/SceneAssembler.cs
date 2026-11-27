@@ -43,6 +43,7 @@ namespace HorseRace.EditorTools
 
                 foreach (GameObject g in scene.GetRootGameObjects())
                     if (g.name == GenUtil.ROOT_NAME) Object.DestroyImmediate(g);
+                LayoutTools.EnsureCustomRoot();   // HorseRace_Custom（利用者の物）は消さない・触らない
                 ctx.root = new GameObject(GenUtil.ROOT_NAME).transform;
 
                 Progress("光・中継の素材", 0.02f);
@@ -75,6 +76,9 @@ namespace HorseRace.EditorTools
                 Backdrop(ctx);
                 StageCameraBounds(ctx);
                 SceneDescriptor(ctx);
+                // 飾りの手直し：計算どおりの姿勢を基準に保存してから、LayoutOverrides.json を当てる
+                LayoutTools.WriteBaseline();
+                LayoutTools.ApplyOverrides();
                 GenUtil.FlushBehaviours();
             }
             catch (System.Exception e)
@@ -167,7 +171,7 @@ namespace HorseRace.EditorTools
             var root = GenUtil.Child(ctx.root, "Backdrop", Vector3.zero).transform;
             root.position = Vector3.zero;
             var plan = DressingPlan.Backdrop(7);
-            DressingBuilder.Instantiate(plan, root, Vector3.zero);
+            DressingBuilder.Instantiate(plan, root, Vector3.zero, "Backdrop");
             Vector4 f = WorldBounds.FillerRect();
             var plane = GenUtil.Prim(PrimitiveType.Plane, "GroundFiller", root, Vector3.zero,
                 new Vector3((f.z - f.x) / 10f, 1f, (f.w - f.y) / 10f), new Color(0.80f, 0.62f, 0.44f));

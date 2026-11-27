@@ -11,6 +11,7 @@ namespace HorseRace.EditorTools
     /// </summary>
     public static class SetPieceBuilder
     {
+        static int decorIndex;   // 見どころの飾りの岩の id 用（Build ごとに 0 から）
         static readonly Color Rock = new Color(0.62f, 0.44f, 0.32f);
         static readonly Color SandRamp = new Color(0.86f, 0.72f, 0.48f);
         static readonly Color Paper = new Color(0.93f, 0.86f, 0.70f);
@@ -18,6 +19,7 @@ namespace HorseRace.EditorTools
         public static void Build(StageBuild sb, WorldContext ctx)
         {
             StageDef def = sb.def;
+            decorIndex = 0;
             sb.bridgeArc = SetPieces.BridgeArc(def, sb.goalArc);
             sb.jumpArc = SetPieces.JumpArc(def, sb.goalArc);
             if (sb.bridgeArc < 0f && !def.cliffShortcut && sb.jumpArc < 0f) return;
@@ -104,6 +106,7 @@ namespace HorseRace.EditorTools
                         p - Vector3.up * 2f, s2 * 30f + e * 70f, 1.6f, new Vector3(10f, 5f, 7f), Rock);
                     DressingBuilder.AddCollider(rock, false);
                     DressingBuilder.SetStatic(rock);
+                    GenUtil.Tag(rock, "S" + (sb.def.index + 1) + "/SetPieceDecor/rock#" + (decorIndex++));
                 }
                 for (int i = 0; i < 4; i++)
                 {
@@ -111,6 +114,7 @@ namespace HorseRace.EditorTools
                     var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_0" + (6 + i % 4), cover,
                         p - Vector3.up * 0.8f, i * 53f, 1.1f, new Vector3(5f, 3f, 5f), Rock);
                     DressingBuilder.SetStatic(rock);
+                    GenUtil.Tag(rock, "S" + (sb.def.index + 1) + "/SetPieceDecor/rock#" + (decorIndex++));
                 }
             }
             DressingBuilder.SetStatic(bridge);
@@ -160,6 +164,7 @@ namespace HorseRace.EditorTools
                     var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_1" + (1 + ((int)(f * 97f) % 4)), root,
                         w - Vector3.up * 1.4f, f * 400f + s * 90f, 1.5f, new Vector3(3f, 2f, 3f), Rock);
                     DressingBuilder.SetStatic(rock);
+                    GenUtil.Tag(rock, "S" + (sb.def.index + 1) + "/SetPieceDecor/rock#" + (decorIndex++));
                 }
             {
                 Vector3 q = Vector3.Lerp(p.a, p.b, p.fDrop);
@@ -170,6 +175,7 @@ namespace HorseRace.EditorTools
                     var face = GenUtil.InstantiatePart(GenUtil.Pack("Cliffs"), "Cliffs_13", root, w - Vector3.up * 1f, WorldLayout.YawDeg(dir) + s * 90f, 0.35f,
                         new Vector3(6f, 6f, 6f), Rock);
                     DressingBuilder.SetStatic(face);
+                    GenUtil.Tag(face, "S" + (sb.def.index + 1) + "/SetPieceDecor/face#" + (decorIndex++));
                 }
             }
             for (int k = 0; k <= 10; k++)
