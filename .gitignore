@@ -6,3 +6,4 @@ Assets/**/_*.blend1
 # .NET test build output
 tests/**/bin/
 tests/**/obj/
+dist/
