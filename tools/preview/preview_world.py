@@ -377,10 +377,11 @@ if os.environ.get("LOBBY_ONLY"):
         shot(name, eye, tgt, lens)
     raise SystemExit
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
-world.mist_settings.start = 350
+world.mist_settings.start = 1200; world.mist_settings.depth = 1500   # ステージ全景は霧を薄く（外周の尾根ごしでも見える）
 for st in W["stages"]:
     c = st["center"]
-    shot(f"{st['index'] + 1}_stage_{st['index'] + 1}", (c[0] - 650, c[2] - 750, 520), (c[0], c[2], 20), 30)
+    shot(f"{st['index'] + 1}_stage_{st['index'] + 1}", (c[0] - 500, c[2] - 900, 900), (c[0], c[2], 40), 30)
+world.mist_settings.start = 350; world.mist_settings.depth = 750
 lob_t = (0, -820, 5)
 shot("4_lobby_town", (140, -1000, 70), lob_t, 30)
 # 見どころの近景
@@ -388,7 +389,8 @@ b = S[0]["bridge"]
 if b:
     off = Vector((S[0]["center"][0] - 500, S[0]["center"][2] - 500, 0))
     p = U(b["p"]) + off
-    shot("5_rock_bridge", p + Vector((110, -140, 140)), p, 32)
+    q = p + Vector((110, -140, 0)); q.z = max(p.z, ground_at(S[0], q.x, q.y)) + 90   # 峡谷の壁の中に入らない
+    shot("5_rock_bridge", q, p, 32)
 j = S[1]["jump"]
 if j:
     off = Vector((S[1]["center"][0] - 500, S[1]["center"][2] - 500, 0))
@@ -404,7 +406,8 @@ for st in W["stages"]:
         p1 = U(c[min(k + 8, len(c) - 1)]) + off
         t = (p1 - p0); t.z = 0; t.normalize()
         side = Vector((-t.y, t.x, 0))
-        cam_pos = p0 - t * 40 + side * 45 + Vector((0, 0, 22))
+        cam_pos = p0 - t * 40 + side * 45
+        cam_pos.z = max(p0.z, ground_at(st, cam_pos.x, cam_pos.y)) + 22   # 斜面・壁の中に入らない
         shot(f"8_near_{st['index'] + 1}_{j + 1}", cam_pos, p1 + Vector((0, 0, 2)), 26)
 # 騎手の目の高さ（地面 + 2.6m）でコースを見る：スタート・途中の一番きついカーブ・見せ場・ゴール前
 def rider_eye(st, k, ahead=10, name=""):
@@ -434,14 +437,18 @@ for st in W["stages"]:
     if sp:
         k = nearest_k(st, U(sp["p"]) + off)
         rider_eye(st, k - 6, 6, f"7_rider_{sid}_c_setpiece")
+    elif st["shortcut"] is None and st["relics"]:   # 見せ場がないステージは中ほどの遺物
+        k = nearest_k(st, U(st["relics"][len(st["relics"]) // 2]) + off)
+        rider_eye(st, k - 6, 6, f"7_rider_{sid}_c_setpiece")
     elif st["shortcut"]:
         k = nearest_k(st, U(st["shortcut"]["a"]) + off)
         p0 = U(c[max(k - 3, 0)]) + off; p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
         q = U(st["shortcut"]["b"]) + off
         shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), 22)
     rider_eye(st, n - 9, 8, f"7_rider_{sid}_d_finish")
-for name, eye, tgt in (("9_lobby_eye_N", (0, -825, 1.7), (0, -560, 3)), ("9_lobby_eye_S", (0, -820, 1.7), (0, -1100, 3)),
-                       ("9_lobby_eye_E", (60, -790, 1.7), (400, -790, 3)), ("9_lobby_eye_W", (-60, -790, 1.7), (-400, -790, 3)),
+# 町の中（柵の内側 x ±48、z -803〜-623）から：スポーンから北、町の奥から南、通りから東西
+for name, eye, tgt in (("9_lobby_eye_N", (-11.5, -789, 1.7), (-11.5, -560, 3)), ("9_lobby_eye_S", (0, -650, 1.7), (0, -1100, 3)),
+                       ("9_lobby_eye_E", (-30, -720, 1.7), (400, -720, 3)), ("9_lobby_eye_W", (30, -740, 1.7), (-400, -740, 3)),
                        ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4))):
     shot(name, eye, tgt, 24)
 print("ENGINE", sc.render.engine)
