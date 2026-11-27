@@ -54,6 +54,7 @@ namespace HorseRace.EditorTools
         public const float KICKER_HALF_WIDTH = 13f, KICKER_SHOULDER = 6f;
         public const float JUMP_WIDTH = KICKER_CORE_M * 2f;
         public const float JUMP_RELIC_AHEAD = 14f, JUMP_RELIC_UP = 2.5f;
+        public const float JUMP_LAMP_STEP_M = 5.5f, JUMP_SIGN_BEFORE_M = 10f;   // course-r3-13：坂の両脇の青緑の街灯・坂の 10m 手前の札
 
         // 境目の台地（course-r1-05）
         public const float MESA_BAND_HALF = 35f;       // 道の中心から 35m（帯 70m）は道と同じ高さ

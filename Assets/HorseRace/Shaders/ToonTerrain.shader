@@ -29,6 +29,7 @@ Shader "HorseRace/ToonTerrain"
         _RutOffset ("Rut offset (G units)", Float) = 0.1125
         _RutWidth ("Rut width (G units)", Float) = 0.0375
         _RutDarken ("Rut darken (0-1)", Range(0,1)) = 0.15
+        _LineBoost ("Start/finish line brightness (x trail color)", Float) = 1.6
     }
 
     SubShader
@@ -49,7 +50,7 @@ Shader "HorseRace/ToonTerrain"
 
             sampler2D _Control; float4 _Control_ST;
             sampler2D _TrailTex; float4 _TrailColor;
-            float _RutOffset, _RutWidth, _RutDarken;
+            float _RutOffset, _RutWidth, _RutDarken, _LineBoost;
             sampler2D _Splat0, _Splat1, _Splat2, _Splat3;
             float4 _Splat0_ST, _Splat1_ST, _Splat2_ST, _Splat3_ST;
             fixed4 _ShadowColor;
@@ -95,7 +96,7 @@ Shader "HorseRace/ToonTerrain"
                 float wsum = max(ctl.r + ctl.g + ctl.b + ctl.a, 1e-3);
                 float3 albedo = (c0 * ctl.r + c1 * ctl.g + c2 * ctl.b + c3 * ctl.a) / wsum;
                 // 道：踏み固めた土（土の斑の明るさを 30% だけ残す）
-                float2 trTex = tex2D(_TrailTex, i.uv).rg;
+                float3 trTex = tex2D(_TrailTex, i.uv).rgb;
                 float trail = trTex.r;
                 float mott = saturate(dot(c0, float3(0.333, 0.333, 0.333)) * 1.5);
                 float3 trailCol = _TrailColor.rgb * (0.92 + 0.16 * mott);
@@ -103,6 +104,8 @@ Shader "HorseRace/ToonTerrain"
                 float rut = 1.0 - smoothstep(_RutWidth * 0.35, _RutWidth * 0.65, abs(trTex.g - _RutOffset));
                 trailCol *= 1.0 - _RutDarken * rut;
                 albedo = lerp(albedo, trailCol, saturate(trail));
+                // スタート・ゴールの線（course-r3-14）：B = 道を横切る帯の重み。道の色を明るく（_LineBoost 倍）
+                albedo = lerp(albedo, saturate(_TrailColor.rgb * _LineBoost), saturate(trTex.b));
 
                 float3 n = normalize(i.nrm);
                 float3 l = normalize(_WorldSpaceLightPos0.xyz);

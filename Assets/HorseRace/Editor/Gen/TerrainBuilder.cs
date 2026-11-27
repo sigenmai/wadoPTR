@@ -67,7 +67,9 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             sb.terrain = tgo.GetComponent<Terrain>();
             sb.terrain.heightmapPixelError = 4f;
-            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailDist), "Stage" + (def.index + 1), def.index);
+            // course-r3-14：スタート・ゴールの線（道を横切る明るい土の帯、地形の塗りだけ）を道のマスクの B へ
+            float[,] lines = HeightmapGen.LineMask(StageDefinitions.ALPHAMAP_RES, def, sb.courseLocal, sb.goalArc);
+            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailDist, lines), "Stage" + (def.index + 1), def.index);
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -212,7 +214,7 @@ namespace HorseRace.EditorTools
         /// 道の踏み固めた土の重み（R、Terrain 全体の UV）と道の中心からの距離（G = 距離 / TRAIL_DIST_MAX_M、art-r3-06：ToonTerrain が ±1.8m の轍を描く）を
         /// Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。距離は線形に補間されるので、1 マス 2m の解像度でも 0.6m の轍の線が描ける。
         /// </summary>
-        public static Texture2D TrailTexture(string name, float[,] trail, float[,] dist = null)
+        public static Texture2D TrailTexture(string name, float[,] trail, float[,] dist = null, float[,] lines = null)
         {
             int n = trail.GetLength(0), m = trail.GetLength(1);
             var tex = new Texture2D(m, n, TextureFormat.RGBA32, false);
@@ -222,7 +224,8 @@ namespace HorseRace.EditorTools
                 {
                     float v = trail[z, x];
                     float g = dist != null ? Mathf.Clamp01(dist[z, x] / HeightmapGen.TRAIL_DIST_MAX_M) : 1f;
-                    px[z * m + x] = new Color(v, g, 0f, 1f);
+                    float l = lines != null ? lines[z, x] : 0f;   // B = スタート・ゴールの線（course-r3-14）
+                    px[z * m + x] = new Color(v, g, l, 1f);
                 }
             tex.SetPixels(px);
             tex.Apply();

@@ -87,6 +87,12 @@ def terrain(stage):
         T = read_grid(tp)
         T = np.asarray(Image.fromarray((np.clip(T, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32)[..., None] / 255
         col = col * (1 - T) + np.array(stage["trail"])[None, None] * T
+    # スタート・ゴールの線（course-r3-14、HeightmapGen.LineMask）：道の色 × 1.6（ToonTerrain の _LineBoost）
+    lp_ = os.path.join(ex, f"l{i}.bin")
+    if os.path.exists(lp_) and stage.get("trail"):
+        L = read_grid(lp_)
+        L = np.asarray(Image.fromarray((np.clip(L, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32)[..., None] / 255
+        col = col * (1 - L) + np.clip(np.array(stage["trail"]) * 1.6, 0, 1)[None, None] * L
     # 等高線をうっすら（立体感）
     band = (np.mod(h, 10.0) < 0.6)[..., None] * 0.06
     col = np.clip(col - band, 0, 1)
@@ -545,7 +551,14 @@ for st in W["stages"]:
         p0 = U(c[max(k - 3, 0)]) + off; p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
         q = U(st["shortcut"]["b"]) + off
         shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), 22)
-    rider_eye(st, n - 9, 8, f"7_rider_{sid}_d_finish")
+    # course-r3-11：ゴール前は書き出したゴールの添字から（200m・120m 手前、60m 手前）。前は最後の点（流しの中）から撮っていた
+    gk = st.get("goalK", n - 9)
+    rider_eye(st, gk - 20, 12, f"7_rider_{sid}_d_finish")
+    rider_eye(st, gk - 12, 8, f"7_rider_{sid}_d_finish_120")
+    rider_eye(st, gk - 6, 6, f"7_rider_{sid}_d_finish_60")
+    # course-r3-11：近道の入口（50m 手前から）
+    if st.get("scEntryK", -1) >= 0:
+        rider_eye(st, st["scEntryK"] - 5, 5, f"7_rider_{sid}_e_shortcut")
 # 町の中（ロビー中心からの相対）から。目の前 8m に物があれば、町の通りの向き（北）へずらして最初に当たる物が 12m より遠くなる所から撮る
 from mathutils import Vector as _V
 def eye_shot(name, rel_eye, rel_tgt, lens=24):
@@ -576,4 +589,6 @@ if pa:
     c = S[2]["course"]
     k = nearest_k(S[2], U(pa["p"]) + off)
     rider_eye(S[2], max(k - 26, 0), 26, "7_rider_3_c_pass_approach")   # コースの点は 10m ごと（260m 手前）
+    rider_eye(S[2], max(k - 12, 0), 12, "7_rider_3_c_pass_120")         # course-r3-02/11：120m・250m 手前（切り通しの口が見えるか）
+    rider_eye(S[2], max(k - 25, 0), 25, "7_rider_3_c_pass_250")
 print("ENGINE", sc.render.engine)

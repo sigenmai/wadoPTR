@@ -136,7 +136,7 @@ namespace HorseRace.EditorTools
                 if (cp.kind == CourseMarks.CHUTE_FLAG)
                 {
                     var flag = GenUtil.World(g, "ChuteFlag_" + (k++), w, cp.yaw).transform;
-                    SetPieceBuilder.UprightLog(flag, "WoodLogs_01", w, cp.yaw, CourseMarks.CHUTE_POST_H, 1.1f);
+                    DressingBuilder.SetStatic(GenUtil.WoodPost(flag, w, cp.yaw, CourseMarks.CHUTE_POST_H, CourseMarks.CHUTE_POST_THICK));   // 細い丸太の旗竿
                     for (int side = 0; side < 2; side++)
                     {
                         var sheet = GenUtil.PaperSheet(flag, side == 0 ? "Flag" : "FlagBack", "WantedPosters_02", new Vector3(cp.side * -0.55f, CourseMarks.CHUTE_POST_H - 1.25f, side == 0 ? -0.08f : 0.08f), null, 0.9f, 1.1f);

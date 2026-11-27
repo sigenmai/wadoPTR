@@ -502,10 +502,26 @@ namespace HorseRace.EditorTools
             g.position = Vector3.zero;
             Vector3 r = WorldLayout.RightOf(t);
             float yaw = WorldLayout.YawDeg(t);
-            // 坂の両脇（道の縁の外）に杭の列：踏み切りへ向かう線
+            // course-r3-13：坂の両脇（道の縁の外）に青緑（加速の色）の灯りの街灯の対を 5.5m ごと（前は骨のあばらに見える杭 DesertProps_10）。灯りは 1 本おき
+            int li = 0;
+            for (float a = -SetPieces.JUMP_LENGTH; a <= 0f; a += SetPieces.JUMP_LAMP_STEP_M, li++)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    Vector3 lp = sb.GroundWorld(lip + t * a + r * (s * (SetPieces.KICKER_HALF_WIDTH + 1.5f)));
+                    if (li % 2 == 0) Lamp(g, lp, yaw + (s > 0 ? -90f : 90f), BoostTeal, 7f);
+                    else DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", g, lp, yaw + (s > 0 ? -90f : 90f), 1f, new Vector3(0.3f, 3f, 0.3f), Wood));
+                }
+            // 縁の両脇（道の縁の外）に青緑の文字の札「跳べ ↑」、坂の 10m 手前の右に「まん中で跳ぶと砂を越える」
             for (int s = -1; s <= 1; s += 2)
-                for (float a = -SetPieces.JUMP_LENGTH; a <= 0f; a += 5.5f)
-                    DressingBuilder.SetStatic(GenUtil.Stake(g, "DesertProps_10", sb.GroundWorld(lip + t * a + r * (s * (SetPieces.KICKER_HALF_WIDTH + 1.5f))), yaw + 90f, 1f));
+                SignPost(g, "JumpHere_" + (s > 0 ? "R" : "L"), sb.GroundWorld(lip + r * (s * (StageDefinitions.HalfWidthAt(sb.def, sb.jumpArc) + 1.5f)) - t * 1f), yaw, "<b>跳べ ↑</b>",
+                    UiStyle.Teal, BoostTeal, 6f, 1.3f);
+            {
+                float wa = sb.jumpArc - SetPieces.JUMP_LENGTH - SetPieces.JUMP_SIGN_BEFORE_M;
+                Vector3 wt = WorldLayout.TangentAtArc(sb.courseWorld, wa);
+                wt = new Vector3(wt.x, 0f, wt.z).normalized;
+                Vector3 wp = WorldLayout.PointAtArc(sb.courseWorld, wa) + WorldLayout.RightOf(wt) * (StageDefinitions.HalfWidthAt(sb.def, wa) + CourseMarks.CORNER_BOARD_OUT_M);
+                SignPost(g, "JumpHint", sb.GroundWorld(wp), WorldLayout.YawDeg(wt), "<b>まん中で跳ぶと</b>\n砂を越える", UiStyle.Teal, new Color(0f, 0f, 0f, 0f), 0f, 1.2f);
+            }
             // 縁の両脇 ±9m に干し草の山（中央の跳ぶ線と横の転がる線の境目）
             for (int s = -1; s <= 1; s += 2)
             {

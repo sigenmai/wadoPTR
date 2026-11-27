@@ -329,3 +329,34 @@ Unity が無いので、中継の結果のカットの画、振動の強さ、�
 
 確認：`dotnet test tests/HorseRace.Tests`（497 件）・`dotnet build tests/UdonCompileCheck`・`dotnet build tests/EditorCompileCheck`。
 Unity が無いので、蹄のリズムと砂ぼこりの量、身代わりの走り、樽の爆発、崩れる岩壁、壁ではじかれる向きの変わり方の酔い、手綱の休める位置の寄せ方、振動の強さは PLAYTEST の「ゲームシステム（system round 3）」で確かめる。
+
+## Round 3 — course
+
+コースの形・長さ・リズム・見どころ・柵・合図・スタートとゴールの 3 巡目。
+守ったこと：新しいモデル・形は作らない（横木・柵・札・旗・干し草の壁・壁の岩・街灯・給水塔はすべて Models の既存の部品：WoodLogs_01、FarmProps_02/03、
+HayBales_01/02/03、WantedPosters_02、DesertRocks_01〜09、RockGray A〜H、MesaRockB、RockSetStylized_01/02/06、RockCollection_16/56/88、RanchCompound_11、Campfire_01）。
+地形は高さマップ・塗り（スタート・ゴールの線は道のマスクの B と ToonTerrain の `_LineBoost`）だけ。見えない当たりは前のまま柵（CourseBarrier）が受け持つ。
+art-r3-05（崖の板 Cliffs は 260m より遠くだけ）と食いちがう指示（切り通しの門・壁の面・橋の門の Cliffs_01/03/08〜13/10/12）は、縦に伸ばした DesertRocks_01〜03・
+MesaRockB・RockGray に置き換えた（形は指示どおり、素材だけ art の決まりに合わせた）。
+純粋な決まりは `StageDefinitions`・`HeightmapGen`・`SetPieces`・`DressingPlan`（`CourseMarks`）に置き、新しい `CourseRound3Tests`（30 件）と既存のテストで確かめる。
+
+| id | 結果 | 内容 |
+|---|---|---|
+| course-r3-01 | fixed | `CourseMarks.BeamPieces(l, r, y, scale)`：WoodLogs_01 を一様な拡大のまま 8% 重ねて端から端まで並べる（`BeamCount` = ceil(span / (1.45 × scale × 0.92))）。ゴールは `GATE_BEAM_SCALE` 0.9 で 23 本 × 2 段（`GATE_BEAM_Y` と `GATE_BEAM_GAP` 下）、区間の門は `SectorBeamPieces`（×0.8、`CourseBuilder.SectorGates` も同じ関数、`sc = piece / WOODLOG_01_LEN` の引き伸ばしは消した）。tools/preview は区間の門の横木と「残り」の紙も書き出す。テスト：横の丸太の拡大はどれも ≤ `GATE_POST_THICK`、1 段の長さ = 柱の外から外 ±1m、隣どうしが重なる |
+| course-r3-02 | fixed（門の岩は Cliffs ではなく縦に伸ばした大岩） | `PASS_HALF_CUT` 15 → 25m、`PASS_RAMP` 60m（下げは `PASS_TAPER_M` 80m の直線、`PASS_PROFILE_AFTER` 120m で下げ終わりの段も消した）。境目の高さに 760〜1240m の 8m の高み（r3-10）：切り通しは高みを割る。`DressingPlan.PassPortal`：口の 10m 手前の壁の足元に DesertRocks_01/02 ×0.55（縦 ×1.6）を外へ 20° 開いた門、切り通しの中の両脇（道の縁 + 2m）に 15m ごとの街灯（group PassLamp、暖色 12m の灯り）、出口から道の延長線の 120〜180m 先に RanchCompound_11 ×1.2 と焚き火の煙（group PassBeacon）。`SetPieces.MaxCrestAboveChord`・`PassApproachProfile`：切り通しの 80m 手前の背は 0.03m（≤ 1m）。PassHeight の基準はもとから掘る前の地形の道の高さ（PathHeight を含む）を読んでいる。tools/preview の SHOTS=7_rider は切り通しの 120m・250m 手前も撮る |
+| course-r3-03 | fixed（下の岩は Cliffs ではなく DesertRocks_01〜03） | `DressingPlan.WallFace`：12m ごと、足元に縦に伸ばした DesertRocks_01〜03（×0.35〜0.5、縦 ×1.3、道を向く）、壁の 60% の横に RockGray A〜H ×2.5 とメサ B ×0.6 を交互、1 か所おきに道の縁 + 4m 以上のがれき RockSetStylized_01/02/06。切り通しの壁（`PassWallFaces`、PASS_WALL_FROM〜TO）と台地へ登る 260m の帯の両縁（MESA_BAND_HALF〜+MESA_CLIFF_M）。group WallFace は当たりなし（柵が受け持つ）、割合の上限の外、境目の紫の影色（StageVariant）。約 100 個、境目の飾りは上限 2000 の内（平地の散らした飾りが減る） |
+| course-r3-04 | fixed（橋の門は art-r3-14 の岩の塔を使う） | `SetPieces.BridgeRelicSide`：遺物は次のカーブの内側の背の縁から 1.2m（±5.8m）。`TRENCH_HALF_WIDTH` 7 → 9m（`BRIDGE_HALF_SPAN` 14m）。縁の岩は背から 20m 以内を 1 つおき（`LipRockKept`）、背の縁に片側 2 本の橙の街灯（`SpineEdgeLamps`、SignalOrange）、橋の 70m 手前の右に赤インクの「落ちるな ⇣」の札（急カーブの札と同じ丸太の柱）。橋の両端の「門」は art-r3-14 の DesertRocks の塔と横木がすでにあるので、Cliffs_10/12 は足さない（近くの崖の板は art-r3-05 で禁止） |
+| course-r3-05 | fixed | `DressingPlan.BarrierLine` を 0.5m ごとに歩く形に作り直し：近い所（中心線から 30 + 3m）は FarmProps_03 を長い辺を線に沿わせて端と端でつなぐ（区間の終わりは長さだけ縮めた 1 枚）、4 枚ごとに立てた丸太の杭。道の側への寄せは柵の線に直角・通ってよい側（`BarrierInset`、`Plan.Field`）。急カーブの外側は 3m ごとの DesertRocks ×0.45、遠い所は 14m ごとの RockCollection_16/56/88、上限 6000。`NearFenceMaxGap`：近い柵のすき間は 0.11〜0.21m（≤ 0.6m）。Validate も同じ関数で警告する |
+| course-r3-06 | fixed（大半は art-r3-02） | 杭・柱の骨（DesertProps_03/05）は art-r3-02 ですでに立てた丸太 WoodLogs_01 に替わっていた。今回：直線の標柱（丸太 2.6m）に道の色を明るくした手配書の紙を打つ（`DressingBuilder.GuidePostSheets`）。テスト：DesertProps_05 は骨のまとまりの外に 0 個 |
+| course-r3-07 | fixed | `CourseMarks.CornerBoards`：70・35m 手前の札は外側の柵の線の上（`OffsetAtArc` − 1.4m）、紙 ×1.8、道の側へ 25° 振って騎手を向く（`SignPost` に拡大を足した）。`CourseMarks.CornerWall`：頂点の 30m 手前〜25m 先、外側の道の縁 + 1.7m に 2.2m ごとの 2 段の干し草（HayBales_01/02 ×1.3）。頂点の街灯は壁の後ろ（柵の外 1m）。CornerSilhouette のメサ B は外側の道の縁から 30〜45m |
+| course-r3-08 | fixed（境目の見物人は町の板張りの縁） | `CourseMarks.FinishChute`（3 ステージ、CourseBuilder と tools/preview が同じ部品）：ゴールの 200m 手前からゲートの 3m 手前まで、道の縁 + 1m に途切れない FarmProps_03 のランニングレール、12m ごとの HayBales_01 + _03（荒野・砂漠）、25m ごとの街灯（暖色 10m）、15m ごとの丸太 4m と赤い手配書の旗、100m 手前に「あと 100m」。急カーブの干し草の壁・札・黒板とは重ねない。境目：`GOAL_STREET_SIDE` = 道の縁 + 7m（建物の正面）、通りはゴールの 200m 手前から、ゴールの町の置かない円は囲いを中心に 60m（前はコースの終点から 140m）。テスト：レールのすき間 ≤ 0.6m |
+| course-r3-09 | fixed（2 つ目の稜線はそのまま） | 3 ステージとも widthArc [0, 200] の半幅 16m（`START_HALF_M`）。荒野の牧場の門の絞りは 230〜300m（序盤の見どころは 265m）へ。砂漠の最初の稜線は 230/310/390m。2 つ目（600/660/720）は 20m 動かすと上りが 16.7° になる（12° の決まりを超える）ので動かしていない。`HeightmapGen.PathHeight` のうねりはスタートの 200m でスタートの値にそろう。スタートの門は柵 12 枚（`START_GATE_PIECES`）、スターターと端の柱は `START_SIDE`（19m）。テスト `StartIsOpen`：半幅 ≥ 14m、高さの差 ≤ 2m |
+| course-r3-10 | fixed | 境目の elevArc/elevM を指示どおり（0/250/330/520/600/760/960/1040/1240/1420/1680/1840/1900/1915/2115 と 0/0/6/6/0/0/8/8/0/0/32/32/22/22/0）。台地の登りより前の坂はどれも 7° 以下（台地の登りは前のまま 7.02°、全力の段は対象外）。最大勾配・全力の下りのテストもそのまま通る |
+| course-r3-11 | fixed | tools/preview/Program.cs：`goalK`（ゴールの弧長の書き出したコースの添字）と `scEntryK`（近道の入口に一番近い添字）、区間の門の横木（`SectorBeamPieces`）と紙、急カーブの札の紙（拡大つき）・干し草の壁・頂点の印、見物の直線、橋の街灯と札、踏み切りの街灯と札、スタート・ゴールの線（l{i}.bin）。preview_world.py：ゴールは goalK − 20・−12・−6 から、近道の入口 `7_rider_{n}_e_shortcut`、切り通しの 120m・250m 手前 |
+| course-r3-12 | fixed | `Work.Add`：Props/MesaRock はコースから 250m 以内なら MesaRockB に替える（`MESA_ROCK_MIN_DIST_M`）。境目の Terrain の中には 250m 離れた所が無いので、MesaRock は外の背景（Backdrop）だけになり、境目のテーマの素材から外した。テスト：MesaRock はどれもコースから 250m より遠い |
+| course-r3-13 | fixed | 踏み切りの坂の両脇の DesertProps_10 の杭をやめ、5.5m ごとの FarmProps_02 の対（1 本おきに青緑 BoostTeal の灯り）、縁の両脇（道の縁の外）に青緑の文字の「跳べ ↑」、坂の 10m 手前の右に「まん中で跳ぶと 砂を越える」 |
+| course-r3-14 | fixed | `HeightmapGen.LineMask`：スタートの門（START_ARC_M + 3）とゴールに道幅いっぱい・幅 2m の帯。`TerrainBuilder.TrailTexture` が B に入れ、`ToonTerrain` が道の色 × `_LineBoost`（1.6）で塗る（模型なし）。テスト：線の真ん中 > 0.6、帯の外・道の外は 0 |
+| course-r3-15 | fixed（仕様の文を直した） | 仕様 §5.1 と「ステージの広さ」の所要時間を「約 2 分 20 秒〜2 分 50 秒（ラクダ約 3 分〜3 分 30 秒）」に。時間切れはすでに system-r3-14 で 5 分（300 秒）になっているのでそのまま。荒野を 150m 延ばす案は終点が Terrain の外（x = 1053m）に出るので採らない |
+
+確認：`dotnet test tests/HorseRace.Tests`（524 件）・`dotnet build tests/UdonCompileCheck`・`dotnet build tests/EditorCompileCheck`。下見：`SHOTS=7_rider,5_rock,6_dune NO_GUIDE=1` で騎手の目の高さの画像を描き直した。
+Unity が無いので、横木の細さと影、切り通しの中の明るさ、柵の板の静的バッチング、干し草の壁と札の読みやすさ、見物の直線の旗の赤、スタート・ゴールの線の明るさは PLAYTEST の「コース構成（course round 3）」で確かめる。

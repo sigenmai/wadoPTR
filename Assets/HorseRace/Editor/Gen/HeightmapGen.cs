@@ -162,6 +162,41 @@ namespace HorseRace.EditorTools
             return m;
         }
 
+        /// <summary>スタート・ゴールの線の幅（m、course-r3-14）：道を横切る明るい土の帯（地形の塗りだけ、模型なし）。</summary>
+        public const float LINE_BAND_M = 2f, LINE_BAND_FADE_M = 1.2f;
+
+        /// <summary>
+        /// スタート・ゴールの線（course-r3-14）：弧長 START_ARC_M + 3（スタートの門）と goalArc に、道幅いっぱい・幅 LINE_BAND_M の帯の重み（0〜1）。
+        /// TerrainBuilder が道のマスクの B に入れ、ToonTerrain が道の色 × _LineBoost（明るい土）で塗る。local = Terrain ローカルのコース点列（2m 間隔）。
+        /// </summary>
+        public static float[,] LineMask(int resolution, StageDef def, Vector3[] local, float goalArc)
+        {
+            int n = resolution;
+            var m = new float[n, n];
+            if (local == null || local.Length < 2) return m;
+            float cellM = TERRAIN_SIZE_M / (n - 1);
+            float[] arcs = { StageDefinitions.START_ARC_M + 3f, goalArc };
+            foreach (float a in arcs)
+            {
+                Vector3 c = WorldLayout.PointAtArc(local, a), t = WorldLayout.TangentAtArc(local, a);
+                t = new Vector3(t.x, 0f, t.z).normalized;
+                Vector3 r = WorldLayout.RightOf(t);
+                float hw = def != null ? StageDefinitions.HalfWidthAt(def, a) : RUNWAY_M;
+                float reach = hw + LINE_BAND_FADE_M + 2f;
+                int x0 = Mathf.Max(0, Mathf.FloorToInt((c.x - reach) / cellM)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((c.x + reach) / cellM));
+                int z0 = Mathf.Max(0, Mathf.FloorToInt((c.z - reach) / cellM)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((c.z + reach) / cellM));
+                for (int z = z0; z <= z1; z++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        float dx = x * cellM - c.x, dz = z * cellM - c.z;
+                        float along = Mathf.Abs(dx * t.x + dz * t.z), lat = Mathf.Abs(dx * r.x + dz * r.z);
+                        float w = (1f - Smooth(LINE_BAND_M * 0.5f, LINE_BAND_M * 0.5f + LINE_BAND_FADE_M, along)) * (1f - Smooth(hw - 0.5f, hw + 0.5f, lat));
+                        if (w > m[z, x]) m[z, x] = w;
+                    }
+            }
+            return m;
+        }
+
         /// <summary>道の上の砂を消す（踏み固めた土が 0.5 を超える所は 0、その外は 1 − 重み を掛ける）。sand と trail は同じ解像度。</summary>
         public static void ClearSandOnTrail(float[,] sand, float[,] trail)
         {

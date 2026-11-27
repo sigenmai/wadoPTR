@@ -241,5 +241,28 @@ namespace HorseRace.Tests
             Assert.IsFalse(wall.Any(p => p.asset == DressingPlan.CLIFFS), "崖の板は近くに置かない（art-r3-05）");
             Assert.LessOrEqual(b.plan.Count, DressingPlan.MAX_PER_STAGE);
         }
+
+        // ---- course-r3-14：スタート・ゴールの線は地形の塗り（道を横切る 2m の帯）----
+        [TestCaseSource(nameof(Stages))]
+        public void FinishAndStartLinesArePainted(int i)
+        {
+            var b = Stage(i);
+            int res = StageDefinitions.ALPHAMAP_RES;
+            var m = HeightmapGen.LineMask(res, b.def, b.local, b.goal);
+            float W(Vector3 p) => m[Mathf.Clamp(Mathf.RoundToInt(p.z / StageDefinitions.SIZE * (res - 1)), 0, res - 1), Mathf.Clamp(Mathf.RoundToInt(p.x / StageDefinitions.SIZE * (res - 1)), 0, res - 1)];
+            foreach (float a in new[] { StageDefinitions.START_ARC_M + 3f, b.goal })
+            {
+                Vector3 t = WorldLayout.TangentAtArc(b.local, a), r = WorldLayout.RightOf(t), c = WorldLayout.PointAtArc(b.local, a);
+                Assert.Greater(W(c), 0.6f, "線の真ん中 arc " + a);
+                Assert.Greater(W(c + r * (StageDefinitions.HalfWidthAt(b.def, a) - 2f)), 0.5f, "道幅いっぱい");
+                Assert.AreEqual(0f, W(c + t * 8f), 1e-4f, "帯の外（コース方向）");
+                Assert.AreEqual(0f, W(c + r * (StageDefinitions.HalfWidthAt(b.def, a) + 4f)), 1e-4f, "道の外");
+            }
+            // 帯は道のマスク（踏み固めた土）の上だけ：2 本 × 道幅 × 約 3m より広くない
+            int on = 0;
+            foreach (float v in m) if (v > 0.05f) on++;
+            float cell = StageDefinitions.SIZE / (res - 1);
+            Assert.Less(on * cell * cell, 2f * 2f * StageDefinitions.START_HALF_M * (HeightmapGen.LINE_BAND_M + 2f * HeightmapGen.LINE_BAND_FADE_M + 2f * cell));
+        }
     }
 }

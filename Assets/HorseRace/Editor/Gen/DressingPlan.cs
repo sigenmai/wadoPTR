@@ -4070,7 +4070,7 @@ namespace HorseRace.EditorTools
         // ---- course-r3-08：ゴール前の 200m の見物の直線（ランニングレール・見物人の干し草・街灯・赤い旗） ----
         public const float CHUTE_FROM_M = 200f, CHUTE_GATE_GAP_M = 3f;   // ゴールの 200m 手前から、ゴールゲートの 3m 手前まで
         public const float CHUTE_RAIL_OUT_M = 1f, CHUTE_POST_OUT_M = 1.6f, CHUTE_LAMP_OUT_M = 2.3f, CHUTE_HAY_OUT_M = 3.5f;   // 道の縁から
-        public const float CHUTE_HAY_STEP_M = 12f, CHUTE_LAMP_STEP_M = 25f, CHUTE_FLAG_STEP_M = 15f, CHUTE_POST_H = 4f;
+        public const float CHUTE_HAY_STEP_M = 12f, CHUTE_LAMP_STEP_M = 25f, CHUTE_FLAG_STEP_M = 15f, CHUTE_POST_H = 4f, CHUTE_POST_THICK = 0.28f;
         public const float CHUTE_SIGN_BEFORE_M = 100f;
         public const int CHUTE_RAIL = 0, CHUTE_HAY = 1, CHUTE_LAMP = 2, CHUTE_FLAG = 3, CHUTE_SIGN = 4;
 
@@ -4181,7 +4181,7 @@ namespace HorseRace.EditorTools
                     Vector3 q = side(a, sd * (StageDefinitions.HalfWidthAt(def, a) + CHUTE_POST_OUT_M));
                     if (!free(q, 0.6f)) continue;
                     r.Add(new ChutePart { kind = CHUTE_FLAG, side = sd, asset = LOGS, part = "WoodLogs_01", position = q, yaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(course, a)),
-                        scale = PostScale(CHUTE_POST_H, 0.28f), arc = a });
+                        scale = PostScale(CHUTE_POST_H, CHUTE_POST_THICK), arc = a });
                 }
             // 5) 「あと 100m」の札（右、レールと干し草の間）
             {
