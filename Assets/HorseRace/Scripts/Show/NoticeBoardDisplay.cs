@@ -132,7 +132,10 @@ namespace HorseRace
                     int slot = rm.order[p];
                     if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
                     line++;
-                    s += HudMath.Row4(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), RaceManager.AbilityLabel(rm.slotAbility[slot]), "") + "\n";
+                    // 進み具合（CP の四角）かゴールのタイム（ui-r2-15）。先頭の行はステージの色
+                    string row = HudMath.RaceRow(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), RaceManager.AbilityLabel(rm.slotAbility[slot]), rm.StandingCell(slot));
+                    if (line == 1) row = "<color=" + HudMath.ColorHex(RaceManager.StageColor(rm.stage)) + ">" + row + "</color>";
+                    s += row + "\n";
                 }
                 if (line == 0) s += "（集計中）\n";
                 return s;

@@ -11,6 +11,9 @@ namespace HorseRace
     ///  - Lv：宝石 3 つ（levelMarks）のうち Lv 個を点ける（levelMarksUnlit があれば残りはそちら）。
     ///  - 開幕の猶予（8 秒）の間は灰色の手配書と「あと 5」（使えない）。
     ///  - 被弾後の守り（1.5 秒）：金の火花と「守り」の文字（FlashGuard、新しい形は作らない）。
+    ///  - 被弾（ui-r2-06）：赤い火花 6 つ（hitSparks、FlashHit）。
+    ///  - 使えるとき、セッションの最初の 3 回の発動まではボタン（「E」/「トリガー」）を真鍮の字で出す（hint、ui-r2-07）。
+    ///  - Lv が上がった（ui-r2-12）：金の火花 16、札が 1.4 → 1 に跳ね、新しい宝石が 2 倍にふくらんで戻り、首の札に「遺物 Lv2 砂煙 半径6m・6秒」。
     /// 乗っている本人だけに出す（AbilityCaster が毎フレーム Show、降りたら Hide）。位置は乗り物の種類（鞍の高さ）に合わせて動かす。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -25,6 +28,12 @@ namespace HorseRace
         [Tooltip("能力ごとの灰色の手配書（クールダウン中）")]
         public Material[] idleMaterials;
         public ParticleSystem sparks;
+        [Tooltip("被弾の赤い火花（ui-r2-06）")]
+        public ParticleSystem hitSparks;
+        [Tooltip("首の札（Lv が上がった知らせ。AbilityCaster が入れる）")]
+        public MinimalHud hud;
+        /// <summary>使えるときに出すボタンの説明（AbilityCaster が毎フレーム入れる。空なら出さない）。</summary>
+        [HideInInspector] public string hint = "";
         public TextMeshPro cooldownText;
         [Tooltip("光る宝石（Lv1..3 の順）")]
         public GameObject[] levelMarks;
@@ -43,6 +52,13 @@ namespace HorseRace
         private bool visible = true;
         private float guardUntil;
         private bool guardShown;
+        private string shownHint = "";
+        private float punchAt = -10f;
+        private float gemPopAt = -10f;
+        private int gemPopIndex = -1;
+        private Vector3 cardBaseScale = Vector3.one;
+        private bool cardScaleCaptured;
+        private Vector3 gemBaseScale = Vector3.one;
 
         private void Start()
         {
@@ -74,18 +90,21 @@ namespace HorseRace
             }
             bool guard = Time.time < guardUntil;
             int secs = guard ? -2 : (ready ? 0 : Mathf.CeilToInt(remaining));
-            if (secs != shownSeconds || guard != guardShown)
+            string h = hint != null ? hint : "";
+            if (secs != shownSeconds || guard != guardShown || h != shownHint)
             {
                 shownSeconds = secs;
                 guardShown = guard;
+                shownHint = h;
                 if (cooldownText != null)
                 {
                     if (guard) cooldownText.text = "<color=#FFC745>守り</color>";
-                    else cooldownText.text = ready ? "" : HudMath.CooldownLabel(remaining);
+                    else cooldownText.text = ready ? h : HudMath.CooldownLabel(remaining);
                 }
             }
             if (level != shownLevel)
             {
+                if (level > shownLevel && shownLevel >= 0) LevelUp(ability, level);
                 shownLevel = level;
                 if (levelMarks != null)
                     for (int i = 0; i < levelMarks.Length; i++)
@@ -94,6 +113,50 @@ namespace HorseRace
                     for (int i = 0; i < levelMarksUnlit.Length; i++)
                         if (levelMarksUnlit[i] != null) levelMarksUnlit[i].SetActive(i >= level);
             }
+        }
+
+        /// <summary>Lv が上がった瞬間（ui-r2-12）：金の火花・札の跳ね・新しい宝石のふくらみ・首の札の知らせ。</summary>
+        private void LevelUp(int ability, int level)
+        {
+            if (sparks != null) sparks.Emit(16);
+            punchAt = Time.time;
+            int gi = level - 1;
+            if (levelMarks != null && gi >= 0 && gi < levelMarks.Length && levelMarks[gi] != null)
+            {
+                if (gemPopIndex >= 0 && gemPopIndex < levelMarks.Length && levelMarks[gemPopIndex] != null)
+                    levelMarks[gemPopIndex].transform.localScale = gemBaseScale;
+                gemPopIndex = gi;
+                gemBaseScale = levelMarks[gi].transform.localScale;
+                gemPopAt = Time.time;
+            }
+            if (hud != null) hud.ShowNote(HudMath.RelicNote(ability, level), new Color(1f, 0.78f, 0.27f), 2f);
+        }
+
+        private void Update()
+        {
+            if (!visible) return;
+            float t = Time.time - punchAt;
+            if (cardRoot != null && t < 1f)
+            {
+                if (!cardScaleCaptured) { cardBaseScale = cardRoot.transform.localScale; cardScaleCaptured = true; }
+                cardRoot.transform.localScale = cardBaseScale * HudMath.PunchScale(t, 1.4f);
+            }
+            float g = Time.time - gemPopAt;
+            if (gemPopIndex >= 0 && levelMarks != null && gemPopIndex < levelMarks.Length && levelMarks[gemPopIndex] != null)
+            {
+                if (g < 0.6f) levelMarks[gemPopIndex].transform.localScale = gemBaseScale * HudMath.PunchScale(g * 0.5f, 2f);
+                else
+                {
+                    levelMarks[gemPopIndex].transform.localScale = gemBaseScale;
+                    gemPopIndex = -1;
+                }
+            }
+        }
+
+        /// <summary>被弾した（ui-r2-06）：赤い火花 6 つ。</summary>
+        public void FlashHit()
+        {
+            if (visible && hitSparks != null) hitSparks.Emit(6);
         }
 
         /// <summary>被弾後の守りを seconds 秒見せる（金の火花＋「守り」）。</summary>
@@ -108,6 +171,7 @@ namespace HorseRace
             SetVisible(false);
             shownReady = -1;
             shownSeconds = -1;
+            shownLevel = -1;   // 乗り直しで Lv の跳ねを出さない
         }
 
         private Material PickMaterial(Material[] set, int ability)

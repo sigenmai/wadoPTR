@@ -9,7 +9,10 @@ namespace HorseRace
     /// 懐中時計（ステージの残り時間）。エントリーしていてレース中だけ。文字盤は紙の円盤に TMP の数字 12 個と針 2 本（字形「│」）、真ん中に「残り 3:12」。
     /// VR：左手首の内側。手首を顔に向けたとき（手の上向き・手から頭への向きの内積 > 0.55）だけ 0.15 秒でふくらんで出る。
     ///     手綱を握っている間（手首が下）は出ない＝残り時間は首の札（MinimalHud）にいつも出ている。
-    /// デスクトップ：頭の前・視界の下のほうに小さく固定。
+    /// デスクトップ：頭の前・右下の隅（首の札の反対側）に ×0.6、文字盤を目のほうへ 22° 起こす（裏返さない：ui-r2-02）。
+    ///     首の札と同じ残り時間を重ねないよう、ロビーの「出走まで」と残り 30 秒（文字盤が赤くなる）のときだけ出す。
+    /// 文字盤（ui-r2-16）：ステージの全体（330 秒、ロビーは 60 秒）を 1 周に。過ぎた数字は薄く、最後の 2 つ（11・12）は赤インク、
+    ///     残り 30 秒で文字盤の字が全部赤インク。秒針は 1 秒ずつカチッと進む。
     /// 残り 10 秒から 1 秒ごとにカチ、カチ（tickAudio、任意）。
     /// このスクリプトの GameObject は常に有効にしておき、見た目は子の watchRoot に置く（watchRoot を出し入れする）。
     /// </summary>
@@ -27,6 +30,8 @@ namespace HorseRace
         [Tooltip("分針・秒針（ローカル Z 軸まわりに回す）")]
         public Transform minuteHand;
         public Transform secondHand;
+        [Tooltip("文字盤の数字 1..12（順に。LobbyBuilder.Watch が入れる）")]
+        public TextMeshPro[] numerals;
         [Tooltip("残り 10 秒の時計の音（任意。1 秒ごとに Play）")]
         public AudioSource tickAudio;
 
@@ -35,8 +40,12 @@ namespace HorseRace
         public Vector3 vrLocalEuler = new Vector3(0f, 90f, 0f);
 
         [Header("デスクトップ（頭からの相対）")]
-        public Vector3 desktopOffset = new Vector3(0f, -0.2f, 0.45f);
-        public Vector3 desktopEuler = new Vector3(-20f, 180f, 0f);
+        public Vector3 desktopOffset = new Vector3(0.30f, -0.17f, 0.5f);
+        public Vector3 desktopEuler = new Vector3(22f, 0f, 0f);
+        [Tooltip("デスクトップでの倍率（VR は 1）。UiStyle.DESKTOP_WATCH_SCALE")]
+        public float desktopScale = 0.6f;
+        [Tooltip("デスクトップで出す残り秒数（これ以下・ロビーのときだけ）")]
+        public float desktopShowBelow = 30f;
 
         private bool shown = true;
         private string lastText = "";
@@ -44,6 +53,9 @@ namespace HorseRace
         private int lastTickSecond = -1;
         private Vector3 baseScale = Vector3.one;
         private bool scaleCaptured;
+        private int lastNumeralKey = -1;
+        private Color InkC = new Color(0.23f, 0.15f, 0.08f);
+        private Color RedC = new Color(0.72f, 0.12f, 0.08f);
 
         private void Start()
         {
@@ -62,7 +74,8 @@ namespace HorseRace
             if (!active) { reveal = 0f; lastTickSecond = -1; SetShown(false); return; }
 
             bool want;
-            if (local.IsUserInVR())
+            bool vr = local.IsUserInVR();
+            if (vr)
             {
                 VRCPlayerApi.TrackingData hand = local.GetTrackingData(VRCPlayerApi.TrackingDataType.LeftHand);
                 VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
@@ -73,7 +86,7 @@ namespace HorseRace
             {
                 VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
                 transform.SetPositionAndRotation(head.position + head.rotation * desktopOffset, head.rotation * Quaternion.Euler(desktopEuler));
-                want = true;
+                want = lobby || rem <= desktopShowBelow;   // 首の札と同じ時間を重ねない（ui-r2-02）
             }
             reveal = Mathf.MoveTowards(reveal, want ? 1f : 0f, Time.deltaTime / FADE_SECONDS);
             SetShown(reveal > 0.001f);
@@ -90,20 +103,43 @@ namespace HorseRace
             if (watchRoot != null && scaleCaptured)
             {
                 float e = reveal * reveal * (3f - 2f * reveal);
-                watchRoot.transform.localScale = baseScale * e;
+                watchRoot.transform.localScale = baseScale * (e * (vr ? 1f : desktopScale));
             }
             MountController lm = raceManager.LocalMount();
             string t;
+            bool late = !lobby && rem <= desktopShowBelow;
             if (lobby) t = "出走まで\n" + RaceMath.FormatClock(rem);
             else if (lm != null && lm.WrongWay) t = "<color=#D9402A>逆走</color>\n" + RaceMath.FormatClock(rem);
             else t = "残り\n" + RaceMath.FormatClock(rem);
+            if (late) t = "<color=#B81F14>" + t + "</color>";
             if (t != lastText)
             {
                 lastText = t;
                 if (faceText != null) faceText.text = t;
             }
-            if (minuteHand != null) minuteHand.localRotation = Quaternion.Euler(0f, 0f, -rem * 0.1f);
-            if (secondHand != null) secondHand.localRotation = Quaternion.Euler(0f, 0f, -rem * 6f);
+            // 文字盤 = ステージの全体（ui-r2-16）。長い針が 12 に来たら時間切れ
+            float total = lobby ? RaceMath.LOBBY_WAIT_SECONDS : RaceMath.STAGE_HARD_LIMIT;
+            if (minuteHand != null) minuteHand.localRotation = Quaternion.Euler(0f, 0f, HudMath.DialAngle(rem, total));
+            if (secondHand != null) secondHand.localRotation = Quaternion.Euler(0f, 0f, HudMath.SecondHandAngle(rem));
+            UpdateNumerals(rem, total, late);
+        }
+
+        private void UpdateNumerals(float rem, float total, bool late)
+        {
+            if (numerals == null) return;
+            int key = late ? 1 : 0;
+            for (int k = 1; k <= 12; k++) key = key * 3 + HudMath.NumeralState(k, rem, total);
+            if (key == lastNumeralKey) return;
+            lastNumeralKey = key;
+            for (int i = 0; i < numerals.Length && i < 12; i++)
+            {
+                TextMeshPro n = numerals[i];
+                if (n == null) continue;
+                int stt = HudMath.NumeralState(i + 1, rem, total);
+                Color c = late || stt == 2 ? RedC : InkC;
+                c.a = stt == 0 ? 0.25f : 1f;
+                n.color = c;
+            }
         }
 
         private void SetShown(bool show)

@@ -236,7 +236,6 @@ namespace UnityEngine
         public bool HasProperty(string name) => false;
         public void SetTexture(string name, Texture value) { }
         public Texture GetTexture(string name) => null;
-        public void SetFloat(string name, float value) { }
         public float GetFloat(string name) => 0f;
         public void SetColor(string name, Color value) { }
         public Color GetColor(string name) => default(Color);
@@ -451,7 +450,6 @@ namespace UnityEngine
     {
         public static float Pow(float f, float p) => (float)Math.Pow(f, p);
         public static float Tan(float f) => (float)Math.Tan(f);
-        public static float DeltaAngle(float current, float target) => target - current;
     }
 }
 

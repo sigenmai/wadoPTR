@@ -570,11 +570,16 @@ namespace HorseRace.EditorTools
         }
 
         public static AudioSource Audio(GameObject go, bool is2D, bool loop = false)
+            => Audio(go, is2D, loop, null);
+
+        /// <summary>音源（clip = SfxBuilder.Clip の仮の合成音など。ui-r2-11：clip の無い AudioSource は Validate が警告する）。</summary>
+        public static AudioSource Audio(GameObject go, bool is2D, bool loop, AudioClip clip)
         {
             var a = go.AddComponent<AudioSource>();
             a.playOnAwake = false;
             a.loop = loop;
             a.spatialBlend = is2D ? 0f : 1f;
+            if (clip != null) a.clip = clip;
             return a;
         }
 
@@ -679,7 +684,15 @@ namespace HorseRace.EditorTools
             if (fontSearched) return font;
             fontSearched = true;
             string[] g = AssetDatabase.FindAssets("t:TMP_FontAsset", new[] { "Assets/HorseRace" });
-            if (g.Length > 0) font = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(AssetDatabase.GUIDToAssetPath(g[0]));
+            // 決まった 1 つを選ぶ（ui-r2-04）：IPA ゴシックから作った "JPGothic SDF.asset" を優先、無ければパスの名前順で最初
+            string pick = null;
+            foreach (string guid in g)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.EndsWith("JPGothic SDF.asset")) { pick = path; break; }
+                if (pick == null || string.CompareOrdinal(path, pick) < 0) pick = path;
+            }
+            if (pick != null) font = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pick);
             if (font == null) font = CreateFontAsset();
             if (font == null)
                 Warn("日本語の TMP フォントがありません（" + FONT_TTF + " も見つかりません）。TMP の既定フォントでは日本語が□になります");

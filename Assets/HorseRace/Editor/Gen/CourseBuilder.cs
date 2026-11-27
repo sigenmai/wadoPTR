@@ -300,16 +300,16 @@ namespace HorseRace.EditorTools
             gp.confetti = GenUtil.Particles(gate, "Confetti", new Vector3(0f, 6.6f, 0f), new Color(1f, 0.85f, 0.4f), 0.15f, 6f, 3f, false, 0f, 2f);
             gp.bellAudio = ctx.churchBell;
             var fin = GenUtil.Child(gate, "FinishAudio", new Vector3(0f, 2f, 0f));
-            gp.finishAudio = GenUtil.Audio(fin, false);
+            gp.finishAudio = GenUtil.Audio(fin, false, false, SfxBuilder.Clip(SfxMath.STING));
             var tags = new Transform[8];
             var texts = new TMPro.TextMeshPro[8];
             for (int i = 0; i < 8; i++)
             {
-                // 着順の札：手配書の紙（WantedPosters_04、0.9 × 0.6m）に着順。GoalPresenter が騎手の上へ動かす
+                // 着順の札：手配書の紙（WantedPosters_04、1.1 × 0.75m：着順と名前の 2 行、ui-r2-14）。GoalPresenter が騎手の上へ動かす
                 var tag = GenUtil.Child(gate, "PlaceTag_" + (i + 1), new Vector3(0f, 3f, 0f));
-                GenUtil.PaperSheet(tag.transform, "Board", "WantedPosters_04", new Vector3(0f, -0.3f, 0f), null, 0.9f, 0.6f);
+                GenUtil.PaperSheet(tag.transform, "Board", "WantedPosters_04", new Vector3(0f, -0.375f, 0f), null, 1.1f, 0.75f);
                 texts[i] = GenUtil.Text(tag.transform, "Text", new Vector3(0f, 0f, -0.04f), Quaternion.identity, (i + 1) + "着", 2.5f, UiStyle.InkFace,
-                    new Vector2(0.82f, 0.45f), TextStyle.Ink, true);
+                    new Vector2(1.0f, 0.62f), TextStyle.Ink, true);
                 texts[i].fontStyle = TMPro.FontStyles.Bold;
                 tags[i] = tag.transform;
                 tag.SetActive(false);
@@ -346,7 +346,9 @@ namespace HorseRace.EditorTools
             rp.visual = gem;
             rp.groundMask = WorldLayers.GroundMask;
             var snd = GenUtil.Child(go.transform, "PickupSound", Vector3.up);
-            rp.pickupSound = GenUtil.Audio(snd, false);
+            rp.pickupSound = GenUtil.Audio(snd, false, false, SfxBuilder.Clip(SfxMath.SPARKLE));
+            // 拾ったときの火花（ui-r2-12）：宝石のまわりにはじける金の粒
+            rp.burst = GenUtil.Particles(go.transform, "PickupBurst", new Vector3(0f, 0.8f, 0f), new Color(1f, 0.82f, 0.35f), 0.12f, 4f, 0.8f, false, 0f, 0.3f);
             return rp;
         }
 
@@ -400,7 +402,7 @@ namespace HorseRace.EditorTools
             var st = GenUtil.AddU<Starter>(go);
             st.flagPivot = flagPivot;
             st.pistolArm = arm;
-            st.audioSource = GenUtil.Audio(go, true);
+            st.audioSource = GenUtil.Audio(go, true, false, SfxBuilder.Clip(SfxMath.SHOT));
             st.pistolSmoke = GenUtil.Particles(arm, "PistolSmoke", new Vector3(0f, -0.25f, 0.25f), new Color(0.85f, 0.85f, 0.85f, 0.7f), 0.3f, 1f, 1.5f, false, 0f, 0.1f);
             // 砂煙はスタートラインに沿って（スターターの右手 = コース側）3 か所
             var dust = new ParticleSystem[3];

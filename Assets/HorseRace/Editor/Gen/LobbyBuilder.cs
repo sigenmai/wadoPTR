@@ -59,6 +59,7 @@ namespace HorseRace.EditorTools
             Parking(root, ctx);
             SpareRelics(root, ctx);
             Watch(root, ctx);
+            TownClock(root, ctx);
             Dressing(root, town);
             FenceAndBelt(root);
         }
@@ -486,6 +487,14 @@ namespace HorseRace.EditorTools
             NoticeSign(root, "LedgerSign", desk + new Vector3(0f, 0f, 1.0f), 0f, 0.5f, "<b><size=140%>受付</size></b>\n台帳にサインでエントリー", 1.0f,
                 UiStyle.InkFace, TextStyle.Ink, Paper);
 
+            // 操作の紙（ui-r2-07）：受付の東に杭（DesertProps_05）を立て、手配書の紙（WantedPosters_03）に乗り方を書いて留める
+            var howto = GenUtil.World(root, "ControlsSheet", desk + new Vector3(2.6f, 0f, -0.4f), 0f);
+            GenUtil.Stake(howto.transform, "DesertProps_05", howto.transform.position + howto.transform.forward * 0.06f, 0f, 0.5f).name = "SheetPost";
+            GenUtil.PaperSheet(howto.transform, "Paper", "WantedPosters_03", new Vector3(0f, 0.75f, 0.01f), null, 0.75f, 0.95f);
+            var howtoText = GenUtil.Text(howto.transform, "Text", new Vector3(0f, 1.22f, -0.01f), Quaternion.identity,
+                "<b>乗り方</b>\n<size=80%>" + HudMath.ControlsVR() + "\n\n" + HudMath.ControlsPC() + "</size>", 0.42f, UiStyle.InkFace, new Vector2(0.68f, 0.86f), TextStyle.Ink, true);
+            howtoText.fontSizeMin = Mathf.Max(howtoText.fontSizeMin, UiStyle.MinVrPt(1.2f));
+
             PosterWall(root, ctx);
 
             // スタート台と鐘（広場の西、art-r1-12）：台 = 丸太の束（WoodLogs_01 ×2）を板のように並べ、四隅に干し草（HayBales_01）。
@@ -544,8 +553,8 @@ namespace HorseRace.EditorTools
             bm.rateOverTime = 40f;
             var sm = bell.smoke.main;
             sm.duration = 0.3f;
-            bell.ringSound = GenUtil.Audio(bellGo, true);
-            bell.tapSound = GenUtil.Audio(bellGo, false);
+            bell.ringSound = GenUtil.Audio(bellGo, true, false, SfxBuilder.Clip(SfxMath.SHOT));
+            bell.tapSound = GenUtil.Audio(bellGo, false, false, SfxBuilder.Clip(SfxMath.CLICK));
             // 札：机の南（スポーン側）に立てた紙。読む人は北を見る
             var noteHolder = GenUtil.World(root, "BellNote", sb + new Vector3(0f, 0.6f, -0.85f), 0f);
             GenUtil.Stake(noteHolder.transform, "DesertProps_05", noteHolder.transform.position + noteHolder.transform.forward * 0.06f, 0f, 0.42f).name = "NotePost";
@@ -584,7 +593,7 @@ namespace HorseRace.EditorTools
             var ledger = GenUtil.AddU<EntryLedger>(book);
             ledger.pageText = page;
             ledger.choiceText = choice;
-            ledger.signSound = GenUtil.Audio(book, false);
+            ledger.signSound = GenUtil.Audio(book, false, false, SfxBuilder.Clip(SfxMath.PEN));
             GenUtil.SetInteractText(ledger, interact);
             ctx.ledgers.Add(ledger);
             return ledger;
@@ -645,7 +654,7 @@ namespace HorseRace.EditorTools
                 pc.value = cards[i].value;
                 pc.posterVisual = poster;
                 pc.takenVisual = taken;
-                pc.takeSound = GenUtil.Audio(go, false);
+                pc.takeSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.RUSTLE));
                 // カードの下の札（ui-r1-07）：小さな紙（WantedPosters_05）にインクで名前・効果・クールダウン（PosterCard.Start が書く）
                 var lab = GenUtil.Child(go.transform, "Label", new Vector3(0f, -0.15f, -0.005f)).transform;
                 GenUtil.PaperSheet(lab, "Paper", "WantedPosters_05", new Vector3(0f, -0.13f, 0f), null, 0.52f, 0.26f);
@@ -731,11 +740,61 @@ namespace HorseRace.EditorTools
             BuildNeckCard(root, hud);
             hud.leverHandle = handle;
             hud.leverLabel = label;
-            hud.cpTick = GenUtil.Audio(lever, true);
-            hud.finishAudio = GenUtil.Audio(lever, true);
-            hud.whoosh = GenUtil.Audio(lever, true);
+            hud.cpTick = GenUtil.Audio(lever, true, false, SfxBuilder.Clip(SfxMath.TICK));
+            hud.finishAudio = GenUtil.Audio(lever, true, false, SfxBuilder.Clip(SfxMath.STING));
+            hud.whoosh = GenUtil.Audio(lever, true, false, SfxBuilder.Clip(SfxMath.WHOOSH));
             GenUtil.SetInteractText(hud, "首の札（順位・残り時間）を出す／しまう");
             ctx.hud = hud;
+            ComfortSwitch(lever.transform, ctx);
+        }
+
+        /// <summary>
+        /// VR の酔い止めの切り替え（ui-r2-18）：レバーの柱の横にもう 1 枚の紙（WantedPosters_05）「視界の縁：弱」。Interact で なし／弱／強（ローカル）。
+        /// 見た目は砂塵のかすみと同じ内向きの球（HazeAssets.InsideSphere、新しい形は作らない）に Shaders/ComfortVignette.shader。
+        /// </summary>
+        static void ComfortSwitch(Transform lever, WorldContext ctx)
+        {
+            var sw = GenUtil.Child(lever, "ComfortSwitch", new Vector3(0.62f, 0f, 0f));
+            GenUtil.PaperSheet(sw.transform, "Paper", "WantedPosters_05", new Vector3(0f, 0.95f, -0.14f), null, 0.5f, 0.28f);
+            var col = sw.AddComponent<BoxCollider>();
+            col.size = new Vector3(0.5f, 0.3f, 0.1f);
+            col.center = new Vector3(0f, 1.09f, -0.14f);
+            var label = GenUtil.Text(sw.transform, "Label", new Vector3(0f, 1.09f, -0.17f), Quaternion.identity, HudMath.VignetteLabel(1), 0.5f, UiStyle.InkFace,
+                new Vector2(0.44f, 0.22f), TextStyle.Ink, true);
+            var cv = GenUtil.AddU<ComfortVignette>(sw);
+            cv.label = label;
+            cv.level = 1;
+            var v = GenUtil.World(ctx.lobbyRoot, "ComfortVignette", P(LobbyLayout.SPAWN) + Vector3.up * 1.6f);
+            var mf = v.AddComponent<MeshFilter>();
+            mf.sharedMesh = HazeAssets.InsideSphere();
+            var mr = v.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = VignetteMaterial();
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            v.transform.localScale = Vector3.one * 0.6f;
+            GenUtil.SetLayerRecursive(v, WorldLayers.Rider);
+            v.SetActive(false);
+            cv.vignette = v;
+            cv.vignetteRenderer = mr;
+            GenUtil.SetInteractText(cv, "VR の視界の縁（酔い止め）：なし／弱／強");
+        }
+
+        const string VIGNETTE_MAT = GenUtil.GEN_MATERIALS + "/M_ComfortVignette.mat";
+
+        static Material VignetteMaterial()
+        {
+            GenUtil.EnsureFolder(GenUtil.GEN_MATERIALS);
+            var sh = Shader.Find("HorseRace/ComfortVignette");
+            if (sh == null) GenUtil.Warn("シェーダー HorseRace/ComfortVignette が見つかりません（視界の縁が出ません）");
+            var m = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(VIGNETTE_MAT);
+            if (m == null)
+            {
+                m = new Material(sh != null ? sh : Shader.Find("Unlit/Color"));
+                UnityEditor.AssetDatabase.CreateAsset(m, VIGNETTE_MAT);
+            }
+            if (sh != null) m.shader = sh;
+            m.SetFloat("_Strength", 0f);
+            UnityEditor.EditorUtility.SetDirty(m);
+            return m;
         }
 
         static readonly Color Leather = new Color(0.40f, 0.25f, 0.15f);
@@ -753,15 +812,22 @@ namespace HorseRace.EditorTools
             var card = GenUtil.World(root, "NeckCard", P(LobbyLayout.SPAWN) + new Vector3(0f, 1.5f, 3f));   // 実行中は首・頭の前へ動く
             var paper = GenUtil.PaperSheet(card.transform, "Paper", "WantedPosters_05", new Vector3(0f, -H * 0.5f, 0.002f), null, W, H);
             foreach (var c in paper.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
-            hud.headerText = GenUtil.Text(card.transform, "Header", new Vector3(0f, H * 0.5f - 0.016f, -0.002f), Quaternion.identity, "", 0.25f,
-                UiStyle.InkFace, new Vector2(W - 0.02f, 0.026f), TextStyle.Brass, true);
-            hud.rankText = GenUtil.Text(card.transform, "RankText", new Vector3(-0.045f, 0.002f, -0.003f), Quaternion.identity, "", 0.9f,
-                UiStyle.InkFace, new Vector2(0.105f, 0.07f), TextStyle.Brass, true);
-            hud.timeText = GenUtil.Text(card.transform, "TimeText", new Vector3(0.05f, 0.002f, -0.003f), Quaternion.identity, "", 0.45f,
-                UiStyle.InkFace, new Vector2(0.085f, 0.065f), TextStyle.Brass, true);
-            hud.progressText = GenUtil.Text(card.transform, "ProgressText", new Vector3(0f, -H * 0.5f + 0.014f, -0.003f), Quaternion.identity, "", 0.22f,
+            // 紙の上はインク（ui-r2-05：焦げ茶の字に焦げ茶の縁取り＝ Brass は、細かい漢字の穴を埋めてしまう）。大きさは UiStyle.NeckTextMaxPt
+            hud.headerText = GenUtil.Text(card.transform, UiStyle.NeckTextNames[0], new Vector3(0f, H * 0.5f - 0.016f, -0.002f), Quaternion.identity, "", UiStyle.NeckTextMaxPt[0],
+                UiStyle.InkFace, new Vector2(W - 0.02f, 0.026f), TextStyle.Ink, true);
+            hud.rankText = GenUtil.Text(card.transform, UiStyle.NeckTextNames[1], new Vector3(-0.045f, 0.002f, -0.003f), Quaternion.identity, "", UiStyle.NeckTextMaxPt[1],
+                UiStyle.InkFace, new Vector2(0.105f, 0.07f), TextStyle.Ink, true);
+            hud.timeText = GenUtil.Text(card.transform, UiStyle.NeckTextNames[2], new Vector3(0.05f, 0.002f, -0.003f), Quaternion.identity, "", UiStyle.NeckTextMaxPt[2],
+                UiStyle.InkFace, new Vector2(0.085f, 0.065f), TextStyle.Ink, true);
+            hud.progressText = GenUtil.Text(card.transform, UiStyle.NeckTextNames[3], new Vector3(0f, -H * 0.5f + 0.014f, -0.003f), Quaternion.identity, "", UiStyle.NeckTextMaxPt[3],
                 UiStyle.InkFace, new Vector2(W - 0.02f, 0.022f), TextStyle.Ink, true);
-            foreach (var t in new[] { hud.headerText, hud.rankText, hud.timeText, hud.progressText }) t.fontStyle = TMPro.FontStyles.Bold;
+            var neckTexts = new[] { hud.headerText, hud.rankText, hud.timeText, hud.progressText };
+            for (int i = 0; i < neckTexts.Length; i++)
+            {
+                neckTexts[i].fontStyle = TMPro.FontStyles.Bold;
+                // 縮んでも VR で読める下限（0.78m で 1.3°）。入らない分は「…」（ui-r2-05）
+                neckTexts[i].fontSizeMin = UiStyle.MinPtFor(UiStyle.NeckTextMaxPt[i], UiStyle.NECK_CARD_EYE_M);
+            }
 
             // 持久力の印：紙の下の縁に宝石 5 つ（点いている = 金、消えている = 革の色、危ない = 赤）
             var row = GenUtil.Child(card.transform, "StaminaPips", new Vector3(-0.03f, -H * 0.5f - 0.02f, -0.004f)).transform;
@@ -783,6 +849,8 @@ namespace HorseRace.EditorTools
             hud.pipDanger = GenUtil.ToonColor(PipRed);
             hud.pipFaint = GenUtil.ToonColor(new Color(Paper.r * 0.7f + PipGold.r * 0.3f, Paper.g * 0.7f + PipGold.g * 0.3f, Paper.b * 0.7f + PipGold.b * 0.3f));   // 満タン：列ごと 30% に控えめ（＋ 0.8 倍）
             hud.hudRoot = card;
+            hud.headOffset = UiStyle.DesktopHudOffset;   // ui-r2-03：デスクトップは左下の隅に ×0.55
+            hud.desktopScale = UiStyle.DESKTOP_HUD_SCALE;
             GenUtil.SetLayerRecursive(card, WorldLayers.Rider);   // 当たり判定なし・CP を踏まない
         }
 
@@ -938,7 +1006,7 @@ namespace HorseRace.EditorTools
                 d.layer = WorldLayers.Rider;
                 var dummy = GenUtil.AddU<PracticeDummy>(d);
                 dummy.pivot = pivot;
-                dummy.hitSound = GenUtil.Audio(d, false);
+                dummy.hitSound = GenUtil.Audio(d, false, false, SfxBuilder.Clip(SfxMath.THUD));
                 if (i == 1) dummy.moveAmplitude = 2.5f;   // 北のカカシは左右に動く的（system-r1-18）
                 ctx.dummies.Add(dummy);
                 dummies2.Add(dummy);
@@ -965,6 +1033,10 @@ namespace HorseRace.EditorTools
             // 掲示板の模型（NoticeBoard ×0.6）の板に書く（ui-r1-12、宙に浮かせない）
             NoticeSign(pr, "Sign", P(LobbyLayout.PRACTICE_POST_FIRST) + new Vector3(1.5f, 0f, -2.5f), 0f, 0.6f,
                 "<b><size=140%>練習場</size></b>\n杭に触れると練習用の馬に乗れます", 1.4f, UiStyle.InkFace, TextStyle.Ink, Paper);
+            // 操作の看板（ui-r2-07）：練習場の看板の東隣に掲示板 ×0.8、左 VR・右 PC の 2 列（キーは MountController・AbilityCaster・RevolverHolder と同じ）
+            var controls = NoticeSign(pr, "ControlsSign", P(LobbyLayout.PRACTICE_CONTROLS), 0f, 0.8f,
+                "<b><size=130%>乗り方</size></b>\n<align=left><size=80%>" + HudMath.ControlsTable() + "</size></align>", 1.1f, UiStyle.InkFace, TextStyle.Ink, Paper);
+            controls.fontSizeMin = Mathf.Max(controls.fontSizeMin, UiStyle.MinVrPt(3f));   // 3m 先から読める
             // 練習場の遺物（拾われて 10 秒で戻る）
             var relic = CourseBuilder.Relic(pr, "PracticeRelic", P(LobbyLayout.PRACTICE_RELIC), 3, false);
             relic.practiceRespawnSeconds = 10f;
@@ -983,7 +1055,7 @@ namespace HorseRace.EditorTools
             var text = NoticeSign(go.transform, "Board", P(LobbyLayout.PRACTICE_LAP_BOARD), 0f, 0.6f, "往復タイム", 1.1f, UiStyle.InkFace, TextStyle.Ink, Paper);
             var lap = GenUtil.AddU<PracticeLap>(go);
             lap.boardText = text;
-            lap.lapSound = GenUtil.Audio(go, false);
+            lap.lapSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.STING));
             float[] gateZ = { LobbyLayout.PRACTICE_GATE_SOUTH_Z, LobbyLayout.PRACTICE_GATE_NORTH_Z };
             for (int i = 0; i < 2; i++)
             {
@@ -1035,6 +1107,57 @@ namespace HorseRace.EditorTools
         /// 懐中時計（ui-r1-02）：プリミティブを使わず、手配書の紙（WantedPosters_05、0.13m 四方）の文字盤に TMP の数字 12 個（0.18pt、半径 0.05m）と
         /// 字形「│」の針 2 本（分針 = インク、秒針 = 赤）、真ん中に「残り 3:12」（0.35pt、自動で縮む）。文字は -Z 側。
         /// </summary>
+        /// <summary>
+        /// 町の大時計（ui-r2-13）：大通りの軸の上（LobbyLayout.TOWN_CLOCK、スポーンの正面 32m）に掲示板 ×1.4（羊皮紙の板）を 0.8m 持ち上げ、
+        /// 脚の下に杭（DesertProps_05）2 本、両脇に街灯（FarmProps_02）2 本と暖かい灯り。文字は看板の書体（Sign）3pt、TownClockBoard が書く。
+        /// </summary>
+        static void TownClock(Transform root, WorldContext ctx)
+        {
+            Vector3 p = P(LobbyLayout.TOWN_CLOCK);
+            float sc = LobbyLayout.TOWN_CLOCK_SCALE;
+            const float LIFT = 0.8f;
+            var go = GenUtil.World(root, "TownClock", p, 0f);
+            var board = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), go.transform, "Board", p + Vector3.up * LIFT, 0f, sc, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
+            var panel = GenUtil.FindDeep(board.transform, "NoticeBoard_Panel");
+            Vector3 textPos = new Vector3(0f, 2.15f * sc + LIFT, -0.04f);
+            if (panel != null)
+            {
+                GenUtil.YawAlign(board.transform, GenUtil.FirstNormalWorld(panel), -go.transform.forward);
+                var pr = panel.GetComponent<Renderer>();
+                if (pr != null)
+                {
+                    pr.sharedMaterial = ctx.parchmentMaterial != null ? ctx.parchmentMaterial : GenUtil.ToonColor(Paper);
+                    Vector3 lc = go.transform.InverseTransformPoint(pr.bounds.center);
+                    textPos = new Vector3(lc.x, lc.y, lc.z - 0.04f);
+                }
+            }
+            DressingBuilder.AddCollider(board, false);
+            DressingBuilder.SetStatic(board);
+            // 持ち上げた脚の下の杭（板の外形の左右の端の少し内側）
+            Bounds bb = GenUtil.RendererBounds(board);
+            for (int i = 0; i < 2; i++)
+            {
+                Vector3 sp = new Vector3(i == 0 ? bb.min.x + 0.35f : bb.max.x - 0.35f, p.y, bb.center.z);
+                var st = GenUtil.Stake(go.transform, "DesertProps_05", sp, 0f, 0.55f);
+                st.name = "Stilt_" + i;
+                DressingBuilder.SetStatic(st);
+                // 街灯：杭のさらに外、灯りは板を照らす高さ
+                Vector3 lp = sp + new Vector3(i == 0 ? -0.9f : 0.9f, 0f, -0.4f);
+                var lamp = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", go.transform, lp, 180f, 1f, new Vector3(0.3f, 3f, 0.3f), DarkWood);
+                lamp.name = "ClockLamp_" + i;
+                DressingBuilder.SetStatic(lamp);
+                GenUtil.PointLight(go.transform, "ClockLight_" + i, lp + new Vector3(0f, 2.9f, -0.3f), SetPieceBuilder.LampWarm, 9f, 1.3f);
+            }
+            var holder = GenUtil.Child(go.transform, "ClockText", textPos).transform;
+            var text = GenUtil.Text(holder, "Text", Vector3.zero, Quaternion.identity, "台帳にサイン", 3f, UiStyle.InkFace,
+                new Vector2(3.0f * sc, 1.6f * sc), TextStyle.Ink, true);
+            text.fontStyle = TMPro.FontStyles.Bold;
+            text.fontSizeMin = Mathf.Max(text.fontSizeMin, 1.6f);
+            var clock = GenUtil.AddU<TownClockBoard>(go);
+            clock.clockText = text;
+            clock.punchRoot = holder;
+        }
+
         static void Watch(Transform root, WorldContext ctx)
         {
             var go = GenUtil.World(root, "PocketWatch", P(LobbyLayout.SPAWN) + new Vector3(0f, 1.2f, 3f));   // 実行中は手元へ動く
@@ -1042,10 +1165,11 @@ namespace HorseRace.EditorTools
             const float D = 0.13f, R = 0.05f;
             var dial = GenUtil.PaperSheet(w, "Dial", "WantedPosters_05", new Vector3(0f, -D * 0.5f, 0.001f), null, D, D);
             foreach (var c in dial.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            var numerals = new TMPro.TextMeshPro[12];
             for (int k = 1; k <= 12; k++)
             {
                 Vector2 dp = UiStyle.DialPoint(k, R);
-                GenUtil.Text(w, "Numeral_" + k, new Vector3(dp.x, dp.y, -0.002f), Quaternion.identity, k.ToString(), 0.18f, UiStyle.InkFace,
+                numerals[k - 1] = GenUtil.Text(w, "Numeral_" + k, new Vector3(dp.x, dp.y, -0.002f), Quaternion.identity, k.ToString(), 0.18f, UiStyle.InkFace,
                     new Vector2(0.03f, 0.02f), TextStyle.Ink, false);
             }
             var face = GenUtil.Text(w, "FaceText", new Vector3(0f, -0.018f, -0.003f), Quaternion.identity, "", 0.35f, UiStyle.InkFace,
@@ -1060,7 +1184,11 @@ namespace HorseRace.EditorTools
             pw.faceText = face;
             pw.minuteHand = min;
             pw.secondHand = sec;
-            pw.tickAudio = GenUtil.Audio(go, true);
+            pw.numerals = numerals;   // ui-r2-16：過ぎた数字を薄く、最後の 2 つを赤
+            pw.desktopOffset = UiStyle.DesktopWatchOffset;   // ui-r2-02：右下の隅、文字盤を目へ起こす（裏返さない）
+            pw.desktopEuler = UiStyle.DesktopWatchEuler;
+            pw.desktopScale = UiStyle.DESKTOP_WATCH_SCALE;
+            pw.tickAudio = GenUtil.Audio(go, true, false, SfxBuilder.Clip(SfxMath.TICK));
             GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
             ctx.watch = pw;
         }

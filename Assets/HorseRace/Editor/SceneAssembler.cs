@@ -36,6 +36,7 @@ namespace HorseRace.EditorTools
                 if (!ProgramAssets.Ensure()) return;
                 GenUtil.Reset();
                 GenUtil.ResetFontCache();
+                SfxBuilder.ResetCache();
                 TerrainBuilder.ResetCache();
 
                 Progress("毛色マテリアル・アニメーター", 0.01f);
@@ -338,6 +339,8 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < ctx.practicePosts.Count; i++)
                 ctx.practicePosts[i].mount = i < ctx.practiceMounts.Count ? ctx.practiceMounts[i] : null;
             if (ctx.practiceArea != null) ctx.practiceArea.posts = ctx.practicePosts.ToArray();
+            // 酔い止め（ui-r2-18）は練習用の馬に乗っている間も効かせる
+            foreach (var b in GenUtil.Behaviours) if (b is ComfortVignette cv) cv.practiceArea = ctx.practiceArea;
 
             // ---- 演出 ----
             foreach (var nb in ctx.noticeBoards) if (nb.mode == 0) nb.director = ctx.director;

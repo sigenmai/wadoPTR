@@ -104,8 +104,8 @@ namespace HorseRace.EditorTools
             caster.blockMask = WorldLayers.BlockMask;
             caster.groundMask = WorldLayers.GroundMask;
             var sounds = GenUtil.Child(t, "Sounds", new Vector3(0f, 1.5f, 0f));
-            caster.castSound = GenUtil.Audio(sounds, false);
-            caster.relicSound = GenUtil.Audio(sounds, false);
+            caster.castSound = GenUtil.Audio(sounds, false, false, SfxBuilder.Clip(SfxMath.WHOOSH));
+            caster.relicSound = GenUtil.Audio(sounds, false, false, SfxBuilder.Clip(SfxMath.SPARKLE));
             caster.pouch = BuildPouch(t);
             caster.revolver = BuildRevolver(t, caster);
             caster.dustCloud = BuildDust(t);
@@ -148,39 +148,55 @@ namespace HorseRace.EditorTools
             panel.transform.localRotation = Quaternion.Euler(55f, 20f, 0f);
             sf.panelRoot = panel;
             var pt = panel.transform;
-            // 札の裏板（ui-r1-16）：手配書の紙（WantedPosters_05、0.32 × 0.24m）。文字は紙の上にインク／真鍮
-            var plate = GenUtil.PaperSheet(pt, "Backplate", "WantedPosters_05", new Vector3(0.01f, -0.12f, 0.006f), null, 0.32f, 0.24f);
+            // 札の裏板（ui-r1-16 → ui-r2-10）：手配書の紙（WantedPosters_05、0.40 × 0.30m）。文字は紙の上にインク（×1.4）、ボタンだけ真鍮。
+            // 縮んでも 0.6m 先で 1.3° を下回らない（UiStyle.MinPtFor）。キーの説明はデスクトップだけ（SeatFit.keysHint）
+            const float SW = UiStyle.SEAT_CARD_W, SH = UiStyle.SEAT_CARD_H, K = UiStyle.SEAT_FONT_SCALE;
+            const float GX = SW / 0.32f, GY = SH / 0.24f;   // 旧 0.32 × 0.24m からの配置の倍率
+            float eye = UiStyle.SEAT_CARD_EYE_M;
+            var plate = GenUtil.PaperSheet(pt, "Backplate", "WantedPosters_05", new Vector3(0.01f * GX, -SH * 0.5f, 0.006f), null, SW, SH);
             foreach (var c in plate.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
-            var title = GenUtil.Text(pt, "Title", new Vector3(0f, 0.098f, 0f), Quaternion.identity, "鞍の位置", 0.22f, UiStyle.InkFace, new Vector2(0.24f, 0.03f), TextStyle.Brass, true);
+            var title = GenUtil.Text(pt, "Title", new Vector3(0f, 0.098f * GY, 0f), Quaternion.identity, "鞍の位置", 0.22f * K, UiStyle.InkFace,
+                new Vector2(0.24f * GX, 0.03f * GY), TextStyle.Ink, true);
             title.fontStyle = TMPro.FontStyles.Bold;
+            title.fontSizeMin = UiStyle.MinPtFor(0.22f * K, eye);
             string[] heads = { "高さ", "前後", "傾き" };
             for (int c = 0; c < 3; c++)
-                GenUtil.Text(pt, "Head_" + c, new Vector3(-0.075f + 0.075f * c, 0.072f, 0f), Quaternion.identity, heads[c], 0.16f, UiStyle.InkFace, new Vector2(0.07f, 0.025f), TextStyle.Ink, true);
+            {
+                var hd = GenUtil.Text(pt, "Head_" + c, new Vector3((-0.075f + 0.075f * c) * GX, 0.072f * GY, 0f), Quaternion.identity, heads[c], 0.16f * K,
+                    UiStyle.InkFace, new Vector2(0.07f * GX, 0.025f * GY), TextStyle.Ink, true);
+                hd.fontSizeMin = UiStyle.MinPtFor(0.16f * K, eye);
+            }
             var buttons = new Transform[SeatFit.BUTTONS];
             var labels = new Transform[SeatFit.BUTTONS];
             for (int b = 0; b < SeatFit.BUTTONS; b++)
             {
-                Vector3 p = b == SeatFit.BTN_RESET ? new Vector3(0.115f, -0.03f, 0f)
-                    : new Vector3(-0.075f + 0.075f * (b / 2), (b % 2 == 0) ? 0.04f : -0.005f, 0f);
+                Vector3 p = b == SeatFit.BTN_RESET ? new Vector3(0.115f * GX, -0.03f * GY, 0f)
+                    : new Vector3((-0.075f + 0.075f * (b / 2)) * GX, ((b % 2 == 0) ? 0.04f : -0.005f) * GY, 0f);
                 var btn = GenUtil.Child(pt, "Button_" + b, p);
                 var col = btn.AddComponent<BoxCollider>();
                 col.isTrigger = true;
-                col.size = new Vector3(b == SeatFit.BTN_RESET ? 0.07f : 0.055f, 0.04f, 0.03f);
+                col.size = new Vector3((b == SeatFit.BTN_RESET ? 0.07f : 0.055f) * GX, 0.04f * GY, 0.03f);
                 var sab = GenUtil.AddU<SeatAdjustButton>(btn);
                 sab.seatFit = sf;
                 sab.button = b;
                 GenUtil.SetInteractText(sab, ButtonHints[b]);
-                var lab = GenUtil.Text(btn.transform, "Label", Vector3.zero, Quaternion.identity, ButtonLabels[b], b == SeatFit.BTN_RESET ? 0.16f : 0.22f,
-                    UiStyle.BrassFace, new Vector2(0.06f, 0.035f), TextStyle.Brass, true);
+                float bpt = (b == SeatFit.BTN_RESET ? 0.16f : 0.22f) * K;
+                var lab = GenUtil.Text(btn.transform, "Label", Vector3.zero, Quaternion.identity, ButtonLabels[b], bpt,
+                    UiStyle.BrassFace, new Vector2(0.06f * GX, 0.035f * GY), TextStyle.Brass, true);
+                lab.fontSizeMin = UiStyle.MinPtFor(bpt, eye);
                 labels[b] = lab.transform;
                 buttons[b] = btn.transform;
             }
             sf.buttons = buttons;
             sf.buttonLabels = labels;
-            sf.clickAudio = GenUtil.Audio(go, false);
-            sf.readout = GenUtil.Text(pt, "Readout", new Vector3(-0.02f, -0.05f, 0f), Quaternion.identity, "", 0.13f, UiStyle.InkFace, new Vector2(0.2f, 0.05f), TextStyle.Ink, true);
-            GenUtil.Text(pt, "KeysHint", new Vector3(0f, -0.093f, 0f), Quaternion.identity, "PC: PgUp/PgDn 高さ・Home/End 前後\nIns/Del 傾き", 0.11f,
-                UiStyle.InkFace, new Vector2(0.30f, 0.034f), TextStyle.Ink, true);
+            sf.clickAudio = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CLICK));
+            sf.readout = GenUtil.Text(pt, "Readout", new Vector3(-0.02f * GX, -0.05f * GY, 0f), Quaternion.identity, "", 0.13f * K, UiStyle.InkFace,
+                new Vector2(0.2f * GX, 0.05f * GY), TextStyle.Ink, true);
+            sf.readout.fontSizeMin = UiStyle.MinPtFor(0.13f * K, eye);
+            var keys = GenUtil.Text(pt, "KeysHint", new Vector3(0f, -0.093f * GY, 0f), Quaternion.identity, HudMath.SeatKeysHint(), UiStyle.SEAT_KEYS_PT,
+                UiStyle.InkFace, new Vector2(SW - 0.02f, 0.03f * GY), TextStyle.Ink, true);
+            keys.fontSizeMin = UiStyle.MinPtFor(UiStyle.SEAT_KEYS_PT, eye);
+            sf.keysHint = keys.gameObject;
             // 当たり判定は Rider（物理の衝突なし。CP・砂地のトリガーを踏まない）
             GenUtil.SetLayerRecursive(panel, WorldLayers.Rider);
             panel.SetActive(false);
@@ -229,7 +245,7 @@ namespace HorseRace.EditorTools
             fb.SetActive(mv.horseModel == null);
             mv.fallbackPrimitive = fb;
             var breath = GenUtil.Child(visualGo.transform, "Breath", new Vector3(0f, 1.6f, 1.0f));
-            mv.breathAudio = GenUtil.Audio(breath, false, true);
+            mv.breathAudio = GenUtil.Audio(breath, false, true, SfxBuilder.Clip(SfxMath.BREATH));
             if (mv.camelModel != null) mv.camelModel.SetActive(false);
             if (mv.skeletonModel != null) mv.skeletonModel.SetActive(false);
             return mv;
@@ -288,6 +304,8 @@ namespace HorseRace.EditorTools
                 UiStyle.BrassFace, new Vector2(CW, 0.035f), TextStyle.Brass, true);
             cooldown.fontStyle = TMPro.FontStyles.Bold;
             var sparks = GenUtil.Particles(cardRoot.transform, "ReadySparks", new Vector3(0f, 0f, -0.01f), new Color(1f, 0.82f, 0.35f), 0.012f, 0.4f, 0.5f, false, 0f, 0.04f);
+            // 被弾の赤い火花（ui-r2-06）：同じ形の粒を赤で
+            var hitSparks = GenUtil.Particles(cardRoot.transform, "HitSparks", new Vector3(0f, 0f, -0.01f), new Color(0.9f, 0.2f, 0.1f), 0.014f, 0.5f, 0.45f, false, 0f, 0.04f);
             var marks = new GameObject[3];
             var unlit = new GameObject[3];
             for (int i = 0; i < 3; i++)
@@ -303,10 +321,11 @@ namespace HorseRace.EditorTools
             cp.readyMaterials = ready;
             cp.idleMaterials = idle;
             cp.sparks = sparks;
+            cp.hitSparks = hitSparks;
             cp.cooldownText = cooldown;
             cp.levelMarks = marks;
             cp.levelMarksUnlit = unlit;
-            cp.readySound = GenUtil.Audio(go, false);
+            cp.readySound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CHIME));
             cp.neckOffset = new Vector3(UiStyle.NECK_CARD_W * 0.5f + UiStyle.POUCH_OFFSET_X * 0.55f, 0.25f, 0.55f);
             GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
             return cp;
@@ -409,8 +428,8 @@ namespace HorseRace.EditorTools
             rh.fxRoot = fx;
             rh.muzzleFlash = GenUtil.Particles(fx, "MuzzleFlash", Vector3.zero, new Color(1f, 0.8f, 0.3f), 0.12f, 2f, 0.08f, false, 0f, 0.02f);
             rh.smoke = GenUtil.Particles(fx, "Smoke", Vector3.zero, new Color(0.8f, 0.8f, 0.8f, 0.6f), 0.25f, 0.6f, 1.2f, false, 0f, 0.03f);
-            rh.gunshot = GenUtil.Audio(fx.gameObject, false);
-            rh.dryFire = GenUtil.Audio(go, false);
+            rh.gunshot = GenUtil.Audio(fx.gameObject, false, false, SfxBuilder.Clip(SfxMath.SHOT));
+            rh.dryFire = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CLICK));
             var tracerGo = GenUtil.Child(fx, "Tracer", Vector3.zero);
             var lr = tracerGo.AddComponent<LineRenderer>();
             lr.positionCount = 2;
@@ -434,7 +453,7 @@ namespace HorseRace.EditorTools
             dc.particles = GenUtil.Particles(visual.transform, "Particles", Vector3.zero, Sand, 1.4f, 0.5f, 1.8f, true, 70f, 1f);
             dc.visual = visual;
             dc.baseRadius = 1f;
-            dc.whoosh = GenUtil.Audio(go, false);
+            dc.whoosh = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.WHOOSH));
             visual.SetActive(false);   // 使うまで隠す（起動時の一瞬のちらつき防止）
             return dc;
         }
@@ -452,7 +471,7 @@ namespace HorseRace.EditorTools
             var le = GenUtil.AddU<LassoEffect>(go);
             le.line = lr;
             le.mountMask = WorldLayers.MountMask;
-            le.throwSound = GenUtil.Audio(go, false);
+            le.throwSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.WHOOSH));
             return le;
         }
 
@@ -481,7 +500,7 @@ namespace HorseRace.EditorTools
             rw.segments = segs;
             rw.height = 4f;
             rw.groundMask = WorldLayers.GroundMask;
-            rw.riseSound = GenUtil.Audio(go, false);
+            rw.riseSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
             return rw;
         }
 
@@ -492,8 +511,8 @@ namespace HorseRace.EditorTools
             ib.visual = GenUtil.Prim(PrimitiveType.Sphere, "Ball", go.transform, Vector3.zero, Vector3.one * 0.7f, Iron);
             ib.radius = 0.35f;
             ib.groundMask = WorldLayers.BlockMask;   // 地形＋岩壁ではねる
-            ib.bounceSound = GenUtil.Audio(go, false);
-            ib.hitSound = GenUtil.Audio(go, false);
+            ib.bounceSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
+            ib.hitSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
             ib.visual.SetActive(false);
             return ib;
         }

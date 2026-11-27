@@ -413,6 +413,8 @@ namespace HorseRace
             VRCPlayerApi local = Networking.LocalPlayer;
             if (local != null && IsLocalHeld()) local.PlayHapticEventInHand(pickup.currentHand, 0.12f, 1f, 200f);
             int hitSlot = (hit && caster.foundMount != null) ? caster.RaceSlotOf(caster.foundMount) : -1;
+            // 撃った人に命中の知らせ（ui-r2-06）：首の札に「命中！ 名前」
+            if (hit) caster.ConfirmHit(caster.foundMount != null ? caster.foundMount.riderPlayerId : -1);
             SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxShot), origin, end, ammo, hitSlot);
         }
 

@@ -128,6 +128,7 @@ namespace HorseRace.EditorTools
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
             CheckWiring(root, warn, info);
+            CheckAudio(root, warn, info);
             CheckLook(warn, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 
@@ -374,6 +375,22 @@ namespace HorseRace.EditorTools
         static bool IsTwin(Checkpoint c) => c != null && c.name.StartsWith("TwinCP");
 
         /// <summary>レイヤーとマスク：マスクが 0 でない、体の Collider が Mount、大きなトリガーが Ignore Raycast、地形が Ground。</summary>
+        /// <summary>ui-r2-11：clip の無い AudioSource は鳴らない（PlayOneShot で clip を渡す MinimalHud.finishAudio・GoalPresenter.bellAudio も clip を持たせる）。</summary>
+        static void CheckAudio(GameObject root, List<string> warn, List<string> info)
+        {
+            int total = 0, silent = 0;
+            string first = "";
+            foreach (var a in root.GetComponentsInChildren<AudioSource>(true))
+            {
+                total++;
+                if (a.clip != null) continue;
+                silent++;
+                if (first.Length == 0) first = a.gameObject.name;
+            }
+            if (silent > 0) warn.Add("音の無い AudioSource が " + silent + " 個（例：" + first + "）。SfxBuilder.Clip で仮の音を付けてください");
+            else info.Add("音：AudioSource " + total + " 個すべてに clip あり（仮の合成音は Generated/Audio）");
+        }
+
         static void CheckLayers(GameObject root, List<string> warn)
         {
             int ground = LayerMask.NameToLayer("Ground"), mount = LayerMask.NameToLayer("Mount");

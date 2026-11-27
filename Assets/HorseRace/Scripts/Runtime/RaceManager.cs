@@ -1267,6 +1267,16 @@ namespace HorseRace
             return HudMath.StageColor(st);
         }
 
+        /// <summary>順位表の進み具合の列（ui-r2-15）：スロットのゴールのタイム、まだなら CP の四角 6 つ。</summary>
+        public string StandingCell(int slot)
+        {
+            if (mounts == null || slot < 0 || slot >= mounts.Length || mounts[slot] == null) return "";
+            MountController m = mounts[slot];
+            bool done = m.syncFinishAt >= 0.0 && m.syncFinishAt >= stageStartServer;
+            float secs = done ? (float)(m.syncFinishAt - stageStartServer) : 0f;
+            return HudMath.StandingCell(m.syncCp, CheckpointCount(stage), done, secs);
+        }
+
         /// <summary>ステージ st の CP の数（ゴールを含む。firstCheckpoints から next をたどって数え、覚えておく）。</summary>
         public int CheckpointCount(int st)
         {

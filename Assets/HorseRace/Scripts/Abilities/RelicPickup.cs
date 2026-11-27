@@ -33,6 +33,8 @@ namespace HorseRace
         public RelicPickup[] pool;
         public GameObject visual;
         public AudioSource pickupSound;
+        [Tooltip("拾ったときの金の火花（自分の画面、ui-r2-12）")]
+        public ParticleSystem burst;
         public LayerMask groundMask = -1;
         public float hoverHeight = 0.8f;
         public float spinSpeed = 60f;
@@ -125,6 +127,7 @@ namespace HorseRace
                 localTakenAt = Time.time;
                 caster.GrantRelic(gain);
                 if (pickupSound != null) pickupSound.Play();
+                if (burst != null) burst.Emit(24);
                 ApplyVisual();
                 return;
             }
@@ -293,6 +296,7 @@ namespace HorseRace
                     c.GrantRelic(g > 0 ? g : 1);   // 触れたときは拾えた順位だった
                 }
                 if (pickupSound != null) pickupSound.Play();
+                if (burst != null) burst.Emit(24);
             }
             if (holder >= 0 && holder != (local != null ? local.playerId : -2)) localHidden = false;
             ApplyVisual();

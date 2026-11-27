@@ -49,6 +49,8 @@ namespace HorseRace
         public Transform[] buttonLabels;
         [Tooltip("押したときのカチッという音（任意）")]
         public AudioSource clickAudio;
+        [Tooltip("デスクトップだけに出すキーの説明（VR では隠す、ui-r2-10）")]
+        public GameObject keysHint;
         public float pokeRadius = 0.04f;
 
         [Header("測定")]
@@ -283,6 +285,11 @@ namespace HorseRace
             if (show == panelShown) return;
             panelShown = show;
             if (panelRoot != null) panelRoot.SetActive(show);
+            if (show && keysHint != null)
+            {
+                VRCPlayerApi lp = Networking.LocalPlayer;
+                keysHint.SetActive(lp != null && !lp.IsUserInVR());
+            }
         }
 
         private void PlacePanel(int type)

@@ -49,7 +49,7 @@ namespace HorseRace.EditorTools
 
             // 教会の鐘（2D、全員に聞こえる。3 ステージ共用）
             var bell = GenUtil.Child(ctx.root, "ChurchBell", Vector3.zero);
-            ctx.churchBell = GenUtil.Audio(bell, true);
+            ctx.churchBell = GenUtil.Audio(bell, true, false, SfxBuilder.Clip(SfxMath.BELL));
         }
 
         static Material Unlit(string path, Texture tex)
@@ -139,7 +139,7 @@ namespace HorseRace.EditorTools
                 crier.paperFrom = from;
                 crier.paperTo = to;
             }
-            crier.callAudio = GenUtil.Audio(crierGo, true);
+            crier.callAudio = GenUtil.Audio(crierGo, true, false, SfxBuilder.Clip(SfxMath.CHIME));
             crier.boards = telegram != null ? new[] { telegram } : new NoticeBoardDisplay[0];
             crier.paperArm = arm;
             ctx.crier = crier;
@@ -221,8 +221,9 @@ namespace HorseRace.EditorTools
                 string hint = rank == 0 ? "中継：おまかせ" : "中継：" + rank + "位を追う";
                 var go = GenUtil.Child(front, "Tag_" + (rank == 0 ? "Auto" : rank.ToString()), new Vector3(-2.0f + i * 0.5f, 0.6f, -0.05f));
                 GenUtil.PaperSheet(go.transform, "Paper", "WantedPosters_04", new Vector3(0f, -0.15f, 0.01f), null, 0.42f, 0.3f);
-                GenUtil.Text(go.transform, "Label", new Vector3(0f, 0f, -0.01f), Quaternion.identity, label, 0.9f, UiStyle.InkFace, new Vector2(0.38f, 0.24f), TextStyle.Ink, true)
-                    .fontStyle = TMPro.FontStyles.Bold;
+                var labelText = GenUtil.Text(go.transform, "Label", new Vector3(0f, 0f, -0.01f), Quaternion.identity, label, 0.9f, UiStyle.InkFace, new Vector2(0.38f, 0.24f), TextStyle.Ink, true);
+                labelText.fontStyle = TMPro.FontStyles.Bold;
+                labelText.fontSizeMin = 0.6f;   // 「3位 名前」でも 0.6pt より小さくしない（ui-r2-14）
                 var mark = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), "Gems_03_02", go.transform, go.transform.position, 0f, 1f,
                     new Vector3(0.05f, 0.07f, 0.05f), new Color(0.8f, 0.15f, 0.1f));
                 mark.name = "SelectedMark";
@@ -235,6 +236,8 @@ namespace HorseRace.EditorTools
                 tag.director = dir;
                 tag.followRank = rank;
                 tag.selectedMark = mark;
+                tag.label = labelText;
+                tag.baseLabel = label;
                 GenUtil.SetInteractText(tag, hint);
                 tags[i] = tag;
                 ctx.directorTags.Add(tag);
@@ -286,16 +289,21 @@ namespace HorseRace.EditorTools
                 hay.transform.localPosition = new Vector3(x[i], baseTop, 0f);
                 hay.transform.localRotation = Quaternion.identity;
                 GenUtil.FitSize(hay, new Vector3(1.4f, h[i], 1.4f));
-                GenUtil.Text(holder.transform, "TierLabel_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.72f), Quaternion.Euler(0f, 180f, 0f),
-                    label[i], 4f, UiStyle.Gold, new Vector2(1.2f, 0.6f), TextStyle.Sign, true);
+                // 段の番号（ui-r2-09）：干し草（黄色）に金の字は溶けるので、段の正面に手配書の紙（WantedPosters_05、0.6 × 0.45m）を留めて焦げ茶のインク
+                var tierPatch = GenUtil.Child(holder.transform, "TierPatch_" + label[i], new Vector3(x[i], baseTop + h[i] * 0.5f, 0.71f));
+                tierPatch.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                GenUtil.PaperSheet(tierPatch.transform, "Paper", "WantedPosters_05", new Vector3(0f, -0.225f, 0.005f), null, 0.6f, 0.45f);
+                GenUtil.Text(tierPatch.transform, "TierLabel_" + label[i], new Vector3(0f, 0f, -0.01f), Quaternion.identity,
+                    label[i], 3.2f, UiStyle.DarkBrown, new Vector2(0.5f, 0.4f), TextStyle.Ink, true).fontStyle = TMPro.FontStyles.Bold;
                 steps[i] = GenUtil.Child(holder.transform, "Step_" + label[i], new Vector3(x[i], baseTop + h[i] + 0.05f, 0f)).transform;
                 tier.name = "Tier_" + label[i];
                 // 名札：段の上 2.6m に手配書の紙（WantedPosters_04、1.4 × 0.5m）、看板の文字。観客側（+Z）から読める
                 var plate = GenUtil.Child(holder.transform, "NamePlate_" + label[i], new Vector3(x[i], baseTop + h[i] + 2.6f, -0.6f));
                 plate.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
                 GenUtil.PaperSheet(plate.transform, "Paper", "WantedPosters_04", new Vector3(0f, -0.25f, 0.01f), null, 1.4f, 0.5f);
-                plates[i] = GenUtil.Text(plate.transform, "Name", new Vector3(0f, 0f, -0.02f), Quaternion.identity, "", 1.2f, UiStyle.SignFace,
-                    new Vector2(1.32f, 0.44f), TextStyle.Sign, true);
+                // 紙の上は濃いインク（ui-r2-09：UiStyle.Contrast ≥ 4.5、1 位は Podium が赤インク）
+                plates[i] = GenUtil.Text(plate.transform, "Name", new Vector3(0f, 0f, -0.02f), Quaternion.identity, "", 1.2f, UiStyle.InkFace,
+                    new Vector2(1.32f, 0.44f), TextStyle.Ink, true);
                 plates[i].fontStyle = TMPro.FontStyles.Bold;
                 plateRoots[i] = plate;
                 // 名札を吊る杭（DesertProps_05）：段の後ろから立てる（宙に浮かせない）
@@ -323,7 +331,7 @@ namespace HorseRace.EditorTools
             pd.plateRoots = plateRoots;
             pd.steps = steps;
             pd.fireworks = fw;
-            pd.fanfare = GenUtil.Audio(holder, true);
+            pd.fanfare = GenUtil.Audio(holder, true, false, SfxBuilder.Clip(SfxMath.STING));
             return pd;
         }
     }

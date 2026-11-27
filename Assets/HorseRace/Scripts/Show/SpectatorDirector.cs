@@ -157,8 +157,47 @@ namespace HorseRace
         // 更新
         // =====================================================================
 
+        private float nextTagRefresh;
+
+        /// <summary>
+        /// 木札（ui-r2-14）：レース中はエントリー数より大きい順位の札を隠し、残りを「2位 名前」に書き換える（0.5 秒ごと）。
+        /// レース外は「1位」〜「8位」をすべて出す。隠した札の選択の印も一緒に隠れる。
+        /// </summary>
+        private void RefreshTagLabels()
+        {
+            if (tags == null || raceManager == null) return;
+            RaceManager rm = raceManager;
+            int st = rm.state;
+            bool racing = st == RaceMath.STATE_COUNTDOWN || st == RaceMath.STATE_RACING;
+            int count = rm.ActiveCount();
+            for (int i = 0; i < tags.Length; i++)
+            {
+                DirectorTag t = tags[i];
+                if (t == null) continue;
+                int r = t.followRank;
+                if (r <= 0 || !racing) { t.SetVisible(true); t.SetLabel(""); continue; }
+                bool show = r <= count;
+                t.SetVisible(show);
+                if (!show) continue;
+                int slot = -1, seen = 0;
+                for (int p = 0; p < RaceManager.MAX_SLOTS; p++)
+                {
+                    int o = rm.order[p];
+                    if (o < 0 || rm.slotPlayerId[o] < 0) continue;
+                    seen++;
+                    if (seen == r) { slot = o; break; }
+                }
+                t.SetLabel(slot >= 0 ? r.ToString() + "位 " + RaceManager.ShortName(rm.slotPlayerId[slot]) : "");
+            }
+        }
+
         private void Update()
         {
+            if (Time.time >= nextTagRefresh)
+            {
+                nextTagRefresh = Time.time + DECIDE_INTERVAL;
+                RefreshTagLabels();
+            }
             bool want = ShouldRender();
             if (want != live)
             {

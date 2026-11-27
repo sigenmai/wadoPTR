@@ -9,7 +9,9 @@ namespace HorseRace
     /// 首の札（補助表示、古い紙と真鍮の文字）。手配書の紙 1 枚に「第1幕 荒野」「3位」「残り 3:12」「■■■□□□ ゴール」と持久力の印 5 つ。
     ///  - VR：自分の乗り物の鞍の前・たてがみの上（鞍の点 + neckOffset）に置き、乗り手のほうへ 35° 起こす（顔には付けない：参考 13）。
     ///        位置は乗り物に固定（速く走っても遅れない）、向きだけなめらかに追う。
-    ///  - デスクトップ：頭の前・左下の端。向きだけ 0.15 秒遅れて追う（位置は頭に固定）。
+    ///  - デスクトップ：頭の前・左下の端に ×0.55 で小さく（ui-r2-03：60° の縦の視野・16:9 の内側）。向きだけ 0.15 秒遅れて追う（位置は頭に固定）。
+    ///  - 命中の知らせ（ui-r2-06）：撃った側「命中！ 名前」（金）、撃たれた側「投げ縄に掛かった」など（赤）。
+    ///  - ステージの合間（ui-r2-08）：総合順位・合計点・首位との差・次のステージ。総合順位が上下したら跳ねて金／赤。
     ///  - カウントダウンの数字・ゴールの着順と点・CP の通過・CP の飛ばし・順位の上下を、跳ねる拡大と色で知らせる（Starter・GoalPresenter・Checkpoint から呼ぶ）。
     ///  - 持久力の印（宝石 5 つ）：ceil(持久力/20) 個を金、残りを革の色。満タンは小さく暗く、残り 1 つ以下・ばてたら赤く 3Hz で脈打ち、馬の息を大きくする。
     /// このスクリプトはロビーのレバー（Collider 付き）に置き、Interact で表示の ON/OFF（既定 ON、ローカルのみ）。hudRoot はこのオブジェクトの子にしない。
@@ -38,7 +40,9 @@ namespace HorseRace
 
         [Header("デスクトップ：頭")]
         [Tooltip("頭からの相対位置（左下の端）")]
-        public Vector3 headOffset = new Vector3(-0.17f, -0.12f, 0.4f);
+        public Vector3 headOffset = new Vector3(-0.40f, -0.19f, 0.55f);
+        [Tooltip("デスクトップでの札の倍率（VR は 1）。UiStyle.DESKTOP_HUD_SCALE")]
+        public float desktopScale = 0.55f;
         public float desktopLag = 0.15f;
 
         [Header("持久力の印（宝石 5 つ）")]
@@ -67,12 +71,16 @@ namespace HorseRace
         [Tooltip("レバー横の札（任意）")]
         public TextMeshPro leverLabel;
 
+        /// <summary>このセッションで自分が能力を使った回数（ローカル）。能力の札のボタンの説明は最初の 3 回だけ（ui-r2-07）。</summary>
+        [HideInInspector] public int abilityCastCount;
+
         /// <summary>オプション：補助表示を出すか（ローカル、既定 ON）。</summary>
         public bool hudEnabled = true;
 
         private Color Ink = new Color(0.23f, 0.15f, 0.08f);
         private Color Gold = new Color(1f, 0.78f, 0.27f);
         private Color Red = new Color(0.85f, 0.25f, 0.15f);
+        private Color Teal = new Color(0.2f, 0.75f, 0.7f);
 
         private bool shown = true;
         private string lastRank = "";
@@ -104,6 +112,16 @@ namespace HorseRace
         private Quaternion smoothRot;
         private Vector3 rankBaseScale = Vector3.one;
         private bool scaleCaptured;
+        private Vector3 rootBaseScale = Vector3.one;
+        private bool rootScaleCaptured;
+        private bool lastVr;
+        private bool vrKnown;
+
+        // ステージの合間の総合順位（ui-r2-08）
+        private int overallSeen;
+        private int overallBaseline;
+        private int resultSeq = -1;
+        private int overallFlashSeq = -1;
 
         private void Start()
         {
@@ -153,18 +171,39 @@ namespace HorseRace
         /// <summary>順番を飛ばして先の CP に入った：赤い知らせを 2 秒。</summary>
         public void MissedCheckpoint()
         {
-            ShowNote("関門を通り過ぎた ↩", Red, 2f);
+            ShowNote("◀ 関門を通り過ぎた", Red, 2f);
         }
 
         /// <summary>自分のゴール：着順・点・タイムを 4 秒、ゴールの音。</summary>
-        public void ShowFinish(int place, int points, float seconds)
+        public void ShowFinish(int place, int points, float seconds, int stage)
         {
-            ShowBanner(HudMath.FinishText(place, points, seconds), Gold, 4f, 1.6f);
+            ShowBanner(HudMath.FinishText(place, points, seconds, stage), Gold, 4f, 1.6f);
             if (finishAudio != null)
             {
                 if (finishClip != null) finishAudio.PlayOneShot(finishClip);
                 else finishAudio.Play();
             }
+        }
+
+        /// <summary>撃った側の命中の知らせ（ui-r2-06）："命中！ 名前"（金）と跳ねる拡大。</summary>
+        public void ShowHitConfirm(string targetName)
+        {
+            ShowNote(HudMath.HitConfirmText(targetName), Gold, 1.2f);
+            Punch(1.2f);
+        }
+
+        /// <summary>撃たれた側の知らせ（ui-r2-06）：kind = 能力の番号か HudMath.HIT_REVOLVER。</summary>
+        public void ShowHitTaken(int kind)
+        {
+            ShowNote(HudMath.HitTakenText(kind), Red, 1.5f);
+            Punch(1.15f);
+        }
+
+        /// <summary>近道の CP を通った（ui-r2-17）：青緑の「近道！」と跳ねる拡大。</summary>
+        public void ShowShortcut()
+        {
+            ShowNote(HudMath.ShortcutText(), Teal, 1.5f);
+            Punch(1.25f);
         }
 
         public void ShowNote(string text, Color color, float seconds)
@@ -207,7 +246,15 @@ namespace HorseRace
         {
             Transform root = hudRoot.transform;
             float dt = Time.deltaTime;
-            if (local.IsUserInVR() && lm != null)
+            bool vr = local.IsUserInVR();
+            if (!rootScaleCaptured) { rootBaseScale = root.localScale; rootScaleCaptured = true; }
+            if (!vrKnown || vr != lastVr)
+            {
+                vrKnown = true;
+                lastVr = vr;
+                root.localScale = rootBaseScale * (vr ? 1f : desktopScale);   // ui-r2-03：デスクトップは小さく端に
+            }
+            if (vr && lm != null)
             {
                 neckAnchor = lm.transform;
                 int type = lm.SeatType();
@@ -232,6 +279,8 @@ namespace HorseRace
             // 見出し：ステージ名（ステージの色）
             string h = "<color=" + HudMath.ColorHex(RaceManager.StageColor(rm.stage)) + ">" + RaceManager.StageLabel(rm.stage) + "</color>";
             if (st == RaceMath.STATE_FINAL_RESULT) h = "総合結果";
+            bool between = st == RaceMath.STATE_STAGE_RESULT;
+            if (between) h = HudMath.BetweenStagesHeader(rm.stage + 1, RaceManager.STAGE_COUNT);   // ui-r2-08
             if (h != lastHeader)
             {
                 lastHeader = h;
@@ -239,7 +288,22 @@ namespace HorseRace
             }
 
             // 順位（知らせが出ている間は知らせ）
-            int rank = st == RaceMath.STATE_FINAL_RESULT ? rm.GetOverallRankOf(local.playerId) : rm.GetRankOf(local.playerId);
+            int rank = st == RaceMath.STATE_FINAL_RESULT || between ? rm.GetOverallRankOf(local.playerId) : rm.GetRankOf(local.playerId);
+            if (between)
+            {
+                // 総合順位が前のステージの合間から上下したら 1 回だけ跳ねて金／赤（ui-r2-08）
+                if (resultSeq != rm.stageSeq) { resultSeq = rm.stageSeq; overallBaseline = overallSeen; }
+                if (overallBaseline > 0 && rank > 0 && rank != overallBaseline && overallFlashSeq != rm.stageSeq)
+                {
+                    overallFlashSeq = rm.stageSeq;
+                    bool up = rank < overallBaseline;
+                    rankArrow = up ? "↑" : "↓";
+                    rankColor = up ? Gold : Red;
+                    rankFlashUntil = now + 2.5f;
+                    Punch(1.35f);
+                }
+                if (rank > 0) overallSeen = rank;
+            }
             if (st == RaceMath.STATE_RACING)
             {
                 if (lastRankStage != rm.stageSeq) { lastRankStage = rm.stageSeq; lastRankInt = rank; }
@@ -274,6 +338,8 @@ namespace HorseRace
 
             float rem = rm.GetRemainingSeconds();
             string t = rem >= 0f && st == RaceMath.STATE_RACING ? "残り\n" + RaceMath.FormatClock(rem) : "";
+            int localSlot = rm.LocalSlot();
+            if (between && localSlot >= 0) t = "計\n" + rm.slotTotalPoints[localSlot].ToString() + "点";
             if (t != lastTime)
             {
                 lastTime = t;
@@ -284,20 +350,30 @@ namespace HorseRace
             string p;
             MountController lmp = rm.LocalMount();
             if (now < noteUntil) p = "<color=" + HudMath.ColorHex(noteColor) + ">" + noteText + "</color>";
-            else if (st == RaceMath.STATE_RACING && lmp != null && lmp.WrongWay) p = "<color=" + HudMath.ColorHex(Red) + "><b>逆走 ↩</b></color>";   // system-r1-17
+            else if (st == RaceMath.STATE_RACING && lmp != null && lmp.WrongWay) p = "<color=" + HudMath.ColorHex(Red) + "><b>◀ 逆走</b></color>";   // system-r1-17（U+21A9 の矢印はフォントに無い：ui-r2-04）
+            else if (between && localSlot >= 0) p = HudMath.BetweenStagesLine(rm.slotTotalPoints[localSlot], LeaderPoints(rm), rm.stage + 1, RaceManager.STAGE_COUNT);
             else if (st == RaceMath.STATE_RACING && rm.InStartGrace()) p = "撃ち合いまで " + Mathf.CeilToInt(rm.StartGraceLeft()).ToString();   // system-r1-07
             else
             {
                 p = st == RaceMath.STATE_RACING && lmp != null ? HudMath.ProgressBar(lmp.syncCp, rm.CheckpointCount(rm.stage), HudMath.PROGRESS_SEGMENTS) : "";
-                // 風よけ（ドラフト：system-r1-13）・ひと息（疾走を早めにやめた回復：system-r1-01）を進み具合の横に小さく
-                if (p.Length > 0 && lmp.Draft > 0f) p += " <color=" + HudMath.ColorHex(Gold) + ">風よけ</color>";
-                if (p.Length > 0 && lmp.SecondWindActive) p += " <color=" + HudMath.ColorHex(Gold) + ">ひと息</color>";
+                // 風よけ（ドラフト：system-r1-13）・ひと息（疾走を早めにやめた回復：system-r1-01）を進み具合の横に ★ 1 つずつ
+                // （文字だと札からあふれて縮み、VR で読めない大きさになる：ui-r2-05）
+                if (p.Length > 0 && lmp.Draft > 0f) p += "<color=" + HudMath.ColorHex(Gold) + ">★</color>";
+                if (p.Length > 0 && lmp.SecondWindActive) p += "<color=" + HudMath.ColorHex(Teal) + ">★</color>";
             }
             if (p != lastProgress)
             {
                 lastProgress = p;
                 if (progressText != null) progressText.text = p;
             }
+        }
+
+        private int LeaderPoints(RaceManager rm)
+        {
+            int best = 0;
+            for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
+                if (rm.slotPlayerId[i] >= 0 && rm.slotTotalPoints[i] > best) best = rm.slotTotalPoints[i];
+            return best;
         }
 
         private void UpdatePips(MountController lm, int st)
@@ -353,7 +429,7 @@ namespace HorseRace
             if (show == shown) return;
             shown = show;
             if (hudRoot != null) hudRoot.SetActive(show);
-            if (!show) rotInit = false;
+            if (!show) { rotInit = false; vrKnown = false; }
         }
     }
 }

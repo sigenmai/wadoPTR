@@ -65,9 +65,12 @@ namespace HorseRace
                 if (namePlates[k] == null) continue;
                 if (!has) { namePlates[k].text = ""; continue; }
                 int slot = overall[k];
-                namePlates[k].text = "<size=70%>総合" + (k + 1).ToString() + "位</size>\n" + RaceManager.ShortName(rm.slotPlayerId[slot])
+                // 紙の名札は濃いインク、1 位は赤インクの太字（ui-r2-09：明るい字を明るい紙に書かない）
+                string name = RaceManager.ShortName(rm.slotPlayerId[slot]);
+                if (k == 0) name = "<b>" + name + "</b>";
+                namePlates[k].text = "<size=70%>総合" + (k + 1).ToString() + "位</size>\n" + name
                     + "  " + rm.slotTotalPoints[slot].ToString() + "点";
-                namePlates[k].color = k == 0 ? new Color(1f, 0.78f, 0.27f) : new Color(0.96f, 0.90f, 0.76f);
+                namePlates[k].color = k == 0 ? new Color(0.72f, 0.12f, 0.08f) : new Color(0.23f, 0.15f, 0.08f);
             }
         }
 

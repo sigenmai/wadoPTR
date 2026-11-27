@@ -256,8 +256,19 @@ namespace HorseRace.EditorTools
             Vector3 entryW = new Vector3(o0.x + entry.x, o0.y + SetPieces.ShortcutHeight(p, p.f0), o0.z + entry.z);
             for (int s = -1; s <= 1; s += 2)
                 Lamp(g, sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f))), yaw + (s > 0 ? -90f : 90f), SignalOrange, 8f);
-            SignPost(g, "ShortcutSign", sb.GroundWorld(entryW + rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f), yaw, "<b>→ 近道</b>\n全力なら速い", UiStyle.Teal,
+            Vector3 signW = sb.GroundWorld(entryW + rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f);
+            SignPost(g, "ShortcutSign", signW, yaw, "<b>→ 近道</b>\n全力なら速い", UiStyle.Teal,
                 new Color(0f, 0f, 0f, 0f), 0f);
+            // 近道に入った合図（ui-r2-17）：札の横に青緑の火花。入口の双子の CP が出す（誰が入っても各自の画面で）
+            var burstHolder = GenUtil.World(g, "ShortcutBurst", signW + Vector3.up * 2.5f);
+            var burst = GenUtil.Particles(burstHolder.transform, "Burst", Vector3.zero, UiStyle.Teal, 0.25f, 6f, 1.2f, false, 0f, 0.6f);
+            Checkpoint entryCp = null;
+            foreach (var tc in sb.twinCheckpoints) if (tc != null && tc.transform.IsChildOf(g) && (entryCp == null || tc.index < entryCp.index)) entryCp = tc;
+            if (entryCp != null)
+            {
+                entryCp.isShortcut = true;
+                entryCp.shortcutBurst = burst;
+            }
             Vector3 lip = Vector3.Lerp(p.a, p.b, p.fDrop);
             for (int s = -1; s <= 1; s += 2)
             {

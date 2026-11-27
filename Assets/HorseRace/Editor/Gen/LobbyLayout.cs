@@ -49,6 +49,12 @@ namespace HorseRace.EditorTools
         public static readonly Vector3 WANTED_WALL = new Vector3(-26f, 0f, 36.5f);      // 手配書の壁（掲示板 ×1.2、南を向く。視線の外の西）
         public static readonly Vector3 START_BELL = new Vector3(-1.8f, 0f, 51f);        // スタート台（3m 四方）と号砲・次のレースの時計（スポーンの正面 21m、大通りの上）
         public static readonly Vector3 HUD_LEVER = new Vector3(-8f, 0f, 29f);           // 補助表示のレバー
+        /// <summary>町の大時計（ui-r2-13）：大通りの軸の上、スタート台の 11m 奥（スポーンの正面 32m）。掲示板 ×1.4（幅 6.3m）を南（スポーン）へ向ける。
+        /// 通りの両脇（x -4.6 と 6.4 の建物）とは 2m 以上あける。</summary>
+        public static readonly Vector3 TOWN_CLOCK = new Vector3(0.9f, 0f, 62f);
+        public const float TOWN_CLOCK_SCALE = 1.4f;
+        /// <summary>操作の看板（ui-r2-07）：練習場の看板の東隣。</summary>
+        public static readonly Vector3 PRACTICE_CONTROLS = new Vector3(28.4f, 0f, 88f);
         // 西の空き地（西の建物の列 x ≤ -14.6 と町の西の端 x -36 の間）
         public static readonly Vector3 PARKING_FIRST = new Vector3(-33.5f, 0f, 37f);   // 乗り物の待機場所 ×8（北へ PARKING_STEP ずつ、東を向く）
         public const float PARKING_STEP = 2.3f;
@@ -96,6 +102,7 @@ namespace HorseRace.EditorTools
             for (int i = -1; i <= 1; i++) Add("WantedWall_" + (i + 1), WANTED_WALL + new Vector3(i * 2.1f, 0f, 0f), 1.2f);   // 幅 6.2m・厚さ 0.2m の板
             Add("StartBell", START_BELL, 2.2f);
             Add("HudLever", HUD_LEVER, 0.6f);
+            Add("TownClock", TOWN_CLOCK, 3.3f);   // 板の半分の幅 3.15m
             for (int i = 0; i < 8; i++) Add("Parking_" + i, PARKING_FIRST + new Vector3(0f, 0f, i * PARKING_STEP), 1.4f);
             for (int i = 0; i < 7; i++) Add("Picker_" + i, CORRAL_FIRST + new Vector3(0f, 0f, i * CORRAL_STEP), 1.4f);
             Add("CorralFenceS", CORRAL_FIRST + new Vector3(-3.5f, 0f, -1.5f), 0.3f);
@@ -116,6 +123,7 @@ namespace HorseRace.EditorTools
             Add("PracticeDummy_2", PRACTICE_DUMMY_2, 0.8f);
             Add("PracticeRelic", PRACTICE_RELIC, 0.8f);
             Add("PracticeLapBoard", PRACTICE_LAP_BOARD, 1.4f);
+            Add("PracticeControls", PRACTICE_CONTROLS, 1.9f);   // 掲示板 ×0.8（幅 3.6m）
             return l;
         }
 

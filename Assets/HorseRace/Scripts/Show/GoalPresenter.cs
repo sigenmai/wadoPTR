@@ -135,7 +135,8 @@ namespace HorseRace
             if (rm != null && slot == rm.LocalSlot() && rm.hud != null && place > 0)
             {
                 // 自分のゴール：首の札に「3着  +6点」とタイム（2D のゴールの音は札が鳴らす）
-                rm.hud.ShowFinish(place, RaceMath.PointsForPlace(place - 1), (float)(fin[slot] - rm.stageStartServer));
+                // 点はステージ込み（最終ステージ ×1.5）：RaceManager・黒板・電報と同じ表（ui-r2-01）
+                rm.hud.ShowFinish(place, RaceMath.PointsForPlace(place - 1, rm.stage), (float)(fin[slot] - rm.stageStartServer), rm.stage);
             }
             else if (finishAudio != null) finishAudio.Play();
             if (placeTags == null || placeTags.Length == 0 || place <= 0) return;
@@ -145,7 +146,11 @@ namespace HorseRace
             tagSlot[k] = slot;
             tagStart[k] = Time.time;
             if (placeTagTexts != null && k < placeTagTexts.Length && placeTagTexts[k] != null)
-                placeTagTexts[k].text = place == 1 ? "1着！" : place.ToString() + "着";
+            {
+                // 着順と名前（ui-r2-14：中継・囲いで見ている人にも誰か分かる）
+                string who = rm != null && slot < rm.slotPlayerId.Length && rm.slotPlayerId[slot] >= 0 ? RaceManager.ShortName(rm.slotPlayerId[slot]) : "";
+                placeTagTexts[k].text = (place == 1 ? "1着！" : place.ToString() + "着") + (who.Length > 0 ? "\n<size=55%>" + who + "</size>" : "");
+            }
             placeTags[k].gameObject.SetActive(true);
         }
 

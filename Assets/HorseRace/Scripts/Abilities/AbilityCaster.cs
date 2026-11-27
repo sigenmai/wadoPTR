@@ -227,6 +227,7 @@ namespace HorseRace
             else CastBall();
             readyAt = Time.time + AbilityMath.Cooldown(id) * CooldownScale();
             if (castSound != null) castSound.Play();
+            if (raceManager != null && raceManager.hud != null) raceManager.hud.abilityCastCount++;   // ボタンの説明は最初の 3 回だけ（ui-r2-07）
         }
 
         private void ComputeAim(int hand)
@@ -411,9 +412,30 @@ namespace HorseRace
             return s;
         }
 
+        /// <summary>
+        /// 撃った側の命中の知らせ（ui-r2-06）：自分が乗っている乗り物の発動・射撃が当たったら首の札に「命中！ 名前」。
+        /// playerId &lt; 0（カカシ・練習用）は名前なし。
+        /// </summary>
+        public void ConfirmHit(int playerId)
+        {
+            EnsureInit();
+            if (mount == null || !mount.IsLocalRider()) return;
+            if (raceManager == null || raceManager.hud == null) return;
+            raceManager.hud.ShowHitConfirm(playerId >= 0 ? RaceManager.ShortName(playerId) : "");
+        }
+
+        /// <summary>撃たれた側の知らせ（ui-r2-06）：首の札に赤で「投げ縄に掛かった」など、能力の札から赤い火花。</summary>
+        private void NotifyHitTaken(int kind)
+        {
+            if (mount == null || !mount.IsLocalRider()) return;
+            if (raceManager != null && raceManager.hud != null) raceManager.hud.ShowHitTaken(kind);
+            if (pouch != null) pouch.FlashHit();
+        }
+
         public void ReportDustHit(MountController m)
         {
             if (m == null) return;
+            ConfirmHit(m.riderPlayerId);
             AbilityCaster tc = m.GetComponent<AbilityCaster>();
             if (tc != null) tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(HitDust));
         }
@@ -421,6 +443,7 @@ namespace HorseRace
         public void ReportBallHit(MountController m, Vector3 velocity)
         {
             if (m == null) return;
+            ConfirmHit(m.riderPlayerId);
             AbilityCaster tc = m.GetComponent<AbilityCaster>();
             if (tc != null) tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(HitBall), velocity, LevelValue(ballStunByLevel, 0.5f));
         }
@@ -443,6 +466,8 @@ namespace HorseRace
             if (lasso != null) lasso.Show(mount, end, hit, hit ? AbilityMath.LASSO_SELF_SECONDS : 0f);
             SpectatorDirector sd = Spectator();
             if (hitSlot >= 0 && sd != null) sd.NotifyHitSlot(hitSlot);
+            if (hit && mount != null && mount.IsLocalRider())
+                ConfirmHit(hitSlot >= 0 && raceManager != null ? raceManager.slotPlayerId[hitSlot] : -1);
         }
 
         [NetworkCallable(10)]
@@ -517,6 +542,7 @@ namespace HorseRace
             if (!AcceptHit()) return;
             mount.AddSpeedMod(AbilityMath.DUST_SLOW_FACTOR, GuardedSeconds(dustHitSeconds));
             hazeUntil = Time.time + dustHitSeconds;
+            NotifyHitTaken(AbilityMath.ABILITY_DUST);
         }
 
         [NetworkCallable(20)]
@@ -526,6 +552,7 @@ namespace HorseRace
             bool guarded = IsGuarded();
             mount.AddSpeedMod(AbilityMath.LASSO_TARGET_FACTOR, GuardedSeconds(AbilityMath.LASSO_TARGET_SECONDS));
             if (!guarded) StartGuard();
+            NotifyHitTaken(AbilityMath.ABILITY_LASSO);
         }
 
         [NetworkCallable(20)]
@@ -534,6 +561,7 @@ namespace HorseRace
             if (!AcceptHit()) return;
             mount.AddSpeedMod(AbilityMath.BALL_HIT_FACTOR, GuardedSeconds(AbilityMath.BALL_HIT_SECONDS));
             KnockWithGuard(Flat(velocity) * ballKnock, Mathf.Clamp(stunSeconds, 0f, 1.5f));
+            NotifyHitTaken(AbilityMath.ABILITY_BALL);
         }
 
         /// <summary>
@@ -547,6 +575,7 @@ namespace HorseRace
             if (!AcceptHit()) return;
             mount.AddSpeedMod(RevolverMath.HIT_FACTOR, GuardedSeconds(RevolverMath.HIT_SECONDS));
             KnockWithGuard(Flat(direction) * revolverKnock, revolverStun);
+            NotifyHitTaken(HudMath.HIT_REVOLVER);
             if (shooterId < 0 || shooterId >= MAX_CASTERS || shooterId == casterId) return;
             int total = RevolverMath.TotalAfterHit(hitsFromShooter[shooterId], hitNumber);
             hitsFromShooter[shooterId] = total;
@@ -632,6 +661,11 @@ namespace HorseRace
                 // 開幕の猶予の間は「封」（使えない札）
                 bool locked = LockedByStartGrace();
                 float rem = locked ? raceManager.StartGraceLeft() : readyAt - Time.time;
+                MinimalHud hud = raceManager != null ? raceManager.hud : null;
+                if (pouch.hud == null) pouch.hud = hud;
+                VRCPlayerApi lp = Networking.LocalPlayer;
+                bool vr = lp != null && lp.IsUserInVR();
+                pouch.hint = hud != null && hud.abilityCastCount < HudMath.ABILITY_HINT_CASTS ? HudMath.AbilityHint(vr) : "";
                 pouch.Show(IsReady() && !locked, Level, rem, AbilityId(), mount != null ? mount.SeatType() : 0);
                 pouchShownLocal = true;
             }

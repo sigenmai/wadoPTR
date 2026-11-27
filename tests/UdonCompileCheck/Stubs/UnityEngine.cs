@@ -77,6 +77,7 @@ namespace UnityEngine
         public static float MoveTowards(float current, float target, float maxDelta) =>
             Abs(target - current) <= maxDelta ? target : current + Math.Sign(target - current) * maxDelta;
         public static float Exp(float p) => (float)Math.Exp(p);
+        public static float DeltaAngle(float current, float target) { float d = (target - current) % 360f; if (d > 180f) d -= 360f; if (d < -180f) d += 360f; return d; }
         public static float Min(float a, float b) => a < b ? a : b;
         public static float Max(float a, float b) => a > b ? a : b;
         public static int Min(int a, int b) => a < b ? a : b;
@@ -239,7 +240,10 @@ namespace UnityEngine
         public static void LogError(object message) { }
     }
 
-    public partial class Material : Object { }
+    public partial class Material : Object
+    {
+        public void SetFloat(string name, float value) { }
+    }
 
     public partial class Texture : Object
     {

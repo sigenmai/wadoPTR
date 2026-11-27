@@ -79,9 +79,10 @@ namespace HorseRace
                     int slot = rm.order[p];
                     if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
                     line++;
-                    MountController m = (rm.mounts != null && slot < rm.mounts.Length) ? rm.mounts[slot] : null;
-                    bool done = m != null && m.syncFinishAt >= rm.stageStartServer;
-                    s += HudMath.Row2(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]) + (done ? " ゴール" : "")) + "\n";
+                    // 名前の右に進み具合（CP の四角）かゴールのタイム（ui-r2-15）。先頭はステージの色
+                    string row = HudMath.RaceRow(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]), "", rm.StandingCell(slot));
+                    if (line == 1) row = "<color=" + HudMath.ColorHex(RaceManager.StageColor(rm.stage)) + ">" + row + "</color>";
+                    s += row + "\n";
                 }
                 s += "<size=80%>板の札で追う人を選べる</size>";
             }
