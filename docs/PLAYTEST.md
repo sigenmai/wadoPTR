@@ -7,7 +7,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ### 事前準備（シーン構成）
 - メニュー「HorseRace/Create Horse Materials」→「HorseRace/Build Mount Animator」を実行し、`Assets/HorseRace/Animations/Mount.controller` ができている
 - 乗り物 1 頭の構成:
-  - ルート: `MountController`、`VRCStation`（Player Mobility = Immobilize、Station Enter Player Location = SeatAnchor、Disable Station Exit は乗り手を割り当てた時点でコードが true にする（Jump で降車させないため。初期値はどちらでも可））、`Rigidbody`（Is Kinematic）、体の Collider
+  - ルート: `MountController`、`VRCStation`（Player Mobility = Immobilize、Station Enter Player Location = SeatAnchor、Disable Station Exit はレース中（`raceActive`）に乗り手がいる間だけコードが true にする（レース中に Jump で降車させないため。ロビー・練習場では降りられる。初期値はどちらでも可））、`Rigidbody`（Is Kinematic）、体の Collider
   - 子 `SeatAnchor`（座席）
   - 子 `Visual`（`MountVisual`、Horse / Camel / SkeletonHorse のモデル。各 Animator に Mount.controller、毛色マテリアル 6 種を Bay, Chestnut, Black, Gray, Palomino, Dun の順に設定、息づかい AudioSource はループ）
   - 子 `ReinsVR`（`MountInputVR`、mount と seatAnchor を設定）
@@ -24,7 +24,7 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] ラクダは馬より曲がりにくく、上り坂に弱い。最高速も低い
 - [ ] 骨の馬・毛色が他人からも同じに見える（2 クライアントで確認）
 - [ ] VR の手綱操作：片手を引くとその側へ曲がる、両手を引くと減速、両手を振ると疾走、低スタミナで手が振動する
-- [ ] ジャンプ（Space / ボタン）で降車しない（ロビー・カウントダウン中も）
+- [ ] レース中（カウントダウン〜ゴール）はジャンプ（Space / ボタン）で降車しない。ロビー・練習場・ステージの合間はジャンプで降りられる
 - [ ] 何らかの理由で降車してもレース中はすぐ再着席する（保険）
 - [ ] VR で手綱の左右差が 10cm 未満では曲がらない。スティックを倒している間はスティックが優先される
 - [ ] ラクダは中速で側対歩、骨の馬も自分のクリップで動く（オーバーライドコントローラ）
@@ -70,7 +70,8 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - **受付カウンターの台帳**: `EntryLedger`（Collider 付き）、`Page Text` に台帳ページの TextMeshPro、`Sign Sound`（任意）
 - **スタート台の鐘**: `StartBell`（Collider 付き）、`Ring Sound`・`Tap Sound`・`Note Text`（任意）
 - **練習場**: 練習場全体を覆う Is Trigger の Collider ＋ `PracticeArea`（`Release Radius` は練習場の外周より少し大きく）。練習用の馬 2 頭（レース用とは別の MountController 一式）をつなぐ杭それぞれに `PracticeHorsePost`（Collider 付き、`Mount`・`Home`・`Coat`・`Race Manager`）を置き、`PracticeArea.Posts` に登録。カカシは Task 9
-- **黒板**: 各 CP の黒板に `RankBoard`（`Board Text`）。たまり場にも 1 枚置くと結果が見られる
+- **黒板**: 各 CP の黒板に `RankBoard`（`Board Text` は TextMeshPro）。たまり場の黒板は `Show Last Race` を ON にする（ロビー中は前回のレースの表＝ステージ別の着順と総合ポイント）
+- **文字の型**: ワールド内の文字（台帳・黒板・懐中時計・手配書・鐘の札・レバーの札）は TextMeshPro（3D）、補助表示の文字だけ TextMeshProUGUI（ワールド空間 Canvas の中）
 - **懐中時計**: 常に有効な空の GameObject に `PocketWatch`、時計のモデルはその子にして `Watch Root` に。`Face Text` に文字盤の TMP、針は任意
 - **補助表示**: ロビーの真鍮のレバー（Collider 付き）に `MinimalHud`。`Hud Root` はレバーの子にしない別オブジェクト（古い紙のワールド空間 Canvas、小さく 0.001 スケール程度）に `Rank Text`・`Time Text`
 
@@ -91,4 +92,8 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] ワールドの端同士（ロビーとステージ 3 のゴールなど）でも声が普通に聞こえる。後から入った人の声も聞こえる
 - [ ] 補助表示（左下の古い紙：「3位」「残り 3:12」）がレース中だけ出る。レバーで消せる・戻せる（自分だけ）
 - [ ] 懐中時計：VR は左手首、デスクトップは画面下に見え、残り時間が読める。レース外は消える
-- [ ] 練習用の馬に杭で乗れて、もう一度杭に触れるか練習場の外へ出ると降りる。他の人が乗っている馬には乗れない
+- [ ] 練習用の馬に杭で乗れて、ジャンプ・もう一度杭に触れる・練習場の外へ出る のどれでも降りる（降りた馬は杭の位置に戻る）。他の人が乗っている馬には乗れない
+- [ ] たまり場の黒板に、ロビーに戻った後も前回のレースの表（ステージ別の着順・合計点）が残る。途中で抜けた人は載らない。新しいレースの総合結果で更新される
+- [ ] 最終ステージの結果表示中は台帳にサインしても入れない
+- [ ] ステージの合間に、既にエントリーしている人がサインし直しても乗り物・毛色・能力は変わらない（変えられるのはロビーだけ）
+- [ ] カウントダウンの同期を取りこぼした（遅れて届いた）クライアントでも、レース開始後に自分の乗り物に座れる

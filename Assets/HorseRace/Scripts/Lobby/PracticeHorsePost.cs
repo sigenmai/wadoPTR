@@ -5,7 +5,7 @@ using VRC.SDKBase;
 namespace HorseRace
 {
     /// <summary>
-    /// 練習用の馬をつなぐ杭（レース用 8 頭とは別の MountController）。Interact で乗る、乗っている人がもう一度 Interact で降りる。
+    /// 練習用の馬をつなぐ杭（レース用 8 頭とは別の MountController）。Interact で乗る。降りるのは Jump（練習中は降車禁止にしない）か、杭にもう一度 Interact。
     /// 誰が乗っているかを riderId で同期し、使用中の馬には乗れない。降りると馬は home に戻る。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
@@ -19,6 +19,21 @@ namespace HorseRace
 
         [UdonSynced] public int riderId = -1;
         private int appliedRiderId = -1;
+        private float claimTime;
+        private bool seenSeated;
+
+        /// <summary>乗り手は Jump で自由に降りられる（raceActive=false）。降りたのを見つけたら杭の記録も外して馬を戻す。</summary>
+        private void Update()
+        {
+            if (!IsLocalRiding() || mount == null) return;
+            if (mount.IsLocalRider())
+            {
+                seenSeated = true;
+                return;
+            }
+            // 着席は 1〜数フレーム遅れるので、座った後に降りたか、3 秒たっても座れなかったら解放
+            if (seenSeated || Time.time - claimTime > 3f) Release();
+        }
 
         public override void Interact()
         {
@@ -37,6 +52,8 @@ namespace HorseRace
             if (raceManager != null && raceManager.IsLocalRacing()) return;
             Networking.SetOwner(local, gameObject);
             riderId = local.playerId;
+            claimTime = Time.time;
+            seenSeated = false;
             RequestSerialization();
             Apply();
         }
@@ -88,7 +105,7 @@ namespace HorseRace
         {
             if (mount == null || appliedRiderId == riderId) return;
             appliedRiderId = riderId;
-            mount.raceActive = false;
+            mount.SetRaceActive(false);
             mount.InputLocked = false;
             mount.AssignRider(riderId, MountMath.MOUNT_HORSE, coat);
         }

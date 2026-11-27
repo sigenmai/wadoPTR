@@ -51,7 +51,8 @@ namespace HorseRace
         [Header("Slot")]
         public int slotIndex;
         public int riderPlayerId = -1;
-        /// <summary>RaceManager がレース中に true にする。true かつ InputLocked=false の間は降車しても再着席させる。</summary>
+        /// <summary>RaceManager がレース中に true にする（SetRaceActive で変えること）。true かつ InputLocked=false の間は降車しても再着席させる。
+        /// true の間だけ Jump での降車を禁止する（ロビー・練習場では自由に降りられる）。</summary>
         public bool raceActive;
         public bool InputLocked;
         public float Stamina = 100f;
@@ -175,9 +176,9 @@ namespace HorseRace
             {
                 station.ExitStation(local);
             }
-            // Jump で降車させない（VRChat は disableStationExit=false だと Jump で駅から降ろす）。
-            // 乗り手がいる間はロビーでも常に true。降車はロビーの流れ／RaceManager が AssignRider(-1) で行う。
-            if (station != null) station.disableStationExit = playerId >= 0;
+            // レース中だけ Jump で降車させない（VRChat は disableStationExit=false だと Jump で駅から降ろす）。
+            // ロビー・練習場では自由に降りられる。raceActive が変わったら SetRaceActive が更新する。
+            ApplyStationExitLock();
             if (!isLocal) return;
 
             Networking.SetOwner(local, gameObject);
@@ -191,6 +192,18 @@ namespace HorseRace
             if (station != null) station.UseStation(local);
             WriteSync();
             RequestSerialization();
+        }
+
+        /// <summary>全クライアントで呼んでよい。raceActive を変え、降車禁止（disableStationExit）を合わせる。</summary>
+        public void SetRaceActive(bool active)
+        {
+            raceActive = active;
+            ApplyStationExitLock();
+        }
+
+        private void ApplyStationExitLock()
+        {
+            if (station != null) station.disableStationExit = riderPlayerId >= 0 && raceActive;
         }
 
         /// <summary>オーナー側で呼ぶ。位置と向きを即座に設定して速度をリセットする。</summary>

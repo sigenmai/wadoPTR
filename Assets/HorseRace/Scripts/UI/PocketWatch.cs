@@ -17,7 +17,7 @@ namespace HorseRace
         [Tooltip("時計の見た目（このオブジェクトの子）")]
         public GameObject watchRoot;
         [Tooltip("文字盤の文字（「残り 3:12」）")]
-        public TMP_Text faceText;
+        public TextMeshPro faceText;
         [Tooltip("分針・秒針（任意。ローカル Z 軸まわりに回す）")]
         public Transform minuteHand;
         public Transform secondHand;

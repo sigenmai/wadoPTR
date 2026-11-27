@@ -55,6 +55,18 @@ namespace HorseRace
         [UdonSynced] public int[] slotStagePlace = new int[MAX_SLOTS];
         /// <summary>現在のステージ順位（スロット番号、先頭から。空きは -1）。</summary>
         [UdonSynced] public int[] order = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
+        /// <summary>今のレースのステージ別着順。index = stage * 8 + slot（1 始まり、0 = なし）。</summary>
+        [UdonSynced] public int[] stagePlace = new int[STAGE_COUNT * MAX_SLOTS];
+
+        // ---- 前回のレース（総合結果に入った時点の写し。ロビーに戻っても消さない。たまり場の黒板用）----
+        /// <summary>true なら last* が有効。</summary>
+        [UdonSynced] public bool lastValid;
+        /// <summary>前回の着順。index = stage * 8 + 行（行 = 総合順位 0..7）。0 = なし。</summary>
+        [UdonSynced] public int[] lastStagePlace = new int[STAGE_COUNT * MAX_SLOTS];
+        /// <summary>前回の合計ポイント（行 = 総合順位）。</summary>
+        [UdonSynced] public int[] lastTotal = new int[MAX_SLOTS];
+        /// <summary>前回の名前（行 = 総合順位、空文字 = 行なし）。抜けた人の id は引けないので名前で持つ。</summary>
+        [UdonSynced] public string[] lastName = new string[] { "", "", "", "", "", "", "", "" };
 
         [Header("Mounts (slot i = mounts[i], 8 頭)")]
         public MountController[] mounts;
@@ -321,19 +333,25 @@ namespace HorseRace
             VRCPlayerApi caller = GetCaller();
             if (caller == null || !caller.IsValid()) return;
             if (!RaceMath.CanEnterStage(state)) return;
+            // 最終ステージ後の結果表示中は、もう走るステージがないので受け付けない
+            if (state == RaceMath.STATE_STAGE_RESULT && stage + 1 >= STAGE_COUNT) return;
             if (mount != MountMath.MOUNT_HORSE && mount != MountMath.MOUNT_CAMEL) return;
             if (ability < 0 || ability > MAX_ABILITY_PHASE1) return;
             if (mount == MountMath.MOUNT_CAMEL) coat = 0;
             else if (coat < 0 || coat > MountVisual.COAT_SKELETON) return;
 
             int s = FindSlot(caller.playerId);
-            if (s < 0)
+            if (s >= 0)
+            {
+                // 乗り物・毛色・能力を変えられるのはロビーだけ（ステージの合間のサインし直しは何も変えない）
+                if (state != RaceMath.STATE_LOBBY) return;
+            }
+            else
             {
                 s = FindFreeSlot();
                 if (s < 0) return; // 満員
-                slotPlayerId[s] = caller.playerId;
-                slotTotalPoints[s] = 0; // 途中参加は 0 点から
-                slotStagePlace[s] = 0;
+                ClearSlot(s);
+                slotPlayerId[s] = caller.playerId; // 途中参加は 0 点から（ClearSlot 済み）
             }
             slotMount[s] = mount;
             slotCoat[s] = coat;
@@ -357,6 +375,7 @@ namespace HorseRace
                 slotTotalPoints[i] = 0;
                 slotStagePlace[i] = 0;
             }
+            for (int k = 0; k < stagePlace.Length; k++) stagePlace[k] = 0;
             BeginCountdownMaster(Networking.GetServerTimeInSeconds());
             RequestSerialization();
             ApplyLocal();
@@ -458,6 +477,7 @@ namespace HorseRace
                     {
                         state = RaceMath.STATE_FINAL_RESULT;
                         stateStartServer = now;
+                        SnapshotLastRaceMaster();
                     }
                     changed = true;
                 }
@@ -538,10 +558,28 @@ namespace HorseRace
                 if (s < 0 || slotPlayerId[s] < 0) continue;
                 slotTotalPoints[s] += RaceMath.PointsForPlace(place);
                 slotStagePlace[s] = place + 1;
+                int idx = stage * MAX_SLOTS + s;
+                if (idx >= 0 && idx < stagePlace.Length) stagePlace[idx] = place + 1;
                 place++;
             }
             state = RaceMath.STATE_STAGE_RESULT;
             stateStartServer = now;
+        }
+
+        /// <summary>総合結果に入るときに、ロビーに戻っても残す前回の結果を写す（総合順位の順に並べる）。</summary>
+        private void SnapshotLastRaceMaster()
+        {
+            int[] overall = GetOverallOrder();
+            for (int row = 0; row < MAX_SLOTS; row++)
+            {
+                bool has = row < overall.Length;
+                int s = has ? overall[row] : -1;
+                lastName[row] = has ? PlayerName(slotPlayerId[s]) : "";
+                lastTotal[row] = has ? slotTotalPoints[s] : 0;
+                for (int st = 0; st < STAGE_COUNT; st++)
+                    lastStagePlace[st * MAX_SLOTS + row] = has ? stagePlace[st * MAX_SLOTS + s] : 0;
+            }
+            lastValid = overall.Length > 0;
         }
 
         private void GoLobbyMaster(double now)
@@ -562,6 +600,8 @@ namespace HorseRace
             slotAbility[i] = 0;
             slotTotalPoints[i] = 0;
             slotStagePlace[i] = 0;
+            // 途中離脱はその時点で集計から外す／空いた枠を次の人が使うときに前の人の着順を持ち越さない
+            for (int st = 0; st < STAGE_COUNT; st++) stagePlace[st * MAX_SLOTS + i] = 0;
         }
 
         /// <summary>もういないプレイヤーの枠を空ける（OnPlayerLeft の取りこぼし・マスター交代の保険）。</summary>
@@ -661,7 +701,7 @@ namespace HorseRace
         private void ReleaseMountLocal(int i)
         {
             MountController m = mounts[i];
-            m.raceActive = false;
+            m.SetRaceActive(false);
             m.InputLocked = false;
             if (Networking.IsOwner(m.gameObject) && mountParking != null && i < mountParking.Length && mountParking[i] != null)
                 m.TeleportTo(mountParking[i].position, mountParking[i].eulerAngles.y);
@@ -681,7 +721,7 @@ namespace HorseRace
                 if (pid < 0)
                 {
                     if (m.riderPlayerId >= 0) m.AssignRider(-1, 0, 0);
-                    m.raceActive = false;
+                    m.SetRaceActive(false);
                     continue;
                 }
                 if (pid == localId)
@@ -703,7 +743,7 @@ namespace HorseRace
                 {
                     m.AssignRider(pid, slotMount[i], slotCoat[i]);
                 }
-                m.raceActive = true;
+                m.SetRaceActive(true);
                 m.InputLocked = true;
             }
             if (stage == 0) InvokeStageResetHooks();
@@ -714,9 +754,10 @@ namespace HorseRace
             }
         }
 
+        /// <summary>COUNTDOWN か RACING（COUNTDOWN の同期を取りこぼしたクライアント）で、まだ座れていなければ座らせ直す。</summary>
         public void _ReseatLocal()
         {
-            if (state != RaceMath.STATE_COUNTDOWN) return;
+            if (state != RaceMath.STATE_COUNTDOWN && state != RaceMath.STATE_RACING) return;
             VRCPlayerApi local = Networking.LocalPlayer;
             if (local == null) return;
             int s = FindSlot(local.playerId);
@@ -724,8 +765,8 @@ namespace HorseRace
             MountController m = mounts[s];
             if (m.IsLocalRider()) return;
             m.AssignRider(local.playerId, slotMount[s], slotCoat[s]);
-            m.raceActive = true;
-            m.InputLocked = true;
+            m.SetRaceActive(true);
+            m.InputLocked = state != RaceMath.STATE_RACING;
         }
 
         private void StateEnterLocal(int prev)
@@ -735,7 +776,7 @@ namespace HorseRace
             {
                 if (lm != null)
                 {
-                    lm.raceActive = true;
+                    lm.SetRaceActive(true);
                     lm.InputLocked = false;
                 }
                 ApplyVoiceAll();
@@ -745,7 +786,7 @@ namespace HorseRace
                 if (lm != null)
                 {
                     lm.InputLocked = true;
-                    lm.raceActive = false;
+                    lm.SetRaceActive(false);
                 }
                 InvokeStageResetHooks();
             }
@@ -754,7 +795,7 @@ namespace HorseRace
                 if (lm != null)
                 {
                     lm.InputLocked = true;
-                    lm.raceActive = false;
+                    lm.SetRaceActive(false);
                 }
             }
             else if (state == RaceMath.STATE_LOBBY)
@@ -765,7 +806,7 @@ namespace HorseRace
                     for (int i = 0; i < n; i++)
                     {
                         if (mounts[i] == null) continue;
-                        mounts[i].raceActive = false;
+                        mounts[i].SetRaceActive(false);
                         mounts[i].InputLocked = false;
                     }
                     if (localWasRider) SendCustomEventDelayedFrames(nameof(_TeleportLocalToLobby), 3);

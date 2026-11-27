@@ -25,7 +25,7 @@ namespace HorseRace
         [Tooltip("取った跡（ピンと紙の切れ端など、任意）")]
         public GameObject takenVisual;
         [Tooltip("カードの文字（任意。Start で文言を入れる）")]
-        public TMP_Text label;
+        public TextMeshPro label;
 
         private void Start()
         {

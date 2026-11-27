@@ -14,8 +14,8 @@ namespace HorseRace
     public class EntryLedger : UdonSharpBehaviour
     {
         public RaceManager raceManager;
-        [Tooltip("台帳のページ（TextMeshPro / TextMeshProUGUI、手書き風フォント）")]
-        public TMP_Text pageText;
+        [Tooltip("台帳のページ（TextMeshPro（3D）、手書き風フォント）")]
+        public TextMeshPro pageText;
         [Tooltip("ペンの音（任意）")]
         public AudioSource signSound;
 

@@ -17,7 +17,7 @@ namespace HorseRace
         [Tooltip("マスター以外が触ったときの小さな音（任意）")]
         public AudioSource tapSound;
         [Tooltip("札の文字（任意）")]
-        public TMP_Text noteText;
+        public TextMeshPro noteText;
 
         public override void Interact()
         {

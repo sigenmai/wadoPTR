@@ -17,8 +17,8 @@ namespace HorseRace
         public RaceManager raceManager;
         [Tooltip("古い紙の板（ワールド空間 Canvas など）。このオブジェクトの子にしない")]
         public GameObject hudRoot;
-        public TMP_Text rankText;
-        public TMP_Text timeText;
+        public TextMeshProUGUI rankText;
+        public TextMeshProUGUI timeText;
         [Tooltip("頭からの相対位置（左下の端）")]
         public Vector3 headOffset = new Vector3(-0.17f, -0.12f, 0.4f);
         [Tooltip("レバーの取っ手（任意。ON/OFF で傾ける）")]
@@ -26,7 +26,7 @@ namespace HorseRace
         public Vector3 leverOnEuler = new Vector3(-30f, 0f, 0f);
         public Vector3 leverOffEuler = new Vector3(30f, 0f, 0f);
         [Tooltip("レバー横の札（任意）")]
-        public TMP_Text leverLabel;
+        public TextMeshPro leverLabel;
 
         /// <summary>オプション：補助表示を出すか（ローカル、既定 ON）。</summary>
         public bool hudEnabled = true;

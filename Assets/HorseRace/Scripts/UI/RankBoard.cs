@@ -7,15 +7,18 @@ namespace HorseRace
     /// <summary>
     /// 沿道・チェックポイントの黒板。チョーク風の文字で順位を書く（RaceManager が同期を受けるたびに Refresh）。
     /// レース中 = 現在ステージの順位、ステージ結果 = 着順と獲得点、総合結果 = 合計点の順。
+    /// showLastRace（たまり場の黒板）ならロビー中は前回のレースの表。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class RankBoard : UdonSharpBehaviour
     {
         public RaceManager raceManager;
         [Tooltip("黒板の文字（TextMeshPro、チョーク風フォント）")]
-        public TMP_Text boardText;
+        public TextMeshPro boardText;
         [Tooltip("表示する人数の上限")]
         public int maxLines = 8;
+        [Tooltip("たまり場の黒板用：ロビー中は前回のレースの順位表（ステージ別の着順と総合ポイント）を書く")]
+        public bool showLastRace;
 
         private void Start()
         {
@@ -30,7 +33,7 @@ namespace HorseRace
             string s;
             if (st == RaceMath.STATE_LOBBY)
             {
-                s = "出走前";
+                s = showLastRace ? LastRaceText(rm) : "出走前";
             }
             else if (st == RaceMath.STATE_COUNTDOWN)
             {
@@ -73,6 +76,27 @@ namespace HorseRace
                 }
             }
             boardText.text = s;
+        }
+
+        /// <summary>前回のレース：「1位 名前  第1 1位／第2 3位／第3 2位  計24点」。</summary>
+        private string LastRaceText(RaceManager rm)
+        {
+            if (!rm.lastValid) return "前回のレース結果\n\nまだ記録がない";
+            string s = "前回のレース結果\n";
+            for (int row = 0; row < RaceManager.MAX_SLOTS && row < maxLines; row++)
+            {
+                string name = rm.lastName[row];
+                if (name == null || name.Length == 0) continue;
+                s += (row + 1).ToString() + "位 " + name + "  ";
+                for (int st = 0; st < RaceManager.STAGE_COUNT; st++)
+                {
+                    int place = rm.lastStagePlace[st * RaceManager.MAX_SLOTS + row];
+                    if (st > 0) s += "／";
+                    s += "第" + (st + 1).ToString() + " " + (place > 0 ? place.ToString() + "位" : "―");
+                }
+                s += "  計" + rm.lastTotal[row].ToString() + "点\n";
+            }
+            return s;
         }
     }
 }
