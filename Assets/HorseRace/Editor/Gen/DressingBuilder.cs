@@ -60,6 +60,8 @@ namespace HorseRace.EditorTools
                     : GenUtil.PlaceModel(path, parent, System.IO.Path.GetFileNameWithoutExtension(p.asset), w, p.yawDeg, p.scale, fb, Fallback);
                 if (p.rollDeg != 0f) go.transform.rotation = Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
                 if (p.scaleY != 1f || p.scaleZ != 1f) go.transform.localScale = new Vector3(s, s * p.scaleY, s * p.scaleZ);   // 縦に伸ばした岩（art-r2-08）・立てた丸太の杭（art-r3-02）
+                // art-r5-04：置き物ごとの色（切り通しの段の明暗）
+                if (p.tint != Color.white) GenUtil.RetintToon(go, p.tint, "Tier");
                 // 手直し用の安定した id（名前の末尾）。見えない壁の名前にも付くよう、壁を作る前に付ける
                 GenUtil.Tag(go, LayoutOverrides.IdFor(scope, p, index));
                 // 骨の馬・ラクダは Animator を外して動かない置き物にする（スターターの馬と同じ）
@@ -107,7 +109,7 @@ namespace HorseRace.EditorTools
                 Vector3 road = sb.Ground(WorldLayout.PointAtArc(sb.courseLocal, a).x, WorldLayout.PointAtArc(sb.courseLocal, a).z);
                 Vector3 g = sb.Ground(lp.x, lp.z);
                 float top = Mathf.Max(g.y, road.y) + 8f;
-                GenUtil.PointLight(air, "PassWallLight", new Vector3(g.x, road.y + (top - road.y) * lp.y + 2f, g.z), SetPieceBuilder.LampWarm,
+                GenUtil.PointLight(air, "PassWallLight", new Vector3(g.x, road.y + (top - road.y) * lp.y + 2f, g.z), LightingPlan.ForStage(sb.def.index).sunColor,   // art-r5-04：太陽の色
                     DressingPlan.PASS_WALL_LIGHT_RANGE, DressingPlan.PASS_WALL_LIGHT_INTENSITY);
             }
             foreach (var q in plan)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using HorseRace.EditorTools;
@@ -159,6 +160,105 @@ namespace HorseRace.Tests
                     Assert.LessOrEqual(slope, DressingPlan.POST_MAX_SLOPE_DEG + 0.01f, p.group);
                 }
             }
+        }
+
+        // ---- art-r5-04：切り通しの壁は 3 段の岩の重なり ----
+        [Test] public void PassWallIsStackedRockTiers()
+        {
+            var b = Stage(2);
+            var wall = b.plan.Where(p => p.group == "WallFace").ToList();
+            int dark = wall.Count(p => p.tint == ArtPalette.WallTierDark), light = wall.Count(p => p.tint == ArtPalette.WallTierLight);
+            TestContext.WriteLine($"wall {wall.Count}: light tiers {light}, dark tiers {dark}");
+            Assert.Greater(dark, 8, "中の段（暗い縞）");
+            Assert.Greater(light, 16, "下と上の段（明るい縞）");
+            Assert.IsFalse(wall.Any(p => p.asset == DressingPlan.DROCKS && p.height < 2f), "2m 未満の岩のかけらは置かない");
+            float pass = SetPieces.PassArc(b.def, b.goal);
+            var lights = DressingPlan.PassWallLights(b.def, b.local, b.goal);
+            Assert.AreEqual(2, lights.Count);
+            int side = DressingPlan.SunFacingWallSide(b.def, b.local, pass);
+            foreach (var l in lights)
+            {
+                float a = DressingPlan.NearestArc(b.local, DressingPlan.CourseArcs(b.local), l, out _);
+                Vector3 c = WorldLayout.PointAtArc(b.local, a), r = WorldLayout.RightOf(WorldLayout.TangentAtArc(b.local, a));
+                Assert.Greater(((l.x - c.x) * r.x + (l.z - c.z) * r.z) * side, 0f, "日の当たる側の壁");
+            }
+            Assert.AreEqual(25f, DressingPlan.PASS_WALL_LIGHT_RANGE);
+        }
+
+        // ---- art-r5-05：ステージの色の境目はまっすぐな線にならない ----
+        [Test] public void StageColourSeamIsIrregular()
+        {
+            for (int si = 0; si < 3; si++)
+            {
+                Vector3 o = StageDefinitions.All[si].Origin;
+                float S = StageDefinitions.SIZE;
+                var dists = new List<float>();
+                for (int edge = 0; edge < 4; edge++)
+                    for (float t = 25f; t < S; t += 50f)
+                    {
+                        Vector3 c, n;
+                        if (edge == 0) { c = new Vector3(o.x + t, 0f, o.z); n = new Vector3(0f, 0f, -1f); }
+                        else if (edge == 1) { c = new Vector3(o.x + S, 0f, o.z + t); n = new Vector3(1f, 0f, 0f); }
+                        else if (edge == 2) { c = new Vector3(o.x + t, 0f, o.z + S); n = new Vector3(0f, 0f, 1f); }
+                        else { c = new Vector3(o.x, 0f, o.z + t); n = new Vector3(-1f, 0f, 0f); }
+                        // 縁の内 160m から外 500m へ歩いて、重みが 0.5 を下回る所
+                        for (float d = -160f; d <= 500f; d += 5f)
+                        {
+                            Vector3 q = c + n * d;
+                            if (WorldBounds.StageColorWeight(si, q.x, q.z) < 0.5f) { dists.Add(d); break; }
+                        }
+                    }
+                float mean = 0f; foreach (float d in dists) mean += d; mean /= dists.Count;
+                float v = 0f; foreach (float d in dists) v += (d - mean) * (d - mean);
+                float sd = Mathf.Sqrt(v / dists.Count);
+                TestContext.WriteLine($"stage {si}: seam transition mean {mean:F0} m, stddev {sd:F1} m ({dists.Count} samples)");
+                Assert.Greater(dists.Count, 60);
+                Assert.Greater(sd, 25f, "色の境目は不規則");
+                // 縁の両側で同じ色（ステージと外の地面が同じ式で塗る）＝ 段にならない。奥はステージの土の色
+                Color inner = WorldBounds.GroundTint(o.x + S * 0.5f, o.z + S * 0.5f);
+                Assert.AreEqual(ArtPalette.Dirt(si).r, inner.r, 0.02f);
+            }
+            // 遠くは外の地面の色
+            Color far = WorldBounds.GroundTint(-20000f, -20000f);
+            Assert.AreEqual(ArtPalette.DirtOuter.g, far.g, 1e-3f);
+        }
+
+        // ---- art-r5-13 / art-r5-07：騎手の目の手前の細かい物・砂漠の道の縁の点線 ----
+        [TestCase(2)] [TestCase(0)] [TestCase(1)]
+        public void DenseNearFieldAtPassAndCorners(int i)
+        {
+            var b = Stage(i);
+            var cum = DressingPlan.CourseArcs(b.local);
+            var corners = StageDefinitions.TightCorners(b.def, b.local);
+            float pass = SetPieces.PassArc(b.def, b.goal);
+            int windows = Mathf.CeilToInt(b.goal / DressingPlan.BAND_WINDOW_M);
+            var counts = new int[windows];
+            foreach (var p in b.plan)
+            {
+                float a = DressingPlan.NearestArc(b.local, cum, p.position, out _);
+                if (DressingPlan.RoadClearance(b.def, b.local, cum, p.position) > DressingPlan.NEAR_FIELD_M) continue;
+                int k = Mathf.FloorToInt(a / DressingPlan.BAND_WINDOW_M);
+                if (k >= 0 && k < windows) counts[k]++;
+            }
+            int dense = 0;
+            for (int k = 0; k < windows; k++)
+            {
+                float c = (k + 0.5f) * DressingPlan.BAND_WINDOW_M;
+                if (c > b.goal - 60f || c < 80f) continue;
+                bool isDense = (pass >= 0f && Mathf.Abs(c - pass) < SetPieces.PASS_HALF_CUT) || corners.Exists(q => c >= q.fromArc && c <= q.toArc);
+                if (!isDense) continue;
+                dense++;
+                Assert.GreaterOrEqual(counts[k], DressingPlan.NEAR_PER_100M_DENSE, $"stage {i} window {k * 100}-{k * 100 + 100} m");
+            }
+            TestContext.WriteLine($"stage {i}: {dense} dense windows");
+            Assert.Greater(b.plan.Count(p => p.group == "Shoulder" && WorldLayout.DistToPolylineXZ(p.position, b.local) - StageDefinitions.HalfWidthAt(b.def, DressingPlan.NearestArc(b.local, cum, p.position, out _)) > DressingPlan.SHOULDER_BAND2_MIN - 0.5f), 20, "2 本目の帯");
+            if (i == 1)
+            {
+                int dots = b.plan.Count(p => p.group == "Shoulder" && p.asset == DressingPlan.RCOLL);
+                Assert.Greater(dots, (int)(b.goal / DressingPlan.SHOULDER_STEP_M * 0.5f), "砂漠の道の縁の点線");
+            }
+            Assert.AreEqual(0.13f, ArtPalette.GRAIN_AMP, 1e-4f);
+            Assert.AreEqual(0.11f, ArtPalette.SCUFF_AMP, 1e-4f);
         }
     }
 }

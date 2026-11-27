@@ -81,7 +81,13 @@ def terrain(stage):
     rock = np.clip((slope - 28) / 12, 0, 1) * (1 - S)
     dirt = stage.get("dirt", DIRT)
     sand_c = stage.get("sand", SAND)   # art-r4-06：ステージの主色の砂
-    col = np.array(dirt)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(sand_c) * S[..., None] + np.array(ROCK) * rock[..., None]
+    dirt_c = np.array(dirt)[None, None] * np.ones((*slope.shape, 1), np.float32)
+    gtp = os.path.join(ex, f"gt{i}.bin")
+    if os.path.exists(gtp):   # art-r5-05：土の色は縁から外へにじむ（WorldBounds.GroundTint）
+        _gd = open(gtp, "rb").read(); TRn = struct.unpack("<i", _gd[:4])[0]
+        GT = np.frombuffer(_gd[4:], dtype="<f4").reshape(TRn, TRn, 3)
+        dirt_c = np.stack([np.asarray(Image.fromarray(GT[..., k].astype(np.float32), mode="F").resize(slope.shape[::-1], Image.BILINEAR), np.float32) for k in range(3)], -1)
+    col = dirt_c * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(sand_c) * S[..., None] + np.array(ROCK) * rock[..., None]
     # art-r4-02：道の外の粒（3.5m）とまだら（45m）。ToonTerrain の _GrainAmp 0.07・_MottleAmp 0.05 と同じ考え方の値ノイズ
     ny, nx = slope.shape
     yy, xx = np.mgrid[0:ny, 0:nx].astype(np.float32) * (size / (nx - 1))
@@ -383,6 +389,20 @@ def place(plan, origin, ground=None):
             if q.get("sv"):   # 引き伸ばし（Unity のローカル x, y, z）。取り込んだ部品のメッシュの軸は Unity と同じ（x, y = 上, z）で、
                 sv = q["sv"]   # 軸の補正はオブジェクトの回転（X 90°）にある（Blender で WoodLogs_01 のメッシュを測って確認：1.45 × 0.32 × 0.99）
                 o.scale = (src.scale[0] * sv[0], src.scale[1] * sv[1], src.scale[2] * sv[2])
+            if q.get("t"):   # art-r5-04：置き物ごとの色（切り通しの段の明暗）
+                tt = q["t"]
+                for slot in o.material_slots:
+                    if slot.material is None or not slot.material.use_nodes: continue
+                    m2 = slot.material.copy(); bs2 = m2.node_tree.nodes.get("Principled BSDF")
+                    if bs2 is not None and not bs2.inputs["Base Color"].is_linked:
+                        c2 = list(bs2.inputs["Base Color"].default_value)
+                        bs2.inputs["Base Color"].default_value = (c2[0] * tt[0], c2[1] * tt[1], c2[2] * tt[2], 1)
+                    elif bs2 is not None:
+                        mix = m2.node_tree.nodes.new("ShaderNodeMixRGB"); mix.blend_type = "MULTIPLY"; mix.inputs[0].default_value = 1.0
+                        src_ = bs2.inputs["Base Color"].links[0].from_socket
+                        m2.node_tree.links.new(src_, mix.inputs[1]); mix.inputs[2].default_value = (*tt, 1)
+                        m2.node_tree.links.new(mix.outputs[0], bs2.inputs["Base Color"])
+                    slot.material = m2
             n += 1
     return n
 
@@ -453,6 +473,18 @@ ff = [(j * FN + i, j * FN + i + 1, (j + 1) * FN + i + 1, (j + 1) * FN + i) for j
 fme = bpy.data.meshes.new("OuterGround"); fme.from_pydata(fv, [], ff)
 fo = bpy.data.objects.new("OuterGround", fme); sc.collection.objects.link(fo)
 fo.data.materials.append(mat_color("Filler", srgb2lin(W.get("fillerDirt", (0.86, 0.72, 0.52)))))   # art-r3-10：外の地面はステージの土の色
+# art-r5-05：外の地面の土は近いステージの色へにじむ（gtf.bin = WorldBounds.GroundTint）。頂点の色で塗る
+_gfp = os.path.join(ex, "gtf.bin")
+if os.path.exists(_gfp):
+    _gf = open(_gfp, "rb").read(); GTN = struct.unpack("<i", _gf[:4])[0]; GX0, GZ0, GX1, GZ1 = struct.unpack("<ffff", _gf[4:20])
+    GTF = np.frombuffer(_gf[20:], dtype="<f4").reshape(GTN, GTN, 3)
+    ca = fme.color_attributes.new("Tint", "FLOAT_COLOR", "POINT")
+    for vi, v in enumerate(fme.vertices):
+        gx_ = int(round((v.co.x - GX0) / (GX1 - GX0) * (GTN - 1))); gz_ = int(round((v.co.y - GZ0) / (GZ1 - GZ0) * (GTN - 1)))
+        c_ = GTF[min(max(gz_, 0), GTN - 1), min(max(gx_, 0), GTN - 1)]
+        ca.data[vi].color = (*srgb2lin(list(c_)), 1)
+    _fm = fo.data.materials[0]; _vc = _fm.node_tree.nodes.new("ShaderNodeVertexColor"); _vc.layer_name = "Tint"
+    _fm.node_tree.links.new(_vc.outputs["Color"], _fm.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
 for p_ in fme.polygons: p_.use_smooth = True
 
 # 空と光

@@ -76,6 +76,8 @@ namespace HorseRace.EditorTools
             // course-r3-14：スタート・ゴールの線（道を横切る明るい土の帯、地形の塗りだけ）を道のマスクの B へ
             float[,] lines = HeightmapGen.LineMask(StageDefinitions.ALPHAMAP_RES, def, sb.courseLocal, sb.goalArc);
             ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailSigned, lines, TRAIL_TEX_RES), "Stage" + (def.index + 1), def.index);
+            // art-r5-05：縁の 160m の土の色は外の地面と同じ式（WorldBounds.GroundTint）で外へにじむ
+            ApplyGroundTint(sb.terrain, GroundTintTexture("Stage" + (def.index + 1), def.Origin, StageDefinitions.SIZE, StageDefinitions.SIZE, GROUND_TINT_RES), ArtPalette.Dirt(def.index));
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -282,6 +284,44 @@ namespace HorseRace.EditorTools
             return TrailTexture(name, trail, dist, null, Mathf.Max(res, LOBBY_TRAIL_TEX_RES));
         }
 
+        /// <summary>art-r5-05：地面の土の色のテクスチャの解像度（ステージ 1000m → 1 texel ≈ 4m、外の地面は 512）。</summary>
+        public const int GROUND_TINT_RES = 256, FILLER_TINT_RES = 512;
+
+        /// <summary>
+        /// art-r5-05：ワールドの長方形 [origin, origin + size] の土の色（RGB = WorldBounds.GroundTint、A = 1）を res × res で
+        /// Generated/Terrain/&lt;name&gt;_Tint.asset に保存する。ToonTerrain が土のレイヤーの色をこの色へ置き換える（模様の明暗は残す）。
+        /// </summary>
+        public static Texture2D GroundTintTexture(string name, Vector3 origin, float sizeX, float sizeZ, int res)
+        {
+            var tex = new Texture2D(res, res, TextureFormat.RGBA32, false);
+            var px = new Color[res * res];
+            for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++)
+                {
+                    Color c = WorldBounds.GroundTint(origin.x + x / (float)(res - 1) * sizeX, origin.z + z / (float)(res - 1) * sizeZ);
+                    px[z * res + x] = new Color(c.r, c.g, c.b, 1f);
+                }
+            tex.SetPixels(px);
+            tex.Apply();
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
+            GenUtil.EnsureFolder(GenUtil.GEN_TERRAIN);
+            string path = GenUtil.GEN_TERRAIN + "/" + name + "_Tint.asset";
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null) AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(tex, path);
+            return tex;
+        }
+
+        /// <summary>art-r5-05：地形のマテリアル（ApplyToonMaterial の後）に土の色のテクスチャ（_TintTex）と、土のレイヤーのもとの色（_DirtBase）を付ける。</summary>
+        public static void ApplyGroundTint(Terrain t, Texture2D tint, Color dirtBase)
+        {
+            var m = t.materialTemplate;
+            if (m == null || tint == null || !m.HasProperty("_TintTex")) return;
+            m.SetTexture("_TintTex", tint);
+            m.SetColor("_DirtBase", dirtBase);
+            EditorUtility.SetDirty(m);
+        }
+
         /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>
         public static void ApplyToonMaterial(Terrain t, Texture2D trail, string name, int stage)
         {
@@ -455,6 +495,8 @@ namespace HorseRace.EditorTools
             var roadW = new Vector3[road.Length];
             for (int i = 0; i < road.Length; i++) roadW[i] = WorldBounds.LOBBY_CENTER + road[i];
             ApplyToonMaterial(terrain, PathTrailTexture("OuterGround", new Vector3(f.x, 0f, f.y), sizeX, sizeZ, 2048, roadW, LobbyLayout.APPROACH_HALF_M), "OuterGround", 0);
+            // art-r5-05：外の地面の土はステージから 350m までそのステージの土の色へ（3 つの土の色が外へにじむ。岩・地層の縞のレイヤーは残す）
+            ApplyGroundTint(terrain, GroundTintTexture("OuterGround", new Vector3(f.x, 0f, f.y), sizeX, sizeZ, FILLER_TINT_RES), ArtPalette.DirtOuter);
             DressingBuilder.SetStatic(tgo);
             return terrain;
         }

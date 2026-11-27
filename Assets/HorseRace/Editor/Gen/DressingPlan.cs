@@ -23,6 +23,7 @@ namespace HorseRace.EditorTools
         public bool background;     // 背景専用（メサ・厩舎：見えない壁で囲む）
         public bool lamp;           // art-r4-14：立てた丸太の柱の上に暖色の灯り（DressingBuilder が付ける。野の街灯の代わり）
         public float groundR = -1f; // art-r5-03：接地を調べた足元の半径（m、木・サボテンは幹）。< 0 = FootprintRadius
+        public Color tint = Color.white;   // art-r5-04：この置き物だけに掛ける色（切り通しの段の明暗の縞）。白 = 素材の決まりのまま
     }
 
     /// <summary>
@@ -560,12 +561,13 @@ namespace HorseRace.EditorTools
             "MinersCamp", "Caravan", "WaterStop", "GoalOutpost", "RimRocks", "FarRocks", "CliffSkirt", "TreeLine",
             "MesaFloor", "RailHalt", "StreetDressing", "PlateEdge", "PassFloor", "MesaGate", "WallFace", "PassLamp", "PassBeacon",
             "Shoulder", "DuneWreck",
+            "DuneFence",   // art-r5-07：砂丘の脇の低い柵（線の目印）
         };
 
         /// <summary>道のすぐ脇（ROAD_MIN、平らな道 ±12m の外）に意図して置くグループ。それ以外は ROAD_CLEAR より外。</summary>
         public static readonly HashSet<string> NearRoadGroups = new HashSet<string> { "Roadside", "GoalTown", "CanyonFloor", "GuideLine", "MesaGate", "MesaSaddle", "CornerSilhouette", "GoalOutpost",
             "Railway", "RanchYard", "StartTown", "RoadIsland", "NotchFrame", "BarrierLine", "Fork", "MesaFloor", "PassFloor", "StreetDressing", "RailHalt", "WallFace", "PassLamp",
-            "DuneWreck", "Caravan" };   // art-r4-18：砂漠の道の近くの荷車・ラクダの隊列
+            "DuneWreck", "Caravan", "DuneFence" };   // art-r4-18：砂漠の道の近くの荷車・ラクダの隊列
 
         public static bool IsSmall(Placement p) => p.height < LARGE_MIN_H;
 
@@ -708,7 +710,7 @@ namespace HorseRace.EditorTools
         /// 線の目印（art-r3-03：カーブの外側の途切れない柵）。同じ柵の板が続くのが目的なので、素材の割合（KEY/PACK_SHARE_MAX）と
         /// 小物の割合（SMALL_SHARE_MAX）の数に入れない（数えると柵が途中で間引かれて途切れる）。
         /// </summary>
-        public static readonly HashSet<string> LineGroups = new HashSet<string> { "GuideLine", "Shoulder" };   // art-r4-02：路肩の小石も途切れさせない
+        public static readonly HashSet<string> LineGroups = new HashSet<string> { "GuideLine", "Shoulder", "DuneFence" };   // art-r4-02：路肩の小石も途切れさせない
 
         /// <summary>割合の上限をかけない（1 か所だけの、形の決まったまとまり）。数には入る。</summary>
         public static readonly HashSet<string> ShareExempt = new HashSet<string>
@@ -1111,6 +1113,7 @@ namespace HorseRace.EditorTools
             GuideTowers(w, def, goalArc);     // 先へ誘う塔（course-r2-11、急カーブの出口の「ここを見ろ」= course-r2-08）
             GuideLine(w, def, goalArc);       // 道の目印（カーブの外側の杭・柵、直線の標柱）
             Shoulder(w, def, goalArc);        // 路肩の小石・草（art-r4-02：平らな色の面を割る）
+            if (def.kind == HeightmapGen.KIND_DUNES) DuneFence(w, def, goalArc);   // art-r5-07：砂丘の面の脇の低い柵
             Vignettes(w, def, goalArc);       // 道から 30〜60m の人の大きさの見どころ（art-r2-05）
             if (def.kind == HeightmapGen.KIND_CANYON) Canyon(w, def, goalArc);
             else if (def.kind == HeightmapGen.KIND_DUNES) Dunes(w, def, goalArc);
@@ -1332,7 +1335,13 @@ namespace HorseRace.EditorTools
         }
 
         // ---- art-r4-02：路肩（道の縁の外 1〜5m の小石・草） ----
-        public const float SHOULDER_STEP_M = 5f, SHOULDER_LAT_MIN = 1f, SHOULDER_LAT_MAX = 5f;
+        public const float SHOULDER_STEP_M = 5f, SHOULDER_LAT_MIN = 1f, SHOULDER_LAT_MAX = 9f;   // art-r5-13：5 → 9m（2 本目の帯 6〜9m）
+        /// <summary>art-r5-13：2 本目の帯（道の縁の外 6〜9m、4m ごと）を置く区間（切り通し・急カーブ・近道の入口）の草と小石。</summary>
+        public const float SHOULDER_BAND2_MIN = 6f, SHOULDER_BAND2_STEP_M = 4f;
+        /// <summary>art-r5-13：近景の密度（100m ごとの道から 30m 以内の数）を上げる区間（境目の切り通し、荒野・砂漠の急カーブ）。</summary>
+        public const int NEAR_PER_100M_DENSE = 16;
+        /// <summary>art-r5-07：砂漠の道の縁の点線（4.5〜5m、2 つおき）。</summary>
+        public const float DUNE_EDGE_DOT_MIN = 4.5f, DUNE_EDGE_DOT_MAX = 5f;
         public const float SHOULDER_PEBBLE_MIN = 0.6f, SHOULDER_PEBBLE_MAX = 1.0f;
         static readonly string[] ShoulderPebbles = Every8From("RockCollection", 104, 184);
         static readonly string[] ShoulderGrass = { "DesertProps_22", "DesertProps_23" };
@@ -1372,7 +1381,7 @@ namespace HorseRace.EditorTools
                 for (int tries = 0; tries < 4 && !ok; tries++)   // 札・門の円や斜面に当たったら反対側・別の横の距離で
                 {
                 float sd = (k + tries) % 2 == 0 ? 1f : -1f;
-                float lat = hw + w.Rand(SHOULDER_LAT_MIN, SHOULDER_LAT_MAX);
+                float lat = hw + w.Rand(SHOULDER_LAT_MIN, SHOULDER_BAND2_MIN - 1f);
                 Vector3 p = w.Side(a + w.Rand(-1.5f, 1.5f), sd * lat);
                 if (k % 3 != 2) ok = w.Add(G, RCOLL, w.Pick(ShoulderPebbles), p, w.Rand(0f, 360f), w.Rand(SHOULDER_PEBBLE_MIN, SHOULDER_PEBBLE_MAX), 0.05f,
                     HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
@@ -1381,7 +1390,85 @@ namespace HorseRace.EditorTools
                 else ok = w.Add(G, CACTI, "Cacti_09", p, w.Rand(0f, 360f), 0.5f, 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
                 }
                 if (ok) { var q = w.list[w.list.Count - 1]; q.collider = false; q.shape = SHAPE_NONE; }
+                // art-r5-07：砂漠は両側の道の縁に点線（2 つおきに小石の塊、4.5〜5m：砂と同じ明るさの道の縁を読ませる）
+                if (def.kind == HeightmapGen.KIND_DUNES && k % 2 == 0)
+                    for (int s2 = -1; s2 <= 1; s2 += 2)
+                        if (w.Add(G, RCOLL, ShoulderPebbles[(k / 2 + s2 + 2) % ShoulderPebbles.Length], w.Side(a, s2 * (hw + w.Rand(DUNE_EDGE_DOT_MIN, DUNE_EDGE_DOT_MAX))), w.Rand(0f, 360f),
+                                SHOULDER_PEBBLE_MAX, 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f))
+                        { var q = w.list[w.list.Count - 1]; q.collider = false; q.shape = SHAPE_NONE; }
             }
+            // art-r5-13：2 本目の帯（6〜9m、4m ごと、左右）：切り通し・急カーブ・近道の入口。騎手の目の高さの手前 10m に細かい物を
+            var corners = StageDefinitions.TightCorners(def, w.course);
+            float pass = SetPieces.PassArc(def, goalArc);
+            float sca = ShortcutEntryArc(w);
+            int j = 0;
+            for (float a = 0f; a < goalArc; a += SHOULDER_BAND2_STEP_M, j++)
+            {
+                if (ShoulderSkip(def, goalArc, a) || !DenseNearArc(def, corners, pass, sca, a)) continue;
+                float hw = StageDefinitions.HalfWidthAt(def, a);
+                for (int sd = -1; sd <= 1; sd += 2)
+                {
+                    Vector3 p = w.Side(a + w.Rand(-1.2f, 1.2f), sd * (hw + w.Rand(SHOULDER_BAND2_MIN, SHOULDER_LAT_MAX)));
+                    bool ok = (j + sd) % 2 == 0
+                        ? w.Add(G, DPROPS, ShoulderGrass[(j / 2) % ShoulderGrass.Length], p, w.Rand(0f, 360f), w.Rand(0.6f, 0.9f), 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f)
+                        : w.Add(G, RCOLL, w.Pick(ShoulderPebbles), p, w.Rand(0f, 360f), w.Rand(SHOULDER_PEBBLE_MIN, SHOULDER_PEBBLE_MAX), 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
+                    if (ok) { var q = w.list[w.list.Count - 1]; q.collider = false; q.shape = SHAPE_NONE; }
+                }
+            }
+        }
+
+        // ---- art-r5-07：砂丘の脇の低い柵 ----
+        /// <summary>道の縁から DUNE_FENCE_OUT_M の所に、道の縁の外 DUNE_FENCE_PROBE_M の地面が道より DUNE_FENCE_RISE_M 以上高い（砂丘の面が道に迫る）区間だけ。</summary>
+        public const float DUNE_FENCE_OUT_M = 4f, DUNE_FENCE_PROBE_M = 9f, DUNE_FENCE_RISE_M = 1.5f;
+
+        /// <summary>
+        /// 砂漠の低い柵（art-r5-07）：道の脇に砂丘の面が迫る直線の区間（カーブの柵 GuideFenceRuns の外）に、道の縁 + 3m の線で FarmProps_03 を端と端でつなぐ。
+        /// 前は柵の線が砂丘を登っていき、騎手から道の縁が分からなかった（明るい道の色と合わせて、道の縁を線で読ませる）。
+        /// </summary>
+        static void DuneFence(Work w, StageDef def, float goalArc)
+        {
+            const string G = "DuneFence";
+            var runs = GuideFenceRuns(def, w.course, goalArc);
+            int piece = 0;
+            for (int sd = -1; sd <= 1; sd += 2)
+            {
+                bool have = false;
+                Vector3 joint = Vector3.zero;
+                for (float a = StageDefinitions.START_ARC_M + 40f; a < goalArc - 40f; a += 1f)
+                {
+                    bool skip = ShoulderSkip(def, goalArc, a);
+                    foreach (var run in runs) if (a >= run.fromArc - 10f && a <= run.toArc + 10f) skip = true;
+                    float hw = StageDefinitions.HalfWidthAt(def, a);
+                    Vector3 c = WorldLayout.PointAtArc(w.course, a), pr = w.Side(a, sd * (hw + DUNE_FENCE_PROBE_M));
+                    bool rise = w.Ground(pr.x, pr.z) - w.Ground(c.x, c.z) >= DUNE_FENCE_RISE_M;
+                    Vector3 q = w.Side(a, sd * (hw + DUNE_FENCE_OUT_M));
+                    if (skip || !rise) { have = false; continue; }
+                    if (!have) { joint = q; have = true; continue; }
+                    if (WorldLayout.DistXZ(joint, q) < RAIL_LEN) continue;
+                    Vector3 d = new Vector3(q.x - joint.x, 0f, q.z - joint.z).normalized;
+                    Vector3 j2 = joint + d * RAIL_LEN;
+                    if (w.Add(G, FARM, "FarmProps_03", (joint + j2) * 0.5f, WorldLayout.YawDeg(d) + 90f, 1f, 0.05f, ROAD_MIN, rOverlap: 0f, fixedSpot: true))
+                    { var p = w.list[w.list.Count - 1]; p.collider = false; p.shape = SHAPE_NONE; piece++; }
+                    joint = j2;
+                }
+            }
+        }
+
+        /// <summary>art-r5-13：近景を濃くする弧長か（境目の切り通し ±(PASS_HALF_CUT + 25m)、急カーブの前後 20m、近道の入口 ±40m）。</summary>
+        public static bool DenseNearArc(StageDef def, List<StageDefinitions.Corner> corners, float pass, float shortcutArc, float a)
+        {
+            if (pass >= 0f && Mathf.Abs(a - pass) < SetPieces.PASS_HALF_CUT + 25f) return true;
+            if (shortcutArc >= 0f && Mathf.Abs(a - shortcutArc) < 40f) return true;
+            foreach (var c in corners) if (a >= c.fromArc - 20f && a <= c.toArc + 20f) return true;
+            return false;
+        }
+
+        /// <summary>近道の入口の弧長（無ければ −1）：近道の通路の始まり（capA）にいちばん近いコースの弧長。</summary>
+        static float ShortcutEntryArc(Work w)
+        {
+            if (w.capR <= 0f) return -1f;
+            float d;
+            return NearestArc(w.course, w.cum, w.capA, out d);
         }
 
         // ---- course-r2-13：広場の二股（同じ長さの 2 本の線） ----
@@ -2707,6 +2794,12 @@ namespace HorseRace.EditorTools
             for (float a = pass - SetPieces.PASS_HALF_CUT - 10f; a <= pass + SetPieces.PASS_HALF_CUT + 10f; a += PASS_LAMP_STEP_M)
                 for (int sd = -1; sd <= 1; sd += 2)
                     w.AddLampPost("PassLamp", w.Side(a + (sd > 0 ? 7.5f : 0f), sd * (StageDefinitions.HalfWidthAt(def, a) + PASS_LAMP_OUT_M)), w.YawAt(a) + (sd > 0 ? -90f : 90f));   // art-r4-04/14
+            // art-r5-04：入口（口）の両脇に灯りの柱の対（暖色の灯り。切り通しの入口を額縁にする）
+            {
+                float ma = pass - SetPieces.PASS_HALF_CUT - 18f;
+                for (int sd = -1; sd <= 1; sd += 2)
+                    w.AddLampPost("PassLamp", w.Side(ma, sd * (StageDefinitions.HalfWidthAt(def, ma) + PASS_LAMP_OUT_M)), w.YawAt(ma) + (sd > 0 ? -90f : 90f));
+            }
             // (c) 出口の先の目印（道の延長線の上、道から離れた所）
             float exit = pass + SetPieces.PASS_HALF_CUT;
             Vector3 ep = WorldLayout.PointAtArc(w.course, exit), et = WorldLayout.TangentAtArc(w.course, exit);
@@ -2797,23 +2890,81 @@ namespace HorseRace.EditorTools
                 CLIFF_SINK * cs.h * sc * 1.5f, ROAD_MIN, rBounds: r * STRETCHED_ROCK_FOOTPRINT, rOverlap: 0f, background: true, scaleY: 1.5f);
         }
 
-        /// <summary>境目の切り通しの両脇の壁の面（course-r3-03 → art-r4-04）：壁の盛り上がる区間（切り通しの中心 ±(PASS_HALF_CUT + 25m)）に 6m ごと、頂は 18m ごと。</summary>
+        // ---- art-r5-04：切り通しの壁は 3 段の大きな岩の重なり ----
+        public const float WALL_TIER_STEP_M = 9f;
+        /// <summary>段の高さ（道からの m）：下の段・+7m・+14m。</summary>
+        public static readonly float[] WALL_TIER_H = { 0.5f, 7f, 14f };
+        /// <summary>壁の面から道の側へ引き出す量（× 外形の半径）：岩の厚さのおよそ 45% が壁から出る（前の CLIFF_SINK 0.22 では 60° の壁にほとんど埋まり、薄いかけらに見えた）。</summary>
+        public const float WALL_TIER_PULL = 0.3f;
+        public const float WALL_TIER_MESAB_MIN = 0.42f, WALL_TIER_MESAB_MAX = 0.55f;   // 中の段：メサ B（外形 25m・高さ 30m）× 0.42〜0.55 = 高さ 13〜17m
+        public const float WALL_TIER_ROCK_MIN = 0.6f, WALL_TIER_ROCK_MAX = 0.85f;      // 下・上の段：大岩 DesertRocks_01〜03
+
+        /// <summary>
+        /// 境目の切り通しの両脇の壁（course-r3-03 → art-r4-04 → art-r5-04）：WALL_TIER_STEP_M ごとに、両側の壁に 3 段（道 + 0.5m・+7m・+14m の高さの所）。
+        /// 下と上の段は大岩（DesertRocks_01〜03、縦に少し伸ばす）、中の段はメサ B。広い面を道へ（art-r1-03）、壁から厚さの 45% を道の側へ出す。
+        /// 色は段ごとに明・暗・明（ArtPalette.WallTierLight / WallTierDark：StrataLightBorder / StrataDarkBorder の比）で、なめらかな地形の面ではなく段の付いた岩の壁に見せる。
+        /// Cliffs（崖の板）は道から 260m 以内に置かない決まり（art-r3-05：近くでは平らな箱に見える）なので使わない。1 か所おきに壁の足元にがれき（RockSetStylized）、頂は WallCrest。
+        /// </summary>
         static void PassWallFaces(Work w, StageDef def, float pass)
         {
+            const string G = "WallFace";
             int k = 0;
             float a0 = pass - SetPieces.PASS_HALF_CUT - 25f, a1 = pass + SetPieces.PASS_HALF_CUT + 25f;
-            for (float a = a0; a <= a1; a += WALL_FACE_STEP_M, k++)
+            for (float a = a0; a <= a1; a += WALL_TIER_STEP_M, k++)
+            {
+                Vector3 c = WorldLayout.PointAtArc(w.course, a);
+                float roadY = w.Ground(c.x, c.z), hw = StageDefinitions.HalfWidthAt(def, a), roadYaw = w.YawAt(a);
                 for (int sd = -1; sd <= 1; sd += 2)
-                    WallFace(w, def, a, sd, SetPieces.PASS_WALL_FROM, SetPieces.PASS_WALL_TO, k * 2 + (sd > 0 ? 1 : 0));
-            int c = 0;
-            for (float a = a0 + 4f; a <= a1; a += WALL_CREST_STEP_M, c++)
+                {
+                    int kk = k * 2 + (sd > 0 ? 1 : 0);
+                    for (int tier = 0; tier < WALL_TIER_H.Length; tier++)
+                    {
+                        float lat = WallLatAt(w, a, sd, roadY + WALL_TIER_H[tier], hw + 1f, SetPieces.PASS_WALL_TO + SetPieces.PASS_WALL_FADE);
+                        if (lat < 0f) continue;   // 切り通しの端：壁がその高さまで無い
+                        bool mesa = tier == 1;
+                        string asset = mesa ? MESAB : DROCKS, part = mesa ? null : RockBig[(kk + tier) % RockBig.Length];
+                        float t01 = ((kk * 7 + tier * 3) % 5) / 4f;
+                        float sc = mesa ? Mathf.Lerp(WALL_TIER_MESAB_MIN, WALL_TIER_MESAB_MAX, t01) : Mathf.Lerp(WALL_TIER_ROCK_MIN, WALL_TIER_ROCK_MAX, t01);
+                        float sy = mesa ? 1f : (tier == 0 ? 1.3f : 1.2f);
+                        Size sz = SizeOf(asset, part);
+                        float r = sz.r * sc, foot = r * (mesa ? MESA_GATE_FOOTPRINT : STRETCHED_ROCK_FOOTPRINT);
+                        float minLat = hw + ROAD_MIN - HeightmapGen.RUNWAY_M + foot + 0.5f;
+                        float place = Mathf.Max(minLat, lat - WALL_TIER_PULL * r + foot * 0.5f);
+                        float yaw = mesa ? roadYaw + (sd < 0 ? 0f : 180f) : roadYaw + (sd < 0 ? 90f : -90f);
+                        if (!w.Add(G, asset, part, w.Side(a + (tier - 1) * 2.5f, sd * place), yaw + w.Rand(-WALL_MID_YAW_JITTER, WALL_MID_YAW_JITTER), sc,
+                                0.12f * sz.h * sc * sy, ROAD_MIN, rBounds: foot, rOverlap: 0f, scaleY: sy, fixedSpot: true))
+                            continue;
+                        w.list[w.list.Count - 1].tint = mesa ? ArtPalette.WallTierDark : ArtPalette.WallTierLight;
+                    }
+                    if (kk % 2 == 1)
+                    {
+                        string sp = ScreeParts[kk / 2 % ScreeParts.Length];
+                        float edge = hw + WALL_SCREE_MIN_EDGE_M + SizeOf(RSTYL, sp).r * 1.3f;
+                        w.Add(G, RSTYL, sp, w.Side(a - 3f, sd * edge), w.Rand(0f, 360f), 1.3f, 0.1f, ROAD_MIN);
+                    }
+                }
+            }
+            int cc = 0;
+            for (float a = a0 + 4f; a <= a1; a += WALL_CREST_STEP_M, cc++)
                 for (int sd = -1; sd <= 1; sd += 2)
-                    WallCrest(w, def, a, sd, SetPieces.PASS_WALL_TO, c * 2 + (sd > 0 ? 1 : 0));
+                    WallCrest(w, def, a, sd, SetPieces.PASS_WALL_TO, cc * 2 + (sd > 0 ? 1 : 0));
+        }
+
+        /// <summary>弧長 a・側 sd で、地面が y 以上になる最初の横の距離（m、latMin〜latMax を 1m ごと）。届かなければ −1。</summary>
+        static float WallLatAt(Work w, float a, int sd, float y, float latMin, float latMax)
+        {
+            for (float lat = latMin; lat <= latMax; lat += 1f)
+            {
+                Vector3 q = w.Side(a, sd * lat);
+                if (w.Ground(q.x, q.z) >= y) return lat;
+            }
+            return -1f;
         }
 
         // ---- art-r4-04：切り通しの壁の灯り（日の当たる側の段を光で分ける） ----
         public const int PASS_WALL_LIGHTS_PER_SIDE = 2;
-        public const float PASS_WALL_LIGHT_RANGE = 45f, PASS_WALL_LIGHT_INTENSITY = 0.5f, PASS_WALL_LIGHT_AT = 0.5f;
+        /// <summary>art-r5-04：日の当たる側の壁だけに 2 つ（切り通しの 1/3 と 2/3）、太陽の色・範囲 25m・強さ 1.5（壁の段を照らす。前は両側に 45m・0.5）。</summary>
+        public const float PASS_WALL_LIGHT_RANGE = 25f, PASS_WALL_LIGHT_INTENSITY = 1.5f, PASS_WALL_LIGHT_AT = 0.5f;
 
         /// <summary>
         /// 切り通しの壁の灯り（art-r4-04）：両側の壁にそれぞれ 2 つ、壁の真ん中（横 = 壁の 50%）の切り通しの中心 ±PASS_HALF_CUT/2 に。
@@ -2825,16 +2976,28 @@ namespace HorseRace.EditorTools
             float pass = SetPieces.PassArc(def, goalArc);
             if (pass < 0f) return r;
             float lat = SetPieces.PASS_WALL_FROM + (SetPieces.PASS_WALL_TO - SetPieces.PASS_WALL_FROM) * 0.5f;
-            for (int sd = -1; sd <= 1; sd += 2)
-                for (int i = 0; i < PASS_WALL_LIGHTS_PER_SIDE; i++)
-                {
-                    float a = pass + (i == 0 ? -0.5f : 0.5f) * SetPieces.PASS_HALF_CUT;
-                    Vector3 t = WorldLayout.TangentAtArc(course, a);
-                    // 壁の手前（道の側）に寄せて、日の当たる面を照らす
-                    Vector3 p = WorldLayout.PointAtArc(course, a) + WorldLayout.RightOf(t) * (sd * (lat - 6f));
-                    r.Add(new Vector3(p.x, PASS_WALL_LIGHT_AT, p.z));
-                }
+            int sun = SunFacingWallSide(def, course, pass);
+            for (int i = 0; i < PASS_WALL_LIGHTS_PER_SIDE; i++)
+            {
+                float a = pass - SetPieces.PASS_HALF_CUT + 2f * SetPieces.PASS_HALF_CUT * (i + 1) / (PASS_WALL_LIGHTS_PER_SIDE + 1f);   // 1/3・2/3
+                Vector3 t = WorldLayout.TangentAtArc(course, a);
+                // 壁の手前（道の側）に寄せて、日の当たる面を照らす
+                Vector3 p = WorldLayout.PointAtArc(course, a) + WorldLayout.RightOf(t) * (sun * (lat - 6f));
+                r.Add(new Vector3(p.x, PASS_WALL_LIGHT_AT, p.z));
+            }
             return r;
+        }
+
+        /// <summary>切り通しの日の当たる側の壁（+1 = 右、−1 = 左）：壁の面の道へ向く向きが太陽の方を向く側。</summary>
+        public static int SunFacingWallSide(StageDef def, Vector3[] course, float pass)
+        {
+            Vector3 e = LightingPlan.ForStage(def.index).sunEuler;
+            // Quaternion.Euler(x, y, 0) * forward = (sin y · cos x, −sin x, cos y · cos x)。太陽へ向かう向きはその逆
+            float px = e.x * Mathf.Deg2Rad, py = e.y * Mathf.Deg2Rad;
+            Vector3 toSun = new Vector3(-Mathf.Sin(py) * Mathf.Cos(px), Mathf.Sin(px), -Mathf.Cos(py) * Mathf.Cos(px));
+            Vector3 right = WorldLayout.RightOf(WorldLayout.TangentAtArc(course, pass));
+            // 右の壁の面は道（−右）を向く
+            return (-right.x * toSun.x - right.z * toSun.z) > 0f ? 1 : -1;
         }
 
         // ---- art-r4-18：砂漠の道の近くの暮らしの跡 ----
@@ -2859,9 +3022,9 @@ namespace HorseRace.EditorTools
                 {
                     float sd = ((k + tries) % 2 == 0) ? 1f : -1f;
                     float lat = StageDefinitions.HalfWidthAt(def, a) + w.Rand(DUNE_WRECK_LAT_MIN, DUNE_WRECK_LAT_MAX);
-                    Vector3 p = w.Side(a + tries * 12f, sd * lat);
+                    Vector3 p = w.Side(a + tries * 4f, sd * lat);
                     Size cs = SizeOf(WTOWN, TOWN_CART);
-                    if (!w.Add(G, WTOWN, TOWN_CART, p, w.YawAt(a) + w.Rand(-60f, 60f), 1f, DUNE_WRECK_SINK * cs.h, ROAD_MIN, roll: DUNE_WRECK_TILT * (tries % 2 == 0 ? 1f : -1f)))
+                    if (!w.Add(G, WTOWN, TOWN_CART, p, w.YawAt(a) + w.Rand(-60f, 60f), 1f, DUNE_WRECK_SINK * cs.h, ROAD_MIN, roll: DUNE_WRECK_TILT * (tries % 2 == 0 ? 1f : -1f), fixedSpot: true))
                         continue;
                     // art-r5-03：骨は骨のまとまりだけ（art-r3-06）。荷車の脇は草と小石
                     w.Add(G, DPROPS, DpGrass[k % DpGrass.Length], p + new Vector3(2.2f, 0f, 1.4f), w.Rand(0f, 360f), 1.1f, 0.05f, ROAD_MIN);
@@ -4051,8 +4214,8 @@ namespace HorseRace.EditorTools
         static readonly string[][] SeamAssets =
         {
             new[] { MESAB, null }, new[] { MESA, null }, new[] { DROCKS, "DesertRocks_01" }, new[] { DROCKS, "DesertRocks_02" },
-            new[] { DROCKS, "DesertRocks_03" }, new[] { RSTYL, "RockSetStylized_06_Rock" }, new[] { MESAB, null }, new[] { DROCKS, "DesertRocks_02" },
-        };
+            new[] { DROCKS, "DesertRocks_03" }, new[] { MESAB, null }, new[] { MESA, null }, new[] { DROCKS, "DesertRocks_02" },
+        };   // art-r5-05：小さめの岩のセット（RockSetStylized）は外した（縁をなぞる均一な輪に見えた）
         public const float SEAM_SCALE_MIN = 2.5f, SEAM_SCALE_MAX = 4.5f, SEAM_MESA_SCALE_MIN = 0.9f, SEAM_MESA_SCALE_MAX = 1.4f;
         /// <summary>継ぎ目の岩の埋める割合（art-r4-01）。</summary>
         public const float SEAM_SINK = 0.35f;
@@ -4093,6 +4256,23 @@ namespace HorseRace.EditorTools
             else if (t < w + d) { p = new Vector3(u.z, 0f, u.y + (t - w)); nrm = new Vector3(1f, 0f, 0f); }
             else if (t < 2f * w + d) { p = new Vector3(u.z - (t - w - d), 0f, u.w); nrm = new Vector3(0f, 0f, 1f); }
             else { p = new Vector3(u.x, 0f, u.w - (t - 2f * w - d)); nrm = new Vector3(-1f, 0f, 0f); }
+        }
+
+        // ---- art-r5-05：継ぎ目のまとまり ----
+        public const float SEAM_CLUSTER_GAP_MIN = 150f, SEAM_CLUSTER_GAP_MAX = 320f, SEAM_CORNER_SCALE_MIN = 2f, SEAM_CORNER_SCALE_MAX = 2.6f;
+
+        static bool SeamClear(List<Placement> list, Vector4[] rects, int si, Vector3 p, float rad)
+        {
+            for (int ri = 0; ri < rects.Length; ri++) if (ri != si && WorldBounds.DistToRect(p, rects[ri]) < rad + 10f) return false;
+            foreach (var q in list) if (q.group == "BackdropNear" && WorldLayout.DistXZ(p, q.position) < 0.45f * (rad + q.radius)) return false;
+            return true;
+        }
+
+        static void AddSeamPiece(List<Placement> list, string asset, string part, Vector3 p, float scale, float yaw)
+        {
+            var piece = BackdropPiece("BackdropNear", asset, part, p, scale, yaw);
+            piece.position = new Vector3(p.x, piece.position.y + (WorldBounds.BACKDROP_SINK - SEAM_SINK) * piece.height, p.z);
+            list.Add(piece);
         }
 
         static Placement BackdropPiece(string group, string asset, string part, Vector3 p, float scale, float yaw)
@@ -4178,36 +4358,54 @@ namespace HorseRace.EditorTools
                     list.Add(BackdropPiece("BackdropFar", CLIFFS, part, p, scale, R01(rng) * 360f));
                 }
             }
-            // 3 列目＝継ぎ目の輪（art-r2-09 → art-r4-01）：ステージの縁の上に 56〜80m ごと、縁をまたいで（足元の半径の外寄り、内側へ 15m まで）
-            // 大きな岩を 1〜2 個。四角い板の縁（地形の段・外の地面との継ぎ目）を岩の連なりで隠し、外へ続く尾根に見せる。
-            // 高さは SceneAssembler / tools/preview が縁の地面（ステージと外の地面の高い方）に置き直し、高さの 35% を埋める
+            // 3 列目＝継ぎ目のまとまり（art-r2-09 → art-r4-01 → art-r5-05）：縁に沿って 150〜320m の不規則な間隔で 3〜6 個の大きな岩・メサのまとまりを縁をまたいで、
+            // 四隅には大きなメサ（×2〜2.6）。前の 56〜80m ごとの同じ大きさの岩の輪は四角い板の縁をかえってなぞっていた。
+            // 色の継ぎ目は地面の色の帯（HeightmapGen.GroundTint）がぼかす。高さは SceneAssembler / tools/preview が縁の地面に置き直し、高さの 35% を埋める
             for (int si = 0; si < StageDefinitions.All.Length; si++)
             {
                 Vector4 r = rects[si];
                 float rw = r.z - r.x, rd = r.w - r.y, per = 2f * (rw + rd);
-                for (float t0 = R01(rng) * 30f; t0 < per; t0 += WorldBounds.BACKDROP_SPACING3_M * (0.7f + 0.3f * R01(rng)), k++)
+                float[] corners = { 0f, rw, rw + rd, 2f * rw + rd };
+                // 四隅：外へ斜めの大きなメサ・メサ B
+                for (int ci = 0; ci < 4; ci++)
                 {
+                    Vector3 c0, n0, n1;
+                    RectPerimeter(r, corners[ci] + 1f, out c0, out n0);
+                    RectPerimeter(r, corners[ci] - 1f, out c0, out n1);
+                    RectPerimeter(r, corners[ci], out c0, out n0);
+                    Vector3 diag = (n0 + n1).normalized;
+                    for (int i = 0; i < 2; i++, k++)
+                    {
+                        string asset = (ci + i) % 2 == 0 ? MESAB : MESA;
+                        float scale = Mathf.Lerp(SEAM_CORNER_SCALE_MIN, SEAM_CORNER_SCALE_MAX, R01(rng));
+                        float rad = SizeOf(asset, null).r * scale, foot = rad * MESA_GATE_FOOTPRINT;
+                        Vector3 side = i == 0 ? Vector3.zero : new Vector3(-diag.z, 0f, diag.x) * (foot * (R01(rng) < 0.5f ? 1.1f : -1.1f));
+                        Vector3 p = c0 + diag * (foot - 15f) + side;
+                        if (!SeamClear(list, rects, si, p, rad)) continue;
+                        AddSeamPiece(list, asset, null, p, scale, R01(rng) * 360f);
+                    }
+                }
+                // 縁に沿ったまとまり（隅から 120m の内は隅のメサに任せる）
+                for (float t0 = 60f + R01(rng) * 120f; t0 < per; t0 += Mathf.Lerp(SEAM_CLUSTER_GAP_MIN, SEAM_CLUSTER_GAP_MAX, R01(rng)))
+                {
+                    bool nearCorner = false;
+                    foreach (float cc in corners) if (Mathf.Abs(Mathf.DeltaAngle(t0 / per * 360f, cc / per * 360f)) * per / 360f < 120f) nearCorner = true;
+                    if (nearCorner) continue;
                     Vector3 c0, nrm;
                     RectPerimeter(r, t0, out c0, out nrm);
                     Vector3 tan = new Vector3(-nrm.z, 0f, nrm.x);
-                    int n = 1 + rng.Next(2);
-                    float along = 0f;
-                    for (int i = 0; i < n; i++)
+                    int n = 3 + rng.Next(4);
+                    float along = -20f;
+                    for (int i = 0; i < n; i++, k++)
                     {
                         string[] ap = SeamAssets[(k + i * 3 + rng.Next(SeamAssets.Length)) % SeamAssets.Length];
                         float scale = SeamScale(ap[0], R01(rng));
-                        Size sz = SizeOf(ap[0], ap[1]);
-                        float rad = sz.r * scale;
-                        // 足元の半径の内側の端が縁から内へ 15m（BACKDROP_CLEAR3_M = −15）〜 外へ 5m
-                        Vector3 p = c0 + tan * along + nrm * (rad + WorldBounds.BACKDROP_CLEAR3_M + R01(rng) * 20f);
-                        along += rad * (0.8f + R01(rng) * 0.6f);
-                        bool clear = true;
-                        for (int ri = 0; ri < rects.Length; ri++) if (ri != si && WorldBounds.DistToRect(p, rects[ri]) < rad + 10f) clear = false;
-                        foreach (var q in list) if (q.group == "BackdropNear" && WorldLayout.DistXZ(p, q.position) < 0.45f * (rad + q.radius)) clear = false;
-                        if (!clear) continue;
-                        var piece = BackdropPiece("BackdropNear", ap[0], ap[1], p, scale, R01(rng) * 360f);
-                        piece.position = new Vector3(p.x, piece.position.y + (WorldBounds.BACKDROP_SINK - SEAM_SINK) * piece.height, p.z);
-                        list.Add(piece);
+                        float rad = SizeOf(ap[0], ap[1]).r * scale;
+                        // 縁をまたぐ：中心は縁の内 15m 〜 外 35m（まとまりの中で前後に揺らす）
+                        Vector3 p = c0 + tan * along + nrm * (rad * 0.4f - 15f + R01(rng) * 50f);
+                        along += rad * (0.7f + R01(rng) * 0.6f);
+                        if (!SeamClear(list, rects, si, p, rad)) continue;
+                        AddSeamPiece(list, ap[0], ap[1], p, scale, R01(rng) * 360f);
                     }
                 }
             }
@@ -4420,6 +4618,44 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>点と長方形の x/z 距離（中なら 0）。</summary>
+        // ---- art-r5-05：ステージの色は外へにじむ（四角い色の板の縁を見せない）----
+        /// <summary>ステージの土の色の重みが縁の内 SEAM_IN_M から外 SEAM_OUT_M へ下がる。縁の位置はノイズで ±（SEAM_NOISE_FINE_M/2 + SEAM_NOISE_COARSE_M/2）揺らす。</summary>
+        public const float SEAM_IN_M = 160f, SEAM_OUT_M = 350f, SEAM_NOISE_FINE_M = 60f, SEAM_NOISE_COARSE_M = 220f;
+        public const float SEAM_NOISE_FINE_SCALE = 90f, SEAM_NOISE_COARSE_SCALE = 300f;
+
+        /// <summary>ステージ si の土の色の重み（0〜1）：ノイズでゆがめた縁からの距離 d' = d + 60·(N(x/90) − 0.5) + 220·(N(x/300) − 0.5) の smoothstep。</summary>
+        public static float StageColorWeight(int si, float wx, float wz)
+        {
+            Vector3 o = StageDefinitions.All[si].Origin;
+            var r = new Vector4(o.x, o.z, o.x + StageDefinitions.SIZE, o.z + StageDefinitions.SIZE);
+            var p = new Vector3(wx, 0f, wz);
+            float d = SignedDistToRect(p, r);
+            if (d > SEAM_OUT_M + SEAM_NOISE_COARSE_M) return 0f;
+            float dw = d + SEAM_NOISE_FINE_M * (HeightmapGen.Noise01(wx / SEAM_NOISE_FINE_SCALE, wz / SEAM_NOISE_FINE_SCALE, 0, 77) - 0.5f)
+                         + SEAM_NOISE_COARSE_M * (HeightmapGen.Noise01(wx / SEAM_NOISE_COARSE_SCALE, wz / SEAM_NOISE_COARSE_SCALE, 0, 78) - 0.5f);
+            float t = Mathf.Clamp01((dw + SEAM_IN_M) / (SEAM_IN_M + SEAM_OUT_M));
+            return 1f - t * t * (3f - 2f * t);
+        }
+
+        /// <summary>
+        /// ワールドの点の地面の土の色（art-r5-05）：近いステージの土（ArtPalette.Dirt(i)）を重み StageColorWeight で、残りは外の地面の色 DirtOuter。
+        /// ステージの Terrain と外の地面が同じ式で塗る（ToonTerrain の _TintTex）ので、縁の両側の色が続き、色の境目はノイズで曲がる。
+        /// </summary>
+        public static Color GroundTint(float wx, float wz)
+        {
+            float sum = 0f, r = 0f, g = 0f, b = 0f;
+            for (int i = 0; i < StageDefinitions.All.Length; i++)
+            {
+                float w = StageColorWeight(i, wx, wz);
+                if (w <= 0f) continue;
+                Color c = ArtPalette.Dirt(i);
+                r += c.r * w; g += c.g * w; b += c.b * w; sum += w;
+            }
+            Color o = ArtPalette.DirtOuter;
+            if (sum < 1f) { float k = 1f - sum; r += o.r * k; g += o.g * k; b += o.b * k; sum = 1f; }
+            return new Color(r / sum, g / sum, b / sum, 1f);
+        }
+
         public static float DistToRect(Vector3 p, Vector4 r)
         {
             float dx = Mathf.Max(0f, Mathf.Max(r.x - p.x, p.x - r.z));

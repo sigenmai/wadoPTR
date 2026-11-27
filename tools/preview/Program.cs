@@ -6,7 +6,7 @@ class P {
   static string C(Color c)=>"["+F(c.r)+","+F(c.g)+","+F(c.b)+"]";
   // 素材ごとの色の決まり（ArtPalette.StyleFor の tint、art-r2-13）を world.json の "tints" に集める
   static void Tint(string a,string p){ string k=a+"|"+(p??""); if(!TINTS.ContainsKey(k)) TINTS[k]=ArtPalette.StyleFor(a,p).tint; }
-  static string Pl(Placement q){ Tint(q.asset,q.part); return "{\"a\":\""+q.asset+"\",\"p\":"+(q.part==null?"null":"\""+q.part+"\"")+",\"pos\":"+V(q.position)+",\"yaw\":"+F(q.yawDeg)+",\"roll\":"+F(q.rollDeg)+",\"s\":"+F(q.scale)+(q.scaleY!=1f||q.scaleZ!=1f?",\"sv\":"+V(new Vector3(q.scale,q.scale*q.scaleY,q.scale*q.scaleZ)):"")+"}"; }
+  static string Pl(Placement q){ Tint(q.asset,q.part); return "{\"a\":\""+q.asset+"\",\"p\":"+(q.part==null?"null":"\""+q.part+"\"")+",\"pos\":"+V(q.position)+",\"yaw\":"+F(q.yawDeg)+",\"roll\":"+F(q.rollDeg)+",\"s\":"+F(q.scale)+(q.scaleY!=1f||q.scaleZ!=1f?",\"sv\":"+V(new Vector3(q.scale,q.scale*q.scaleY,q.scale*q.scaleZ)):"")+(q.tint!=Color.white?",\"t\":"+C(q.tint):"")+"}"; }
   // Build World の見どころ・ゴール・スタートの素材（SetPieceBuilder / CourseBuilder と同じ置き方の近似。下見用）
   static string X(string a,string p,Vector3 pos,float yaw,float s,float roll=0f,Vector3? sv=null,float pitch=0f){ Tint(a,p); return "{\"a\":\""+a+"\",\"p\":"+(p==null?"null":"\""+p+"\"")+",\"pos\":"+V(pos)+",\"yaw\":"+F(yaw)+",\"roll\":"+F(roll)+(pitch!=0f?",\"pitch\":"+F(pitch):"")+",\"s\":"+F(s)+(sv.HasValue?",\"sv\":"+V(sv.Value):"")+"}"; }
   // 立てた丸太の杭（GenUtil.WoodPost / SetPieceBuilder.UprightLog と同じ：足元 g、高さ h、太さ t、art-r3-02）
@@ -158,6 +158,8 @@ class P {
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"g{d.index}.bin")))){ int trn=tdist.GetLength(0); bw.Write(trn); for(int z=0;z<trn;z++)for(int x=0;x<trn;x++)bw.Write(HeightmapGen.EncodeSignedDist(tsigned[z,x])); }   // art-r5-01：符号付き（G = 0.5 + d / 32m）
       int m=sand.GetLength(0);
       using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"s{d.index}.bin")))){ bw.Write(m); for(int z=0;z<m;z++)for(int x=0;x<m;x++)bw.Write(sand[z,x]); }
+      // art-r5-05：土の色（WorldBounds.GroundTint、TerrainBuilder.GroundTintTexture と同じ 256²、RGB）
+      { const int TR=256; Vector3 o=d.Origin; using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"gt{d.index}.bin")))){ bw.Write(TR); for(int z=0;z<TR;z++)for(int x=0;x<TR;x++){ Color c=WorldBounds.GroundTint(o.x+x/(float)(TR-1)*StageDefinitions.SIZE,o.z+z/(float)(TR-1)*StageDefinitions.SIZE); bw.Write(c.r); bw.Write(c.g); bw.Write(c.b);} } }
       var ch=SetPieces.WithHeights(local,h);
       var sbC=new StringBuilder(); for(int i=0;i<ch.Length;i+=5){ if(sbC.Length>0)sbC.Append(','); sbC.Append(V(ch[i])); }
       var cps=WorldLayout.CheckpointArcs(goal,StageDefinitions.CP_SPACING_M);
@@ -219,6 +221,7 @@ class P {
     var FR=WorldBounds.FillerRect(); const int FN=257;
     {var rects=WorldBounds.PlayableRects(); var lc0=WorldBounds.LOBBY_CENTER;
      var fg=WorldBounds.FillerGrid(FN,rects,(i,x,z)=> i<3 ? StageDefinitions.All[i].Origin.y+G(HS[i],x-StageDefinitions.All[i].Origin.x,z-StageDefinitions.All[i].Origin.z) : lc0.y+LH(new Vector3(x-lc0.x,0f,z-lc0.z)));
+     { const int TR=256; using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,"gtf.bin")))){ bw.Write(TR); bw.Write(FR.x); bw.Write(FR.y); bw.Write(FR.z); bw.Write(FR.w); for(int z=0;z<TR;z++)for(int x=0;x<TR;x++){ Color c=WorldBounds.GroundTint(FR.x+x/(float)(TR-1)*(FR.z-FR.x),FR.y+z/(float)(TR-1)*(FR.w-FR.y)); bw.Write(c.r); bw.Write(c.g); bw.Write(c.b);} } }   // art-r5-05
      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,"filler.bin")))){ bw.Write(FN); bw.Write(FR.x); bw.Write(FR.y); bw.Write(FR.z); bw.Write(FR.w);
        for(int z=0;z<FN;z++)for(int x=0;x<FN;x++) bw.Write(fg[z,x]); }}
     js.Append("],\"crown\":[");

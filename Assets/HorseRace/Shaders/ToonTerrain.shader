@@ -6,6 +6,7 @@
 //   G = 0.5 + 符号付きの横の距離 / 32m（art-r5-01）：±1.8m に幅 0.6m の轍を道の色 ×0.86 で描く。
 // - art-r4-02：道の外はワールド座標の値ノイズの粒（3.5m）とまだら（45m）、道の上は蹄の擦れ（1.2m）。art-r4-04：急な面（n.y < _StrataSlope）は地層の縞を濃く
 //   ステージごとのマテリアル（TerrainBuilder.ApplyToonMaterial）。_TrailTex が無い（黒）なら何もしない
+// - art-r5-05：_TintTex（RGB = ワールドの土の色、A = 重み）で土のレイヤーの色を置き換える（ステージの色が外へにじむ。無ければ黒 = 何もしない）
 // - 霧・影受け。GPU インスタンシングの地形描画（drawInstanced）は使わない（TerrainBuilder が OFF にする）
 Shader "HorseRace/ToonTerrain"
 {
@@ -38,6 +39,8 @@ Shader "HorseRace/ToonTerrain"
         _ScuffScale ("Hoof scuff scale (m)", Float) = 1.2
         _ScuffAmp ("Hoof scuff amount", Range(0,0.3)) = 0.11
         _StrataSlope ("Strata on faces with normal.y below (0 = off)", Range(0,1)) = 0
+        _TintTex ("Ground dirt colour (RGB) + weight (A)", 2D) = "black" {}
+        _DirtBase ("Dirt layer base colour", Color) = (0.62,0.36,0.22,1)
     }
 
     SubShader
@@ -58,6 +61,7 @@ Shader "HorseRace/ToonTerrain"
 
             sampler2D _Control; float4 _Control_ST;
             sampler2D _TrailTex; float4 _TrailColor;
+            sampler2D _TintTex; float4 _DirtBase;
             float _RutOffset, _RutWidth, _RutDarken, _LineBoost;
             float _GrainScale, _GrainAmp, _MottleScale, _MottleAmp, _ScuffScale, _ScuffAmp, _StrataSlope;
 
@@ -118,6 +122,9 @@ Shader "HorseRace/ToonTerrain"
             {
                 float4 ctl = tex2D(_Control, TRANSFORM_TEX(i.uv, _Control));
                 float3 c0 = tex2D(_Splat0, TRANSFORM_TEX(i.uv, _Splat0)).rgb;
+                // art-r5-05：土の色をワールドの土の色（_TintTex、ステージの縁から外へにじむ）へ。レイヤーの模様の明暗（c0 / _DirtBase）は残す
+                float4 gt = tex2D(_TintTex, i.uv);
+                c0 = lerp(c0, c0 / max(_DirtBase.rgb, 0.05) * gt.rgb, saturate(gt.a));
                 float3 c1 = tex2D(_Splat1, TRANSFORM_TEX(i.uv, _Splat1)).rgb;
                 float3 c2 = tex2D(_Splat2, TRANSFORM_TEX(i.uv, _Splat2)).rgb;
                 // 地層：横（x+z）は _StrataTile m、縦（高さ）は _StrataScale m ごとの縞

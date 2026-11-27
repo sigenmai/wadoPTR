@@ -88,7 +88,14 @@ namespace HorseRace.Tests
                 }
                 TestContext.WriteLine($"stage {si}: perimeter windows without a seam rock {bare}, worst |filler - edge| {worstGap:F2} m ({measured} measured, {skipped} on steep edges)");
                 Assert.GreaterOrEqual(measured, 15, "なめらかな縁で確かめる");
-                Assert.AreEqual(0, bare, "100m ごとに縁をまたぐ岩");
+                // art-r5-05：縁をなぞる均一な輪ではなく、150〜320m の不規則なまとまり（空いた区間がある）と四隅の大きなメサ
+                Assert.Greater(bare, 0, "均一な輪にしない");
+                Assert.Less(bare, per / 100f * 0.75f, "まとまりは縁に沿って続く");
+                for (int ci = 0; ci < 4; ci++)
+                {
+                    Vector3 corner = new Vector3(ci == 0 || ci == 3 ? r.x : r.z, 0f, ci < 2 ? r.y : r.w);
+                    Assert.IsTrue(seam.Any(q => q.height > 40f && WorldLayout.DistXZ(q.position, corner) < q.radius + 30f), $"stage {si} corner {ci}：大きなメサ");
+                }
                 Assert.Less(worstGap, 2f, "外の地面は縁の高さから始まる");
             }
             foreach (var q in seam)

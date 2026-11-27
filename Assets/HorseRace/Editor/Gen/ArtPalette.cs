@@ -61,6 +61,9 @@ namespace HorseRace.EditorTools
         /// <summary>art-r4-04：境目の切り通しの壁の縞は明暗をはっきり（段の付いた岩の重なりに見える）。</summary>
         public static readonly Color StrataLightBorder = new Color(0.80f, 0.50f, 0.34f);
         public static readonly Color StrataDarkBorder = new Color(0.44f, 0.24f, 0.18f);
+        /// <summary>art-r5-04：切り通しの壁の岩の段に掛ける色（明・暗・明）。StrataLightBorder / StrataDarkBorder の明暗の比を岩の色に掛ける。</summary>
+        public static readonly Color WallTierLight = new Color(1.0f, 0.90f, 0.82f);
+        public static readonly Color WallTierDark = new Color(0.66f, 0.52f, 0.48f);
         public static Color StrataLightFor(int stage) => stage == 2 ? StrataLightBorder : StrataLight;
         public static Color StrataDarkFor(int stage) => stage == 2 ? StrataDarkBorder : StrataDark;
 

@@ -308,6 +308,31 @@ namespace HorseRace.EditorTools
             return mat;
         }
 
+        /// <summary>
+        /// art-r5-04：置いた物のトゥーンのマテリアルに色を掛けた複製を付ける（同じ岩でも段ごとに明るい縞・暗い縞）。
+        /// key はキャッシュのキーに足す文字（同じ元マテリアル × 同じ色は 1 つ）。トゥーン以外のマテリアルはそのまま。
+        /// </summary>
+        public static void RetintToon(GameObject go, Color mul, string key)
+        {
+            if (go == null) return;
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+                var src = r.sharedMaterials;
+                var dst = new Material[src.Length];
+                for (int i = 0; i < src.Length; i++)
+                {
+                    Material m = src[i];
+                    if (m == null || m.shader == null || m.shader.name != TOON_SHADER) { dst[i] = m; continue; }
+                    Color t = ArtPalette.Multiply(m.GetColor("_Tint"), mul);
+                    dst[i] = SaveOrUpdate(m.name + "_" + key + "_" + ColorUtility.ToHtmlStringRGB(mul), m.GetTexture("_MainTex"), t,
+                        m.GetFloat("_Flatten"), m.GetFloat("_FlattenMip"), m.GetColor("_ShadowColor"));
+                    if (m.HasProperty("_Brightness") && dst[i].HasProperty("_Brightness")) dst[i].SetFloat("_Brightness", m.GetFloat("_Brightness"));
+                }
+                r.sharedMaterials = dst;
+            }
+        }
+
         public static Material ToonColor(Color c)
         {
             string key = "Toon_Color_" + ColorUtility.ToHtmlStringRGB(c);
