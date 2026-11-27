@@ -216,18 +216,20 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 ## Task 11: ワールド生成
 
 ### 手順
-1. 前提：Task 8 と同じ（VRChat SDK 3.8 以降・UdonSharp 1.2 以降）。TextMeshPro の「TMP Essential Resources」を取り込み済み。日本語の TMP Font Asset を `Assets/HorseRace/` 以下のどこかに置いておく（Build World が最初に見つけたものを全部の文字に使う。無いと日本語が□になり、Validate に警告が出る）
+1. 前提：Task 8 と同じ（VRChat SDK 3.8 以降・UdonSharp 1.2 以降）。TextMeshPro の「TMP Essential Resources」を取り込み済み。日本語フォントは同梱の `Assets/HorseRace/Fonts/ipag.ttf`（IPA ゴシック、IPA フォントライセンス v1.0、全文は同じフォルダの `IPA_Font_License.txt`）から Build World が動的 TMP Font Asset（`Assets/HorseRace/Generated/Fonts/IPAGothic SDF.asset`）を自動で作り、全部の文字に使う（`Assets/HorseRace/` 以下に別の TMP Font Asset を置けばそちらを優先）
 2. 新しいシーン（空でよい）を開き、メニュー「**HorseRace/Build World**」
-   - UdonSharp のプログラムアセットが無いスクリプトがあると、作ってから「もう一度実行してください」と出て止まる。U# のコンパイルが終わったらもう一度「HorseRace/Build World」
+   - UdonSharp のプログラムアセットが無いスクリプトがあると、作ってコンパイルを始め、「もう一度実行してください」と出て止まる。Unity 右下の読み込み表示が止まり Console に U# のコンパイルエラーが無いことを確かめてから、もう一度「HorseRace/Build World」
+   - 途中でエラーが起きると Console に「ワールド生成中にエラー: …」とダイアログが出て、作りかけの `HorseRace_Generated` は消される
    - 毛色マテリアル（Create Horse Materials）と Mount.controller（Build Mount Animator）も自動で作り直す
    - レイヤー `Ground`・`Mount`・`Rider`・`Block` が無ければユーザーレイヤー 23〜26（埋まっていれば 22〜31 の空き）に作る。衝突マトリクス：`Rider` は全レイヤーと衝突しない（当たり判定のクエリ専用）、`Mount` は Player / PlayerLocal と衝突しない
-   - シーンの既存の Directional Light は無効にして生成した太陽を使う。既存の VRCSceneDescriptor があればそのスポーンをロビーに設定（無ければ作る）
+   - シーンの既存の Directional Light は無効にして生成した太陽を使う。VRCSceneDescriptor は `HorseRace_Generated` の外（シーン直下の `VRCWorld`）に 1 つだけ作り、作り直しでは消さない（ワールド ID ＝ PipelineManager を保つ）。既にあればスポーンだけロビーに設定
    - 生成物はすべて `HorseRace_Generated` の下（実行するたびに消して作り直す）。TerrainData・TerrainLayer・マテリアル・RenderTexture は `Assets/HorseRace/Generated/` に上書き
 3. Build World の最後に Validate が自動で走る。あとで確認するときはメニュー「**HorseRace/Validate**」。Console に日本語のまとめ（ステージごとの全長・最大勾配・CP 数・砂地の割合・遺物の数、素材の欠け、つなぎ忘れ）が出る
 4. シーンを保存 → Build & Test（2 クライアント）
 
 ### 作られるもの（概要）
-- ステージ ×3（中心 (-1200,0,0)／(0,0,0)／(1200,0,0)、Terrain 1000m 四方・高さ 200m・解像度 513）：荒野（峡谷）／砂漠（砂丘）／境目（メサ → ゴールの町）。コース約 2.5km、CP 80m ごと（黒板付き）、スタート 8 頭の横一列、ゴールゲート、ゴール後の囲い、遺物 4 個、砂地の SandZone
+- ステージ ×3（中心 (-1200,0,0)／(0,0,0)／(1200,0,0)、Terrain 1000m 四方・高さ 200m・解像度 513）：荒野（峡谷）／砂漠（砂丘）／境目（メサ → ゴールの町）。コース約 2.5km、CP 80m ごと（黒板は 3 つ目ごとの CP とゴール）、スタート 8 頭の横一列、ゴールゲート、ゴール後の囲い、遺物 4 個、砂地の SandZone
+- 見どころ（簡易版）：荒野＝コースを横切る溝に架かる岩橋、崖下りの近道（コースの曲がりを弦で切る枝道。途中に 6m の段。途中の CP 2 つの箱が近道まで広がっている。CP は増えない）。砂漠＝コース上の砂丘越えのジャンプ台（約 10.6°）
 - ロビー（中心 (0,0,-820)）：WesternTown（通りの高さだけ沈めて置く）、受付カウンターと台帳、手配書の壁（6 枚）、柵の馬 7 頭、スタート台の鐘、補助表示のレバー、たまり場（焚き火・ベンチ・前回レースの黒板・掲示板 3 枚・中継カメラ・木札 9 枚・新聞売り）、練習場（坂・崖下り・ジャンプ台・干し草・カカシ 2・練習用の馬 2 頭と杭・遺物）、乗り物の待機場所 8、予備の遺物 4、懐中時計
 - 乗り物：レース用 8 頭（slot 0〜7）＋練習用 2 頭（casterId 8・9）。それぞれ能力・お守り袋・リボルバー・砂煙・投げ縄・岩壁・鉄球 3・かすみ付き
 - スターター（3 ステージのスタート脇へ移る）、表彰台（ゴールの町）、RaceManager（全部つないだ状態）
@@ -245,4 +247,10 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] リボルバー：銃口（Muzzle）が銃身の先にあり、撃つ向きが銃身と合っている。撃鉄・引き金・シリンダーの回転軸がおかしければ `Revolver` の `Cylinder Axis`／`Hammer Axis`／`Trigger Axis` を調整（Build World は銃身・グリップの外形から推定）
 - [ ] 手配書の絵が壁の手前を向いている（紙の面の法線から自動で回す）。掲示板の文字がパネルの手前に重なって読める
 - [ ] 中継カメラが初期状態で無効、Target Texture が `Assets/HorseRace/Generated/BroadcastRT.renderTexture`
-- [ ] 文字の大きさ（黒板・台帳・掲示板・木札）が読みやすい（TMP の大きさは Build World の値。必要なら調整）
+- [ ] 文字の大きさ（黒板・台帳・掲示板・木札）が読みやすい（TMP の大きさは Build World の値。必要なら調整）。日本語が□にならない（IPA ゴシック）
+- [ ] 荒野の岩橋：板の上を段差なく渡れる（端で引っかからない）。手すりで溝に落ちない。溝の底へ落ちたら 3 秒以内に CP へ戻る
+- [ ] 荒野の崖下りの近道：札「近道（崖下り）」から入り、坂を上って 6m の段を飛び降りると着地で硬直する（よろめく）。本コースに戻ったあとも CP の順番どおりに進み、順位が正しい。近道の途中でコース外リセットされない
+- [ ] 砂漠のジャンプ台：駆歩以上で乗ると跳ぶ。着地で硬直しない（落差 3m 未満）。ラクダでも越えられる
+- [ ] 表彰台：1 位が中央の一番高い段、2 位が左、3 位が右の段に立つ
+- [ ] 負荷：8 人で接戦（全員が同じ区間を走る）のとき、VR でカクつかない（黒板の書き直しは今のステージの黒板だけ）。Unity の Profiler で Udon の時間が 1 フレーム 2ms 未満
+- [ ] Build World を 2 回続けて実行しても `VRCWorld` は 1 つのままで、ワールド ID（Pipeline Manager の Blueprint ID）が変わらない
