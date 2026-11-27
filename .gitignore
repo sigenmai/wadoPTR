@@ -7,3 +7,5 @@ Assets/**/_*.blend1
 tests/**/bin/
 tests/**/obj/
 dist/
+tools/preview/bin/
+tools/preview/obj/
