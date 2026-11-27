@@ -12,6 +12,7 @@
 > 注意：Unity でのコンパイルはまだ一度もしていません。最初に動かすときは [SETUP.md](docs/SETUP.md) の「未検証のポイント」を読んでください。
 
 ## まず読むもの
+- **[HorseRace_Install.bat](HorseRace_Install.bat) — ワンボタンインストーラー（Windows）。ダブルクリックで最新版を Unity プロジェクトに入れ、ワールドまで自動で組み立てる**
 - [docs/SETUP.md](docs/SETUP.md) — セットアップ手順（VCC → Unity → Build World → Build & Test → 非公開アップロード）
 - [docs/PLAYTEST.md](docs/PLAYTEST.md) — プレイテストのチェックリスト（最後に設計レビューの重点 5 項目）
 

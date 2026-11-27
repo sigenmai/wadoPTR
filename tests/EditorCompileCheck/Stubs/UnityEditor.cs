@@ -27,6 +27,7 @@ namespace UnityEditor
         public static void SaveAssets() { }
         public static void Refresh() { }
         public static void ImportAsset(string path) { }
+        public static void ImportPackage(string packagePath, bool interactive) { }
         public static string[] FindAssets(string filter) => new string[0];
         public static string[] FindAssets(string filter, string[] searchInFolders) => new string[0];
         public static string GUIDToAssetPath(string guid) => "";
@@ -117,6 +118,10 @@ namespace UnityEditor.SceneManagement
     {
         public static bool MarkSceneDirty(UnityEngine.SceneManagement.Scene scene) => true;
         public static bool SaveScene(UnityEngine.SceneManagement.Scene scene) => true;
+        public static bool SaveScene(UnityEngine.SceneManagement.Scene scene, string dstScenePath) => true;
+        public static bool SaveCurrentModifiedScenesIfUserWantsTo() => true;
+        public static UnityEngine.SceneManagement.Scene NewScene(NewSceneSetup setup, NewSceneMode mode) => default(UnityEngine.SceneManagement.Scene);
+        public static UnityEngine.SceneManagement.Scene OpenScene(string scenePath, OpenSceneMode mode) => default(UnityEngine.SceneManagement.Scene);
     }
 }
 

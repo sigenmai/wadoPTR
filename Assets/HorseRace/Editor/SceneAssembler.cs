@@ -333,7 +333,8 @@ namespace HorseRace.EditorTools
     /// </summary>
     public static class ProgramAssets
     {
-        public static bool Ensure()
+        /// showDialog=false はワンボタンセットアップ用（ダイアログを出さず、コンパイルを待って自動で再開する）
+        public static bool Ensure(bool showDialog = true)
         {
             var have = new HashSet<MonoScript>();
             foreach (string g in AssetDatabase.FindAssets("t:UdonSharpProgramAsset"))
@@ -361,7 +362,7 @@ namespace HorseRace.EditorTools
             // API 名は記憶によるもので未検証。この名前が無い U# の版ではこの行がエディタのコンパイルエラーになるので、その場合は
             // この 1 行を消せばよい（Refresh の後、U# はプログラムアセットを自動でコンパイルする）。
             UdonSharpProgramAsset.CompileAllCsPrograms(true);
-            EditorUtility.DisplayDialog("HorseRace/Build World",
+            if (showDialog) EditorUtility.DisplayDialog("HorseRace/Build World",
                 "UdonSharp のプログラムアセットを " + created + " 個作り、コンパイルを始めました。\n\n"
                 + "完了の確認：Unity 右下の読み込み表示が止まり、Console に UdonSharp のコンパイルエラー（赤）が無いこと"
                 + "（Assets/HorseRace/Scripts の .asset を選ぶと Inspector にコンパイル結果が出ます）。\n"

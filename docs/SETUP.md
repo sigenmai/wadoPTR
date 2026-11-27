@@ -4,6 +4,21 @@
 
 > **正直な注意**：このコードは**まだ一度も Unity でコンパイルしていません**（開発環境に Unity が無いため）。C# の型は、VRChat SDK / UdonSharp / Unity の API を手書きで真似た「スタブ」に対して検査しただけです。そのため、最初のコンパイルで API 名の違いによるエラーが出る可能性があります（下の「未検証のポイント」）。出たら Console のエラー文をそのまま Claude に送ってください。たいてい 1 行の修正で直ります。
 
+## ★ ワンボタンで全部やる（おすすめ）
+
+VRChat の Worlds プロジェクト（下の 1〜2）が用意できていれば、あとは **`HorseRace_Install.bat` をダブルクリックするだけ**です。
+
+1. このリポジトリの [`HorseRace_Install.bat`](../HorseRace_Install.bat) をダウンロードする（GitHub のファイル画面の「Download raw file」ボタン）。置き場所はどこでもよい（Unity プロジェクトのフォルダに置くと、場所を聞かれません）。
+2. ダブルクリック。初回だけ「Unity プロジェクトのフォルダを選んでください」と出るので、`Assets` が入っているフォルダを選ぶ（次からは覚えています）。
+   - Windows の「PC を保護しました」が出たら「詳細情報 → 実行」。
+3. bat が最新の `Assets/HorseRace` を GitHub から取ってきてプロジェクトに入れ、Unity を起動します（もう開いていれば Unity の画面に切り替えるだけ）。
+4. Unity が自動で **TMP の素材の読み込み → シーン `Assets/Scenes/HorseRace.unity` の作成 → UdonSharp のコンパイル待ち → Build World → 保存** まで進めます。「ワールドができました」のダイアログが出たら完成。次は 9.（Build & Test）へ。
+
+- 更新が来たときも同じ bat をダブルクリックするだけです（`Layout/LayoutOverrides.json` の手直しは上書きしません）。
+- Unity の中だけでやり直したいときは、メニュー「**HorseRace/★ ワンボタンで全部やる**」。
+- 止まったときは、Unity の Console の赤い行（または bat の黒い画面の文）を Claude に送ってください。
+- 以下の 3〜8 は、ワンボタンが中でやっていることを手でやる場合の手順です。
+
 ## 0. 用意するもの
 - Windows の PC（VRChat Creator Companion は Windows / Mac 対応。ここでは Windows 想定）
 - VRChat のアカウント（アップロードできる権限が必要。新しいアカウントは「New User」制限でワールド公開が一定期間できないことがあります）
