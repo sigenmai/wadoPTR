@@ -214,6 +214,12 @@ namespace HorseRace
             if (raceManager != null && raceManager.IsLocalMaster()) raceManager.StarterFinished();
         }
 
+        /// <summary>時間切れ（ui-r3-03）：RaceManager から、まだゴールしていなかった本人のクライアントで空砲を 1 発。</summary>
+        public void PlayTimeUp()
+        {
+            PlayClip(blankClip);
+        }
+
         private void PlayClip(AudioClip clip)
         {
             if (audioSource == null) return;
@@ -262,7 +268,13 @@ namespace HorseRace
             skyPunchAt = Time.time;
             skyPunchFrom = from;
             if (raceManager != null && raceManager.hud != null && raceManager.IsLocalEntered())
-                raceManager.hud.ShowBanner(s, c, s == "出走！" ? 1.2f : 1.05f, from);
+            {
+                bool go = s == "出走！";
+                raceManager.hud.ShowBanner(s, c, go ? 1.2f : 1.05f, from);
+                // VR は数字ごとに軽く、号砲で強く手に響かせる（ui-r3-05）
+                if (go) raceManager.hud.Buzz(HudMath.HAPTIC_GO_S, HudMath.HAPTIC_GO_AMP, HudMath.HAPTIC_GO_HZ);
+                else raceManager.hud.Buzz(HudMath.HAPTIC_COUNTDOWN_S, HudMath.HAPTIC_COUNTDOWN_AMP, HudMath.HAPTIC_COUNTDOWN_HZ);
+            }
         }
 
         private float skyPunchFrom = 1f;

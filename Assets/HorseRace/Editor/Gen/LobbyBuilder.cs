@@ -60,6 +60,7 @@ namespace HorseRace.EditorTools
             SpareRelics(root, ctx);
             Watch(root, ctx);
             TownClock(root, ctx);
+            Steps(root, ctx);
             Dressing(root, town);
             FenceAndBelt(root);
         }
@@ -205,7 +206,7 @@ namespace HorseRace.EditorTools
             var m = GenUtil.InstantiateModel(GenUtil.Pack("WesternTown"), holder.transform, "Model");
             if (m == null)
             {
-                GenUtil.Prim(PrimitiveType.Cube, "TownFallback", holder.transform, new Vector3(0f, 4f, 0f), new Vector3(40f, 8f, 80f), Wood, true);
+                GenUtil.Prim(PrimitiveType.Cube, "Town_Fallback", holder.transform, new Vector3(0f, 4f, 0f), new Vector3(40f, 8f, 80f), Wood, true);
                 holder.transform.position = L(0f, 25f + 40f);
                 DressingBuilder.AddCollider(holder, false);
                 return holder;
@@ -1058,6 +1059,7 @@ namespace HorseRace.EditorTools
             var go = GenUtil.World(pr, "PracticeLap", P(LobbyLayout.PRACTICE_LAP_BOARD));
             var text = NoticeSign(go.transform, "Board", P(LobbyLayout.PRACTICE_LAP_BOARD), 0f, 0.6f, "往復タイム", 1.1f, UiStyle.InkFace, TextStyle.Ink, Paper);
             var lap = GenUtil.AddU<PracticeLap>(go);
+            ctx.practiceLap = lap;
             lap.boardText = text;
             lap.lapSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.STING));
             float[] gateZ = { LobbyLayout.PRACTICE_GATE_SOUTH_Z, LobbyLayout.PRACTICE_GATE_NORTH_Z };
@@ -1162,6 +1164,44 @@ namespace HorseRace.EditorTools
             clock.punchRoot = holder;
         }
 
+        /// <summary>
+        /// ロビーの手順の札（ui-r3-11）：近道の札と同じ作り（立てた丸太の杭 WoodLogs_01 + 手配書の紙 WantedPosters_02 0.6 × 0.45m + インクの字）を
+        /// 手配書の壁・柵の馬・受付・スタート台の手前に 1 枚ずつ、スポーン側へ向けて。次の手順の札の上に暖かい灯り（range 4・強さ 1、StepSigns が点ける）。
+        /// スポーンの右手前に 4 手順の表（掲示板 ×0.6）。
+        /// </summary>
+        static void Steps(Transform root, WorldContext ctx)
+        {
+            var parent = GenUtil.World(root, "StepSigns", CENTER).transform;
+            int n = LobbyLayout.StepSigns.Length;
+            var texts = new TMPro.TextMeshPro[n];
+            var lights = new Light[n];
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 p = P(LobbyLayout.StepSigns[i]);
+                p.y = CENTER.y + TerrainY(LobbyLayout.StepSigns[i]);
+                float yaw = LobbyLayout.FaceFromSpawn(LobbyLayout.StepSigns[i]);
+                var sign = GenUtil.World(parent, "StepSign_" + (i + 1), p, yaw);
+                GenUtil.WoodPost(sign.transform, p + sign.transform.forward * 0.06f, yaw, 1.5f, 0.14f).name = "Post";
+                GenUtil.PaperSheet(sign.transform, "Paper", "WantedPosters_02", new Vector3(0f, 1.0f, 0.01f), null, 0.6f, 0.45f);
+                texts[i] = GenUtil.Text(sign.transform, "Text", new Vector3(0f, 1.225f, -0.01f), Quaternion.identity, HudMath.LobbyStepLabel(i), 0.7f,
+                    UiStyle.InkFace, new Vector2(0.54f, 0.36f), TextStyle.Ink, true);
+                texts[i].fontSizeMin = Mathf.Max(texts[i].fontSizeMin, UiStyle.MinVrPt(3f));
+                lights[i] = GenUtil.PointLight(sign.transform, "Lamp", p + Vector3.up * 1.9f - sign.transform.forward * 0.5f, SetPieceBuilder.LampWarm, 4f, 1f);
+                lights[i].enabled = i == 0;
+                DressingBuilder.AddCollider(sign, false);
+            }
+            var ss = GenUtil.AddU<StepSigns>(parent.gameObject);
+            ss.stepTexts = texts;
+            ss.stepLights = lights;
+            ss.startPoint = GenUtil.World(parent, "StartPoint", P(LobbyLayout.START_BELL)).transform;
+            ss.startRadius = 4f;
+            // 4 手順の表（掲示板 ×0.6）
+            Vector3 bp = P(LobbyLayout.STEPS_BOARD);
+            bp.y = CENTER.y + TerrainY(LobbyLayout.STEPS_BOARD);
+            NoticeSign(root, "StepsBoard", bp, LobbyLayout.FaceFromSpawn(LobbyLayout.STEPS_BOARD), 0.6f, HudMath.LobbyStepsTable(), 0.9f,
+                UiStyle.InkFace, TextStyle.Ink, Paper);
+        }
+
         static void Watch(Transform root, WorldContext ctx)
         {
             var go = GenUtil.World(root, "PocketWatch", P(LobbyLayout.SPAWN) + new Vector3(0f, 1.2f, 3f));   // 実行中は手元へ動く
@@ -1189,7 +1229,7 @@ namespace HorseRace.EditorTools
             pw.minuteHand = min;
             pw.secondHand = sec;
             pw.numerals = numerals;   // ui-r2-16：過ぎた数字を薄く、最後の 2 つを赤
-            pw.desktopOffset = UiStyle.DesktopWatchOffset;   // ui-r2-02：右下の隅、文字盤を目へ起こす（裏返さない）
+            pw.desktopOffset = UiStyle.DesktopWatchOffset;   // ui-r3-04：右上（右下は能力の札）、文字盤を目へ起こす（裏返さない）
             pw.desktopEuler = UiStyle.DesktopWatchEuler;
             pw.desktopScale = UiStyle.DESKTOP_WATCH_SCALE;
             pw.tickAudio = GenUtil.Audio(go, true, false, SfxBuilder.Clip(SfxMath.TICK));

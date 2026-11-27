@@ -96,6 +96,15 @@ namespace HorseRace
         public int Level = 1;
 
         // FindTarget の結果（out 引数の代わり）
+        [Header("狙いの印（ui-r3-08、ローカルのみ）")]
+        [Tooltip("投げ縄・鉄球を狙っている相手の上に出す宝石（Gems_01_01）。MountBuilder が作る")]
+        public Transform aimMarker;
+        public Renderer[] aimMarkerRenderers;
+        [Tooltip("届く距離の内（赤）")]
+        public Material aimInRange;
+        [Tooltip("届く距離の外（灰色）")]
+        public Material aimOutRange;
+
         [HideInInspector] public MountController foundMount;
         [HideInInspector] public PracticeDummy foundDummy;
         [HideInInspector] public Vector3 foundPoint;
@@ -111,6 +120,9 @@ namespace HorseRace
         private bool pouchShownLocal;
         private int lastResetSeq = -1;
         private Vector3 aimDir;
+        private float nextAimProbe;
+        private Transform aimTarget;
+        private int aimShownState = -1;   // -1 = 隠す、0 = 灰、1 = 赤
         private float aimRoll;
         private bool started;
 
@@ -146,6 +158,61 @@ namespace HorseRace
             }
             UpdatePouch(local);
             UpdateHaze(local);
+            UpdateAimProbe(local);
+        }
+
+        /// <summary>
+        /// 狙いの印（ui-r3-08）：投げ縄・鉄球が使えるとき、発動と同じ球の当たり判定（FindTarget）を 10 Hz で飛ばし、
+        /// 見つかった相手（練習のカカシも）の上 2.9m（ゴールの着順の札と同じ高さ）に金の宝石を回す。届く距離の内は赤、外は灰。
+        /// ローカルだけ（同期しない）。
+        /// </summary>
+        private void UpdateAimProbe(bool local)
+        {
+            if (aimMarker == null) return;
+            int id = AbilityId();
+            bool want = local && (id == AbilityMath.ABILITY_LASSO || id == AbilityMath.ABILITY_BALL) && CanCast();
+            if (!want)
+            {
+                aimTarget = null;
+                SetAimState(-1);
+                return;
+            }
+            if (Time.time < nextAimProbe) return;
+            nextAimProbe = Time.time + AbilityMath.AIM_PROBE_INTERVAL;
+            VRCPlayerApi lp = Networking.LocalPlayer;
+            ComputeAim(lp != null && lp.IsUserInVR() ? AIM_RIGHT : AIM_HEAD);
+            Vector3 origin = mount.transform.position + Vector3.up * aimHeight;
+            float eff = id == AbilityMath.ABILITY_LASSO ? AbilityMath.LassoRange(Level) + lassoRadius : AbilityMath.BALL_AIM_RANGE;
+            bool hit = FindTarget(origin, FlatAim(), eff * AbilityMath.AIM_PROBE_REACH, lassoRadius);
+            Transform t = null;
+            if (hit && foundMount != null) t = foundMount.transform;
+            else if (hit && foundDummy != null) t = foundDummy.transform;
+            foundMount = null;
+            foundDummy = null;
+            aimTarget = t;
+            if (t == null) { SetAimState(-1); return; }
+            Vector3 d = t.position - mount.transform.position;
+            d.y = 0f;
+            SetAimState(d.magnitude <= eff ? 1 : 0);
+        }
+
+        private void SetAimState(int state)
+        {
+            if (aimMarker == null || state == aimShownState) return;
+            aimShownState = state;
+            bool on = state >= 0;
+            if (aimMarker.gameObject.activeSelf != on) aimMarker.gameObject.SetActive(on);
+            if (!on || aimMarkerRenderers == null) return;
+            Material m = state == 1 ? aimInRange : aimOutRange;
+            if (m == null) return;
+            for (int i = 0; i < aimMarkerRenderers.Length; i++) if (aimMarkerRenderers[i] != null) aimMarkerRenderers[i].sharedMaterial = m;
+        }
+
+        private void LateUpdate()
+        {
+            if (aimMarker == null || aimTarget == null || aimShownState < 0) return;
+            aimMarker.SetPositionAndRotation(aimTarget.position + Vector3.up * AbilityMath.AIM_MARKER_HEIGHT,
+                Quaternion.Euler(0f, Time.time * AbilityMath.AIM_MARKER_SPIN_DEG, 0f));
         }
 
         public override void InputUse(bool value, UdonInputEventArgs args)

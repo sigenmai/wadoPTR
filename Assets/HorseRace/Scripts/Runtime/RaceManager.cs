@@ -130,6 +130,8 @@ namespace HorseRace
         [Tooltip("首の札（補助表示）。カウントダウン・ゴール・CP の合図を出す（任意）")]
         public MinimalHud hud;
         public PracticeArea practiceArea;
+        [Tooltip("新聞売り（観客の予想の当たり・はずれの音、ui-r3-16）")]
+        public TownCrier crier;
         [Tooltip("予想の札（system-r2-15）：value = スロット。電報の掲示板の下")]
         public PosterCard[] pickCards;
         [Tooltip("予想の札の上の紙：自分の予想・前回の結果・通算")]
@@ -169,6 +171,11 @@ namespace HorseRace
         private int pickTotal;
         private bool pickLoaded;
         private string pickLastText = "";
+
+        /// <summary>ロビーの手順（ui-r3-11、StepSigns が読む。ローカル）：手配書を取った・乗り物を選んだ。</summary>
+        [HideInInspector] public bool localTookCard;
+        [HideInInspector] public bool localChoseMount;
+        private int pendingPenStage = -1;
 
         private void Start()
         {
@@ -400,7 +407,7 @@ namespace HorseRace
         public string CourseRecordLine(int st)
         {
             if (stageBestTime == null || st < 0 || st >= stageBestTime.Length || stageBestTime[st] < 0f) return "";
-            return StageLabel(st) + " 記録 " + HudMath.FormatClockTenths(stageBestTime[st]) + " " + HudMath.ShortName(stageBestName[st], HudMath.SHORT_NAME_MAX);
+            return StageLabel(st) + " 記録 " + HudMath.FormatClockTenths(stageBestTime[st]) + " " + HudMath.DisplayName(stageBestName[st], HudMath.SHORT_NAME_MAX);
         }
 
         // =====================================================================
@@ -411,6 +418,8 @@ namespace HorseRace
         {
             if (mount != MountMath.MOUNT_HORSE && mount != MountMath.MOUNT_CAMEL) return;
             localMount = mount;
+            localTookCard = true;
+            localChoseMount = true;   // 乗り物の手配書（馬・ラクダ）を取った＝乗り物も選んだ
             RefreshLobbyLocal();
             ResignBetweenStages();
         }
@@ -421,6 +430,7 @@ namespace HorseRace
             if (coat < 0 || coat > MountVisual.COAT_SKELETON) return;
             localCoat = coat;
             localMount = MountMath.MOUNT_HORSE;
+            localChoseMount = true;
             RefreshLobbyLocal();
             ResignBetweenStages();
         }
@@ -429,6 +439,7 @@ namespace HorseRace
         {
             if (ability < 0 || ability > MAX_ABILITY_PHASE1) return;
             localAbility = ability;
+            localTookCard = true;
             RefreshLobbyLocal();
             ResignBetweenStages();
         }
@@ -1247,9 +1258,21 @@ namespace HorseRace
                     // まだゴールしていなかった人も囲いへ（手配書・中継の板に届くように）
                     if (Networking.IsOwner(lm.gameObject) && !localFinishHandled)
                     {
-                        Transform pen = (finishPens != null && stage < finishPens.Length) ? finishPens[stage] : null;
-                        if (pen != null) lm.TeleportTo(pen.position, pen.eulerAngles.y);
                         localFinishHandled = true;
+                        bool timedOut = prev == RaceMath.STATE_RACING && lm.syncFinishAt < stageStartServer;
+                        if (timedOut)
+                        {
+                            // 時間切れ（ui-r3-03）：その場で赤い判と空砲、1.2 秒読ませてから囲いへ（黙って移すとバグに見える）
+                            if (hud != null) hud.ShowTimeUp(stageSeq);
+                            if (starter != null) starter.SendCustomEvent("PlayTimeUp");
+                            pendingPenStage = stage;
+                            SendCustomEventDelayedSeconds(nameof(_PenTeleport), 1.2f);
+                        }
+                        else
+                        {
+                            Transform pen = (finishPens != null && stage < finishPens.Length) ? finishPens[stage] : null;
+                            if (pen != null) lm.TeleportTo(pen.position, pen.eulerAngles.y);
+                        }
                     }
                     lm.InputLocked = stage + 1 >= STAGE_COUNT;
                 }
@@ -1286,6 +1309,47 @@ namespace HorseRace
                     else if (localWasRider) SendCustomEventDelayedFrames(nameof(_TeleportLocalToLobby), 3);
                 }
             }
+        }
+
+        /// <summary>時間切れの 1.2 秒後（ui-r3-03）：まだ同じステージの合間なら自分の乗り物を囲いへ。</summary>
+        public void _PenTeleport()
+        {
+            int st = pendingPenStage;
+            pendingPenStage = -1;
+            if (st < 0 || state != RaceMath.STATE_STAGE_RESULT || stage != st) return;
+            if (localSlot < 0 || localSlot >= SlotCount()) return;
+            MountController m = mounts[localSlot];
+            if (m == null || !Networking.IsOwner(m.gameObject)) return;
+            Transform pen = (finishPens != null && stage < finishPens.Length) ? finishPens[stage] : null;
+            if (pen != null) m.TeleportTo(pen.position, pen.eulerAngles.y);
+        }
+
+        /// <summary>
+        /// 前の騎手までの距離（m、ui-r3-14）：順位表（order、CP と距離の並び）でひとつ前の騎手と比べる。
+        /// 同じ CP を目指していれば「次の CP までの距離」の差、違えば水平の直線距離。前がいない・前がもうゴールした・自分がゴールした は -1。
+        /// </summary>
+        public float GapAheadMeters(int slot)
+        {
+            if (mounts == null || slot < 0 || slot >= SlotCount() || mounts[slot] == null) return -1f;
+            int prev = -1;
+            bool found = false;
+            for (int p = 0; p < MAX_SLOTS; p++)
+            {
+                int o = order[p];
+                if (o < 0 || o >= SlotCount() || slotPlayerId[o] < 0) continue;
+                if (o == slot) { found = true; break; }
+                prev = o;
+            }
+            if (!found || prev < 0) return -1f;
+            MountController me = mounts[slot];
+            MountController a = mounts[prev];
+            if (a == null) return -1f;
+            if (me.syncFinishAt >= 0.0 && me.syncFinishAt >= stageStartServer) return -1f;
+            int aheadCp = a.syncCp;
+            if (a.syncFinishAt >= 0.0 && a.syncFinishAt >= stageStartServer) aheadCp = -1;
+            Vector3 d = a.transform.position - me.transform.position;
+            d.y = 0f;
+            return HudMath.GapMeters(me.syncCp, me.syncDistToCp, aheadCp, a.syncDistToCp, d.magnitude);
         }
 
         public void _TeleportLocalToLobby()
@@ -1446,7 +1510,7 @@ namespace HorseRace
         /// <summary>黒板・台帳・電報用の短い名前（HudMath.SHORT_NAME_MAX 文字まで、超えたら「…」）。</summary>
         public static string ShortName(int playerId)
         {
-            return HudMath.ShortName(PlayerName(playerId), HudMath.SHORT_NAME_MAX);
+            return HudMath.DisplayName(PlayerName(playerId), HudMath.SHORT_NAME_MAX);   // ui-r3-15：フォントに無い字は「・」
         }
 
         public static string PlayerName(int playerId)
@@ -1548,6 +1612,12 @@ namespace HorseRace
             string who = ShortName(localPickPlayer);
             pickLastText = pts > 0 ? "的中！ " + who + " " + place.ToString() + "着  +" + pts.ToString() + "点"
                 : "はずれ " + who + (place > 0 ? " " + place.ToString() + "着" : "");
+            // 観客への小さなごほうび（ui-r3-16）：当たりは鈴・はずれは鈍い音（新聞売りの 2D の声）、予想の紙が跳ね、中継の札に 4 秒
+            if (!IsLocalEntered())
+            {
+                if (crier != null) crier.PickResult(pts > 0, pickLastText);
+                if (spectator != null) spectator.ShowPickCaption(pickLastText);
+            }
         }
 
         /// <summary>予想の札と札の上の紙を書き直す（ローカル）。札は枠に人がいるスロットだけ出す。</summary>
@@ -1609,7 +1679,7 @@ namespace HorseRace
             if (best[0] <= 0) return "";
             string s = "<b>予想の名人</b>\n";
             for (int k = 0; k < 3; k++)
-                if (best[k] > 0) s += HudMath.Row2((k + 1).ToString() + "位", HudMath.ShortName(names[k], HudMath.SHORT_NAME_MAX) + "  " + best[k].ToString() + "点") + "\n";
+                if (best[k] > 0) s += HudMath.Row2((k + 1).ToString() + "位", HudMath.DisplayName(names[k], HudMath.SHORT_NAME_MAX) + "  " + best[k].ToString() + "点") + "\n";
             return s;
         }
     }

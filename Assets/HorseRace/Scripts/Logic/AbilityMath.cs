@@ -29,6 +29,15 @@ namespace HorseRace
         public const float BALL_HIT_SECONDS = 1.2f;
         public const int BALL_BOUNCES = 3;
         public const float BALL_CURVE_DEG_PER_M_PER_ROLL_DEG = 0.5f;
+        /// <summary>ui-r3-08：鉄球の狙いの印が赤くなる距離（m、26 m/s の初速で約 1.3 秒・はねる前に届く）。</summary>
+        public const float BALL_AIM_RANGE = 35f;
+        /// <summary>ui-r3-08：狙いの印の当たり判定を飛ばす間隔（秒、10 Hz）。</summary>
+        public const float AIM_PROBE_INTERVAL = 0.1f;
+        /// <summary>ui-r3-08：届く距離のこの倍まで探して、外なら灰色で見せる。</summary>
+        public const float AIM_PROBE_REACH = 1.6f;
+        /// <summary>ui-r3-08：狙いの印の高さ（m、GoalPresenter の着順の札と同じ）と回る速さ（度/秒）。</summary>
+        public const float AIM_MARKER_HEIGHT = 2.9f;
+        public const float AIM_MARKER_SPIN_DEG = 180f;
 
         static int Clamp(int lv)
         {

@@ -13,6 +13,8 @@ namespace HorseRace
     ///   ゲートの Trigger そのもの（Checkpoint, isGoal）が syncFinishAt を立てるので、ここでは同期値を見るだけで全クライアントが同じ着順を出せる。
     /// - そのステージで最初のゴール（RaceManager の同期値 firstFinishServer が今のステージの値になった）で教会の鐘を全員が 1 回鳴らす。
     ///   stageSeq ごとに 1 回。途中参加などで古い出来事を受け取ったときは鳴らさない。
+    /// - 着順で祝い方を変える（ui-r3-13）：紙吹雪は DirectorMath.ConfettiForPlace（1 着 300・2〜3 着 120・4 着以下 30）、
+    ///   1 着だけ札が ×1.35 で金の火花 24（winSparks）、札の字は赤インクの太字（表彰台と同じ）、ほかは焦げ茶のインク。
     /// - 自分のゴールは首の札（RaceManager.hud）に「3着  +6点」とステージのタイム（10 分の 1 秒）を 4 秒、跳ねる拡大とゴールの音。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -28,8 +30,10 @@ namespace HorseRace
         [Header("効果")]
         [Tooltip("紙吹雪（ゲートの上に置く）")]
         public ParticleSystem confetti;
-        [Tooltip("1 回のゴールで出す紙吹雪の数（0 なら Play）")]
+        [Tooltip("1 回のゴールで出す紙吹雪の数の基準（0 なら Play）。実際の数は着順で DirectorMath.ConfettiForPlace × confettiBurst / 120")]
         public int confettiBurst = 120;
+        [Tooltip("1 着の札の金の火花（RelicPickup.burst と同じ作り、Emit 24）")]
+        public ParticleSystem winSparks;
         [Tooltip("教会の鐘（全員に聞こえるよう 2D 推奨）")]
         public AudioSource bellAudio;
         public AudioClip bellClip;
@@ -53,6 +57,7 @@ namespace HorseRace
         private bool[] act;
 
         private int[] tagSlot;
+        private Vector3[] tagBaseScale;
         private float[] tagStart;
         private int nextTag;
 
@@ -65,9 +70,11 @@ namespace HorseRace
             int t = placeTags != null ? placeTags.Length : 0;
             tagSlot = new int[t];
             tagStart = new float[t];
+            tagBaseScale = new Vector3[t];
             for (int i = 0; i < t; i++)
             {
                 tagSlot[i] = -1;
+                tagBaseScale[i] = placeTags[i] != null ? placeTags[i].localScale : Vector3.one;
                 if (placeTags[i] != null) placeTags[i].gameObject.SetActive(false);
             }
         }
@@ -128,7 +135,7 @@ namespace HorseRace
         {
             if (confetti != null)
             {
-                if (confettiBurst > 0) confetti.Emit(confettiBurst);
+                if (confettiBurst > 0) confetti.Emit(Mathf.Max(1, DirectorMath.ConfettiForPlace(place) * confettiBurst / 120));
                 else confetti.Play();
             }
             RaceManager rm = raceManager;
@@ -150,8 +157,16 @@ namespace HorseRace
                 // 着順と名前（ui-r2-14：中継・囲いで見ている人にも誰か分かる）
                 string who = rm != null && slot < rm.slotPlayerId.Length && rm.slotPlayerId[slot] >= 0 ? RaceManager.ShortName(rm.slotPlayerId[slot]) : "";
                 placeTagTexts[k].text = (place == 1 ? "1着！" : place.ToString() + "着") + (who.Length > 0 ? "\n<size=55%>" + who + "</size>" : "");
+                // 1 着は赤インク（表彰台の名札と同じ。札の字は生成時から太字）、ほかは焦げ茶のインク（ui-r3-13）
+                placeTagTexts[k].color = place == 1 ? new Color(0.72f, 0.12f, 0.08f) : new Color(0.23f, 0.15f, 0.08f);
             }
+            placeTags[k].localScale = tagBaseScale[k] * DirectorMath.TagScaleForPlace(place);
             placeTags[k].gameObject.SetActive(true);
+            if (place == 1 && winSparks != null)
+            {
+                winSparks.transform.position = placeTags[k].position;
+                winSparks.Emit(24);
+            }
         }
 
         private void RingBell()

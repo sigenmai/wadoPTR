@@ -143,6 +143,9 @@ namespace HorseRace.EditorTools
                 crier.paperTo = to;
             }
             crier.callAudio = GenUtil.Audio(crierGo, true, false, SfxBuilder.Clip(SfxMath.CHIME));
+            // 観客の予想の結果（ui-r3-16）：当たり = 鈴、はずれ = 鈍い音（同じ 2D の声から）
+            crier.pickHitClip = SfxBuilder.Clip(SfxMath.CHIME);
+            crier.pickMissClip = SfxBuilder.Clip(SfxMath.THUD);
             crier.boards = telegram != null ? new[] { telegram } : new NoticeBoardDisplay[0];
             crier.paperArm = arm;
             ctx.crier = crier;
@@ -171,7 +174,7 @@ namespace HorseRace.EditorTools
             }
             else
             {
-                var q = GenUtil.Prim(PrimitiveType.Quad, "Panel", holder.transform, new Vector3(0f, 2.15f, -0.05f), new Vector3(3.2f, 1.8f, 1f), Paper);
+                var q = GenUtil.Prim(PrimitiveType.Quad, "Panel_Fallback", holder.transform, new Vector3(0f, 2.15f, -0.05f), new Vector3(3.2f, 1.8f, 1f), Paper);
                 q.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
                 pr = q.GetComponent<Renderer>();
                 panelCenter = pr.bounds.center;
@@ -289,12 +292,16 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>表彰台の後ろの「総合結果」の掲示板（NoticeBoard ×0.8、紙の板・看板の文字）。観客は表彰台の正面（+Z）から見る。</summary>
-        static void NoticeSignForPodium(Transform holder, Vector3 pos, float yawFacingAudience)
+        /// <summary>見出し（Podium.resultsHeading と同じ）。4〜8 位は Podium がこの下に小さく書く（ui-r3-06）。</summary>
+        public const string RESULTS_HEADING = HudMath.RESULTS_HEADING;
+
+        static TMPro.TextMeshPro NoticeSignForPodium(Transform holder, Vector3 pos, float yawFacingAudience)
         {
             Vector3 back = holder.TransformPoint(new Vector3(0f, 0f, -3.2f));
             back.y = pos.y;
-            LobbyBuilder.NoticeSign(holder, "ResultsBanner", back, yawFacingAudience + 180f, 0.8f, "<b><size=150%>総合結果</size></b>", 2.4f,
+            var t = LobbyBuilder.NoticeSign(holder, "ResultsBanner", back, yawFacingAudience + 180f, 0.8f, RESULTS_HEADING, 2.4f,
                 UiStyle.Gold, TextStyle.Sign, new Color(0.36f, 0.24f, 0.15f));
+            return t;
         }
 
         /// <summary>
@@ -352,8 +359,8 @@ namespace HorseRace.EditorTools
                 // 名札を吊る杭（立てた丸太 WoodLogs_01、art-r3-02：骨の杭は使わない）：段の後ろから立てる（宙に浮かせない）
                 GenUtil.WoodPost(plate.transform, holder.transform.TransformPoint(new Vector3(x[i], baseTop + h[i], -0.66f)), 0f, 2.96f, 0.22f).name = "PlatePost";
             }
-            // 「総合結果」の掲示板（表彰台の後ろ、観客側から読める）
-            NoticeSignForPodium(holder.transform, pos, yawFacingAudience);
+            // 「総合結果」の掲示板（表彰台の後ろ、観客側から読める）。4〜8 位は見出しの下に小さく（ui-r3-06）
+            var board = NoticeSignForPodium(holder.transform, pos, yawFacingAudience);
             var fw = new ParticleSystem[4];
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(new Color(0.71f, 0.31f, 0.18f), 0f), new GradientColorKey(new Color(0.88f, 0.69f, 0.31f), 0.5f),
@@ -375,6 +382,19 @@ namespace HorseRace.EditorTools
             pd.steps = steps;
             pd.fireworks = fw;
             pd.fanfare = GenUtil.Audio(holder, true, false, SfxBuilder.Clip(SfxMath.STING));
+            // 発表の順（ui-r3-06）：太鼓（時計の音を 0.12 秒ごと）・名札をめくる音・1 位の鐘・最後のファンファーレ（新しい音の素材は作らない）
+            pd.drumClip = SfxBuilder.Clip(SfxMath.TICK);
+            pd.revealClip = SfxBuilder.Clip(SfxMath.PEN);
+            pd.bellClip = SfxBuilder.Clip(SfxMath.BELL);
+            pd.stingClip = SfxBuilder.Clip(SfxMath.STING);
+            pd.resultsBoard = board;
+            pd.resultsHeading = RESULTS_HEADING;
+            // 1 位の段の上の金の紙吹雪（ゴールの紙吹雪と同じ作り、Emit 300）
+            pd.goldBurst = GenUtil.Particles(holder.transform, "GoldBurst", steps[0].localPosition + Vector3.up * 3.2f, new Color(1f, 0.82f, 0.35f), 0.15f, 6f, 3f, false, 0f, 1.5f);
+            // 中継の表彰台のカット（ui-r3-01）：正面 9m・高さ 3.2m から 1 位の段を見る。SceneAssembler が SpectatorDirector に入れる
+            var shot = GenUtil.Child(holder.transform, "PodiumShot", new Vector3(0f, 3.2f, 9f));
+            Vector3 look = steps[0].position + Vector3.up * 1.2f - shot.transform.position;
+            if (look.sqrMagnitude > 0.001f) shot.transform.rotation = Quaternion.LookRotation(look);
             return pd;
         }
     }

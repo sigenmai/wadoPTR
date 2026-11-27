@@ -377,6 +377,8 @@ namespace HorseRace.EditorTools
             gp.stageIndex = sb.def.index;
             gp.confetti = GenUtil.Particles(gate, "Confetti", new Vector3(0f, 6.6f, 0f), new Color(1f, 0.85f, 0.4f), 0.15f, 6f, 3f, false, 0f, 2f);
             gp.bellAudio = ctx.churchBell;
+            // 1 着の札の金の火花（ui-r3-13、遺物の PickupBurst と同じ作り。GoalPresenter が札の位置へ動かして Emit 24）
+            gp.winSparks = GenUtil.Particles(gate, "WinSparks", new Vector3(0f, 3f, 0f), new Color(1f, 0.82f, 0.35f), 0.12f, 4f, 0.8f, false, 0f, 0.3f);
             var fin = GenUtil.Child(gate, "FinishAudio", new Vector3(0f, 2f, 0f));
             gp.finishAudio = GenUtil.Audio(fin, false, false, SfxBuilder.Clip(SfxMath.STING));
             var tags = new Transform[8];

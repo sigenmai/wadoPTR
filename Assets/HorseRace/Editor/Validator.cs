@@ -31,7 +31,7 @@ namespace HorseRace.EditorTools
             { typeof(MountVisual), new[] { "horseModel", "camelModel", "skeletonModel", "horseAnimator", "camelAnimator", "skeletonAnimator",
                 "horseController", "camelController", "skeletonController", "horseCoatRenderers", "coatMaterials", "breathAudio" } },
             { typeof(MountInputVR), new[] { "mount", "seatAnchor" } },
-            { typeof(AbilityCaster), new[] { "mount", "raceManager", "pouch", "revolver", "dustCloud", "lasso", "rockWall", "balls", "relicPool" } },
+            { typeof(AbilityCaster), new[] { "mount", "raceManager", "pouch", "revolver", "dustCloud", "lasso", "rockWall", "balls", "relicPool", "aimMarker", "aimInRange", "aimOutRange" } },
             { typeof(CharmPouch), new[] { "cardRoot", "cardRenderers", "readyMaterials", "idleMaterials", "cooldownText", "levelMarks" } },
             { typeof(RevolverHolder), new[] { "caster", "pickup", "cylinder", "hammer", "triggerPart", "bullets", "muzzle" } },
             { typeof(DustCloud), new[] { "visual", "particles" } },
@@ -49,12 +49,14 @@ namespace HorseRace.EditorTools
             { typeof(RankBoard), new[] { "raceManager", "boardText" } },
             { typeof(MinimalHud), new[] { "raceManager", "hudRoot", "rankText", "timeText", "headerText", "progressText", "staminaPips" } },
             { typeof(PocketWatch), new[] { "raceManager", "watchRoot", "faceText" } },
-            { typeof(SpectatorDirector), new[] { "raceManager", "broadcastCamera", "renderTexture", "tags" } },
+            { typeof(SpectatorDirector), new[] { "raceManager", "broadcastCamera", "renderTexture", "tags", "goalShots", "podiumShot", "podiumLook" } },
             { typeof(DirectorTag), new[] { "director" } },
             { typeof(NoticeBoardDisplay), new[] { "raceManager", "panelRenderer", "broadcastMaterial", "parchmentMaterial", "boardText" } },
             { typeof(Starter), new[] { "raceManager", "flagPivot", "audioSource", "stageSpots", "skyCountText", "skySpots" } },
             { typeof(GoalPresenter), new[] { "raceManager", "confetti", "bellAudio", "placeTags", "placeTagTexts" } },
-            { typeof(Podium), new[] { "raceManager", "steps", "fireworks", "namePlates" } },
+            { typeof(Podium), new[] { "raceManager", "steps", "fireworks", "namePlates", "plateRoots", "drumClip", "goldBurst", "resultsBoard" } },
+            { typeof(StepSigns), new[] { "raceManager", "stepTexts", "stepLights", "startPoint" } },
+            { typeof(PracticeLap), new[] { "boardText", "hud" } },
             { typeof(Checkpoint), new[] { "raceManager" } },
             { typeof(TownCrier), new[] { "raceManager", "boards" } },
             { typeof(StageAtmosphere), new[] { "raceManager", "sun", "fogColor" } },
@@ -105,6 +107,7 @@ namespace HorseRace.EditorTools
             CheckLayers(root, warn);
             CheckHidden(root, warn, info);
             CheckCustom(root, warn, info);
+            CheckPrimitives(root, warn, info);
             Transform lobbyDr = GenUtil.FindDeep(root.transform, "TownDressing");
             int lobbyN = 0;
             if (lobbyDr != null) foreach (Transform g in lobbyDr) { if (g.name.StartsWith("WallPoster")) continue; foreach (Transform c in g) lobbyN++; }
@@ -449,6 +452,33 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>見えてはいけない場所：霧、中継・参照カメラの遠さ、見えない壁、遠景の山並み、地面の板の範囲、中継カメラの範囲。</summary>
+        static readonly string[] PrimitiveMeshNames = { "Cube", "Sphere", "Capsule", "Cylinder", "Plane", "Quad" };
+
+        /// <summary>
+        /// 「モデルは作るな」（ui-r3-12）：見えている（有効な Renderer の）Unity のプリミティブ（Cube / Sphere / Capsule / Cylinder / Plane / Quad の組み込みメッシュ）を
+        /// 一覧にして警告する。素材が見つからないときの代わり（名前が *_Fallback / FallbackPrimitive）は除く（素材の欠けは別に警告される）。
+        /// </summary>
+        static void CheckPrimitives(GameObject root, List<string> warn, List<string> info)
+        {
+            int n = 0;
+            var names = new List<string>();
+            foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null) continue;
+                var r = mf.GetComponent<MeshRenderer>();
+                if (r == null || !r.enabled) continue;
+                string go = mf.gameObject.name;
+                if (go.EndsWith("_Fallback") || go.Contains("FallbackPrimitive")) continue;
+                if (Array.IndexOf(PrimitiveMeshNames, mf.sharedMesh.name) < 0) continue;
+                string path = AssetDatabase.GetAssetPath(mf.sharedMesh);
+                if (path != "Library/unity default resources") continue;
+                n++;
+                if (names.Count < 12) names.Add(go);
+            }
+            if (n > 0) warn.Add("見えているプリミティブが " + n + " 個あります（素材の部品に置き換える）: " + string.Join(", ", names.ToArray()) + (n > names.Count ? " …" : ""));
+            else info.Add("見えているプリミティブ：なし");
+        }
+
         static void CheckHidden(GameObject root, List<string> warn, List<string> info)
         {
             if (!RenderSettings.fog) warn.Add("霧（RenderSettings.fog）が無効です");

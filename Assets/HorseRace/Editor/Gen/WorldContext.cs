@@ -87,6 +87,8 @@ namespace HorseRace.EditorTools
         public readonly List<PracticeDummy> dummies = new List<PracticeDummy>();
         public MinimalHud hud;
         public PocketWatch watch;
+        /// <summary>練習場の往復タイム（ui-r3-07：首の札が計測中の秒数・自己ベストを読む）。</summary>
+        public PracticeLap practiceLap;
 
         // 演出
         public SpectatorDirector director;

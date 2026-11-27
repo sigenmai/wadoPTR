@@ -9,7 +9,7 @@ namespace HorseRace
     /// 懐中時計（ステージの残り時間）。エントリーしていてレース中だけ。文字盤は紙の円盤に TMP の数字 12 個と針 2 本（字形「│」）、真ん中に「残り 3:12」。
     /// VR：左手首の内側。手首を顔に向けたとき（手の上向き・手から頭への向きの内積 > 0.55）だけ 0.15 秒でふくらんで出る。
     ///     手綱を握っている間（手首が下）は出ない＝残り時間は首の札（MinimalHud）にいつも出ている。
-    /// デスクトップ：頭の前・右下の隅（首の札の反対側）に ×0.6、文字盤を目のほうへ 22° 起こす（裏返さない：ui-r2-02）。
+    /// デスクトップ：頭の前・右上の隅（右下は能力の札：ui-r3-04）に ×0.6、文字盤を目のほうへ 15° 傾ける（裏返さない：ui-r2-02）。
     ///     首の札と同じ残り時間を重ねないよう、ロビーの「出走まで」と残り 30 秒（文字盤が赤くなる）のときだけ出す。
     /// 文字盤（ui-r2-16）：ステージの全体（330 秒、ロビーは 60 秒）を 1 周に。過ぎた数字は薄く、最後の 2 つ（11・12）は赤インク、
     ///     残り 30 秒で文字盤の字が全部赤インク。秒針は 1 秒ずつカチッと進む。
@@ -40,8 +40,8 @@ namespace HorseRace
         public Vector3 vrLocalEuler = new Vector3(0f, 90f, 0f);
 
         [Header("デスクトップ（頭からの相対）")]
-        public Vector3 desktopOffset = new Vector3(0.30f, -0.17f, 0.5f);
-        public Vector3 desktopEuler = new Vector3(22f, 0f, 0f);
+        public Vector3 desktopOffset = new Vector3(0.40f, 0.15f, 0.55f);
+        public Vector3 desktopEuler = new Vector3(-15f, 0f, 0f);
         [Tooltip("デスクトップでの倍率（VR は 1）。UiStyle.DESKTOP_WATCH_SCALE")]
         public float desktopScale = 0.6f;
         [Tooltip("デスクトップで出す残り秒数（これ以下・ロビーのときだけ）")]
@@ -71,6 +71,12 @@ namespace HorseRace
             bool lobby = raceManager.state == RaceMath.STATE_LOBBY;
             if (lobby) rem = raceManager.GetLobbySecondsLeft();   // ロビー：出走時計（system-r1-09）
             bool active = rem >= 0f && raceManager.IsLocalEntered() && (lobby || raceManager.state == RaceMath.STATE_RACING);
+            // ゴールした人には時計を出さない（ui-r3-10：カチカチ・赤い文字盤は終わったレースのもの）
+            if (active && !lobby)
+            {
+                MountController fm = raceManager.LocalMount();
+                if (fm != null && fm.syncFinishAt >= 0.0 && fm.syncFinishAt >= raceManager.stageStartServer) active = false;
+            }
             if (!active) { reveal = 0f; lastTickSecond = -1; SetShown(false); return; }
 
             bool want;
@@ -117,8 +123,10 @@ namespace HorseRace
                 lastText = t;
                 if (faceText != null) faceText.text = t;
             }
-            // 文字盤 = ステージの全体（ui-r2-16）。長い針が 12 に来たら時間切れ
-            float total = lobby ? RaceMath.LOBBY_WAIT_SECONDS : RaceMath.STAGE_HARD_LIMIT;
+            // 文字盤 = ステージの全体（ui-r2-16）。長い針が 12 に来たら時間切れ。
+            // 先頭がゴールしたら 60 秒の新しい 1 周に（ui-r3-02：針が 12 の近くへ飛ばない）
+            bool leader = !lobby && raceManager.firstFinishServer >= 0.0 && raceManager.firstFinishServer >= raceManager.stageStartServer;
+            float total = HudMath.DialTotal(lobby, leader);
             if (minuteHand != null) minuteHand.localRotation = Quaternion.Euler(0f, 0f, HudMath.DialAngle(rem, total));
             if (secondHand != null) secondHand.localRotation = Quaternion.Euler(0f, 0f, HudMath.SecondHandAngle(rem));
             UpdateNumerals(rem, total, late);

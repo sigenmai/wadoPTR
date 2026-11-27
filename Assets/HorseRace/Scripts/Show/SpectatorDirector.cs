@@ -20,6 +20,10 @@ namespace HorseRace
     /// - 「命中」は撃った側が判定した相手のスロットを全員向けの見た目イベント（FxShot / FxLasso）の引数で受け取り、
     ///   鉄球は全クライアントで動く当たり判定から、NotifyHitSlot でローカルに知らされる。
     /// - RenderTexture（Target Texture）が無いカメラは描画しない（観戦者の画面に直接映らないように）。
+    /// - 結果（ui-r3-01）：STAGE_RESULT はそのステージのゴールの門の後ろ上（goalShots[stage]）から囲いを、FINAL_RESULT は表彰台の正面（podiumShot）から
+    ///   1 位の段を映す（表彰台は ±12° を 20 秒でゆっくり左右に回る）。走っていない人・ロビーにいる参加者のクライアントだけ。札は「第2幕 砂漠｜結果｜1着 名前」
+    ///   「総合結果｜優勝 名前  24点」。ゴールの瞬間・優勝の瞬間に中継が消えない。
+    /// - 観客の予想の結果（ui-r3-16）は札に 4 秒「予想 的中！ …」。
     /// 同期しない。プレイヤーのカメラ（視点）には一切触れない。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -53,6 +57,16 @@ namespace HorseRace
         [Tooltip("stage 番号ごとの最大 x/z")]
         public Vector3[] stageBoundsMax;
 
+        [Header("結果のカット（ui-r3-01）")]
+        [Tooltip("ステージごと：ゴールの門の 9m 後ろ・4m 上から囲いを見る空の Transform")]
+        public Transform[] goalShots;
+        [Tooltip("表彰台の正面（1 位の段を見る）")]
+        public Transform podiumShot;
+        [Tooltip("表彰台のカットが回る中心（1 位の段 Step_1）")]
+        public Transform podiumLook;
+        [Tooltip("参加者でもロビー（lobbySpawn）からこの距離（m）以内にいれば結果を映す")]
+        public float lobbyRadius = 200f;
+
         [Header("任意")]
         [Tooltip("掲示板の下の札に「中継：名前（2位）」と書く")]
         public TextMeshPro captionText;
@@ -82,6 +96,12 @@ namespace HorseRace
         private Quaternion blendFromRot;
 
         private int[] fullOrder = new int[0];
+        private Transform resultShot;
+        private bool resultPodium;
+        private float resultStart;
+        private bool resultPlaced;
+        private string pickCaption = "";
+        private float pickCaptionUntil;
         private int[] cp;
         private float[] dist;
         private double[] fin;
@@ -153,6 +173,14 @@ namespace HorseRace
             lastHitTime = Time.time;
         }
 
+        /// <summary>観客の予想の結果（ui-r3-16、RaceManager.ScorePickLocal から）：中継の札に 4 秒「予想 …」。</summary>
+        public void ShowPickCaption(string text)
+        {
+            pickCaption = HudMath.PickCaption(text);
+            pickCaptionUntil = Time.time + 4f;
+            if (captionText != null) captionText.text = pickCaption;
+        }
+
         // =====================================================================
         // 更新
         // =====================================================================
@@ -208,6 +236,7 @@ namespace HorseRace
                     target = -1;
                     hasFollow = false;
                     nextDecide = 0f;
+                    resultShot = null;
                 }
                 else if (captionText != null) captionText.text = "";
             }
@@ -219,12 +248,39 @@ namespace HorseRace
             }
         }
 
+        /// <summary>結果のカットの Transform（STAGE_RESULT = そのステージのゴール、FINAL_RESULT = 表彰台）。無ければ null。</summary>
+        private Transform ResultShotFor(int st)
+        {
+            if (st == RaceMath.STATE_FINAL_RESULT) return podiumShot;
+            if (st != RaceMath.STATE_STAGE_RESULT || goalShots == null) return null;
+            int s = raceManager.stage;
+            if (s < 0 || s >= goalShots.Length) return null;
+            return goalShots[s];
+        }
+
+        /// <summary>ローカルのプレイヤーがロビー（lobbySpawn の近く）にいるか。</summary>
+        private bool LocalInLobby()
+        {
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null || raceManager.lobbySpawn == null) return false;
+            Vector3 d = local.GetPosition() - raceManager.lobbySpawn.position;
+            d.y = 0f;
+            return d.magnitude <= lobbyRadius;
+        }
+
         private bool ShouldRender()
         {
             if (raceManager == null || broadcastCamera == null) return false;
             int st = raceManager.state;
-            if (st != RaceMath.STATE_COUNTDOWN && st != RaceMath.STATE_RACING) return false;
-            if (raceManager.IsLocalEntered())
+            bool result = st == RaceMath.STATE_STAGE_RESULT || st == RaceMath.STATE_FINAL_RESULT;
+            if (st != RaceMath.STATE_COUNTDOWN && st != RaceMath.STATE_RACING && !result) return false;
+            if (result)
+            {
+                // 結果（ui-r3-01）：見ている人（参加していない・ロビーにいる参加者）にゴールと表彰台を映す
+                if (ResultShotFor(st) == null) return false;
+                if (raceManager.IsLocalEntered() && !LocalInLobby()) return false;
+            }
+            else if (raceManager.IsLocalEntered())
             {
                 MountController lm = raceManager.LocalMount();
                 if (lm == null || lm.syncFinishAt < 0.0 || st != RaceMath.STATE_RACING) return false;
@@ -246,6 +302,23 @@ namespace HorseRace
         {
             if (cp == null) return;
             RaceManager rm = raceManager;
+            int rst = rm.state;
+            if (rst == RaceMath.STATE_STAGE_RESULT || rst == RaceMath.STATE_FINAL_RESULT)
+            {
+                // 結果のカット（ui-r3-01）：追う馬は選ばない
+                Transform shot = ResultShotFor(rst);
+                if (shot != resultShot)
+                {
+                    resultShot = shot;
+                    resultPodium = rst == RaceMath.STATE_FINAL_RESULT;
+                    resultStart = Time.time;
+                    resultPlaced = hasFollow;   // 追っていた絵からなめらかに移る（最初の絵ならそのまま置く）
+                    target = -1;
+                }
+                UpdateResultCaption();
+                return;
+            }
+            resultShot = null;
             int n = rm.SlotCount();
             int running = 0;
             for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
@@ -376,6 +449,11 @@ namespace HorseRace
         private void LateUpdate()
         {
             if (!live || broadcastCamera == null || raceManager == null) return;
+            if (resultShot != null)
+            {
+                LateUpdateResult();
+                return;
+            }
             if (target < 0 || target >= raceManager.SlotCount()) return;
             MountController m = raceManager.mounts[target];
             if (m == null) return;
@@ -407,6 +485,53 @@ namespace HorseRace
             broadcastCamera.transform.SetPositionAndRotation(pos, rot);
         }
 
+        /// <summary>結果のカット（ui-r3-01）：カットへなめらかに寄り、表彰台では 1 位の段のまわりを ±12° を 20 秒で左右に回る。</summary>
+        private void LateUpdateResult()
+        {
+            Transform ct = broadcastCamera.transform;
+            Vector3 pos = resultShot.position;
+            Quaternion rot = resultShot.rotation;
+            if (resultPodium && podiumLook != null)
+            {
+                Vector3 c = podiumLook.position;
+                float yaw = HudMath.OrbitYaw(Time.time - resultStart, 12f, 20f);
+                pos = c + Quaternion.Euler(0f, yaw, 0f) * (resultShot.position - c);
+                Vector3 look = c + Vector3.up * 1.2f - pos;
+                if (look.sqrMagnitude > 0.0001f) rot = Quaternion.LookRotation(look);
+            }
+            if (!resultPlaced)
+            {
+                resultPlaced = true;
+                ct.SetPositionAndRotation(pos, rot);
+                return;
+            }
+            float k = 1f - Mathf.Exp(-2.5f * Time.deltaTime);
+            ct.SetPositionAndRotation(Vector3.Lerp(ct.position, pos, k), Quaternion.Slerp(ct.rotation, rot, k));
+        }
+
+        /// <summary>結果の札：「第2幕 砂漠｜結果｜1着 名前」／「総合結果｜優勝 名前  24点」。予想の結果が出ている 4 秒はそちら。</summary>
+        private void UpdateResultCaption()
+        {
+            if (captionText == null) return;
+            if (Time.time < pickCaptionUntil) { if (captionText.text != pickCaption) captionText.text = pickCaption; return; }
+            RaceManager rm = raceManager;
+            string c;
+            if (rm.state == RaceMath.STATE_FINAL_RESULT)
+            {
+                int[] overall = rm.GetOverallOrder();
+                if (overall.Length > 0) c = HudMath.FinalResultCaption(RaceManager.ShortName(rm.slotPlayerId[overall[0]]), rm.slotTotalPoints[overall[0]]);
+                else c = HudMath.FinalResultCaption("", 0);
+            }
+            else
+            {
+                string winner = "";
+                for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
+                    if (rm.slotPlayerId[i] >= 0 && rm.slotStagePlace[i] == 1) { winner = RaceManager.ShortName(rm.slotPlayerId[i]); break; }
+                c = HudMath.StageResultCaption(rm.stage, winner);
+            }
+            if (captionText.text != c) captionText.text = c;
+        }
+
         private Vector3 DesiredPos(Vector3 mountPos, float yawDeg)
         {
             Vector3 fwd = Quaternion.Euler(0f, yawDeg, 0f) * Vector3.forward;
@@ -416,6 +541,7 @@ namespace HorseRace
         private void UpdateCaption()
         {
             if (captionText == null) return;
+            if (Time.time < pickCaptionUntil) { if (captionText.text != pickCaption) captionText.text = pickCaption; return; }
             if (target < 0)
             {
                 captionText.text = "";

@@ -58,7 +58,10 @@ namespace HorseRace.Tests
                 Assert.IsTrue(UiStyle.InFrustum(c + d, 60f, 16f / 9f, 0.05f), "corner " + d);
             Assert.Greater(c.x, 0f, "首の札（左下）の反対の右下");
             Assert.AreEqual(0f, UiStyle.DesktopWatchEuler.y, "裏返さない（文字は -Z 側）");
-            Assert.Greater(UiStyle.DesktopWatchEuler.x, 0f, "文字盤を目のほうへ起こす");
+            // 文字盤を目のほうへ向ける（ui-r3-04 で右上へ：上にあれば上端を手前＝負、下にあれば正）
+            Assert.Less(UiStyle.DesktopWatchEuler.x * c.y, 0f, "文字盤を目のほうへ向ける");
+            float want = -Mathf.Atan2(c.y, c.z) * Mathf.Rad2Deg;
+            Assert.AreEqual(want, UiStyle.DesktopWatchEuler.x, 3f);
         }
 
         // ---- ui-r2-05 / r2-10：VR で読める大きさ ----

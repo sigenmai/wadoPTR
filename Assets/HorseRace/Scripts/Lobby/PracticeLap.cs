@@ -22,6 +22,8 @@ namespace HorseRace
         [Tooltip("練習場の掲示板の文字（往復タイムの上位 5 人と自分の記録）")]
         public TextMeshPro boardText;
         public AudioSource lapSound;
+        [Tooltip("首の札（往復が終わったらタイムを大きく出す、ui-r3-07）")]
+        public MinimalHud hud;
 
         [UdonSynced] public string[] topNames = new string[] { "", "", "", "", "" };
         [UdonSynced] public float[] topTimes = new float[] { -1f, -1f, -1f, -1f, -1f };
@@ -63,16 +65,37 @@ namespace HorseRace
                 {
                     last = lap;
                     if (lapSound != null) lapSound.Play();
-                    if (best < 0f || lap < best)
+                    bool newBest = best < 0f || lap < best;
+                    if (newBest)
                     {
                         best = lap;
                         if (Qualifies(lap)) Submit(lap);
                     }
+                    if (hud != null) hud.PracticeLapDone(lap, newBest);
                 }
             }
             lapStart = now;
             turned = false;
             Refresh();
+        }
+
+        /// <summary>計測中の秒数（ui-r3-07、首の札）。計測していなければ -1。</summary>
+        public float LiveSeconds()
+        {
+            return lapStart >= 0f ? Time.time - lapStart : -1f;
+        }
+
+        /// <summary>このセッションの自分のいちばん速い往復（なければ -1）。</summary>
+        public float BestSeconds()
+        {
+            return best;
+        }
+
+        /// <summary>往復のどこまで来たか：0 = 計測前、1 = 南の門を出た、2 = 北の門も回った。</summary>
+        public int Leg()
+        {
+            if (lapStart < 0f) return 0;
+            return turned ? 2 : 1;
         }
 
         /// <summary>カカシに当てた（当てた人のクライアントで PracticeDummy.Wobble から）。</summary>
@@ -153,7 +176,7 @@ namespace HorseRace
             for (int i = 0; i < TOP; i++)
             {
                 if (topTimes[i] < 0f) continue;
-                s += HudMath.Row2((i + 1).ToString() + "位", HudMath.ShortName(topNames[i], HudMath.SHORT_NAME_MAX) + "  " + FormatLap(topTimes[i])) + "\n";
+                s += HudMath.Row2((i + 1).ToString() + "位", HudMath.DisplayName(topNames[i], HudMath.SHORT_NAME_MAX) + "  " + FormatLap(topTimes[i])) + "\n";
             }
             s += "<size=85%>自分：最高 " + FormatLap(best) + "　前回 " + FormatLap(last);
             if (lapStart >= 0f) s += "　計測中 " + FormatLap(Time.time - lapStart);

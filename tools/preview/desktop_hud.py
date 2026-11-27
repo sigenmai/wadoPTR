@@ -1,5 +1,5 @@
-# 使い方: blender -b --python tools/preview/desktop_hud.py -- new|old <出力.png>（ui-r2-02/03 の確認。TMP の代わりに Blender の文字、紙は単色）
-# デスクトップの目（60° 縦・16:9）から首の札と懐中時計を描く（Unity の座標 → Blender：(x,y,z)→(x,z,y)、回転 X は符号が逆）
+# 使い方: blender -b --python tools/preview/desktop_hud.py -- r3|new|old <出力.png>（ui-r2-02/03・ui-r3-04 の確認。TMP の代わりに Blender の文字、紙は単色）
+# デスクトップの目（60° 縦・16:9）から首の札・能力の札（r3：右下）・懐中時計（r3：右上）を描く（Unity の座標 → Blender：(x,y,z)→(x,z,y)、回転 X は符号が逆）
 import bpy, math, sys
 argv = sys.argv[sys.argv.index("--")+1:]
 mode, out = argv[0], argv[1]
@@ -31,7 +31,12 @@ def quad(parent, w, h, cx, cy, m, z=0.0):
 def text(parent, s, size, cx, cy, m):
     cu = bpy.data.curves.new("t", 'FONT'); cu.body = s; cu.size = size; cu.align_x='CENTER'; cu.align_y='CENTER'
     o = bpy.data.objects.new("t", cu); sc.collection.objects.link(o); o.parent = parent; o.location = (cx, cy, 0.002); o.data.materials.append(m)
-if mode == "new":
+pouch = None
+if mode == "r3":
+    card = group((-0.40, -0.19, 0.55), 0, 0, 0.55)
+    watch = group((0.40, 0.15, 0.55), -15, 0, 0.6)      # UiStyle.DesktopWatchOffset / Euler（ui-r3-04：右上、目へ向ける）
+    pouch = group((0.40, -0.19, 0.55), 0, 0, 0.55)      # UiStyle.DesktopAbilityOffset（首の札の反対）
+elif mode == "new":
     card = group((-0.40, -0.19, 0.55), 0, 0, 0.55)
     watch = group((0.30, -0.17, 0.5), 22, 0, 0.6)
 else:
@@ -44,5 +49,10 @@ quad(watch, 0.13, 0.13, 0, 0, paper)
 for k in range(1, 13):
     a = math.radians(k*30); text(watch, str(k), 0.016, math.sin(a)*0.05, math.cos(a)*0.05, red if k >= 11 else ink)
 text(watch, "0:42", 0.02, 0, -0.018, ink)
+if pouch is not None:
+    # 能力の札（UiStyle.POUCH_CARD_W × H = 0.07 × 0.10、上下の中心が原点）と Lv の宝石 3 つ（PouchGemLocal）・「E」
+    quad(pouch, 0.07, 0.10, 0, 0, mat("wanted",(0.80,0.66,0.45)))
+    text(pouch, "WANTED", 0.012, 0, 0.035, ink); text(pouch, "E", 0.03, 0, -0.015, mat("brass",(1,0.82,0.45)))
+    for i in range(3): quad(pouch, 0.018, 0.018, -0.022 + i*0.022, -0.05-0.016, mat("gem",(1,0.82,0.35)) if i == 0 else mat("gemoff",(0.25,0.18,0.1)), 0.001)
 sc.render.filepath = out
 bpy.ops.render.render(write_still=True)

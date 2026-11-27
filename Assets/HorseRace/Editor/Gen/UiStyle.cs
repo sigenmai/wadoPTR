@@ -117,11 +117,37 @@ namespace HorseRace.EditorTools
         /// <summary>首の札の下の持久力の印の下端（札の中心から、拡大 1、m）。</summary>
         public const float NECK_PIPS_BOTTOM = -(NECK_CARD_H * 0.5f + 0.02f + 0.0125f + PIP_SIZE_M * 0.5f);
 
-        // ---- デスクトップの懐中時計（ui-r2-02）----
+        // ---- デスクトップの能力の札（ui-r3-04）：首の札の反対の右下、同じ ×0.55 ----
+        public static readonly Vector3 DesktopAbilityOffset = new Vector3(0.40f, -0.19f, 0.55f);
+        /// <summary>能力の札の紙（MountBuilder.BuildPouch、上端が札の原点）。</summary>
+        public const float POUCH_CARD_W = 0.07f, POUCH_CARD_H = 0.10f;
+        /// <summary>能力の札の Lv の宝石 i（0..2、Gems_01_02〜04）の位置（札のローカル、拡大 1）。</summary>
+        public static Vector3 PouchGemLocal(int i) => new Vector3(-0.022f + i * 0.022f, -POUCH_CARD_H * 0.5f - 0.016f, -0.004f);
+        /// <summary>Lv の宝石のいちばん長い辺（m）。</summary>
+        public const float POUCH_GEM_M = 0.018f;
+
+        // ---- デスクトップの懐中時計（ui-r2-02 → ui-r3-04：能力の札と重ならないよう右上）----
         public const float DESKTOP_WATCH_SCALE = 0.6f;
-        public static readonly Vector3 DesktopWatchOffset = new Vector3(0.30f, -0.17f, 0.5f);
-        public static readonly Vector3 DesktopWatchEuler = new Vector3(22f, 0f, 0f);
+        public static readonly Vector3 DesktopWatchOffset = new Vector3(0.40f, 0.15f, 0.55f);
+        /// <summary>文字盤を目のほうへ向ける傾き：右上にあるので上端を手前へ（負の X、atan(0.15/0.55) ≈ 15°）。</summary>
+        public static readonly Vector3 DesktopWatchEuler = new Vector3(-15f, 0f, 0f);
         public const float WATCH_DIAL_M = 0.13f;
+
+        // ---- 鉄球の見た目（ui-r3-12）：RockCollection のいちばん丸い石（0.741 × 0.746 × 0.757m ≈ 1:1:1、Blender で全 184 部品を測った）----
+        public const string BALL_ROCK_PART = "RockCollection_108";
+        public const float BALL_VISUAL_M = 0.7f;
+        public static readonly Color BallIron = new Color(0.20f, 0.20f, 0.23f);
+
+        // ---- VR の手の振動（ui-r3-05）：(秒, 強さ, 周波数)。値は HudMath.HAPTIC_*（実行時と同じ）----
+        public static readonly Vector3 HapticCountdown = new Vector3(HudMath.HAPTIC_COUNTDOWN_S, HudMath.HAPTIC_COUNTDOWN_AMP, HudMath.HAPTIC_COUNTDOWN_HZ);
+        public static readonly Vector3 HapticGo = new Vector3(HudMath.HAPTIC_GO_S, HudMath.HAPTIC_GO_AMP, HudMath.HAPTIC_GO_HZ);
+        public static readonly Vector3 HapticCheckpoint = new Vector3(HudMath.HAPTIC_CP_S, HudMath.HAPTIC_CP_AMP, HudMath.HAPTIC_CP_HZ);
+        public static readonly Vector3 HapticHitTaken = new Vector3(HudMath.HAPTIC_HIT_TAKEN_S, HudMath.HAPTIC_HIT_TAKEN_AMP, HudMath.HAPTIC_HIT_TAKEN_HZ);
+        public static readonly Vector3 HapticHitConfirm = new Vector3(HudMath.HAPTIC_HIT_CONFIRM_S, HudMath.HAPTIC_HIT_CONFIRM_AMP, HudMath.HAPTIC_HIT_CONFIRM_HZ);
+        public static readonly Vector3 HapticFinish = new Vector3(HudMath.HAPTIC_FINISH_S, HudMath.HAPTIC_FINISH_AMP, HudMath.HAPTIC_FINISH_HZ);
+        public static readonly Vector3 HapticShortcut = new Vector3(HudMath.HAPTIC_SHORTCUT_S, HudMath.HAPTIC_SHORTCUT_AMP, HudMath.HAPTIC_SHORTCUT_HZ);
+        public static readonly Vector3 HapticReady = new Vector3(HudMath.HAPTIC_READY_S, HudMath.HAPTIC_READY_AMP, HudMath.HAPTIC_READY_HZ);
+        public static readonly Vector3[] AllHaptics = { HapticCountdown, HapticGo, HapticCheckpoint, HapticHitTaken, HapticHitConfirm, HapticFinish, HapticShortcut, HapticReady };
 
         /// <summary>頭のローカルの点 p（+Z が前）が縦の視野 vFovDeg・横縦比 aspect の画面の中か（margin = 端からの余白の割合）。</summary>
         public static bool InFrustum(Vector3 p, float vFovDeg, float aspect, float margin)

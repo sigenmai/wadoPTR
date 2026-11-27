@@ -99,5 +99,27 @@ namespace HorseRace
             if (rank < 1 || rank > order.Length) return -1;
             return order[rank - 1];
         }
+
+        // ---- ui-r3-06：表彰台の発表の順（秒、総合結果に入ってから）----
+        public const float PODIUM_DRUM_SECONDS = 2f;
+        public const float PODIUM_DRUM_STEP = 0.12f;
+        public const float PODIUM_REVEAL_3RD = 2.0f;
+        public const float PODIUM_REVEAL_2ND = 3.5f;
+        public const float PODIUM_REVEAL_1ST = 5.5f;
+
+        /// <summary>ui-r3-13：ゴールの紙吹雪の数（1 着 300、2〜3 着 120、4 着以下 30）。place ≤ 0 は 0。</summary>
+        public static int ConfettiForPlace(int place)
+        {
+            if (place <= 0) return 0;
+            if (place == 1) return 300;
+            if (place <= 3) return 120;
+            return 30;
+        }
+
+        /// <summary>ui-r3-13：着順の札の大きさの倍率（1 着だけ 1.35）。</summary>
+        public static float TagScaleForPlace(int place)
+        {
+            return place == 1 ? 1.35f : 1f;
+        }
     }
 }

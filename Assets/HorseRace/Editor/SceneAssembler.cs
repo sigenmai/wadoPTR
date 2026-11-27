@@ -321,6 +321,16 @@ namespace HorseRace.EditorTools
             rm.practiceArea = ctx.practiceArea;
             rm.pickCards = ctx.pickCards.ToArray();
             rm.pickStatusText = ctx.pickStatus;
+            // 観客の予想の結果（ui-r3-16）：新聞売りの声で鈴／鈍い音、予想の紙が跳ねる
+            rm.crier = ctx.crier;
+            if (ctx.crier != null) ctx.crier.pickPaper = ctx.pickStatus;
+            // 練習の札（ui-r3-07）：練習用の馬に乗っている間も首の札、往復のタイム
+            if (ctx.hud != null)
+            {
+                ctx.hud.practiceArea = ctx.practiceArea;
+                ctx.hud.practiceLap = ctx.practiceLap;
+            }
+            if (ctx.practiceLap != null) ctx.practiceLap.hud = ctx.hud;
 
             // ---- 全員の raceManager（このビルドで作った UdonSharpBehaviour のうち raceManager フィールドを持つもの）----
             foreach (var b in GenUtil.Behaviours)
@@ -348,10 +358,42 @@ namespace HorseRace.EditorTools
             foreach (var b in GenUtil.Behaviours) if (b is ComfortVignette cv) cv.practiceArea = ctx.practiceArea;
 
             // ---- 演出 ----
+            ResultShots(ctx, pens);
             foreach (var nb in ctx.noticeBoards) if (nb.mode == 0) nb.director = ctx.director;
             foreach (var t in ctx.directorTags) t.director = ctx.director;
             // 囲いの掲示板の木札も含めて、選んでいる札の印を光らせる（system-r1-10）
             if (ctx.director != null) ctx.director.tags = ctx.directorTags.ToArray();
+        }
+
+        /// <summary>
+        /// 中継の結果のカット（ui-r3-01）：ステージごとにゴールの門の 9m 後ろ・4m 上から囲いを見る空の Transform（goalShots）と、
+        /// 表彰台の正面のカット（ShowBuilder.BuildPodium の PodiumShot）・回る中心（Step_1）。
+        /// </summary>
+        static void ResultShots(WorldContext ctx, Transform[] pens)
+        {
+            if (ctx.director == null) return;
+            var shots = new Transform[ctx.stages.Count];
+            for (int s = 0; s < ctx.stages.Count; s++)
+            {
+                var sb = ctx.stages[s];
+                if (sb.goal == null) continue;
+                Transform gate = sb.goal.transform;
+                Vector3 back = new Vector3(gate.forward.x, 0f, gate.forward.z);
+                if (back.sqrMagnitude < 1e-4f) back = Vector3.forward;
+                back = back.normalized;
+                Vector3 p = gate.position - back * 9f + Vector3.up * 4f;
+                var go = GenUtil.World(sb.root != null ? sb.root : ctx.root, "GoalShot", p);
+                Vector3 target = pens != null && s < pens.Length && pens[s] != null ? pens[s].position : gate.position + back * 20f;
+                Vector3 look = target + Vector3.up * 1f - p;
+                if (look.sqrMagnitude > 1e-3f) go.transform.rotation = Quaternion.LookRotation(look);
+                shots[s] = go.transform;
+            }
+            ctx.director.goalShots = shots;
+            if (ctx.podium != null)
+            {
+                ctx.director.podiumShot = GenUtil.FindDeep(ctx.podium.transform, "PodiumShot");
+                ctx.director.podiumLook = GenUtil.FindDeep(ctx.podium.transform, "Step_1");
+            }
         }
 
         /// <summary>

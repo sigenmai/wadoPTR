@@ -33,7 +33,6 @@ namespace HorseRace.EditorTools
 
         static readonly Color Leather = new Color(0.40f, 0.25f, 0.15f);
         static readonly Color Gold = new Color(1.00f, 0.82f, 0.35f);
-        static readonly Color Iron = new Color(0.18f, 0.18f, 0.20f);
         static readonly Color Rope = new Color(0.62f, 0.48f, 0.30f);
         static readonly Color Sand = new Color(0.85f, 0.72f, 0.50f, 0.8f);
 
@@ -116,6 +115,7 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < 3; i++) balls[i] = BuildBall(t, i);
             caster.balls = balls;
             caster.haze = BuildHaze(t);
+            BuildAimMarker(t, caster);
 
             root.layer = WorldLayers.Mount;
             ctx.casters.Add(caster);
@@ -308,7 +308,7 @@ namespace HorseRace.EditorTools
             var go = GenUtil.Child(t, "CharmPouch", new Vector3(0.15f, SeatMath.SADDLE_HORSE_Y + 0.25f, SeatMath.SADDLE_HORSE_Z + 0.55f));
             go.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
             var cardRoot = GenUtil.Child(go.transform, "Card", Vector3.zero);
-            const float CW = 0.07f, CH = 0.10f;
+            const float CW = UiStyle.POUCH_CARD_W, CH = UiStyle.POUCH_CARD_H;
             var dustTex = AssetDatabase.LoadAssetAtPath<Texture2D>(GenUtil.WANTED_CARDS + "/" + AbilityCards[0] + ".png");
             var sheet = GenUtil.PaperSheet(cardRoot.transform, "Poster", "WantedPosters_02", new Vector3(0f, -CH * 0.5f, 0.002f), dustTex, CW, CH);
             foreach (var c in sheet.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
@@ -331,7 +331,7 @@ namespace HorseRace.EditorTools
             var unlit = new GameObject[3];
             for (int i = 0; i < 3; i++)
             {
-                Vector3 p = new Vector3(-0.022f + i * 0.022f, -CH * 0.5f - 0.016f, -0.004f);
+                Vector3 p = UiStyle.PouchGemLocal(i);
                 marks[i] = Gem(cardRoot.transform, "LevelMark_" + (i + 1), "Gems_01_0" + (i + 2), p, GenUtil.ToonColor(Gold));
                 marks[i].SetActive(false);
                 unlit[i] = Gem(cardRoot.transform, "LevelMarkUnlit_" + (i + 1), "Gems_01_0" + (i + 2), p, GenUtil.ToonColor(new Color(0.25f, 0.18f, 0.1f)));
@@ -348,6 +348,9 @@ namespace HorseRace.EditorTools
             cp.levelMarksUnlit = unlit;
             cp.readySound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CHIME));
             cp.neckOffset = new Vector3(UiStyle.NECK_CARD_W * 0.5f + UiStyle.POUCH_OFFSET_X * 0.55f, 0.25f, 0.55f);
+            // デスクトップ（ui-r3-04）：首の札（左下）の反対の右下に ×0.55
+            cp.desktopOffset = UiStyle.DesktopAbilityOffset;
+            cp.desktopScale = UiStyle.DESKTOP_HUD_SCALE;
             GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
             return cp;
         }
@@ -357,7 +360,7 @@ namespace HorseRace.EditorTools
         {
             var g = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), part, parent, parent.position, 0f, 1f, new Vector3(0.015f, 0.018f, 0.015f), Gold);
             g.name = name;
-            GenUtil.FitMax(g, 0.018f);
+            GenUtil.FitMax(g, UiStyle.POUCH_GEM_M);
             g.transform.localPosition = local;
             g.transform.localRotation = Quaternion.identity;
             foreach (var r in g.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = mat;
@@ -527,11 +530,36 @@ namespace HorseRace.EditorTools
             return rw;
         }
 
+        /// <summary>鉄球の見た目（ui-r3-12）：RockCollection のいちばん丸い石（寸法 0.741 × 0.746 × 0.757 ≈ 1:1:1、Blender で測った）。</summary>
+        public const string BALL_ROCK_PART = UiStyle.BALL_ROCK_PART;
+        public const float BALL_VISUAL_M = UiStyle.BALL_VISUAL_M;
+        public static readonly Color BallIron = UiStyle.BallIron;
+
+        /// <summary>
+        /// 鉄球（ui-r3-12：プリミティブの球はやめ、素材の丸い石を 0.7m にして鉄の色に塗る）。見えない当たりの半径 0.35 はそのまま。
+        /// 後ろに砂色の小さな煙（0.3 秒）を引いて、飛んでくる筋が後ろからも読める。
+        /// </summary>
         static IronBall BuildBall(Transform t, int i)
         {
             var go = GenUtil.Child(t, "IronBall_" + (i + 1), new Vector3(0.3f * (i - 1), 1.8f, 1f));
             var ib = GenUtil.AddU<IronBall>(go);
-            ib.visual = GenUtil.Prim(PrimitiveType.Sphere, "Ball", go.transform, Vector3.zero, Vector3.one * 0.7f, Iron);
+            var rock = GenUtil.InstantiatePart(GenUtil.Pack("RockCollection"), BALL_ROCK_PART, go.transform, go.transform.position, 0f, 1f,
+                Vector3.one * BALL_VISUAL_M, BallIron);
+            rock.name = "Ball";
+            rock.transform.SetParent(go.transform, false);
+            rock.transform.localPosition = Vector3.zero;
+            rock.transform.localRotation = Quaternion.identity;
+            GenUtil.FitMax(rock, BALL_VISUAL_M);
+            // 石の中心を当たりの中心へ（部品の原点は底）
+            Bounds rb = GenUtil.RendererBounds(rock);
+            rock.transform.position += go.transform.position - rb.center;
+            var iron = GenUtil.ToonColor(BallIron);
+            foreach (var r in rock.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = iron;
+            foreach (var c in rock.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            // 砂色の煙の尾（見た目と一緒に出入りする、ワールド空間で後ろに残る）
+            var trail = GenUtil.Particles(go.transform, "DustTrail", Vector3.zero, Sand, 0.35f, 0.4f, 0.3f, true, 30f, 0.2f);
+            trail.transform.SetParent(rock.transform, true);
+            ib.visual = rock;
             ib.radius = 0.35f;
             ib.groundMask = WorldLayers.BlockMask;   // 地形＋岩壁ではねる
             ib.bounceSound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.THUD));
@@ -539,6 +567,33 @@ namespace HorseRace.EditorTools
             ib.visual.SetActive(false);
             return ib;
         }
+
+        /// <summary>
+        /// 狙いの印（ui-r3-08）：宝石 Gems_01_01 を 0.18m に、届く距離の内は赤（持久力の印の危険と同じ色）、外は灰。
+        /// AbilityCaster が投げ縄・鉄球を使えるときに見つかった相手の上 2.9m で回す（ローカルのみ、同期しない）。
+        /// </summary>
+        static void BuildAimMarker(Transform t, AbilityCaster caster)
+        {
+            var go = GenUtil.Child(t, "AimMarker", new Vector3(0f, 2.9f, 6f));
+            var gem = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), "Gems_01_01", go.transform, go.transform.position, 0f, 1f, new Vector3(0.15f, 0.18f, 0.15f), Gold);
+            gem.transform.SetParent(go.transform, false);
+            gem.transform.localPosition = Vector3.zero;
+            gem.transform.localRotation = Quaternion.identity;
+            GenUtil.FitMax(gem, 0.18f);
+            Bounds gb = GenUtil.RendererBounds(gem);
+            gem.transform.position += go.transform.position - gb.center;
+            foreach (var c in gem.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+            caster.aimMarker = go.transform;
+            caster.aimMarkerRenderers = gem.GetComponentsInChildren<Renderer>(true);
+            caster.aimInRange = GenUtil.ToonColor(AimRed);
+            caster.aimOutRange = GenUtil.ToonColor(AimGrey);
+            foreach (var r in caster.aimMarkerRenderers) r.sharedMaterial = caster.aimOutRange;
+            GenUtil.SetLayerRecursive(go, WorldLayers.Rider);
+            go.SetActive(false);
+        }
+
+        public static readonly Color AimRed = new Color(0.9f, 0.2f, 0.1f);
+        public static readonly Color AimGrey = new Color(0.55f, 0.55f, 0.55f);
 
         /// <summary>視界のかすみ：裏面だけ見える半透明の砂色の球（半径 0.3m）。効果用なのでトゥーン対象外。</summary>
         static GameObject BuildHaze(Transform t)

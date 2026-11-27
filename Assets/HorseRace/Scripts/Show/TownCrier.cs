@@ -1,3 +1,4 @@
+using TMPro;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
@@ -32,6 +33,18 @@ namespace HorseRace
         public Transform paperTo;
         public float paperSlideSeconds = 1.2f;
 
+        [Header("観客の予想の結果（ui-r3-16）")]
+        [Tooltip("当たり（SfxMath.CHIME）")]
+        public AudioClip pickHitClip;
+        [Tooltip("はずれ（SfxMath.THUD）")]
+        public AudioClip pickMissClip;
+        [Tooltip("予想の札の上の紙の文字（跳ねさせる。RaceManager.pickStatusText と同じ）")]
+        public TextMeshPro pickPaper;
+
+        private float pickPunchAt = -10f;
+        private Vector3 pickBaseScale = Vector3.one;
+        private bool pickScaleCaptured;
+
         private int postedSeq = -1;
         private float raiseUntil;
         private Quaternion armRest;
@@ -49,6 +62,32 @@ namespace HorseRace
             }
             AnimateArm();
             AnimatePaper();
+            AnimatePickPaper();
+        }
+
+        /// <summary>
+        /// 観客の予想の結果（ui-r3-16、RaceManager.ScorePickLocal から、走っていない人のクライアントだけ）：
+        /// 当たりは鈴・はずれは鈍い音を新聞売りの 2D の声で、予想の紙が 1.4 → 1 に跳ねて濃い金（当たり）か焦げ茶のインク（はずれ）。
+        /// </summary>
+        public void PickResult(bool hit, string text)
+        {
+            AudioClip c = hit ? pickHitClip : pickMissClip;
+            if (callAudio != null && c != null) callAudio.PlayOneShot(c);
+            if (pickPaper != null)
+            {
+                if (!pickScaleCaptured) { pickBaseScale = pickPaper.transform.localScale; pickScaleCaptured = true; }
+                pickPaper.color = hit ? new Color(0.48f, 0.30f, 0.02f) : new Color(0.23f, 0.15f, 0.08f);   // 紙の上で読める濃い金（明るさの比 ≥ 4.5）
+                pickPunchAt = Time.time;
+            }
+        }
+
+        private void AnimatePickPaper()
+        {
+            if (pickPaper == null || !pickScaleCaptured) return;
+            float t = Time.time - pickPunchAt;
+            if (t > 4f && t < 4.5f) pickPaper.color = new Color(0.23f, 0.15f, 0.08f);   // 4 秒で焦げ茶のインクへ戻す
+            if (t > 1.5f) return;
+            pickPaper.transform.localScale = pickBaseScale * HudMath.PunchScale(t, 1.4f);
         }
 
         private void AnimatePaper()

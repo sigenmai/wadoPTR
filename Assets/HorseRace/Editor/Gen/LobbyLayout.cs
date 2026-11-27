@@ -88,6 +88,24 @@ namespace HorseRace.EditorTools
         public const float PRACTICE_GATE_NORTH_Z = 136.5f;
         public static readonly Vector3 PRACTICE_LAP_BOARD = new Vector3(31.5f, 0f, 90.5f);
 
+        /// <summary>
+        /// ロビーの手順の札（ui-r3-11）：一 手配書の壁・二 柵の馬・三 受付・四 スタート台の、それぞれ 2〜4m 手前（スポーン側）の空いた地面。
+        /// 札はスポーンのほうを向く（立てた丸太の杭に手配書の紙 0.6 × 0.45m）。
+        /// </summary>
+        public static readonly Vector3[] StepSigns =
+        {
+            new Vector3(-23.0f, 0f, 34.3f),   // 一 手配書を取る（壁の東の端の手前）
+            new Vector3(-18.3f, 0f, 46.4f),   // 二 馬を選ぶ（柵の馬の東）
+            new Vector3(-14.8f, 0f, 37.6f),   // 三 台帳にサイン（受付の机の南西）
+            new Vector3(-4.0f, 0f, 47.6f),    // 四 スタート台へ（台の南西、号砲の札の横）
+        };
+        public const float STEP_SIGN_RADIUS = 0.5f;
+        /// <summary>4 手順の表（掲示板 ×0.6）：スポーンの右手前（正面 4m は低い起伏・大通りの眺めなので外す）。</summary>
+        public static readonly Vector3 STEPS_BOARD = new Vector3(2.6f, 0f, 30.4f);
+
+        /// <summary>札の向き（北から東へ °）：スポーンから札へ向かう向き＝スポーン側から読める。</summary>
+        public static float FaceFromSpawn(Vector3 p) => WorldLayout.YawDeg(new Vector3(p.x - SPAWN.x, 0f, p.z - SPAWN.z).normalized);
+
         /// <summary>ロビーの飾り（DressingPlan.ForLobby）を置かない円（x, _, z, 半径）：南の入口の前（町の南の辺と柵の間＝広場への入口）。
         /// 遊びに使う物はすべて町の中（飾りは町の外形の外だけ）なので、それ以外の円は要らない。</summary>
         public static List<Vector4> LobbyDressingExclusions() => new List<Vector4> { new Vector4(0f, 0f, TOWN_NOMINAL_RECT.y - 4f, 44f) };
@@ -124,6 +142,8 @@ namespace HorseRace.EditorTools
             Add("PracticeRelic", PRACTICE_RELIC, 0.8f);
             Add("PracticeLapBoard", PRACTICE_LAP_BOARD, 1.4f);
             Add("PracticeControls", PRACTICE_CONTROLS, 1.9f);   // 掲示板 ×0.8（幅 3.6m）
+            for (int i = 0; i < StepSigns.Length; i++) Add("StepSign_" + (i + 1), StepSigns[i], STEP_SIGN_RADIUS);   // ui-r3-11
+            Add("StepsBoard", STEPS_BOARD, 1.4f);   // 掲示板 ×0.6（幅 2.7m）
             return l;
         }
 

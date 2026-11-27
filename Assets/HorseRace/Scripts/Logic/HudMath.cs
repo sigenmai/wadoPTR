@@ -114,6 +114,12 @@ namespace HorseRace
             return name.Substring(0, max - 1) + "…";
         }
 
+        /// <summary>ui-r3-15：表示名（フォントにある字だけにして max 文字まで）。黒板・台帳・電報・札の名前はすべてこれ。</summary>
+        public static string DisplayName(string name, int max)
+        {
+            return ShortName(SafeName(name, -1), max);
+        }
+
         /// <summary>持久力（0..100）→ 点ける印の数 = ceil(持久力 / (100/印の数))。0..pips。</summary>
         public static int StaminaPips(float stamina, int pips)
         {
@@ -161,6 +167,14 @@ namespace HorseRace
         {
             if (rank <= 0) return "―";
             return "<size=160%>" + rank.ToString() + "</size>位";
+        }
+
+        /// <summary>ui-r3-14："<size=160%>3</size><size=60%>/8</size>位"（何人中か）。count ≤ 1 は人数を書かない。rank ≤ 0 は "―"。</summary>
+        public static string RankMarkup(int rank, int count)
+        {
+            if (rank <= 0) return "―";
+            if (count <= 1) return RankMarkup(rank);
+            return "<size=160%>" + rank.ToString() + "</size><size=60%>/" + count.ToString() + "</size>位";
         }
 
         /// <summary>"1:23.4"（10 分の 1 秒まで、切り捨て）。</summary>
@@ -478,6 +492,278 @@ namespace HorseRace
             if (mount == MountMath.MOUNT_CAMEL) return "ラクダ：最高速は低いが砂地で落ちない";
             return "馬：最高速が高い。砂地では遅くなる";
         }
+
+        // =====================================================================
+        // round 3（ui-r3-01〜16）
+        // =====================================================================
+
+        /// <summary>ui-r3-06：表彰台の後ろの「総合結果」の掲示板の見出し（4〜8 位はこの下に小さく）。</summary>
+        public const string RESULTS_HEADING = "<b><size=150%>総合結果</size></b>";
+
+        /// <summary>ui-r3-02：先頭がゴールした（残りが 1:00 に縮む）知らせ。</summary>
+        public static string LeaderFinishedText()
+        {
+            return "先頭ゴール！ 残り" + RaceMath.FormatClock(RaceMath.AFTER_FIRST_FINISH);
+        }
+
+        /// <summary>ui-r3-02：残り時間がこの秒数以下なら首の札の時間を赤インクにする。</summary>
+        public const float TIME_RED_SECONDS = 60f;
+
+        /// <summary>ui-r3-02：首の札の「残り」の時間（≤ 60 秒は赤インク）。</summary>
+        public static string RemainingMarkup(float remaining)
+        {
+            string t = "残り\n" + RaceMath.FormatClock(remaining);
+            if (remaining <= TIME_RED_SECONDS) t = "<color=#B81F14>" + t + "</color>";
+            return t;
+        }
+
+        /// <summary>ui-r3-02：懐中時計の文字盤の 1 周の長さ。先頭がゴールしたら 60 秒の新しい 1 周、それまではステージの全体（330 秒）。</summary>
+        public static float DialTotal(bool lobby, bool leaderFinished)
+        {
+            if (lobby) return RaceMath.LOBBY_WAIT_SECONDS;
+            return leaderFinished ? RaceMath.AFTER_FIRST_FINISH : RaceMath.STAGE_HARD_LIMIT;
+        }
+
+        /// <summary>ui-r3-03：時間切れの判。</summary>
+        public static string TimeUpText()
+        {
+            return "時間切れ";
+        }
+
+        /// <summary>ui-r3-03：時間切れの後の首の札の進み具合の行。</summary>
+        public static string TimeUpLine()
+        {
+            return "0点（時間切れ）";
+        }
+
+        /// <summary>ui-r3-10：ゴールした後の順位の欄："<size=160%>3</size>着"。</summary>
+        public static string FinishedRank(int place)
+        {
+            if (place <= 0) return "ゴール";
+            return "<size=160%>" + place.ToString() + "</size>着";
+        }
+
+        /// <summary>ui-r3-10：ゴールした後の時間の欄："ゴール\n1:23.4"。</summary>
+        public static string FinishedTime(float seconds)
+        {
+            return "ゴール\n" + FormatClockTenths(seconds);
+        }
+
+        /// <summary>ui-r3-10：ゴールした後の進み具合の行（観戦の案内）。</summary>
+        public static string FinishedLine()
+        {
+            return "<size=70%>囲いの掲示板で観戦</size>";
+        }
+
+        // ---- ui-r3-09：知らせの優先度 ----
+        public const int NOTE_INFO = 0;
+        public const int NOTE_REWARD = 1;
+        public const int NOTE_DANGER = 2;
+
+        /// <summary>
+        /// 新しい知らせ（newRank）が今の知らせ（curRank、残り curLeft 秒）を上書きしてよいか。
+        /// 今の知らせが消えている（curLeft ≤ 0）か、同じか高い優先度なら上書き。低い優先度は待ち（1 枠）へ。
+        /// </summary>
+        public static bool NoteWins(int newRank, int curRank, float curLeft)
+        {
+            if (curLeft <= 0f) return true;
+            return newRank >= curRank;
+        }
+
+        // ---- ui-r3-14：前の騎手までの距離 ----
+        /// <summary>この距離（m）より遠ければ出さない。</summary>
+        public const float GAP_SHOW_MAX_M = 60f;
+        /// <summary>この距離（m）より近ければ金（風よけ＝ドラフトの届く距離）。</summary>
+        public const float GAP_DRAFT_M = 8f;
+
+        /// <summary>
+        /// 前の騎手までの距離（m）：同じ CP を目指しているなら「次の CP までの距離」の差、違えば水平の直線距離（xzMeters）。
+        /// 前がいない・前がもうゴールした（aheadCp &lt; 0）は -1。
+        /// </summary>
+        public static float GapMeters(int myCp, float myDist, int aheadCp, float aheadDist, float xzMeters)
+        {
+            if (aheadCp < 0) return -1f;
+            if (aheadCp == myCp)
+            {
+                float d = myDist - aheadDist;
+                return d > 0f ? d : 0f;
+            }
+            return xzMeters >= 0f ? xzMeters : -1f;
+        }
+
+        /// <summary>"<size=70%>前まで 12m</size>"（8m 未満は金）。meters &lt; 0 か 60m より遠ければ空。</summary>
+        public static string GapAheadText(float meters)
+        {
+            if (meters < 0f || meters > GAP_SHOW_MAX_M) return "";
+            string t = "前まで " + Mathf.RoundToInt(meters).ToString() + "m";
+            if (meters < GAP_DRAFT_M) t = "<color=#FFC745>" + t + "</color>";
+            return "<size=70%>" + t + "</size>";
+        }
+
+        // ---- ui-r3-15：フォントにある字だけの名前 ----
+
+        /// <summary>IPA ゴシック（GenUtil.Font のもと）にある字か：ASCII・Latin-1・ギリシャ・キリル・CJK の記号・かな・漢字・全角。</summary>
+        public static bool FontHasChar(int c)
+        {
+            if (c >= 0x20 && c < 0x7F) return true;
+            if (c >= 0xA0 && c <= 0xFF) return true;
+            if (c >= 0x0370 && c <= 0x03FF) return true;
+            if (c >= 0x0400 && c <= 0x04FF) return true;
+            if (c >= 0x3000 && c <= 0x303F) return true;
+            if (c >= 0x3040 && c <= 0x30FF) return true;
+            if (c >= 0x4E00 && c <= 0x9FFF) return true;
+            if (c >= 0xFF01 && c <= 0xFF9F) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// 表示名をフォントにある字だけにする：無い字（ハングル・絵文字・タイ文字…サロゲートペアは 1 字）は「・」、続く「・」は 1 つに。
+        /// TMP のタグにならないよう &lt; &gt; も「・」。全部が「・」か空なら "ライダー" + (slot+1)（slot &lt; 0 は番号なし）。
+        /// </summary>
+        public static string SafeName(string name, int slot)
+        {
+            string fallback = slot >= 0 ? "ライダー" + (slot + 1).ToString() : "ライダー";
+            if (name == null || name.Length == 0) return fallback;
+            string s = "";
+            bool lastDot = false;
+            bool any = false;
+            int n = name.Length;
+            for (int i = 0; i < n; i++)
+            {
+                int c = name[i];
+                bool ok;
+                if (c >= 0xD800 && c <= 0xDBFF)
+                {
+                    ok = false;
+                    if (i + 1 < n) i++;   // サロゲートペアは 2 つで 1 字
+                }
+                else ok = FontHasChar(c) && c != '<' && c != '>';
+                if (ok)
+                {
+                    s += name.Substring(i, 1);
+                    lastDot = false;
+                    if (c != ' ' && c != 0x3000) any = true;
+                }
+                else if (!lastDot)
+                {
+                    s += "・";
+                    lastDot = true;
+                }
+            }
+            if (!any) return fallback;
+            return s;
+        }
+
+        // ---- ui-r3-01：中継の結果のカット ----
+
+        /// <summary>"第2幕 砂漠｜結果｜1着 名前"。</summary>
+        public static string StageResultCaption(int stage, string winner)
+        {
+            string s = StageLabel(stage) + "｜結果";
+            if (winner != null && winner.Length > 0) s += "｜1着 " + winner;
+            return s;
+        }
+
+        /// <summary>"総合結果｜優勝 名前  24点"。</summary>
+        public static string FinalResultCaption(string champion, int points)
+        {
+            if (champion == null || champion.Length == 0) return "総合結果";
+            return "総合結果｜優勝 " + champion + "  " + points.ToString() + "点";
+        }
+
+        /// <summary>表彰台のカットの左右の揺れ（度）：周期 period 秒で ±amp。</summary>
+        public static float OrbitYaw(float t, float amp, float period)
+        {
+            if (period <= 0f) return 0f;
+            return amp * Mathf.Sin(t * 2f * Mathf.PI / period);
+        }
+
+        // ---- ui-r3-16：観客の予想の結果 ----
+        public static string PickCaption(string text)
+        {
+            return "予想 " + (text != null ? text : "");
+        }
+
+        // ---- ui-r3-11：ロビーの手順の札 ----
+        public const int LOBBY_STEPS = 4;
+
+        public static string LobbyStepLabel(int i)
+        {
+            if (i == 0) return "一 手配書を取る";
+            if (i == 1) return "二 馬を選ぶ";
+            if (i == 2) return "三 台帳にサイン";
+            if (i == 3) return "四 スタート台へ";
+            return "";
+        }
+
+        /// <summary>済んだ手順のビット（1 = 手配書、2 = 馬、4 = 台帳、8 = スタート台）。</summary>
+        public static int LobbyStepMask(bool card, bool mount, bool signed, bool atStart)
+        {
+            int m = 0;
+            if (card) m |= 1;
+            if (mount) m |= 2;
+            if (signed) m |= 4;
+            if (atStart) m |= 8;
+            return m;
+        }
+
+        /// <summary>次にやる手順（まだ済んでいない最初の手順、0..3）。全部済んだら LOBBY_STEPS。</summary>
+        public static int LobbyNextStep(int mask)
+        {
+            for (int i = 0; i < LOBBY_STEPS; i++) if ((mask & (1 << i)) == 0) return i;
+            return LOBBY_STEPS;
+        }
+
+        /// <summary>手順の札の文字：済み = 赤インクの ✓、次 = 太字、ほか = そのまま。</summary>
+        public static string LobbyStepText(int i, int mask)
+        {
+            string label = LobbyStepLabel(i);
+            if ((mask & (1 << i)) != 0) return "<color=#B81F14>✓</color> " + label;
+            if (LobbyNextStep(mask) == i) return "<b>" + label + "</b>";
+            return label;
+        }
+
+        /// <summary>スポーンの前の掲示板の 4 手順の表。</summary>
+        public static string LobbyStepsTable()
+        {
+            string s = "<b><size=130%>はじめての人へ</size></b>";
+            for (int i = 0; i < LOBBY_STEPS; i++) s += "\n" + LobbyStepLabel(i);
+            return s;
+        }
+
+        // ---- ui-r3-07：練習の往復 ----
+
+        /// <summary>練習の進み具合："南の門→北の門→南の門"、通った門は金。leg = 0 計測前、1 = 南の門を通った、2 = 北の門も通った。</summary>
+        public static string PracticeRouteLine(int leg)
+        {
+            string g = "<color=#FFC745>";
+            string a = "南の門", b = "北の門", c = "南の門";
+            if (leg >= 1) a = g + a + "</color>";
+            if (leg >= 2) b = g + b + "</color>";
+            return a + "→" + b + "→" + c;
+        }
+
+        /// <summary>練習の自己ベストの欄："自己ベスト\n1:02.3"（記録なしは "―"）。</summary>
+        public static string PracticeBestText(float best)
+        {
+            return "自己ベスト\n" + (best < 0f ? "―" : FormatClockTenths(best));
+        }
+
+        // ---- ui-r3-05：VR の手の振動（秒・強さ 0..1・周波数 Hz）。UiStyle.Haptic* も同じ値 ----
+        public const float HAPTIC_COUNTDOWN_S = 0.05f, HAPTIC_COUNTDOWN_AMP = 0.3f, HAPTIC_COUNTDOWN_HZ = 150f;
+        public const float HAPTIC_GO_S = 0.25f, HAPTIC_GO_AMP = 1f, HAPTIC_GO_HZ = 80f;
+        public const float HAPTIC_CP_S = 0.04f, HAPTIC_CP_AMP = 0.25f, HAPTIC_CP_HZ = 200f;
+        public const float HAPTIC_HIT_TAKEN_S = 0.35f, HAPTIC_HIT_TAKEN_AMP = 0.9f, HAPTIC_HIT_TAKEN_HZ = 40f;
+        public const float HAPTIC_HIT_CONFIRM_S = 0.08f, HAPTIC_HIT_CONFIRM_AMP = 0.6f, HAPTIC_HIT_CONFIRM_HZ = 250f;
+        public const float HAPTIC_FINISH_S = 0.5f, HAPTIC_FINISH_AMP = 0.8f, HAPTIC_FINISH_HZ = 60f;
+        public const float HAPTIC_SHORTCUT_S = 0.1f, HAPTIC_SHORTCUT_AMP = 0.5f, HAPTIC_SHORTCUT_HZ = 180f;
+        public const float HAPTIC_READY_S = 0.06f, HAPTIC_READY_AMP = 0.4f, HAPTIC_READY_HZ = 220f;
+        public const float HAPTIC_MAX_S = 0.5f;
+
+        /// <summary>振動の値を安全な範囲へ（秒 0..0.5、強さ 0..1、周波数 0..320）。</summary>
+        public static float ClampHapticSeconds(float s) { return Mathf.Clamp(s, 0f, HAPTIC_MAX_S); }
+        public static float ClampHapticAmp(float a) { return Mathf.Clamp01(a); }
+        public static float ClampHapticHz(float f) { return Mathf.Clamp(f, 0f, 320f); }
 
         static string Pct(float f)
         {
