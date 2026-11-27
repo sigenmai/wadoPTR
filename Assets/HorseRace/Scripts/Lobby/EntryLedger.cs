@@ -9,6 +9,7 @@ namespace HorseRace
     /// 受付カウンターの台帳。Interact ＝ サイン ＝ 手配書・柵の馬で選んだ内容でマスターへエントリーを依頼する。
     /// ページ（pageText、手書き風フォントの TextMeshPro）にエントリー者の名前・乗り物・能力を書く。
     /// ページの更新は RaceManager が同期を受け取るたびに Refresh() で行う。
+    /// ステージ中のサインは「次のステージから」の欄に載り、ステージ結果に入ると枠へ移る（RaceManager.pendingPlayerId）。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class EntryLedger : UdonSharpBehaviour
@@ -49,12 +50,22 @@ namespace HorseRace
                 s += "\n";
             }
             if (count == 0) s += "（まだ誰もサインしていない）\n";
+            string pend = "";
+            for (int q = 0; q < RaceManager.MAX_SLOTS; q++)
+            {
+                int pid = rm.pendingPlayerId[q];
+                if (pid < 0) continue;
+                pend += "・" + RaceManager.PlayerName(pid) + "\n";
+            }
+            if (pend.Length > 0) s += "\n次のステージから：\n" + pend;
             s += "\n";
             if (count >= rm.SlotCount() && rm.SlotCount() > 0) s += "定員いっぱい\n";
             if (st == RaceMath.STATE_LOBBY) s += "手配書と柵の馬で選んでサイン。鐘が鳴れば出走。";
-            else if (st == RaceMath.STATE_STAGE_RESULT) s += "ステージの合間：今サインすれば次のステージから走れる。";
+            else if (st == RaceMath.STATE_STAGE_RESULT && rm.stage + 1 < RaceManager.STAGE_COUNT) s += "ステージの合間：今サインすれば次のステージから走れる。";
+            else if (st == RaceMath.STATE_STAGE_RESULT) s += "最終ステージの結果発表中。次のレースはロビーで。";
             else if (st == RaceMath.STATE_FINAL_RESULT) s += "総合結果の発表中。";
-            else s += RaceManager.StageLabel(rm.stage) + " 出走中。途中参加はステージの合間に。";
+            else if (rm.stage + 1 < RaceManager.STAGE_COUNT) s += RaceManager.StageLabel(rm.stage) + " 出走中。今サインすれば次のステージから走れる。";
+            else s += RaceManager.StageLabel(rm.stage) + "（最終）出走中。次のレースはロビーで。";
             pageText.text = s;
         }
     }

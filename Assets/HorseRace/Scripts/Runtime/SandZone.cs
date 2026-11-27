@@ -15,14 +15,15 @@ namespace HorseRace
         {
             if (other == null) return;
             MountController mc = other.GetComponentInParent<MountController>();
-            if (mc != null) mc.sandZoneCount++;
+            // 体の Collider だけ数える（リボルバー・騎手の当たり判定の子が出入りして数がずれないように）
+            if (mc != null && other.gameObject == mc.gameObject) mc.sandZoneCount++;
         }
 
         private void OnTriggerExit(Collider other)
         {
             if (other == null) return;
             MountController mc = other.GetComponentInParent<MountController>();
-            if (mc != null && mc.sandZoneCount > 0) mc.sandZoneCount--;
+            if (mc != null && other.gameObject == mc.gameObject && mc.sandZoneCount > 0) mc.sandZoneCount--;
         }
     }
 }

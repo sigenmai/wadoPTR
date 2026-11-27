@@ -18,7 +18,8 @@ namespace HorseRace
     ///    継続して判定が要るもの（砂煙・鉄球）は、発動者のクライアントの見た目オブジェクトだけが判定する（detect = true）。
     ///  - 当たった相手へは、相手の AbilityCaster に NetworkEventTarget.Owner で Hit* を送り、
     ///    相手のオーナーが自分の MountController に AddSpeedMod / ApplyKnock を掛ける。視点は回さない。
-    ///  - リボルバーの命中（HitRevolver）もここで受け、撃った人ごとの命中数を数えて 3 発目で DropRelic（最終判定は被弾側）。
+    ///  - リボルバーの命中（HitRevolver）もここで受け、撃った人ごとの累計命中数で 3 発ごとに DropRelic（最終判定は被弾側）。
+    ///    別の 2 人の 3 発目がほぼ同時に来ても、落とすのは 1 回だけ（RevolverMath.DROP_COOLDOWN 秒以内の 2 回目は Lv を下げない）。
     ///
     /// 入力: デスクトップ = E（照準は視線）／VR = トリガー（照準は押した手の向き。リボルバーを持っている手のトリガーは射撃）。
     /// Lv・クールダウン・命中数はローカル（オーナー側）だけが意味を持つ。ResetForStage は全クライアントで何度呼ばれてもよい。
@@ -95,7 +96,11 @@ namespace HorseRace
         [HideInInspector] public Vector3 foundPoint;
 
         private float readyAt;
+        /// <summary>撃った人（casterId）ごとの、このステージの累計命中数。</summary>
         private int[] hitsFromShooter;
+        /// <summary>撃った人ごとの、もう処理した「3 発ごと」の回数（遺物を落とした・落とさず流した、どちらも含む）。</summary>
+        private int[] dropsForShooter;
+        private float lastDropAt = -1000f;
         private float hazeUntil;
         private bool pouchShownLocal;
         private int lastResetSeq = -1;
@@ -113,6 +118,7 @@ namespace HorseRace
             if (started) return;
             started = true;
             hitsFromShooter = new int[MAX_CASTERS];
+            dropsForShooter = new int[MAX_CASTERS];
             if (mount == null) mount = GetComponent<MountController>();
             if (mount == null) Debug.LogWarning("[HorseRace] AbilityCaster: MountController がありません " + gameObject.name);
             if (casterId < 0 || casterId >= MAX_CASTERS) Debug.LogWarning("[HorseRace] AbilityCaster: casterId は 0..15 " + gameObject.name);
@@ -441,7 +447,11 @@ namespace HorseRace
             EnsureInit();
             if (mount == null) return false;
             if (!Networking.IsOwner(gameObject)) return false;
-            return mount.riderPlayerId >= 0;
+            if (mount.riderPlayerId < 0) return false;
+            // レース中か練習場だけ（ロビーでの悪用・ステージ結果中に遅れて届いた命中で Lv や遺物が動かないように）
+            if (practiceMount) return practiceArea == null || practiceArea.inPractice;
+            if (!mount.raceActive) return false;
+            return raceManager == null || raceManager.state == RaceMath.STATE_RACING;
         }
 
         private Vector3 Flat(Vector3 v)
@@ -475,8 +485,9 @@ namespace HorseRace
         }
 
         /// <summary>
-        /// リボルバー命中。shooterId = 撃った人の casterId、hitNumber = 撃った側で数えた「その相手への何発目か」（1..3）。
-        /// 最終判定はここ（被弾側のオーナー）の命中数。撃った側の数が多ければそれに合わせる（途中で所有者が替わった場合の補正）。
+        /// リボルバー命中。shooterId = 撃った人の casterId、hitNumber = 撃った側で数えた「このステージでその相手への累計何発目か」（1, 2, 3, 4 …）。
+        /// 最終判定はここ（被弾側のオーナー）。累計は撃った側の番号で上げるだけなので、順番が入れ替わって届いた命中（3 発目の後の 2 発目）は数に足さない。
+        /// 3 発ごとに 1 回 DropRelic。ただし直前の DropRelic から DROP_COOLDOWN 秒以内（別の人の 3 発目が同時に来た）なら Lv は下げず、その人の 3 発は使い切った扱い。
         /// </summary>
         [NetworkCallable(20)]
         public void HitRevolver(Vector3 direction, int shooterId, int hitNumber)
@@ -485,11 +496,13 @@ namespace HorseRace
             mount.AddSpeedMod(RevolverMath.HIT_FACTOR, RevolverMath.HIT_SECONDS);
             mount.ApplyKnock(Flat(direction) * revolverKnock, revolverStun);
             if (shooterId < 0 || shooterId >= MAX_CASTERS || shooterId == casterId) return;
-            int before = hitsFromShooter[shooterId];
-            int hinted = hitNumber - 1;
-            if (hinted > before && hinted < RevolverMath.HITS_TO_DROP) before = hinted;
-            hitsFromShooter[shooterId] = RevolverMath.RegisterHit(before);
-            if (RevolverMath.DropsRelic(before)) DropRelic();
+            int total = RevolverMath.TotalAfterHit(hitsFromShooter[shooterId], hitNumber);
+            hitsFromShooter[shooterId] = total;
+            if (!RevolverMath.DropDue(total, dropsForShooter[shooterId])) return;
+            dropsForShooter[shooterId] = RevolverMath.DropsFor(total);
+            if (!RevolverMath.DropAllowed(Time.time, lastDropAt)) return;
+            lastDropAt = Time.time;
+            DropRelic();
         }
 
         // =====================================================================
@@ -537,7 +550,12 @@ namespace HorseRace
             Level = 1;
             readyAt = 0f;
             hazeUntil = 0f;
-            for (int i = 0; i < MAX_CASTERS; i++) hitsFromShooter[i] = 0;
+            for (int i = 0; i < MAX_CASTERS; i++)
+            {
+                hitsFromShooter[i] = 0;
+                dropsForShooter[i] = 0;
+            }
+            lastDropAt = -1000f;
         }
 
         // =====================================================================

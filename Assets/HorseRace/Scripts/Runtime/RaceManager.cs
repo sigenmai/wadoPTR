@@ -11,6 +11,8 @@ namespace HorseRace
     ///
     /// 状態: LOBBY →(鐘)→ COUNTDOWN 3 s（Starter があれば旗＋空砲、最大 6 s）→ RACING（毎秒 ShouldEndStage）
     ///       → STAGE_RESULT 10 s（ポイント加算・能力/弾/遺物のリセット・途中参加の受付）→ 次の COUNTDOWN
+    ///       （RACING は 1 位ゴール 60 秒後・5:30・全員ゴールのいちばん早いもので終わる）
+    ///       ステージ中（COUNTDOWN / RACING）のサインは pending* に預かり、STAGE_RESULT に入るときに空き枠へ入れる（次のステージから走る）
     ///       … 3 ステージ後 FINAL_RESULT 20 s → LOBBY（エントリーとポイントを消す）
     ///
     /// 依頼（クライアント → マスター）は引数つきネットワークイベント（[NetworkCallable]）。マスター側で必ず検証する。
@@ -57,6 +59,11 @@ namespace HorseRace
         [UdonSynced] public int[] order = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
         /// <summary>今のレースのステージ別着順。index = stage * 8 + slot（1 始まり、0 = なし）。</summary>
         [UdonSynced] public int[] stagePlace = new int[STAGE_COUNT * MAX_SLOTS];
+        /// <summary>ステージ中にサインした人（次のステージから走る）。-1 = 空き。STAGE_RESULT に入るときに枠へ移す。</summary>
+        [UdonSynced] public int[] pendingPlayerId = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
+        [UdonSynced] public int[] pendingMount = new int[MAX_SLOTS];
+        [UdonSynced] public int[] pendingCoat = new int[MAX_SLOTS];
+        [UdonSynced] public int[] pendingAbility = new int[MAX_SLOTS];
 
         // ---- 前回のレース（総合結果に入った時点の写し。ロビーに戻っても消さない。たまり場の黒板用）----
         /// <summary>true なら last* が有効。</summary>
@@ -119,6 +126,8 @@ namespace HorseRace
         private float nextMasterTick;
         private double nextRaceEval;
         private bool starterDone;
+        /// <summary>直近の UpdateOrderMaster で、エントリー者全員がゴール済みだったか。</summary>
+        private bool allFinishedMaster;
 
         private void Start()
         {
@@ -173,6 +182,14 @@ namespace HorseRace
         public bool IsLocalEntered()
         {
             return LocalSlot() >= 0;
+        }
+
+        /// <summary>playerId がステージ中にサインして、次のステージを待っているか。</summary>
+        public bool IsPending(int playerId)
+        {
+            if (playerId < 0) return false;
+            for (int i = 0; i < MAX_SLOTS; i++) if (pendingPlayerId[i] == playerId) return true;
+            return false;
         }
 
         /// <summary>エントリーしていて、レース（カウントダウン〜総合結果）の最中。</summary>
@@ -334,9 +351,6 @@ namespace HorseRace
             if (!Networking.IsOwner(gameObject)) return;
             VRCPlayerApi caller = GetCaller();
             if (caller == null || !caller.IsValid()) return;
-            if (!RaceMath.CanEnterStage(state)) return;
-            // 最終ステージ後の結果表示中は、もう走るステージがないので受け付けない
-            if (state == RaceMath.STATE_STAGE_RESULT && stage + 1 >= STAGE_COUNT) return;
             if (mount != MountMath.MOUNT_HORSE && mount != MountMath.MOUNT_CAMEL) return;
             if (ability < 0 || ability > MAX_ABILITY_PHASE1) return;
             if (mount == MountMath.MOUNT_CAMEL) coat = 0;
@@ -350,6 +364,22 @@ namespace HorseRace
             }
             else
             {
+                // LOBBY / 次がある STAGE_RESULT はすぐ枠へ。ステージ中は預かって、STAGE_RESULT に入るときに枠へ。最終ステージ中・後は受け付けない
+                int mode = RaceMath.EntryMode(state, stage, STAGE_COUNT);
+                if (mode == RaceMath.ENTRY_REJECT) return;
+                if (mode == RaceMath.ENTRY_QUEUE)
+                {
+                    int q = RaceMath.PendingIndexFor(pendingPlayerId, caller.playerId);
+                    if (q < 0) return;
+                    pendingPlayerId[q] = caller.playerId;
+                    pendingMount[q] = mount;
+                    pendingCoat[q] = coat;
+                    pendingAbility[q] = ability;
+                    RequestSerialization();
+                    ApplyLocal();
+                    return;
+                }
+                RemovePending(caller.playerId);
                 s = FindFreeSlot();
                 if (s < 0) return; // 満員
                 ClearSlot(s);
@@ -397,6 +427,39 @@ namespace HorseRace
             return caller;
         }
 
+        private void RemovePending(int playerId)
+        {
+            for (int i = 0; i < MAX_SLOTS; i++) if (pendingPlayerId[i] == playerId) pendingPlayerId[i] = -1;
+        }
+
+        private void ClearPending()
+        {
+            for (int i = 0; i < MAX_SLOTS; i++) pendingPlayerId[i] = -1;
+        }
+
+        /// <summary>預かったサインを空き枠へ（0 点から）。次のステージがあるときだけ。満員なら次の合間まで待つ。</summary>
+        private bool PromotePendingMaster()
+        {
+            if (stage + 1 >= STAGE_COUNT) return false;
+            bool changed = false;
+            for (int q = 0; q < MAX_SLOTS; q++)
+            {
+                int pid = pendingPlayerId[q];
+                if (pid < 0) continue;
+                if (FindSlot(pid) >= 0) { pendingPlayerId[q] = -1; changed = true; continue; }
+                int s = FindFreeSlot();
+                if (s < 0) break;
+                ClearSlot(s);
+                slotPlayerId[s] = pid;
+                slotMount[s] = pendingMount[q];
+                slotCoat[s] = pendingCoat[q];
+                slotAbility[s] = pendingAbility[q];
+                pendingPlayerId[q] = -1;
+                changed = true;
+            }
+            return changed;
+        }
+
         private int FindFreeSlot()
         {
             int n = SlotCount();
@@ -426,6 +489,7 @@ namespace HorseRace
         {
             double now = Networking.GetServerTimeInSeconds();
             bool changed = PruneLeftPlayers();
+            ParkOrphanMountsMaster();
             double elapsed = now - stateStartServer;
 
             if (state == RaceMath.STATE_COUNTDOWN)
@@ -454,7 +518,7 @@ namespace HorseRace
                 {
                     nextRaceEval = now + RACE_EVAL_INTERVAL;
                     if (UpdateOrderMaster()) changed = true;
-                    if (RaceMath.ShouldEndStage(now, stageStartServer, firstFinishServer))
+                    if (RaceMath.ShouldEndStage(now, stageStartServer, firstFinishServer) || allFinishedMaster)
                     {
                         EndStageMaster(now);
                         changed = true;
@@ -468,6 +532,11 @@ namespace HorseRace
                     GoLobbyMaster(now);
                     changed = true;
                 }
+                else if (PromotePendingMaster())
+                {
+                    // 結果表示中に届いた・マスター交代で残っていた預かりを枠へ
+                    changed = true;
+                }
                 else if (elapsed >= STAGE_RESULT_SECONDS)
                 {
                     if (stage + 1 < STAGE_COUNT)
@@ -479,6 +548,7 @@ namespace HorseRace
                     {
                         state = RaceMath.STATE_FINAL_RESULT;
                         stateStartServer = now;
+                        ClearPending();
                         SnapshotLastRaceMaster();
                     }
                     changed = true;
@@ -509,6 +579,7 @@ namespace HorseRace
             firstFinishServer = -1.0;
             stageSeq++;
             starterDone = false;
+            allFinishedMaster = false;
             for (int p = 0; p < MAX_SLOTS; p++) order[p] = -1;
         }
 
@@ -538,6 +609,7 @@ namespace HorseRace
                 }
             }
             int[] o = RaceMath.ComputeOrder(cp, dist, fin, act);
+            allFinishedMaster = RaceMath.AllFinished(fin, act);
             bool changed = first != firstFinishServer;
             firstFinishServer = first;
             for (int p = 0; p < MAX_SLOTS; p++)
@@ -566,6 +638,9 @@ namespace HorseRace
             }
             state = RaceMath.STATE_STAGE_RESULT;
             stateStartServer = now;
+            allFinishedMaster = false;
+            // ステージ中にサインした人を次のステージの枠へ（0 点から）
+            PromotePendingMaster();
         }
 
         /// <summary>総合結果に入るときに、ロビーに戻っても残す前回の結果を写す（総合順位の順に並べる）。</summary>
@@ -592,6 +667,7 @@ namespace HorseRace
             firstFinishServer = -1.0;
             for (int i = 0; i < MAX_SLOTS; i++) ClearSlot(i);
             for (int p = 0; p < MAX_SLOTS; p++) order[p] = -1;
+            ClearPending();
         }
 
         private void ClearSlot(int i)
@@ -606,6 +682,27 @@ namespace HorseRace
             for (int st = 0; st < STAGE_COUNT; st++) stagePlace[st * MAX_SLOTS + i] = 0;
         }
 
+        /// <summary>
+        /// 抜けた人の乗り物は、枠が空いた後で所有権がマスターに来るので ReleaseMountLocal では片付かない。
+        /// 空き枠で誰も乗っていない、自分が持っている乗り物が置き場から離れていたら置き場へ戻す。
+        /// </summary>
+        private void ParkOrphanMountsMaster()
+        {
+            if (mountParking == null) return;
+            int n = SlotCount();
+            for (int i = 0; i < n; i++)
+            {
+                if (slotPlayerId[i] >= 0) continue;
+                MountController m = mounts[i];
+                if (m == null || m.riderPlayerId >= 0) continue;
+                if (i >= mountParking.Length || mountParking[i] == null) continue;
+                if (!Networking.IsOwner(m.gameObject)) continue;
+                Transform park = mountParking[i];
+                if (Vector3.Distance(m.transform.position, park.position) < 2f) continue;
+                m.TeleportTo(park.position, park.eulerAngles.y);
+            }
+        }
+
         /// <summary>もういないプレイヤーの枠を空ける（OnPlayerLeft の取りこぼし・マスター交代の保険）。</summary>
         private bool PruneLeftPlayers()
         {
@@ -618,6 +715,17 @@ namespace HorseRace
                 if (p == null || !p.IsValid())
                 {
                     ClearSlot(i);
+                    changed = true;
+                }
+            }
+            for (int q = 0; q < MAX_SLOTS; q++)
+            {
+                int pid = pendingPlayerId[q];
+                if (pid < 0) continue;
+                VRCPlayerApi p = VRCPlayerApi.GetPlayerById(pid);
+                if (p == null || !p.IsValid())
+                {
+                    pendingPlayerId[q] = -1;
                     changed = true;
                 }
             }
@@ -654,9 +762,15 @@ namespace HorseRace
         public override void OnPlayerLeft(VRCPlayerApi player)
         {
             if (player == null) return;
-            int s = FindSlot(player.playerId);
-            if (s < 0) return;
             if (!Networking.IsOwner(gameObject)) return; // オーナーが空けて配る（マスター自身が抜けたときは新マスターの PruneLeftPlayers）
+            bool wasPending = IsPending(player.playerId);
+            RemovePending(player.playerId);
+            int s = FindSlot(player.playerId);
+            if (s < 0)
+            {
+                if (wasPending) { RequestSerialization(); ApplyLocal(); }
+                return;
+            }
             ClearSlot(s);
             RequestSerialization();
             ApplyLocal();
@@ -748,7 +862,10 @@ namespace HorseRace
                 m.SetRaceActive(true);
                 m.InputLocked = true;
             }
-            if (stage == 0) InvokeStageResetHooks();
+            // 毎ステージの COUNTDOWN（STAGE_RESULT の同期を取りこぼして RACING → 次の COUNTDOWN に飛んだクライアントでも Lv・弾を戻す）。
+            // 対象はどれもレース外では何度呼ばれてもよいので、STAGE_RESULT で既に呼んでいても問題ない。
+            // RACING から始まったクライアント（COUNTDOWN も取りこぼし）は第 1 ステージだけ（拾われた遺物を戻さないように）
+            if (state == RaceMath.STATE_COUNTDOWN || stage == 0) InvokeStageResetHooks();
             if (state == RaceMath.STATE_COUNTDOWN)
             {
                 if (stage == 0 && startBell != null) startBell.PlayRing();

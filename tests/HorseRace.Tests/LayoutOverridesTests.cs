@@ -59,6 +59,15 @@ namespace HorseRace.Tests
             Assert.IsFalse(LayoutOverrides.SameTransform(p, p.position + new Vector3(0.05f, 0, 0), p.euler, p.scale));
         }
 
+        [Test] public void EquivalentEulerTriplesCompareAsTheSameRotation()
+        {
+            Assert.AreEqual(0f, LayoutOverrides.RotationAngle(new Vector3(180, 0, 180), new Vector3(0, 180, 0)), 0.01f);
+            Assert.AreEqual(0f, LayoutOverrides.RotationAngle(new Vector3(0, 10, 85), new Vector3(360, 370, 445)), 0.01f);
+            Assert.AreEqual(90f, LayoutOverrides.RotationAngle(new Vector3(0, 0, 0), new Vector3(0, 90, 0)), 0.01f);
+            Assert.AreEqual(30f, LayoutOverrides.RotationAngle(new Vector3(0, 30, 20), new Vector3(0, 0, 20)), 0.05f);
+            var p = new LayoutItem { id = "x", position = new Vector3(1, 0, 1), euler = new Vector3(180, 0, 180), scale = Vector3One(1) };
+            Assert.IsTrue(LayoutOverrides.SameTransform(p, p.position, new Vector3(0, 180, 0), p.scale));
+        }
         [Test] public void JsonRoundTrip()
         {
             var o = new List<LayoutOverride>

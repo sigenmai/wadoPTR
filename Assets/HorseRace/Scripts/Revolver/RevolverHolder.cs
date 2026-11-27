@@ -391,9 +391,10 @@ namespace HorseRace
                     AbilityCaster tc = caster.foundMount.GetComponent<AbilityCaster>();
                     if (tc != null && tc.casterId >= 0 && tc.casterId < AbilityCaster.MAX_CASTERS)
                     {
-                        int before = hitsOnTarget[tc.casterId];
-                        hitsOnTarget[tc.casterId] = RevolverMath.RegisterHit(before);
-                        tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(AbilityCaster.HitRevolver), dir, caster.casterId, before + 1);
+                        // 累計（このステージでその相手への何発目か）。被弾側はこの番号で数えるので、順番が入れ替わって届いても数え過ぎない
+                        int total = hitsOnTarget[tc.casterId] + 1;
+                        hitsOnTarget[tc.casterId] = total;
+                        tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(AbilityCaster.HitRevolver), dir, caster.casterId, total);
                     }
                 }
                 else if (caster.foundDummy != null)

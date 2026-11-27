@@ -7,7 +7,9 @@ namespace HorseRace
 {
     /// <summary>
     /// 乗り物（馬・ラクダ）1頭ぶんの制御。オーナー（＝乗っているプレイヤー）がレイキャスト接地で移動を計算し、
-    /// transform を直接更新して 10Hz で手動同期する。非オーナーは 0.1 秒遅れで補間し、最大 0.3 秒外挿する。
+    /// transform を直接更新して 10Hz で手動同期する。非オーナーは送信側のサーバー時刻（syncTime）付きの
+    /// サンプルを 4 個までためて、サーバー時刻の 0.22 秒前（InterpMath.DELAY、送信間隔の約 2 倍）を補間で描く。最大 0.3 秒外挿。
+    /// 新しいサンプルで描く位置が変わるときは、今見えている位置から 0.15 秒かけて寄せる（逆戻り・瞬間移動しない）。10m 以上はテレポートとしてスナップ。
     ///
     /// シーン構成（このスクリプトと同じ GameObject に VRCStation を置く。Udon の駅イベントは
     /// 同じ GameObject の UdonBehaviour にしか届かないため）:
@@ -33,7 +35,7 @@ namespace HorseRace
 
         public const float GRAVITY = 20f;
         public const float SEND_INTERVAL = 0.1f;   // 10Hz
-        public const float INTERP_DELAY = 0.1f;
+        public const float INTERP_DELAY = InterpMath.DELAY;
         public const float MAX_EXTRAPOLATION = 0.3f;
 
         // ---- 同期（brief の名前そのまま）----
@@ -46,6 +48,8 @@ namespace HorseRace
         [UdonSynced] public int syncCp;
         [UdonSynced] public float syncDistToCp;
         [UdonSynced] public double syncFinishAt = -1.0;
+        /// <summary>送った時のサーバー時刻（OnPreSerialization で入れる）。受け手の補間の時間軸。</summary>
+        [UdonSynced] public double syncTime;
 
         // ---- 公開状態 ----
         [Header("Slot")]
@@ -130,14 +134,19 @@ namespace HorseRace
         private float seatPitch;
         private float seatY;
 
-        // ---- 非オーナー補間（2 サンプル）----
-        private Vector3 prevPos;
-        private float prevYaw;
-        private float prevTime = -1f;
-        private Vector3 lastPos;
-        private float lastYaw;
+        // ---- 非オーナー補間（送信時刻つきのサンプルを InterpMath.BUFFER 個）----
+        private double[] bufTime;
+        private Vector3[] bufPos;
+        private float[] bufYaw;
+        private float[] bufSpeed;
+        private int bufCount;
+        private double renderClock;
+        private Vector3 errPos;
+        private float errYaw;
         private float lastSpeed;
-        private float lastTime = -1f;
+        // SampleBuffer の結果（out 引数の代わり）
+        private Vector3 samplePos;
+        private float sampleYaw;
 
         private void Start()
         {
@@ -150,6 +159,10 @@ namespace HorseRace
             started = true;
             modFactors = new float[SpeedMod.SLOTS];
             modRemaining = new float[SpeedMod.SLOTS];
+            bufTime = new double[InterpMath.BUFFER];
+            bufPos = new Vector3[InterpMath.BUFFER];
+            bufYaw = new float[InterpMath.BUFFER];
+            bufSpeed = new float[InterpMath.BUFFER];
             yaw = transform.eulerAngles.y;
             syncPos = transform.position;
             syncYaw = yaw;
@@ -224,8 +237,7 @@ namespace HorseRace
             seatY = pos.y + seatHeight;
             bodyPitch = 0f;
             seatPitch = 0f;
-            prevTime = -1f;
-            lastTime = -1f;
+            bufCount = 0;
             if (Networking.IsOwner(gameObject))
             {
                 WriteSync();
@@ -473,7 +485,7 @@ namespace HorseRace
             }
             else
             {
-                UpdateRemote();
+                UpdateRemote(dt);
             }
 
             float targetPitch = SampleGroundPitch();
@@ -728,28 +740,32 @@ namespace HorseRace
         public override void OnPreSerialization()
         {
             WriteSync();
+            syncTime = Networking.GetServerTimeInSeconds();
         }
 
         public override void OnDeserialization()
         {
-            float now = Time.time;
-            if (lastTime < 0f || Vector3.Distance(syncPos, lastPos) > 10f)
-            {
-                // 初回またはテレポート：スナップ
-                prevPos = syncPos;
-                prevYaw = syncYaw;
-                prevTime = now - SEND_INTERVAL;
-            }
-            else
-            {
-                prevPos = lastPos;
-                prevYaw = lastYaw;
-                prevTime = lastTime;
-            }
-            lastPos = syncPos;
-            lastYaw = syncYaw;
+            EnsureInit();
             lastSpeed = syncSpeed;
-            lastTime = now;
+            // 初回・テレポート（最新サンプルから 10m 以上）：ためたサンプルを捨ててスナップ
+            bool snap = bufCount == 0 || Vector3.Distance(syncPos, bufPos[bufCount - 1]) > InterpMath.SNAP_DISTANCE;
+            if (snap) bufCount = 0;
+            bufCount = InterpMath.Insert(bufTime, bufPos, bufYaw, bufSpeed, bufCount, syncTime, syncPos, syncYaw, syncSpeed);
+            if (snap)
+            {
+                renderClock = Networking.GetServerTimeInSeconds() - InterpMath.DELAY;
+                errPos = Vector3.zero;
+                errYaw = 0f;
+                transform.position = syncPos;
+                yaw = syncYaw;
+                transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+                return;
+            }
+            // 描く位置が新しいサンプルで変わっても、今見えている位置から続ける（差は UpdateRemote で 0.15 秒かけて消す）
+            SampleBuffer(renderClock);
+            errPos = transform.position - samplePos;
+            errYaw = InterpMath.DeltaAngle(sampleYaw, yaw);
+            if (errPos.magnitude > InterpMath.SNAP_DISTANCE) errPos = Vector3.zero;
         }
 
         public override void OnOwnershipTransferred(VRCPlayerApi player)
@@ -763,33 +779,45 @@ namespace HorseRace
             }
             else
             {
-                prevTime = -1f;
-                lastTime = -1f;
+                bufCount = 0;
             }
         }
 
-        private void UpdateRemote()
+        /// <summary>サンプルの時間軸で renderTime の位置・向きを samplePos / sampleYaw に入れる。古すぎれば最古、新しすぎれば外挿（最大 0.3 秒）。</summary>
+        private void SampleBuffer(double renderTime)
         {
-            if (lastTime < 0f) return;
-            float renderTime = Time.time - INTERP_DELAY;
-            Vector3 pos;
-            float ry;
-            if (renderTime <= lastTime)
+            int i = InterpMath.SpanStart(bufTime, bufCount, renderTime);
+            if (i < 0)
             {
-                float span = lastTime - prevTime;
-                float t = span > 0.0001f ? (renderTime - prevTime) / span : 1f;
-                t = Mathf.Clamp01(t);
-                pos = Vector3.Lerp(prevPos, lastPos, t);
-                ry = Mathf.LerpAngle(prevYaw, lastYaw, t);
+                samplePos = bufPos[0];
+                sampleYaw = bufYaw[0];
+            }
+            else if (i >= bufCount - 1)
+            {
+                int last = bufCount - 1;
+                float ex = Mathf.Min((float)(renderTime - bufTime[last]), MAX_EXTRAPOLATION);
+                Vector3 fwd = Quaternion.Euler(0f, bufYaw[last], 0f) * Vector3.forward;
+                samplePos = bufPos[last] + fwd * (bufSpeed[last] * ex);
+                sampleYaw = bufYaw[last];
             }
             else
             {
-                float ex = Mathf.Min(renderTime - lastTime, MAX_EXTRAPOLATION);
-                Vector3 fwd = Quaternion.Euler(0f, lastYaw, 0f) * Vector3.forward;
-                pos = lastPos + fwd * (lastSpeed * ex);
-                ry = lastYaw;
+                float t = InterpMath.SpanT(bufTime[i], bufTime[i + 1], renderTime);
+                samplePos = Vector3.Lerp(bufPos[i], bufPos[i + 1], t);
+                sampleYaw = InterpMath.LerpAngle(bufYaw[i], bufYaw[i + 1], t);
             }
-            transform.position = pos;
+        }
+
+        private void UpdateRemote(float dt)
+        {
+            if (bufCount == 0) return;
+            renderClock = InterpMath.AdvanceClock(renderClock, dt, Networking.GetServerTimeInSeconds() - InterpMath.DELAY);
+            SampleBuffer(renderClock);
+            float k = InterpMath.DecayFactor(dt, InterpMath.ERROR_TAU);
+            errPos = errPos * k;
+            errYaw = errYaw * k;
+            float ry = sampleYaw + errYaw;
+            transform.position = samplePos + errPos;
             transform.rotation = Quaternion.Euler(0f, ry, 0f);
             yaw = ry;
         }

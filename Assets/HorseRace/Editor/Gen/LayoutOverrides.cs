@@ -114,18 +114,40 @@ namespace HorseRace.EditorTools
         // 比べる・当てる
         // ------------------------------------------------------------------
 
-        static float AngleDiff(float a, float b)
+        /// <summary>
+        /// 2 つのオイラー角（Unity の順：Z → X → Y）が表す回転の差（度、0..180）。
+        /// 同じ回転でも読み戻すと別のオイラー角になる（(180,0,180) と (0,180,0) など）ので、成分ごとではなくこれで比べる。
+        /// </summary>
+        public static float RotationAngle(Vector3 a, Vector3 b)
         {
-            float d = (a - b) % 360f;
-            if (d > 180f) d -= 360f;
-            if (d < -180f) d += 360f;
-            return Mathf.Abs(d);
+            double aw, ax, ay, az, bw, bx, by, bz;
+            EulerToQuat(a, out aw, out ax, out ay, out az);
+            EulerToQuat(b, out bw, out bx, out by, out bz);
+            double dot = System.Math.Abs(aw * bw + ax * bx + ay * by + az * bz);
+            if (dot > 1.0) dot = 1.0;
+            return (float)(2.0 * System.Math.Acos(dot) * 180.0 / System.Math.PI);
+        }
+
+        // q = qy * qx * qz（Unity の Quaternion.Euler と同じ順）
+        static void EulerToQuat(Vector3 e, out double w, out double x, out double y, out double z)
+        {
+            double hx = e.x * System.Math.PI / 360.0, hy = e.y * System.Math.PI / 360.0, hz = e.z * System.Math.PI / 360.0;
+            double cx = System.Math.Cos(hx), sx = System.Math.Sin(hx);
+            double cy = System.Math.Cos(hy), sy = System.Math.Sin(hy);
+            double cz = System.Math.Cos(hz), sz = System.Math.Sin(hz);
+            // qy * qx
+            double w1 = cy * cx, x1 = cy * sx, y1 = sy * cx, z1 = -sy * sx;
+            // (qy * qx) * qz, qz = (cz, 0, 0, sz)
+            w = w1 * cz - z1 * sz;
+            x = x1 * cz + y1 * sz;
+            y = y1 * cz - x1 * sz;
+            z = z1 * cz + w1 * sz;
         }
 
         public static bool SameTransform(LayoutItem a, Vector3 pos, Vector3 euler, Vector3 scale)
         {
             return WorldLayout.DistXZ(a.position, pos) <= POS_EPS && Mathf.Abs(a.position.y - pos.y) <= POS_EPS
-                && AngleDiff(a.euler.x, euler.x) <= ANGLE_EPS && AngleDiff(a.euler.y, euler.y) <= ANGLE_EPS && AngleDiff(a.euler.z, euler.z) <= ANGLE_EPS
+                && RotationAngle(a.euler, euler) <= ANGLE_EPS
                 && Mathf.Abs(a.scale.x - scale.x) <= SCALE_EPS && Mathf.Abs(a.scale.y - scale.y) <= SCALE_EPS && Mathf.Abs(a.scale.z - scale.z) <= SCALE_EPS;
         }
 

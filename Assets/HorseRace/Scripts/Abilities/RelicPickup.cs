@@ -93,6 +93,7 @@ namespace HorseRace
             if (Time.time < armAt) return;
             MountController m = other.GetComponentInParent<MountController>();
             if (m == null || !m.IsLocalRider()) return;
+            if (other.gameObject != m.gameObject) return; // 体の Collider だけ（子の Collider で二重に拾いに行かない）
             AbilityCaster caster = m.GetComponent<AbilityCaster>();
             if (caster == null) return;
             if (!m.raceActive && !caster.practiceMount) return;
