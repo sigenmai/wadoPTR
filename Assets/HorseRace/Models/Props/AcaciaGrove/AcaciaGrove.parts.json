@@ -1,0 +1,101 @@
+{
+ "source": "AcaciaGrove.fbx",
+ "mode": "whole",
+ "objects_before": 1,
+ "islands": 5,
+ "parts": 4,
+ "items": [
+  {
+   "name": "AcaciaGrove_01_Tree",
+   "kind": "Tree",
+   "tris": 1794,
+   "bbox_min": [
+    -6.009,
+    -3.449,
+    0.011
+   ],
+   "bbox_max": [
+    0.323,
+    0.226,
+    3.737
+   ],
+   "centroid": [
+    -2.464,
+    -1.745,
+    1.489
+   ],
+   "materials": [
+    "AcaciaGrove_Mat"
+   ]
+  },
+  {
+   "name": "AcaciaGrove_02_Tree",
+   "kind": "Tree",
+   "tris": 3252,
+   "bbox_min": [
+    -3.439,
+    -0.42,
+    0.236
+   ],
+   "bbox_max": [
+    5.985,
+    5.98,
+    6.555
+   ],
+   "centroid": [
+    1.311,
+    2.049,
+    3.54
+   ],
+   "materials": [
+    "AcaciaGrove_Mat"
+   ]
+  },
+  {
+   "name": "AcaciaGrove_03_Tree",
+   "kind": "Tree",
+   "tris": 382,
+   "bbox_min": [
+    0.11,
+    -6.001,
+    0.009
+   ],
+   "bbox_max": [
+    3.103,
+    -3.451,
+    0.913
+   ],
+   "centroid": [
+    1.661,
+    -4.532,
+    0.31
+   ],
+   "materials": [
+    "AcaciaGrove_Mat"
+   ]
+  },
+  {
+   "name": "AcaciaGrove_04_Tree",
+   "kind": "Tree",
+   "tris": 571,
+   "bbox_min": [
+    2.29,
+    -3.555,
+    0.017
+   ],
+   "bbox_max": [
+    5.844,
+    -1.279,
+    2.476
+   ],
+   "centroid": [
+    3.99,
+    -2.39,
+    1.504
+   ],
+   "materials": [
+    "AcaciaGrove_Mat"
+   ]
+  }
+ ]
+}

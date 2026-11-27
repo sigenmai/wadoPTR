@@ -1,0 +1,262 @@
+{
+ "source": "RanchCompound.fbx",
+ "mode": "whole",
+ "objects_before": 1,
+ "islands": 416,
+ "parts": 11,
+ "items": [
+  {
+   "name": "RanchCompound_01_Ground",
+   "kind": "Ground",
+   "tris": 4,
+   "bbox_min": [
+    -29.531,
+    -23.874,
+    0.557
+   ],
+   "bbox_max": [
+    29.297,
+    -12.325,
+    0.557
+   ],
+   "centroid": [
+    -0.396,
+    -18.1,
+    0.557
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_02_Prop",
+   "kind": "Prop",
+   "tris": 210,
+   "bbox_min": [
+    -6.258,
+    -20.357,
+    2.433
+   ],
+   "bbox_max": [
+    -1.334,
+    -18.158,
+    5.012
+   ],
+   "centroid": [
+    -3.785,
+    -19.143,
+    3.632
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_03_Prop",
+   "kind": "Prop",
+   "tris": 534,
+   "bbox_min": [
+    -0.191,
+    -25.076,
+    0.586
+   ],
+   "bbox_max": [
+    1.041,
+    -24.314,
+    4.221
+   ],
+   "centroid": [
+    0.438,
+    -24.688,
+    2.373
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_04_Prop",
+   "kind": "Prop",
+   "tris": 328,
+   "bbox_min": [
+    -23.552,
+    -16.693,
+    0.469
+   ],
+   "bbox_max": [
+    -15.051,
+    -8.837,
+    3.254
+   ],
+   "centroid": [
+    -19.273,
+    -13.246,
+    1.686
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_05_Prop",
+   "kind": "Prop",
+   "tris": 42,
+   "bbox_min": [
+    -21.705,
+    -2.154,
+    0.528
+   ],
+   "bbox_max": [
+    -18.627,
+    0.161,
+    4.514
+   ],
+   "centroid": [
+    -20.122,
+    -0.992,
+    2.77
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_06_Prop",
+   "kind": "Prop",
+   "tris": 42,
+   "bbox_min": [
+    -21.705,
+    -4.88,
+    0.528
+   ],
+   "bbox_max": [
+    -18.627,
+    -2.565,
+    4.514
+   ],
+   "centroid": [
+    -20.122,
+    -3.723,
+    2.77
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_07_Building",
+   "kind": "Building",
+   "tris": 1807,
+   "bbox_min": [
+    -12.618,
+    -7.108,
+    0.528
+   ],
+   "bbox_max": [
+    9.218,
+    14.993,
+    16.59
+   ],
+   "centroid": [
+    -1.201,
+    -0.627,
+    8.85
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_08_Building",
+   "kind": "Building",
+   "tris": 1772,
+   "bbox_min": [
+    -30.0,
+    -25.046,
+    -0.0
+   ],
+   "bbox_max": [
+    30.0,
+    25.076,
+    9.966
+   ],
+   "centroid": [
+    0.224,
+    0.966,
+    4.175
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_09_Building",
+   "kind": "Building",
+   "tris": 1191,
+   "bbox_min": [
+    12.912,
+    -14.993,
+    0.0
+   ],
+   "bbox_max": [
+    21.558,
+    11.798,
+    15.975
+   ],
+   "centroid": [
+    17.275,
+    -0.933,
+    4.896
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_10_Building",
+   "kind": "Building",
+   "tris": 80,
+   "bbox_min": [
+    -24.636,
+    9.394,
+    0.528
+   ],
+   "bbox_max": [
+    -19.389,
+    13.205,
+    4.602
+   ],
+   "centroid": [
+    -22.011,
+    11.299,
+    3.137
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  },
+  {
+   "name": "RanchCompound_11_Building",
+   "kind": "Building",
+   "tris": 1010,
+   "bbox_min": [
+    -25.838,
+    2.887,
+    0.469
+   ],
+   "bbox_max": [
+    -18.012,
+    8.603,
+    24.416
+   ],
+   "centroid": [
+    -21.703,
+    5.303,
+    13.87
+   ],
+   "materials": [
+    "tripo_77d009a9_645c_4523_907e_9ca5e2e8bc1a_Mat"
+   ]
+  }
+ ]
+}

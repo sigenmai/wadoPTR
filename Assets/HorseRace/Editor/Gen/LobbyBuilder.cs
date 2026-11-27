@@ -8,7 +8,9 @@ namespace HorseRace.EditorTools
     ///   広さ：ロビー全体 = 町（柵 LobbyLayout.FENCE_RECT = 町の外形 + 8m ≈ 97m × 180m、地面はその外 38m まで＝長方形の Terrain）。
     ///   地面：平らな Terrain（LobbyLayout.GROUND_RECT、地面の高さ y = 0）。町の足元だけ 1m 下げて通りの板と地面がちらつかないようにする。
     ///         町の通りの高さに見えない Ground の板（TownStreetGround：乗り物・遺物・岩壁が立つ面。町の模型は Block）。
-    ///   町：Packs/WesternTown を「通りの高さ」だけ沈めて置く（通りの高さはメッシュの上向きの面の面積ヒストグラムの最頻値、
+    ///   町：Packs/WesternTown を「通りの高さ」だけ沈めて置く。模型は建物・小物・地面・丘ごとに別のオブジェクトで、
+    ///       1 つずつ手直し用の id（Lobby/Town/WesternTown|部品名#番号）が付く（Save Layout で建物を動かす・消す）。
+    ///       （通りの高さはメッシュの上向きの面の面積ヒストグラムの最頻値、
     ///       取れなければ STREET_HEIGHT_FALLBACK = 13.75m。Blender で同じ方法で測った値）。岩山の端が北。
     ///       模型の z ≈ 140 の柵の北（教会の裏・岩山）は背景専用（見えない壁 TownWalls/Back）。
     ///   すべて町の中の空き地（位置は LobbyLayout、Blender で測った建物・岩・サボテンの無い平らな所）：
@@ -221,7 +223,24 @@ namespace HorseRace.EditorTools
                 mc.sharedMesh = mf.sharedMesh;
             }
             GenUtil.SetLayerRecursive(holder, WorldLayers.Block);
+            TagTownParts(m.transform);
             return holder;
+        }
+
+        /// <summary>
+        /// 町の模型は建物・小物ごとに別のオブジェクト（tools/blender/split_parts.py、名前は WesternTown_NNN_種類、
+        /// 一覧は WesternTown.parts.json）。1 つずつ手直し用の id を付け、Save Layout で建物を動かす・消すことができるようにする。
+        /// 当たり判定（MeshCollider）は部品自身に付いているので一緒に動く。
+        /// </summary>
+        public static int TagTownParts(Transform model)
+        {
+            var parts = new List<Transform>();
+            for (int i = 0; i < model.childCount; i++) parts.Add(model.GetChild(i));
+            parts.Sort((a, b) => string.CompareOrdinal(a.name, b.name));   // FBX の子の順番に頼らない（同じ FBX なら同じ id）
+            for (int i = 0; i < parts.Count; i++)
+                GenUtil.Tag(parts[i].gameObject, LayoutOverrides.IdForPart("Lobby", "Town", "WesternTown", LayoutOverrides.StripId(parts[i].name), i));
+            Debug.Log("[HorseRace] WesternTown の部品 " + parts.Count + " 個に手直し用の id を付けました（建物ごとに動かす・消すことができます）");
+            return parts.Count;
         }
 
         /// <summary>WesternTown の通りの高さ（町のルートからの高さ、m）。上向きの面の面積で最頻の高さ。</summary>

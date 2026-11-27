@@ -1,0 +1,3242 @@
+{
+ "source": "WesternTown.fbx",
+ "mode": "whole",
+ "objects_before": 20,
+ "islands": 2382,
+ "parts": 137,
+ "items": [
+  {
+   "name": "WesternTown_001_Ground",
+   "kind": "Ground",
+   "tris": 2002,
+   "bbox_min": [
+    -36.612,
+    -79.912,
+    0.0
+   ],
+   "bbox_max": [
+    37.461,
+    82.006,
+    14.705
+   ],
+   "centroid": [
+    -0.783,
+    0.542,
+    7.777
+   ],
+   "materials": [
+    "11 - Default",
+    "07 - Default",
+    "03 - Default",
+    "15 - Default",
+    "09 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_002_Hill",
+   "kind": "Hill",
+   "tris": 410,
+   "bbox_min": [
+    -36.787,
+    48.684,
+    12.889
+   ],
+   "bbox_max": [
+    36.145,
+    82.189,
+    33.884
+   ],
+   "centroid": [
+    6.269,
+    64.849,
+    19.458
+   ],
+   "materials": [
+    "11 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_003_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -27.103,
+    -79.059,
+    2.252
+   ],
+   "bbox_max": [
+    -21.254,
+    -71.649,
+    10.403
+   ],
+   "centroid": [
+    -24.167,
+    -75.346,
+    6.192
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_004_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -13.997,
+    -76.981,
+    3.863
+   ],
+   "bbox_max": [
+    -10.881,
+    -75.058,
+    7.055
+   ],
+   "centroid": [
+    -12.393,
+    -76.019,
+    5.428
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_005_Rock",
+   "kind": "Rock",
+   "tris": 240,
+   "bbox_min": [
+    -7.756,
+    -80.935,
+    3.232
+   ],
+   "bbox_max": [
+    12.963,
+    -72.029,
+    12.369
+   ],
+   "centroid": [
+    4.085,
+    -77.605,
+    7.635
+   ],
+   "materials": [
+    "18 - Default",
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_006_Rock",
+   "kind": "Rock",
+   "tris": 144,
+   "bbox_min": [
+    20.49,
+    -80.237,
+    4.672
+   ],
+   "bbox_max": [
+    30.491,
+    -75.795,
+    12.369
+   ],
+   "centroid": [
+    25.151,
+    -77.95,
+    8.346
+   ],
+   "materials": [
+    "18 - Default",
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_007_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -26.565,
+    -68.37,
+    13.359
+   ],
+   "bbox_max": [
+    -25.728,
+    -66.537,
+    16.295
+   ],
+   "centroid": [
+    -26.242,
+    -67.514,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_008_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -19.706,
+    -69.026,
+    13.359
+   ],
+   "bbox_max": [
+    -18.068,
+    -67.794,
+    16.295
+   ],
+   "centroid": [
+    -18.967,
+    -68.332,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_009_Rock",
+   "kind": "Rock",
+   "tris": 144,
+   "bbox_min": [
+    -21.573,
+    -68.266,
+    13.471
+   ],
+   "bbox_max": [
+    -15.985,
+    -63.591,
+    15.234
+   ],
+   "centroid": [
+    -19.66,
+    -65.602,
+    13.993
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_010_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -17.178,
+    -66.816,
+    13.359
+   ],
+   "bbox_max": [
+    -16.046,
+    -66.121,
+    16.295
+   ],
+   "centroid": [
+    -16.574,
+    -66.471,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_011_Prop",
+   "kind": "Prop",
+   "tris": 48,
+   "bbox_min": [
+    3.291,
+    -71.356,
+    13.701
+   ],
+   "bbox_max": [
+    4.506,
+    -70.213,
+    14.645
+   ],
+   "centroid": [
+    3.855,
+    -70.756,
+    13.99
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_012_Prop",
+   "kind": "Prop",
+   "tris": 48,
+   "bbox_min": [
+    5.406,
+    -69.148,
+    13.701
+   ],
+   "bbox_max": [
+    6.622,
+    -68.006,
+    14.645
+   ],
+   "centroid": [
+    5.97,
+    -68.548,
+    13.99
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_013_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    4.843,
+    -75.245,
+    13.277
+   ],
+   "bbox_max": [
+    9.047,
+    -70.213,
+    15.731
+   ],
+   "centroid": [
+    6.331,
+    -71.963,
+    14.009
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_014_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    7.255,
+    -70.162,
+    13.018
+   ],
+   "bbox_max": [
+    12.843,
+    -65.488,
+    15.627
+   ],
+   "centroid": [
+    9.457,
+    -68.193,
+    14.017
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_015_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    26.938,
+    -68.37,
+    13.359
+   ],
+   "bbox_max": [
+    27.775,
+    -66.537,
+    16.295
+   ],
+   "centroid": [
+    27.262,
+    -67.514,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_016_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    32.713,
+    -75.508,
+    4.831
+   ],
+   "bbox_max": [
+    37.245,
+    -68.193,
+    12.178
+   ],
+   "centroid": [
+    35.032,
+    -71.667,
+    8.44
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_017_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -29.412,
+    -64.148,
+    13.359
+   ],
+   "bbox_max": [
+    -27.774,
+    -62.916,
+    16.295
+   ],
+   "centroid": [
+    -28.673,
+    -63.454,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_018_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -27.883,
+    -65.258,
+    13.359
+   ],
+   "bbox_max": [
+    -27.002,
+    -64.254,
+    16.295
+   ],
+   "centroid": [
+    -27.42,
+    -64.721,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_019_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -19.706,
+    -64.155,
+    13.359
+   ],
+   "bbox_max": [
+    -18.068,
+    -62.923,
+    16.295
+   ],
+   "centroid": [
+    -18.967,
+    -63.461,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_020_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -16.417,
+    -65.293,
+    13.359
+   ],
+   "bbox_max": [
+    -15.904,
+    -64.101,
+    16.295
+   ],
+   "centroid": [
+    -16.192,
+    -64.753,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_021_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    8.79,
+    -64.148,
+    13.359
+   ],
+   "bbox_max": [
+    10.428,
+    -62.916,
+    16.295
+   ],
+   "centroid": [
+    9.529,
+    -63.454,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_022_Prop",
+   "kind": "Prop",
+   "tris": 3180,
+   "bbox_min": [
+    8.805,
+    -60.644,
+    13.638
+   ],
+   "bbox_max": [
+    11.852,
+    -59.524,
+    15.32
+   ],
+   "centroid": [
+    10.32,
+    -60.084,
+    14.395
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_023_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    11.318,
+    -61.938,
+    13.359
+   ],
+   "bbox_max": [
+    12.45,
+    -61.243,
+    16.295
+   ],
+   "centroid": [
+    11.922,
+    -61.593,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_024_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    24.092,
+    -64.148,
+    13.359
+   ],
+   "bbox_max": [
+    25.729,
+    -62.916,
+    16.295
+   ],
+   "centroid": [
+    24.831,
+    -63.454,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_025_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    25.62,
+    -65.258,
+    13.359
+   ],
+   "bbox_max": [
+    26.501,
+    -64.254,
+    16.295
+   ],
+   "centroid": [
+    26.083,
+    -64.721,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_026_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    26.619,
+    -61.938,
+    13.359
+   ],
+   "bbox_max": [
+    27.752,
+    -61.243,
+    16.295
+   ],
+   "centroid": [
+    27.224,
+    -61.593,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_027_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    29.278,
+    -67.279,
+    2.645
+   ],
+   "bbox_max": [
+    35.101,
+    -60.892,
+    9.208
+   ],
+   "centroid": [
+    31.514,
+    -64.005,
+    5.914
+   ],
+   "materials": [
+    "18 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_028_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -37.245,
+    -57.974,
+    0.732
+   ],
+   "bbox_max": [
+    -32.713,
+    -45.47,
+    11.288
+   ],
+   "centroid": [
+    -35.032,
+    -51.906,
+    5.946
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_029_Building",
+   "kind": "Building",
+   "tris": 3558,
+   "bbox_min": [
+    -13.571,
+    -57.816,
+    13.653
+   ],
+   "bbox_max": [
+    -5.637,
+    -48.816,
+    23.078
+   ],
+   "centroid": [
+    -8.162,
+    -53.195,
+    18.556
+   ],
+   "materials": [
+    "15 - Default",
+    "01 - Default",
+    "16 - Default",
+    "04 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_030_Building",
+   "kind": "Building",
+   "tris": 4974,
+   "bbox_min": [
+    6.349,
+    -59.211,
+    13.669
+   ],
+   "bbox_max": [
+    15.905,
+    -49.856,
+    20.031
+   ],
+   "centroid": [
+    9.089,
+    -53.889,
+    16.859
+   ],
+   "materials": [
+    "11 - Default",
+    "01 - Default",
+    "17 - Default",
+    "16 - Default",
+    "20 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_031_Rock",
+   "kind": "Rock",
+   "tris": 144,
+   "bbox_min": [
+    25.386,
+    -54.583,
+    13.471
+   ],
+   "bbox_max": [
+    30.974,
+    -49.909,
+    15.234
+   ],
+   "centroid": [
+    27.299,
+    -51.919,
+    13.993
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_032_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    31.596,
+    -46.318,
+    13.359
+   ],
+   "bbox_max": [
+    32.433,
+    -44.485,
+    16.295
+   ],
+   "centroid": [
+    31.92,
+    -45.463,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_033_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    32.713,
+    -60.796,
+    1.621
+   ],
+   "bbox_max": [
+    37.245,
+    -48.291,
+    12.178
+   ],
+   "centroid": [
+    35.032,
+    -54.36,
+    6.835
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_034_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -27.883,
+    -43.207,
+    13.359
+   ],
+   "bbox_max": [
+    -27.002,
+    -42.202,
+    16.295
+   ],
+   "centroid": [
+    -27.42,
+    -42.67,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_035_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -25.236,
+    -44.337,
+    13.359
+   ],
+   "bbox_max": [
+    -24.399,
+    -42.505,
+    16.295
+   ],
+   "centroid": [
+    -24.912,
+    -43.482,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_036_Building",
+   "kind": "Building",
+   "tris": 3350,
+   "bbox_min": [
+    -13.649,
+    -48.076,
+    13.653
+   ],
+   "bbox_max": [
+    -5.46,
+    -39.076,
+    20.99
+   ],
+   "centroid": [
+    -7.047,
+    -43.534,
+    16.771
+   ],
+   "materials": [
+    "11 - Default",
+    "15 - Default",
+    "09 - Default",
+    "01 - Default",
+    "16 - Default",
+    "04 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_037_Rock",
+   "kind": "Rock",
+   "tris": 36,
+   "bbox_min": [
+    -5.198,
+    -42.634,
+    13.621
+   ],
+   "bbox_max": [
+    -5.102,
+    -39.244,
+    15.225
+   ],
+   "centroid": [
+    -5.155,
+    -40.933,
+    14.57
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_038_Prop",
+   "kind": "Prop",
+   "tris": 30,
+   "bbox_min": [
+    -5.014,
+    -41.737,
+    13.653
+   ],
+   "bbox_max": [
+    -4.216,
+    -39.701,
+    14.012
+   ],
+   "centroid": [
+    -4.615,
+    -40.703,
+    13.837
+   ],
+   "materials": [
+    "19 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_039_Building",
+   "kind": "Building",
+   "tris": 9688,
+   "bbox_min": [
+    7.186,
+    -48.934,
+    13.65
+   ],
+   "bbox_max": [
+    15.437,
+    -37.984,
+    24.886
+   ],
+   "centroid": [
+    10.015,
+    -41.238,
+    16.652
+   ],
+   "materials": [
+    "01 - Default",
+    "23 - Default",
+    "20 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_040_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    24.092,
+    -42.097,
+    13.359
+   ],
+   "bbox_max": [
+    25.729,
+    -40.865,
+    16.295
+   ],
+   "centroid": [
+    24.831,
+    -41.403,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_041_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    25.62,
+    -43.207,
+    13.359
+   ],
+   "bbox_max": [
+    26.501,
+    -42.202,
+    16.295
+   ],
+   "centroid": [
+    26.083,
+    -42.67,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_042_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    26.619,
+    -39.887,
+    13.359
+   ],
+   "bbox_max": [
+    27.752,
+    -39.192,
+    16.295
+   ],
+   "centroid": [
+    27.224,
+    -39.541,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_043_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    28.268,
+    -44.337,
+    13.359
+   ],
+   "bbox_max": [
+    29.105,
+    -42.505,
+    16.295
+   ],
+   "centroid": [
+    28.591,
+    -43.482,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_044_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    30.103,
+    -43.207,
+    13.359
+   ],
+   "bbox_max": [
+    30.984,
+    -42.202,
+    16.295
+   ],
+   "centroid": [
+    30.566,
+    -42.67,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_045_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    29.278,
+    -47.377,
+    1.001
+   ],
+   "bbox_max": [
+    38.191,
+    -36.939,
+    9.208
+   ],
+   "centroid": [
+    33.058,
+    -42.077,
+    5.092
+   ],
+   "materials": [
+    "18 - Default",
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_046_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -40.587,
+    -38.072,
+    0.974
+   ],
+   "bbox_max": [
+    -29.374,
+    -26.823,
+    11.288
+   ],
+   "centroid": [
+    -34.864,
+    -33.503,
+    6.748
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_047_Building",
+   "kind": "Building",
+   "tris": 3364,
+   "bbox_min": [
+    -14.817,
+    -36.408,
+    13.651
+   ],
+   "bbox_max": [
+    -5.179,
+    -25.824,
+    28.17
+   ],
+   "centroid": [
+    -9.192,
+    -31.176,
+    22.302
+   ],
+   "materials": [
+    "06 - Default",
+    "16 - Default",
+    "20 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_048_Building",
+   "kind": "Building",
+   "tris": 6664,
+   "bbox_min": [
+    7.133,
+    -36.977,
+    13.639
+   ],
+   "bbox_max": [
+    16.974,
+    -25.066,
+    20.561
+   ],
+   "centroid": [
+    9.734,
+    -29.241,
+    15.52
+   ],
+   "materials": [
+    "01 - Default",
+    "06 - Default",
+    "16 - Default",
+    "20 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_049_Track",
+   "kind": "Track",
+   "tris": 1448,
+   "bbox_min": [
+    19.151,
+    -82.189,
+    12.65
+   ],
+   "bbox_max": [
+    21.851,
+    13.431,
+    13.976
+   ],
+   "centroid": [
+    20.542,
+    -49.798,
+    13.62
+   ],
+   "materials": [
+    "01 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_050_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    26.062,
+    -32.108,
+    13.471
+   ],
+   "bbox_max": [
+    30.265,
+    -28.157,
+    15.234
+   ],
+   "centroid": [
+    28.011,
+    -30.033,
+    14.01
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_051_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    32.659,
+    -32.364,
+    4.625
+   ],
+   "bbox_max": [
+    37.336,
+    -24.787,
+    12.388
+   ],
+   "centroid": [
+    34.996,
+    -28.464,
+    8.431
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_052_Tree",
+   "kind": "Tree",
+   "tris": 14752,
+   "bbox_min": [
+    -28.416,
+    -18.352,
+    13.653
+   ],
+   "bbox_max": [
+    -23.187,
+    -13.008,
+    18.887
+   ],
+   "centroid": [
+    -25.991,
+    -15.532,
+    16.967
+   ],
+   "materials": [
+    "Trunk"
+   ]
+  },
+  {
+   "name": "WesternTown_053_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -24.754,
+    -22.76,
+    13.359
+   ],
+   "bbox_max": [
+    -23.116,
+    -21.528,
+    16.295
+   ],
+   "centroid": [
+    -24.015,
+    -22.066,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_054_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -23.225,
+    -23.87,
+    13.359
+   ],
+   "bbox_max": [
+    -22.344,
+    -22.866,
+    16.295
+   ],
+   "centroid": [
+    -22.762,
+    -23.333,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_055_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -22.226,
+    -20.55,
+    13.359
+   ],
+   "bbox_max": [
+    -21.094,
+    -19.855,
+    16.295
+   ],
+   "centroid": [
+    -21.622,
+    -20.205,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_056_Building",
+   "kind": "Building",
+   "tris": 3448,
+   "bbox_min": [
+    -14.091,
+    -24.18,
+    13.653
+   ],
+   "bbox_max": [
+    -5.409,
+    -15.18,
+    19.18
+   ],
+   "centroid": [
+    -7.303,
+    -19.716,
+    17.036
+   ],
+   "materials": [
+    "09 - Default",
+    "01 - Default",
+    "16 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_057_Building",
+   "kind": "Building",
+   "tris": 6430,
+   "bbox_min": [
+    6.885,
+    -24.771,
+    13.61
+   ],
+   "bbox_max": [
+    15.789,
+    -15.369,
+    26.612
+   ],
+   "centroid": [
+    9.497,
+    -20.04,
+    19.129
+   ],
+   "materials": [
+    "11 - Default",
+    "01 - Default",
+    "16 - Default",
+    "20 - Default",
+    "08 - Default",
+    "11 - Default.001"
+   ]
+  },
+  {
+   "name": "WesternTown_058_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    28.75,
+    -22.76,
+    13.359
+   ],
+   "bbox_max": [
+    30.387,
+    -21.528,
+    16.295
+   ],
+   "centroid": [
+    29.489,
+    -22.066,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_059_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    30.278,
+    -23.87,
+    13.359
+   ],
+   "bbox_max": [
+    31.159,
+    -22.866,
+    16.295
+   ],
+   "centroid": [
+    30.741,
+    -23.333,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_060_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    31.277,
+    -20.55,
+    13.359
+   ],
+   "bbox_max": [
+    32.41,
+    -19.855,
+    16.295
+   ],
+   "centroid": [
+    31.882,
+    -20.205,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_061_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -30.969,
+    -6.094,
+    13.359
+   ],
+   "bbox_max": [
+    -29.836,
+    -5.399,
+    16.295
+   ],
+   "centroid": [
+    -30.365,
+    -5.749,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_062_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -30.056,
+    -8.479,
+    13.359
+   ],
+   "bbox_max": [
+    -28.824,
+    -6.841,
+    16.295
+   ],
+   "centroid": [
+    -29.362,
+    -7.58,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_063_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -29.072,
+    -9.311,
+    13.471
+   ],
+   "bbox_max": [
+    -24.096,
+    -5.297,
+    15.234
+   ],
+   "centroid": [
+    -25.729,
+    -7.945,
+    13.994
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_064_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -21.302,
+    -9.824,
+    13.359
+   ],
+   "bbox_max": [
+    -20.17,
+    -9.129,
+    16.295
+   ],
+   "centroid": [
+    -20.698,
+    -9.479,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_065_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -20.39,
+    -12.209,
+    13.359
+   ],
+   "bbox_max": [
+    -19.158,
+    -10.571,
+    16.295
+   ],
+   "centroid": [
+    -19.696,
+    -11.31,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_066_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -19.559,
+    -10.677,
+    13.359
+   ],
+   "bbox_max": [
+    -17.639,
+    -9.922,
+    16.295
+   ],
+   "centroid": [
+    -18.601,
+    -10.294,
+    15.335
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_067_Building",
+   "kind": "Building",
+   "tris": 1282,
+   "bbox_min": [
+    8.238,
+    -14.441,
+    13.652
+   ],
+   "bbox_max": [
+    17.696,
+    4.069,
+    18.749
+   ],
+   "centroid": [
+    11.168,
+    -7.781,
+    16.356
+   ],
+   "materials": [
+    "01 - Default",
+    "06 - Default",
+    "23 - Default",
+    "16 - Default",
+    "20 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_068_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -37.336,
+    -8.759,
+    3.736
+   ],
+   "bbox_max": [
+    -32.659,
+    -1.182,
+    11.499
+   ],
+   "centroid": [
+    -34.996,
+    -5.081,
+    7.542
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_069_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -27.076,
+    -4.855,
+    13.078
+   ],
+   "bbox_max": [
+    -25.155,
+    -4.1,
+    16.014
+   ],
+   "centroid": [
+    -26.118,
+    -4.472,
+    15.054
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_070_Building",
+   "kind": "Building",
+   "tris": 2558,
+   "bbox_min": [
+    -16.266,
+    -13.478,
+    13.458
+   ],
+   "bbox_max": [
+    -7.03,
+    5.497,
+    20.595
+   ],
+   "centroid": [
+    -11.506,
+    -3.952,
+    15.41
+   ],
+   "materials": [
+    "03 - Default",
+    "01 - Default",
+    "23 - Default",
+    "04 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_071_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -8.739,
+    4.417,
+    13.643
+   ],
+   "bbox_max": [
+    -6.818,
+    5.173,
+    16.579
+   ],
+   "centroid": [
+    -7.781,
+    4.801,
+    15.619
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_072_Rock",
+   "kind": "Rock",
+   "tris": 273,
+   "bbox_min": [
+    13.981,
+    4.03,
+    13.359
+   ],
+   "bbox_max": [
+    15.213,
+    5.668,
+    16.378
+   ],
+   "centroid": [
+    14.675,
+    4.929,
+    15.223
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_073_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    29.374,
+    -6.722,
+    1.863
+   ],
+   "bbox_max": [
+    40.587,
+    4.527,
+    12.178
+   ],
+   "centroid": [
+    34.864,
+    -0.042,
+    7.637
+   ],
+   "materials": [
+    "03 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_074_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -38.191,
+    3.393,
+    0.112
+   ],
+   "bbox_max": [
+    -32.367,
+    9.78,
+    6.675
+   ],
+   "centroid": [
+    -34.603,
+    6.506,
+    3.381
+   ],
+   "materials": [
+    "18 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_075_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -11.721,
+    5.501,
+    13.359
+   ],
+   "bbox_max": [
+    -10.589,
+    6.197,
+    16.295
+   ],
+   "centroid": [
+    -11.117,
+    5.847,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_076_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -10.137,
+    5.28,
+    13.643
+   ],
+   "bbox_max": [
+    -8.788,
+    6.832,
+    16.579
+   ],
+   "centroid": [
+    -9.561,
+    6.107,
+    15.619
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_077_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    14.061,
+    6.117,
+    13.359
+   ],
+   "bbox_max": [
+    14.836,
+    8.028,
+    16.295
+   ],
+   "centroid": [
+    14.464,
+    7.072,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_078_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    14.912,
+    5.644,
+    13.359
+   ],
+   "bbox_max": [
+    16.832,
+    6.399,
+    16.295
+   ],
+   "centroid": [
+    15.87,
+    6.027,
+    15.335
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_079_Rock",
+   "kind": "Rock",
+   "tris": 36,
+   "bbox_min": [
+    18.404,
+    11.036,
+    13.641
+   ],
+   "bbox_max": [
+    22.68,
+    11.157,
+    15.666
+   ],
+   "centroid": [
+    20.549,
+    11.103,
+    14.839
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_080_Building",
+   "kind": "Building",
+   "tris": 1174,
+   "bbox_min": [
+    26.522,
+    11.106,
+    13.771
+   ],
+   "bbox_max": [
+    31.172,
+    16.214,
+    23.635
+   ],
+   "centroid": [
+    28.853,
+    13.577,
+    19.599
+   ],
+   "materials": [
+    "01 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_081_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -37.245,
+    14.746,
+    0.732
+   ],
+   "bbox_max": [
+    -32.713,
+    27.25,
+    11.288
+   ],
+   "centroid": [
+    -35.032,
+    20.814,
+    5.946
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_082_Building",
+   "kind": "Building",
+   "tris": 1024,
+   "bbox_min": [
+    -27.387,
+    12.096,
+    13.771
+   ],
+   "bbox_max": [
+    -20.819,
+    19.164,
+    26.468
+   ],
+   "centroid": [
+    -24.03,
+    14.087,
+    20.657
+   ],
+   "materials": [
+    "09 - Default",
+    "01 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_083_Tree",
+   "kind": "Tree",
+   "tris": 16226,
+   "bbox_min": [
+    -14.937,
+    16.625,
+    13.653
+   ],
+   "bbox_max": [
+    -4.15,
+    26.918,
+    25.107
+   ],
+   "centroid": [
+    -9.371,
+    21.852,
+    20.538
+   ],
+   "materials": [
+    "14 - Default",
+    "Trunk"
+   ]
+  },
+  {
+   "name": "WesternTown_084_Building",
+   "kind": "Building",
+   "tris": 2755,
+   "bbox_min": [
+    -2.242,
+    7.629,
+    13.653
+   ],
+   "bbox_max": [
+    4.697,
+    25.383,
+    28.628
+   ],
+   "centroid": [
+    1.274,
+    15.331,
+    20.899
+   ],
+   "materials": [
+    "09 - Default",
+    "17 - Default",
+    "19 - Default",
+    "20 - Default",
+    "22 - Default",
+    "08 - Default",
+    "14 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_085_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    8.79,
+    18.4,
+    13.359
+   ],
+   "bbox_max": [
+    10.428,
+    19.632,
+    16.295
+   ],
+   "centroid": [
+    9.529,
+    19.093,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_086_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    10.014,
+    22.588,
+    13.359
+   ],
+   "bbox_max": [
+    11.146,
+    23.283,
+    16.295
+   ],
+   "centroid": [
+    10.618,
+    22.933,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_087_Prop",
+   "kind": "Prop",
+   "tris": 48,
+   "bbox_min": [
+    10.405,
+    18.475,
+    13.694
+   ],
+   "bbox_max": [
+    12.715,
+    20.646,
+    14.663
+   ],
+   "centroid": [
+    11.477,
+    19.615,
+    13.99
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_088_Prop",
+   "kind": "Prop",
+   "tris": 48,
+   "bbox_min": [
+    11.175,
+    21.928,
+    13.823
+   ],
+   "bbox_max": [
+    12.391,
+    23.071,
+    14.333
+   ],
+   "centroid": [
+    11.739,
+    22.529,
+    13.979
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_089_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    11.318,
+    20.609,
+    13.359
+   ],
+   "bbox_max": [
+    12.45,
+    21.304,
+    16.295
+   ],
+   "centroid": [
+    11.922,
+    20.955,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_090_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    12.231,
+    18.225,
+    13.359
+   ],
+   "bbox_max": [
+    13.462,
+    19.862,
+    16.295
+   ],
+   "centroid": [
+    12.924,
+    19.123,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_091_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    13.061,
+    19.756,
+    13.359
+   ],
+   "bbox_max": [
+    14.982,
+    20.512,
+    16.295
+   ],
+   "centroid": [
+    14.019,
+    20.139,
+    15.335
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_092_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    32.713,
+    11.924,
+    1.621
+   ],
+   "bbox_max": [
+    37.245,
+    24.429,
+    12.178
+   ],
+   "centroid": [
+    35.032,
+    18.36,
+    6.835
+   ],
+   "materials": [
+    "18 - Default",
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_093_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -35.101,
+    27.346,
+    1.756
+   ],
+   "bbox_max": [
+    -29.278,
+    33.733,
+    8.319
+   ],
+   "centroid": [
+    -31.514,
+    30.459,
+    5.025
+   ],
+   "materials": [
+    "18 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_094_Fence",
+   "kind": "Fence",
+   "tris": 1384,
+   "bbox_min": [
+    -34.718,
+    32.952,
+    13.132
+   ],
+   "bbox_max": [
+    33.608,
+    33.199,
+    16.094
+   ],
+   "centroid": [
+    -0.85,
+    33.065,
+    14.629
+   ],
+   "materials": [
+    "16 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_095_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    29.278,
+    25.343,
+    1.001
+   ],
+   "bbox_max": [
+    38.191,
+    35.781,
+    9.208
+   ],
+   "centroid": [
+    33.058,
+    30.643,
+    5.092
+   ],
+   "materials": [
+    "18 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_096_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -37.245,
+    34.648,
+    3.942
+   ],
+   "bbox_max": [
+    -32.713,
+    41.963,
+    11.288
+   ],
+   "centroid": [
+    -35.032,
+    38.121,
+    7.551
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_097_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -34.308,
+    36.703,
+    13.359
+   ],
+   "bbox_max": [
+    -33.175,
+    37.398,
+    16.295
+   ],
+   "centroid": [
+    -33.704,
+    37.049,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_098_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -33.396,
+    34.438,
+    13.359
+   ],
+   "bbox_max": [
+    -32.164,
+    36.076,
+    16.295
+   ],
+   "centroid": [
+    -32.676,
+    35.215,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_099_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -32.189,
+    36.232,
+    13.359
+   ],
+   "bbox_max": [
+    -30.305,
+    37.014,
+    16.295
+   ],
+   "centroid": [
+    -31.195,
+    36.569,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_100_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -15.374,
+    41.559,
+    13.586
+   ],
+   "bbox_max": [
+    -12.146,
+    44.593,
+    14.94
+   ],
+   "centroid": [
+    -13.877,
+    43.152,
+    14.0
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_101_Rock",
+   "kind": "Rock",
+   "tris": 144,
+   "bbox_min": [
+    7.713,
+    40.906,
+    13.471
+   ],
+   "bbox_max": [
+    12.715,
+    45.503,
+    15.234
+   ],
+   "centroid": [
+    10.96,
+    43.537,
+    13.993
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_102_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    25.486,
+    41.559,
+    13.586
+   ],
+   "bbox_max": [
+    28.713,
+    44.593,
+    14.94
+   ],
+   "centroid": [
+    26.983,
+    43.152,
+    14.0
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_103_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    32.659,
+    40.356,
+    4.625
+   ],
+   "bbox_max": [
+    37.336,
+    47.933,
+    12.388
+   ],
+   "centroid": [
+    34.996,
+    44.256,
+    8.431
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_104_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -35.101,
+    45.933,
+    1.756
+   ],
+   "bbox_max": [
+    -29.278,
+    52.32,
+    10.897
+   ],
+   "centroid": [
+    -31.514,
+    49.046,
+    6.314
+   ],
+   "materials": [
+    "18 - Default",
+    "15 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_105_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -30.414,
+    54.136,
+    15.686
+   ],
+   "bbox_max": [
+    -29.308,
+    55.847,
+    18.622
+   ],
+   "centroid": [
+    -29.753,
+    54.958,
+    17.29
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_106_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -29.241,
+    51.351,
+    15.329
+   ],
+   "bbox_max": [
+    -21.985,
+    58.171,
+    18.373
+   ],
+   "centroid": [
+    -25.876,
+    54.932,
+    16.26
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_107_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -22.732,
+    53.965,
+    15.387
+   ],
+   "bbox_max": [
+    -22.108,
+    55.915,
+    18.323
+   ],
+   "centroid": [
+    -22.475,
+    54.962,
+    16.991
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_108_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -21.101,
+    46.944,
+    13.359
+   ],
+   "bbox_max": [
+    -19.968,
+    47.639,
+    16.295
+   ],
+   "centroid": [
+    -20.497,
+    47.29,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_109_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -20.188,
+    44.56,
+    13.359
+   ],
+   "bbox_max": [
+    -18.956,
+    46.197,
+    16.295
+   ],
+   "centroid": [
+    -19.494,
+    45.458,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_110_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    -19.358,
+    46.091,
+    13.359
+   ],
+   "bbox_max": [
+    -17.437,
+    46.847,
+    16.295
+   ],
+   "centroid": [
+    -18.4,
+    46.474,
+    15.335
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_111_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -16.032,
+    49.082,
+    13.111
+   ],
+   "bbox_max": [
+    -8.777,
+    55.901,
+    16.155
+   ],
+   "centroid": [
+    -12.667,
+    52.663,
+    14.042
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_112_Prop",
+   "kind": "Prop",
+   "tris": 1272,
+   "bbox_min": [
+    7.666,
+    50.669,
+    13.653
+   ],
+   "bbox_max": [
+    8.579,
+    52.524,
+    14.495
+   ],
+   "centroid": [
+    8.123,
+    51.596,
+    14.074
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_113_Prop",
+   "kind": "Prop",
+   "tris": 1908,
+   "bbox_min": [
+    8.927,
+    50.242,
+    13.653
+   ],
+   "bbox_max": [
+    9.839,
+    52.239,
+    15.352
+   ],
+   "centroid": [
+    9.383,
+    51.191,
+    14.359
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_114_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    9.858,
+    45.521,
+    13.359
+   ],
+   "bbox_max": [
+    11.801,
+    46.209,
+    16.295
+   ],
+   "centroid": [
+    10.817,
+    45.838,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_115_Prop",
+   "kind": "Prop",
+   "tris": 842,
+   "bbox_min": [
+    17.433,
+    50.221,
+    13.661
+   ],
+   "bbox_max": [
+    21.948,
+    54.246,
+    15.599
+   ],
+   "centroid": [
+    20.739,
+    51.438,
+    14.449
+   ],
+   "materials": [
+    "16 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_116_Prop",
+   "kind": "Prop",
+   "tris": 636,
+   "bbox_min": [
+    22.154,
+    49.209,
+    13.653
+   ],
+   "bbox_max": [
+    23.067,
+    50.122,
+    14.495
+   ],
+   "centroid": [
+    22.611,
+    49.665,
+    14.074
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_117_Prop",
+   "kind": "Prop",
+   "tris": 6092,
+   "bbox_min": [
+    21.598,
+    51.261,
+    13.637
+   ],
+   "bbox_max": [
+    25.22,
+    54.661,
+    16.152
+   ],
+   "centroid": [
+    23.576,
+    53.025,
+    14.597
+   ],
+   "materials": [
+    "01 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_118_Prop",
+   "kind": "Prop",
+   "tris": 1272,
+   "bbox_min": [
+    23.415,
+    48.782,
+    13.653
+   ],
+   "bbox_max": [
+    24.328,
+    50.087,
+    15.352
+   ],
+   "centroid": [
+    23.871,
+    49.436,
+    14.502
+   ],
+   "materials": [
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_119_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    23.765,
+    44.735,
+    13.359
+   ],
+   "bbox_max": [
+    25.402,
+    45.967,
+    16.295
+   ],
+   "centroid": [
+    24.504,
+    45.428,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_120_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    24.988,
+    48.923,
+    13.359
+   ],
+   "bbox_max": [
+    26.121,
+    49.618,
+    16.295
+   ],
+   "centroid": [
+    25.592,
+    49.268,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_121_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    26.292,
+    46.944,
+    13.359
+   ],
+   "bbox_max": [
+    27.425,
+    47.639,
+    16.295
+   ],
+   "centroid": [
+    26.896,
+    47.29,
+    14.851
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_122_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    25.486,
+    48.868,
+    13.586
+   ],
+   "bbox_max": [
+    28.713,
+    51.901,
+    14.94
+   ],
+   "centroid": [
+    26.983,
+    50.461,
+    14.0
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_123_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    27.205,
+    44.56,
+    13.359
+   ],
+   "bbox_max": [
+    28.437,
+    46.197,
+    16.295
+   ],
+   "centroid": [
+    27.899,
+    45.458,
+    14.963
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_124_Prop",
+   "kind": "Prop",
+   "tris": 273,
+   "bbox_min": [
+    28.036,
+    46.091,
+    13.359
+   ],
+   "bbox_max": [
+    29.956,
+    46.847,
+    16.295
+   ],
+   "centroid": [
+    28.994,
+    46.474,
+    15.335
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_125_Rock",
+   "kind": "Rock",
+   "tris": 96,
+   "bbox_min": [
+    -38.226,
+    53.312,
+    0.112
+   ],
+   "bbox_max": [
+    -32.221,
+    67.215,
+    12.073
+   ],
+   "centroid": [
+    -34.606,
+    60.574,
+    5.585
+   ],
+   "materials": [
+    "18 - Default",
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_126_Prop",
+   "kind": "Prop",
+   "tris": 182,
+   "bbox_min": [
+    -21.101,
+    55.911,
+    15.393
+   ],
+   "bbox_max": [
+    -19.968,
+    56.606,
+    18.329
+   ],
+   "centroid": [
+    -20.497,
+    56.256,
+    16.885
+   ],
+   "materials": [
+    "Material #44"
+   ]
+  },
+  {
+   "name": "WesternTown_127_Building",
+   "kind": "Building",
+   "tris": 9122,
+   "bbox_min": [
+    6.322,
+    51.29,
+    13.256
+   ],
+   "bbox_max": [
+    18.121,
+    76.454,
+    17.947
+   ],
+   "centroid": [
+    13.602,
+    56.079,
+    14.96
+   ],
+   "materials": [
+    "03 - Default",
+    "01 - Default",
+    "16 - Default",
+    "08 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_128_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    30.236,
+    58.66,
+    2.038
+   ],
+   "bbox_max": [
+    39.89,
+    69.249,
+    12.918
+   ],
+   "centroid": [
+    33.942,
+    64.088,
+    7.458
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_129_Rock",
+   "kind": "Rock",
+   "tris": 128,
+   "bbox_min": [
+    -30.796,
+    66.966,
+    21.301
+   ],
+   "bbox_max": [
+    -24.081,
+    77.585,
+    26.244
+   ],
+   "centroid": [
+    -28.065,
+    73.04,
+    23.717
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_130_Rock",
+   "kind": "Rock",
+   "tris": 64,
+   "bbox_min": [
+    -15.652,
+    67.69,
+    22.106
+   ],
+   "bbox_max": [
+    -11.736,
+    74.112,
+    26.536
+   ],
+   "centroid": [
+    -13.835,
+    70.825,
+    24.021
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_131_Rock",
+   "kind": "Rock",
+   "tris": 64,
+   "bbox_min": [
+    2.932,
+    67.69,
+    23.155
+   ],
+   "bbox_max": [
+    6.848,
+    74.112,
+    27.584
+   ],
+   "centroid": [
+    4.749,
+    70.825,
+    25.069
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_132_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    15.354,
+    69.429,
+    23.928
+   ],
+   "bbox_max": [
+    22.608,
+    76.249,
+    27.236
+   ],
+   "centroid": [
+    18.652,
+    73.01,
+    25.149
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_133_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -37.245,
+    72.181,
+    3.942
+   ],
+   "bbox_max": [
+    -32.713,
+    79.496,
+    11.288
+   ],
+   "centroid": [
+    -35.032,
+    75.654,
+    7.551
+   ],
+   "materials": [
+    "03 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_134_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    -27.142,
+    70.715,
+    2.715
+   ],
+   "bbox_max": [
+    -17.795,
+    81.436,
+    12.318
+   ],
+   "centroid": [
+    -23.019,
+    75.803,
+    7.723
+   ],
+   "materials": [
+    "18 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_135_Rock",
+   "kind": "Rock",
+   "tris": 2,
+   "bbox_min": [
+    -7.976,
+    75.894,
+    7.38
+   ],
+   "bbox_max": [
+    -4.017,
+    77.524,
+    8.854
+   ],
+   "centroid": [
+    -5.976,
+    76.709,
+    8.117
+   ],
+   "materials": [
+    "09 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_136_Rock",
+   "kind": "Rock",
+   "tris": 144,
+   "bbox_min": [
+    -1.602,
+    72.421,
+    1.908
+   ],
+   "bbox_max": [
+    17.05,
+    79.657,
+    13.066
+   ],
+   "centroid": [
+    8.231,
+    76.806,
+    6.918
+   ],
+   "materials": [
+    "18 - Default",
+    "23 - Default"
+   ]
+  },
+  {
+   "name": "WesternTown_137_Rock",
+   "kind": "Rock",
+   "tris": 48,
+   "bbox_min": [
+    21.429,
+    75.391,
+    4.568
+   ],
+   "bbox_max": [
+    28.864,
+    79.378,
+    12.75
+   ],
+   "centroid": [
+    25.409,
+    77.606,
+    9.132
+   ],
+   "materials": [
+    "23 - Default"
+   ]
+  }
+ ]
+}

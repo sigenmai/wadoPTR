@@ -1,0 +1,170 @@
+{
+ "source": "RockSetStylized.fbx",
+ "mode": "whole",
+ "objects_before": 1,
+ "islands": 8,
+ "parts": 7,
+ "items": [
+  {
+   "name": "RockSetStylized_01_Rock",
+   "kind": "Rock",
+   "tris": 824,
+   "bbox_min": [
+    -5.0,
+    0.209,
+    -0.0
+   ],
+   "bbox_max": [
+    -1.279,
+    1.686,
+    1.938
+   ],
+   "centroid": [
+    -3.224,
+    1.006,
+    0.76
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_02_Rock",
+   "kind": "Rock",
+   "tris": 600,
+   "bbox_min": [
+    -0.689,
+    0.242,
+    0.01
+   ],
+   "bbox_max": [
+    0.706,
+    1.653,
+    1.451
+   ],
+   "centroid": [
+    -0.003,
+    0.986,
+    0.577
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_03_Rock",
+   "kind": "Rock",
+   "tris": 404,
+   "bbox_min": [
+    0.632,
+    -1.473,
+    0.027
+   ],
+   "bbox_max": [
+    2.029,
+    -1.017,
+    0.365
+   ],
+   "centroid": [
+    1.308,
+    -1.241,
+    0.155
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_04_Rock",
+   "kind": "Rock",
+   "tris": 1438,
+   "bbox_min": [
+    1.374,
+    0.378,
+    0.02
+   ],
+   "bbox_max": [
+    3.155,
+    1.517,
+    0.725
+   ],
+   "centroid": [
+    2.189,
+    0.961,
+    0.307
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_05_Rock",
+   "kind": "Rock",
+   "tris": 206,
+   "bbox_min": [
+    2.506,
+    -1.466,
+    0.028
+   ],
+   "bbox_max": [
+    3.139,
+    -1.01,
+    0.418
+   ],
+   "centroid": [
+    2.845,
+    -1.272,
+    0.178
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_06_Rock",
+   "kind": "Rock",
+   "tris": 316,
+   "bbox_min": [
+    3.797,
+    -1.686,
+    0.025
+   ],
+   "bbox_max": [
+    4.707,
+    -0.81,
+    1.317
+   ],
+   "centroid": [
+    4.308,
+    -1.29,
+    0.688
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  },
+  {
+   "name": "RockSetStylized_07_Rock",
+   "kind": "Rock",
+   "tris": 1398,
+   "bbox_min": [
+    3.619,
+    0.232,
+    0.028
+   ],
+   "bbox_max": [
+    5.0,
+    1.664,
+    1.561
+   ],
+   "centroid": [
+    4.288,
+    0.938,
+    0.591
+   ],
+   "materials": [
+    "RockSetStylized_Mat"
+   ]
+  }
+ ]
+}

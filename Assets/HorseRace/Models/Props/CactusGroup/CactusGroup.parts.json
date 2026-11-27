@@ -1,0 +1,124 @@
+{
+ "source": "CactusGroup.fbx",
+ "mode": "whole",
+ "objects_before": 1,
+ "islands": 7,
+ "parts": 5,
+ "items": [
+  {
+   "name": "CactusGroup_01_Cactus",
+   "kind": "Cactus",
+   "tris": 1526,
+   "bbox_min": [
+    -2.998,
+    -0.61,
+    0.619
+   ],
+   "bbox_max": [
+    -2.014,
+    0.421,
+    3.542
+   ],
+   "centroid": [
+    -2.511,
+    -0.094,
+    1.87
+   ],
+   "materials": [
+    "CactusGroup_Mat"
+   ]
+  },
+  {
+   "name": "CactusGroup_02_Cactus",
+   "kind": "Cactus",
+   "tris": 2054,
+   "bbox_min": [
+    -0.22,
+    -0.804,
+    0.004
+   ],
+   "bbox_max": [
+    1.063,
+    0.256,
+    2.432
+   ],
+   "centroid": [
+    0.487,
+    -0.213,
+    0.922
+   ],
+   "materials": [
+    "CactusGroup_Mat"
+   ]
+  },
+  {
+   "name": "CactusGroup_03_Cactus",
+   "kind": "Cactus",
+   "tris": 196,
+   "bbox_min": [
+    1.719,
+    0.177,
+    0.804
+   ],
+   "bbox_max": [
+    2.102,
+    0.613,
+    2.211
+   ],
+   "centroid": [
+    1.912,
+    0.393,
+    1.462
+   ],
+   "materials": [
+    "CactusGroup_Mat"
+   ]
+  },
+  {
+   "name": "CactusGroup_04_Cactus",
+   "kind": "Cactus",
+   "tris": 84,
+   "bbox_min": [
+    2.104,
+    0.624,
+    1.204
+   ],
+   "bbox_max": [
+    2.361,
+    0.798,
+    2.046
+   ],
+   "centroid": [
+    2.238,
+    0.713,
+    1.558
+   ],
+   "materials": [
+    "CactusGroup_Mat"
+   ]
+  },
+  {
+   "name": "CactusGroup_05_Cactus",
+   "kind": "Cactus",
+   "tris": 138,
+   "bbox_min": [
+    2.733,
+    0.35,
+    1.204
+   ],
+   "bbox_max": [
+    2.999,
+    0.622,
+    2.059
+   ],
+   "centroid": [
+    2.869,
+    0.479,
+    1.57
+   ],
+   "materials": [
+    "CactusGroup_Mat"
+   ]
+  }
+ ]
+}

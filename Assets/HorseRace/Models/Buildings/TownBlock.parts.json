@@ -1,0 +1,55 @@
+{
+ "source": "TownBlock.fbx",
+ "mode": "whole",
+ "objects_before": 1,
+ "islands": 398,
+ "parts": 2,
+ "items": [
+  {
+   "name": "TownBlock_01_Building",
+   "kind": "Building",
+   "tris": 3689,
+   "bbox_min": [
+    -8.0,
+    -3.975,
+    -0.0
+   ],
+   "bbox_max": [
+    -0.004,
+    3.975,
+    10.075
+   ],
+   "centroid": [
+    -4.13,
+    -0.494,
+    4.39
+   ],
+   "materials": [
+    "a42d54b6_c391_4120_b578_726abf83346a_Mat"
+   ]
+  },
+  {
+   "name": "TownBlock_02_Building",
+   "kind": "Building",
+   "tris": 3119,
+   "bbox_min": [
+    0.223,
+    -3.607,
+    -0.0
+   ],
+   "bbox_max": [
+    8.0,
+    3.162,
+    9.888
+   ],
+   "centroid": [
+    4.155,
+    -0.699,
+    4.051
+   ],
+   "materials": [
+    "a42d54b6_c391_4120_b578_726abf83346a_Mat"
+   ]
+  }
+ ]
+}

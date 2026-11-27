@@ -110,13 +110,31 @@ def box(name, loc, size, mat, rot_z=0.0):
     o.data.materials.append(mat)
     return o
 
+def join_whole(meshes, new):
+    """全体モデル（町・建物など、部品ごとに別オブジェクトで原点が部品の底）を、配置を保ったまま 1 つのメッシュにする。
+    原点 = FBX の原点、回転なし（取り込み時の軸補正は形に焼き込む）。"""
+    for o in meshes:
+        mw = o.matrix_world.copy()
+        o.parent = None
+        o.matrix_world = mw
+    for o in new:
+        if o not in meshes:
+            bpy.data.objects.remove(o, do_unlink=True)
+    with bpy.context.temp_override(selected_editable_objects=meshes, active_object=meshes[0], object=meshes[0]):
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        if len(meshes) > 1:
+            bpy.ops.object.join()
+    return meshes[0]
+
 def import_part(path, part_prefix=None, index=None):
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
+    if part_prefix is None:
+        return [join_whole(meshes, new)]
     keep = meshes
-    if part_prefix is not None and index is not None and len(meshes) > 1:
+    if index is not None and len(meshes) > 1:
         meshes.sort(key=lambda o: o.name)
         keep = [meshes[index % len(meshes)]]
     for o in new:
@@ -190,7 +208,11 @@ def proto(asset, part):
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
-    if part:
+    if not part:
+        # 全体モデル：部品ごとのオブジェクト（split_parts.py）を配置どおり 1 つにまとめる
+        meshes = [join_whole(meshes, new)]
+        new = meshes
+    else:
         sel = [o for o in meshes if o.name.split(".")[0] == part] or [o for o in meshes if o.name.startswith(part)]
         meshes = sel[:1] if sel else meshes[:1]
     keep = []

@@ -42,13 +42,26 @@ namespace HorseRace.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>計画の配置の id（scope = "S1" "Backdrop" "Lobby" "Belt" など）。</summary>
-        public static string IdFor(string scope, Placement p, int index)
+        public static string IdFor(string scope, Placement p, int index) => IdForPart(scope, p.group, p.asset, p.part, index);
+
+        /// <summary>
+        /// 素材ファイルの中の部品 1 つの id（"&lt;範囲&gt;/&lt;グループ&gt;/&lt;素材ファイル名&gt;|&lt;部品&gt;#&lt;番号&gt;"）。
+        /// 計画の配置（IdFor）と、1 つの FBX を建物・小物ごとに分けた模型（町 WesternTown の部品 "Lobby/Town/WesternTown|WesternTown_012_Building#11"）に使う。
+        /// </summary>
+        public static string IdForPart(string scope, string group, string asset, string part, int index)
         {
-            string file = p.asset;
+            string file = asset ?? "";
             int slash = file.LastIndexOf('/');
             if (slash >= 0) file = file.Substring(slash + 1);
             if (file.EndsWith(".fbx")) file = file.Substring(0, file.Length - 4);
-            return scope + "/" + (p.group ?? "Misc") + "/" + file + "|" + (p.part ?? "") + "#" + index;
+            return scope + "/" + (group ?? "Misc") + "/" + file + "|" + (part ?? "") + "#" + index;
+        }
+
+        /// <summary>名前から " {id}" を除いた表示名（id が無ければそのまま）。</summary>
+        public static string StripId(string name)
+        {
+            if (ParseId(name) == null) return name;
+            return name.Substring(0, name.LastIndexOf(" {"));
         }
 
         public static List<string> IdsFor(string scope, List<Placement> plan)

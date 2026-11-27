@@ -121,8 +121,8 @@ namespace HorseRace.Tests
         // 町の中の「通りより 0.35m 以上高いメッシュ」の 1m 格子の占有を連結成分に分け、その外接の箱（minX, minZ, maxX, maxZ）。
         // 線路（高さ 0.35m 未満）は乗り越えられるので入れていない。
         // ------------------------------------------------------------------
-        static readonly Vector4 TOWN_MEASURED = new Vector4(-40.587f, 25f, 40.587f, 189.378f);
-        static readonly Vector4[] TOWN_FOOTPRINTS =
+        internal static readonly Vector4 TOWN_MEASURED = new Vector4(-40.587f, 25f, 40.587f, 189.378f);
+        internal static readonly Vector4[] TOWN_FOOTPRINTS =
         {
             // 高さ 0.8m 超（建物・岩・サボテン・柵・岩山）
             new Vector4(4.4f, 32f, 8.4f, 37f), new Vector4(14.4f, 35f, 17.4f, 39f), new Vector4(3.4f, 36f, 4.4f, 37f),
