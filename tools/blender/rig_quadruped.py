@@ -20,7 +20,8 @@ import gait_lib
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 src, out_fbx, PROFILE, NAME = argv[0], argv[1], argv[2], argv[3]
-ROTZ = float(argv[4]) if len(argv) > 4 else 0.0
+ROTZ = float(argv[4]) if len(argv) > 4 and not argv[4].startswith("--") else 0.0
+RIGID = "--rigid-islands" in argv   # 骨格モデルなど「部品ごとに固い」モデル用：部品単位で1本の骨に付ける
 TARGET_TRIS = 22000
 P = {
     # length: 全長 / leg_z: これより下を脚とみなす / neck_z: 首の断面を取る最低の高さ
@@ -216,6 +217,47 @@ for v in mesh.data.vertices:
         vg.add([v.index], 1.0, 'REPLACE')
         fixed += 1
 print("UNWEIGHTED fixed", fixed)
+
+if RIGID:
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(mesh.data); bm.verts.ensure_lookup_table()
+    seen, islands = set(), []
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        st, cur = [v], []
+        seen.add(v.index)
+        while st:
+            a = st.pop(); cur.append(a.index)
+            for e in a.link_edges:
+                b = e.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index); st.append(b)
+        islands.append(cur)
+    bm.free()
+    mw = mesh.matrix_world
+    leg_bones = [(b.name, arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local)
+                 for b in arm.data.bones if b.name.startswith(("Front", "Hind"))]
+    body_bones = [(b.name, arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local)
+                  for b in arm.data.bones if not b.name.startswith(("Front", "Hind", "Root", "Ear"))]
+    for g in list(mesh.vertex_groups):
+        mesh.vertex_groups.remove(g)
+    groups = {}
+    counts = {"leg": 0, "body": 0}
+    for isl in islands:
+        pts = [mw @ mesh.data.vertices[i].co for i in isl]
+        c = sum(pts, Vector()) / len(pts)
+        near_leg = min(leg_bones, key=lambda t: seg_dist(c, t[1], t[2]))
+        if seg_dist(c, near_leg[1], near_leg[2]) < 0.10 or c.z < BELLY - 0.05:
+            bn = near_leg[0]; counts["leg"] += 1
+        else:
+            bn = min(body_bones, key=lambda t: seg_dist(c, t[1], t[2]))[0]; counts["body"] += 1
+        vg = groups.get(bn) or groups.setdefault(bn, mesh.vertex_groups.new(name=bn))
+        vg.add(isl, 1.0, 'REPLACE')
+    for b in arm.data.bones:
+        if b.name not in groups:
+            mesh.vertex_groups.new(name=b.name)
+    print("RIGID islands", len(islands), counts)
 empty_groups = [g.name for g in mesh.vertex_groups
                 if not any(g.index in [x.group for x in v.groups] for v in list(mesh.data.vertices)[::7])]
 print("WEIGHTS groups", len(mesh.vertex_groups), "maybe-empty", empty_groups)
