@@ -112,6 +112,74 @@ namespace HorseRace.Tests
             }
         }
 
+        static int Count(List<Placement> l, System.Func<Placement, bool> f) { int n = 0; foreach (var p in l) if (f(p)) n++; return n; }
+
+        [Test] public void TreesPerTheme()
+        {
+            var c = Plan(0); var d = Plan(1); var b = Plan(2);
+            int canyonDead = Count(c, p => p.asset == DressingPlan.DEADTREE);
+            int dunesDead = Count(d, p => p.asset == DressingPlan.DEADTREE);
+            int oasis = Count(d, p => p.group == "Oasis" && (p.asset == DressingPlan.TREES || p.asset == DressingPlan.ACACIA));
+            int border = Count(b, p => p.asset == DressingPlan.TREES || p.asset == DressingPlan.ACACIA);
+            int lobby = Count(Lobby(), p => p.asset == DressingPlan.TREES || p.asset == DressingPlan.ACACIA);
+            TestContext.WriteLine($"canyon dead {canyonDead}, dunes dead {dunesDead}, oasis {oasis}, border {border}, lobby {lobby}");
+            Assert.GreaterOrEqual(canyonDead, DressingPlan.MIN_DEAD_TREES_CANYON);
+            Assert.GreaterOrEqual(dunesDead, DressingPlan.MIN_DEAD_TREES_DUNES);
+            Assert.GreaterOrEqual(oasis, DressingPlan.OASIS_TREES);
+            Assert.GreaterOrEqual(border, DressingPlan.MIN_TREES_BORDER);
+            Assert.GreaterOrEqual(lobby, DressingPlan.MIN_TREES_LOBBY);
+            Assert.Greater(Count(d, p => p.group == "RanchWaypoint" && DressingPlan.IsTree(p)), 0);
+            Assert.Greater(Count(c, p => p.group == "WagonCamp" && p.asset == DressingPlan.ACACIA), 0);
+            Assert.Greater(Count(b, p => p.group == "MesaFeet" && p.asset == DressingPlan.DEADTREE), 0);
+        }
+
+        [TestCaseSource(nameof(Stages))]
+        public void TreesVariedAndTrunkCollidersOnlyNearRoad(int i)
+        {
+            float min = 9f, max = 0f;
+            foreach (var p in Plan(i))
+            {
+                if (!DressingPlan.IsTree(p)) continue;
+                Assert.That(p.scale, Is.InRange(DressingPlan.TREE_SCALE_MIN, DressingPlan.TREE_SCALE_MAX));
+                min = Mathf.Min(min, p.scale); max = Mathf.Max(max, p.scale);
+                float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - p.radius;
+                if (p.collider) { Assert.AreEqual(DressingPlan.SHAPE_TRUNK, p.shape); Assert.LessOrEqual(d, DressingPlan.REACHABLE_M); }
+            }
+            Assert.Greater(max - min, 0.3f);
+        }
+
+        /// <summary>道沿いの帯：コース 100m ごとに、道から 60m 以内の大きな飾りが 6 個以上。</summary>
+        [TestCaseSource(nameof(Stages))]
+        public void RoadsideBandDensity(int i)
+        {
+            var plan = Plan(i);
+            var course = courses[i];
+            var cum = DressingPlan.CourseArcs(course);
+            int windows = Mathf.CeilToInt(goals[i] / DressingPlan.BAND_WINDOW_M);
+            var counts = new int[windows];
+            foreach (var p in plan)
+            {
+                if (DressingPlan.IsSmall(p)) continue;
+                float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
+                if (d - p.radius > DressingPlan.BAND_DIST_M) continue;
+                int k = Mathf.FloorToInt(a / DressingPlan.BAND_WINDOW_M);
+                if (k >= 0 && k < windows) counts[k]++;
+            }
+            TestContext.WriteLine("min per 100 m: " + counts.Min());
+            for (int k = 0; k < windows; k++) Assert.GreaterOrEqual(counts[k], DressingPlan.ROADSIDE_LARGE_PER_100M, $"window {k * 100}-{k * 100 + 100} m");
+        }
+
+        [TestCaseSource(nameof(Stages))]
+        public void SmallPropsCappedAndOnlyInClusters(int i)
+        {
+            var l = Plan(i);
+            int small = Count(l, DressingPlan.IsSmall);
+            TestContext.WriteLine($"small {small}/{l.Count}");
+            Assert.LessOrEqual(small, DressingPlan.SMALL_SHARE_MAX * l.Count);
+            foreach (var p in l)
+                if (DressingPlan.IsSmall(p)) Assert.IsTrue(DressingPlan.ClusterGroups.Contains(p.group), p.group + " " + p.asset + " " + p.part);
+        }
+
         static List<Placement> Lobby()
         {
             var ex = new List<Vector4> { new Vector4(0, 0, -2, 22), new Vector4(120, 0, -40, 80), new Vector4(-50, 0, -10, 26) };
@@ -122,7 +190,7 @@ namespace HorseRace.Tests
         {
             var l = Lobby();
             TestContext.WriteLine($"lobby: {l.Count}");
-            Assert.That(l.Count, Is.InRange(60, DressingPlan.MAX_LOBBY));
+            Assert.That(l.Count, Is.InRange(100, DressingPlan.MAX_LOBBY));
             foreach (var p in l)
             {
                 bool inside = p.position.x > -41 && p.position.x < 41 && p.position.z > 25 && p.position.z < 189;

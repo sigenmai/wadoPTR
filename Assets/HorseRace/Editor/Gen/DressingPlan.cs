@@ -31,9 +31,18 @@ namespace HorseRace.EditorTools
     /// </summary>
     public static class DressingPlan
     {
-        public const int MAX_PER_STAGE = 350;
-        public const int MIN_PER_STAGE = 200;
-        public const int MAX_LOBBY = 200;
+        public const int MAX_PER_STAGE = 800;      // Task 11d：木を増やした（静的バッチング＋トゥーンの GPU インスタンシング前提）
+        public const int MIN_PER_STAGE = 450;
+        public const int MAX_LOBBY = 450;          // 木の帯（LobbyLayout.TreeBelt）と柵は別に数える
+        public const float LARGE_MIN_H = 1.6f;     // 「大きな飾り」の高さ。これ未満は小物（まとまりの中だけ、1 ステージの 25% まで）
+        public const float SMALL_SHARE_MAX = 0.25f;
+        public const float BAND_WINDOW_M = 100f;   // 道沿いの帯：コース 100m ごとに
+        public const float BAND_DIST_M = 60f;      //   道から 60m 以内の大きな飾りを
+        public const int ROADSIDE_LARGE_PER_100M = 6;   //   6 個以上
+        public const float TREE_SCALE_MIN = 0.8f, TREE_SCALE_MAX = 1.4f;
+        public const int OASIS_TREES = 25;
+        // テーマごとの木の最少本数（テストで確認）
+        public const int MIN_DEAD_TREES_CANYON = 90, MIN_DEAD_TREES_DUNES = 30, MIN_TREES_BORDER = 120, MIN_TREES_LOBBY = 30;
         public const float ROAD_CLEAR = 18f;       // 散らす飾り：道の中心から（足元の半径込み）
         public const float ROAD_MIN = 13f;         // 道沿いに意図して置くもの（柵・町の建物）：平らな道 ±12m の外
         public const float REACHABLE_M = 60f;      // これより遠い飾りには Collider を付けない（コース外リセットで届かない）
@@ -53,7 +62,7 @@ namespace HorseRace.EditorTools
             MESA = "Props/MesaRock/MesaRock.fbx", STABLE = "Props/Stable/Stable.fbx", TENT = "Props/Tent/Tent.fbx",
             MESAB = "ThirdParty/MesaRockB/MesaRockB.fbx", RSTYL = "ThirdParty/RockSetStylized/RockSetStylized.fbx",
             TOWNBLOCK = "Buildings/TownBlock.fbx", SALOON = "Buildings/SaloonFacade.fbx", RANCH = "Buildings/RanchCompound.fbx",
-            SKELETON = "SkeletonHorse.fbx";
+            SKELETON = "SkeletonHorse.fbx", TREES = "Packs/Trees/Trees.fbx";
         public static string RockGray(char c) => "ThirdParty/RockGray/RockGray" + c + ".fbx";
 
         // ---- 部品の分類（Blender で一覧画像を描いて確認）----
@@ -75,6 +84,7 @@ namespace HorseRace.EditorTools
         const string FARM_LAMP = "FarmProps_02", FARM_TABLE = "FarmProps_05", FARM_BENCH = "FarmProps_07";
         static readonly string[] LogParts = Parts("WoodLogs", 1, 16);
         static readonly string[] HayParts = Parts("HayBales", 1, 7);
+        static readonly string[] TreeParts = { "Trees_01", "Trees_02" };
         static readonly char[] GrayLetters = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H' };
 
         static string[] Parts(string pack, int a, int b)
@@ -274,6 +284,8 @@ namespace HorseRace.EditorTools
             { Key("ThirdParty/RockGray/RockGrayH.fbx", null), new Size(1.9f, 1.9f) },
             { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", null), new Size(5.3f, 1.9f) },
             { Key("SkeletonHorse.fbx", null), new Size(1.3f, 2.0f) },
+            { Key("Packs/Trees/Trees.fbx", "Trees_01"), new Size(3.9f, 9.0f) },
+            { Key("Packs/Trees/Trees.fbx", "Trees_02"), new Size(3.4f, 8.5f) },
         };
 
         public static Size SizeOf(string asset, string part)
@@ -288,13 +300,62 @@ namespace HorseRace.EditorTools
             if (kind == HeightmapGen.KIND_CANYON)
                 return new[] { CLIFFS, DROCKS, RCOLL, DPROPS, DEADTREE, ACACIA, CAMPFIRE, LOGS, HAY, FARM, TOWNBLOCK, SALOON };
             if (kind == HeightmapGen.KIND_DUNES)
-                return new[] { CACTI, CGROUP, DPROPS, SKELETON, TENT, ACACIA, CAMPFIRE, LOGS, HAY, FARM, RANCH, DROCKS, RCOLL };
-            var m = new List<string> { MESA, MESAB, RSTYL, CGROUP, CACTI, STABLE, TOWNBLOCK, SALOON, FARM, HAY, LOGS, DEADTREE, DPROPS };
+                return new[] { CACTI, CGROUP, DPROPS, SKELETON, TENT, ACACIA, TREES, DEADTREE, CAMPFIRE, LOGS, HAY, FARM, RANCH, DROCKS, RCOLL };
+            var m = new List<string> { MESA, MESAB, RSTYL, CGROUP, CACTI, STABLE, TOWNBLOCK, SALOON, FARM, HAY, LOGS, DEADTREE, DPROPS, TREES, ACACIA };
             foreach (char c in GrayLetters) m.Add(RockGray(c));
             return m.ToArray();
         }
 
-        public static readonly string[] LobbyThemeAssets = { FARM, HAY, LOGS, DPROPS, CACTI };
+        public static readonly string[] LobbyThemeAssets = { FARM, HAY, LOGS, DPROPS, CACTI, TREES, ACACIA };
+
+        /// <summary>小物を置いてよい「まとまり」のグループ（野営地・オアシス・集落・骨の原・岩場など）。</summary>
+        public static readonly HashSet<string> ClusterGroups = new HashSet<string>
+        {
+            "WagonCamp", "RuinedHomestead", "Oasis", "RanchWaypoint", "Settlement", "BoneField", "GoalTown", "RockField", "Rocks",
+            "Scrub", "DuneGrass", "CactusForest", "Cactus", "TownEdge", "DeadGroveFloor", "DeadGroveRim", "DeadGroveFar", "SavannaGrove", "GrayRocks",
+        };
+
+        public static bool IsSmall(Placement p) => p.height < LARGE_MIN_H;
+
+        public static bool IsTree(Placement p) => p.asset == TREES || p.asset == ACACIA || p.asset == DEADTREE;
+
+        /// <summary>コース点列の累積弧長。</summary>
+        public static float[] CourseArcs(Vector3[] course)
+        {
+            var a = new float[course.Length];
+            for (int i = 1; i < course.Length; i++) a[i] = a[i - 1] + WorldLayout.DistXZ(course[i - 1], course[i]);
+            return a;
+        }
+
+        /// <summary>p に一番近いコース点の弧長と距離（x/z）。</summary>
+        public static float NearestArc(Vector3[] course, float[] cum, Vector3 p, out float dist)
+        {
+            float best = float.MaxValue; int bi = 0;
+            for (int i = 0; i < course.Length; i++)
+            {
+                float dx = course[i].x - p.x, dz = course[i].z - p.z;
+                float d = dx * dx + dz * dz;
+                if (d < best) { best = d; bi = i; }
+            }
+            dist = Mathf.Sqrt(best);
+            return cum[bi];
+        }
+
+        /// <summary>小物が全体の SMALL_SHARE_MAX を超えたら、まとまりの外の小物 → 後から置いたまとまりの小物の順に外す。</summary>
+        static void TrimSmall(List<Placement> list)
+        {
+            int small = 0;
+            foreach (var p in list) if (IsSmall(p)) small++;
+            for (int pass = 0; pass < 2 && small > SMALL_SHARE_MAX * list.Count; pass++)
+                for (int i = list.Count - 1; i >= 0 && small > SMALL_SHARE_MAX * list.Count; i--)
+                {
+                    var p = list[i];
+                    if (!IsSmall(p)) continue;
+                    if (pass == 0 && ClusterGroups.Contains(p.group)) continue;
+                    list.RemoveAt(i);
+                    small--;
+                }
+        }
 
         /// <summary>この計画の外で置かれる素材（遺物・リボルバー・手配書・町・掲示板・表彰台・乗り物・ロビーの厩舎・焚き火）。</summary>
         public static readonly string[] UsedElsewhere =
@@ -427,10 +488,11 @@ namespace HorseRace.EditorTools
                 w.capR = SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND + 4f;
             }
             if (def.kind == HeightmapGen.KIND_MESA) GoalTown(w, goalArc);   // 町の建物を先に（道沿いの固定の場所）
-            Roadside(w, goalArc);
             if (def.kind == HeightmapGen.KIND_CANYON) Canyon(w, def, goalArc);
             else if (def.kind == HeightmapGen.KIND_DUNES) Dunes(w, def, goalArc);
             else Border(w, def, goalArc);
+            Roadside(w, goalArc);
+            TrimSmall(w.list);
             return w.list;
         }
 
@@ -481,7 +543,7 @@ namespace HorseRace.EditorTools
             return WorldLayout.PointAtArc(course, pa) + pr * 15f;
         }
 
-        /// <summary>道沿いの柵と標柱：CP ROADSIDE_EVERY_CP 個ごと、両脇（黒板の CP は右を避ける）。</summary>
+        /// <summary>道沿いの街灯と目印の岩：CP ROADSIDE_EVERY_CP 個ごと、両脇（小物の柵は置かない）。</summary>
         static void Roadside(Work w, float goalArc)
         {
             float[] cps = WorldLayout.CheckpointArcs(goalArc, StageDefinitions.CP_SPACING_M);
@@ -493,17 +555,12 @@ namespace HorseRace.EditorTools
                 for (int s = -1; s <= 1; s += 2)
                 {
                     w.Add("Roadside", FARM, FARM_LAMP, w.Side(a, s * 15f), yaw, 1f, 0.05f, ROAD_MIN);
-                    for (int f = 0; f < 3; f++)
-                    {
-                        string part = f == 1 ? w.Pick(DpFence) : w.Pick(FarmFences);
-                        string asset = f == 1 ? DPROPS : FARM;
-                        w.Add("Roadside", asset, part, w.Side(a + 3f + f * 3f, s * 16f), yaw + 90f, 1f, 0.05f, ROAD_MIN);
-                    }
+                    w.Add("Roadside", DROCKS, w.Pick(RockMid), w.Side(a + 6f, s * (17f + SizeOf(DROCKS, "DesertRocks_05").r)), w.Rand(0f, 360f), 1.1f, 0.3f, ROAD_MIN);
                 }
             }
         }
 
-        static void WagonCamp(Work w, Vector3 c, float yaw)
+        static void WagonCamp(Work w, Vector3 c, float yaw, bool acacias)
         {
             const string G = "WagonCamp";
             if (!w.Add(G, CAMPFIRE, "Campfire_01", c, yaw, 1f, 0.05f)) return;
@@ -520,6 +577,7 @@ namespace HorseRace.EditorTools
             w.Add(G, FARM, FARM_TABLE, w.Around(c, 7f), w.Rand(0f, 360f), 1f, 0.02f);
             for (int i = 0; i < 3; i++) w.Add(G, FARM, w.Pick(FarmSmall), w.Around(c, 8f), w.Rand(0f, 360f), 1f, 0.02f);
             for (int i = 0; i < 2; i++) w.Add(G, LOGS, w.Pick(LogParts), w.Around(c, 6f), w.Rand(0f, 360f), 1f, 0.02f);
+            if (acacias) for (int i = 0; i < 2; i++) Tree(w, G, ACACIA, null, w.Around(c, 16f));
         }
 
         /// <summary>道の横 lateralMin〜lateralMax m に、arc から少しずつずらして置ける場所を探す。</summary>
@@ -536,54 +594,117 @@ namespace HorseRace.EditorTools
             return false;
         }
 
+        /// <summary>木 1 本（拡大 0.8〜1.4、向きは乱数、幹だけの Collider は道から 60m 以内のときだけ）。</summary>
+        static bool Tree(Work w, string group, string asset, string part, Vector3 p, float minRoad = ROAD_CLEAR)
+            => w.Add(group, asset, part, p, w.Rand(0f, 360f), w.Rand(TREE_SCALE_MIN, TREE_SCALE_MAX), 0.2f, minRoad, trunk: true);
+
+        static string TreePart(Work w) => w.Pick(TreeParts);
+
+        /// <summary>木の林：center の半径 radius に count 本を試す（重なりは Allowed が避ける）。置けた本数を返す。</summary>
+        static int Grove(Work w, string group, Vector3 c, float radius, int count, float deadShare, float acaciaShare)
+        {
+            int n = 0;
+            for (int i = 0; i < count * 3 && n < count; i++)
+            {
+                float u = (float)w.rng.NextDouble();
+                bool ok = u < deadShare ? Tree(w, group, DEADTREE, null, w.Around(c, radius))
+                    : (u < deadShare + acaciaShare ? Tree(w, group, ACACIA, null, w.Around(c, radius))
+                    : Tree(w, group, TREES, TreePart(w), w.Around(c, radius)));
+                if (ok) n++;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// 道沿いの帯：コースの 100m ごとに、道から 60m 以内の「大きな飾り」（高さ LARGE_MIN_H 以上）が ROADSIDE_LARGE_PER_100M 個以上に
+        /// なるまで、道から 18〜55m に大きな飾り（pick が返す素材）を足す。
+        /// </summary>
+        static void RoadsideBand(Work w, float goalArc, System.Func<Work, string[]> pick)
+        {
+            float[] cum = CourseArcs(w.course);
+            int windows = Mathf.CeilToInt(goalArc / BAND_WINDOW_M);
+            var counts = new int[windows];
+            foreach (var p in w.list)
+            {
+                if (IsSmall(p)) continue;
+                float d;
+                float a = NearestArc(w.course, cum, p.position, out d);
+                if (d - p.radius > BAND_DIST_M) continue;
+                int k = Mathf.FloorToInt(a / BAND_WINDOW_M);
+                if (k >= 0 && k < windows) counts[k]++;
+            }
+            for (int k = 0; k < windows; k++)
+            {
+                float a0 = k * BAND_WINDOW_M, a1 = Mathf.Min(goalArc, a0 + BAND_WINDOW_M);
+                for (int tries = 0; tries < 120 && counts[k] < ROADSIDE_LARGE_PER_100M + 2; tries++)
+                {
+                    string[] ap = pick(w);
+                    Size sz = SizeOf(ap[0], ap[1]);
+                    float sc = ap[0] == TREES || ap[0] == ACACIA || ap[0] == DEADTREE ? w.Rand(TREE_SCALE_MIN, TREE_SCALE_MAX) : w.Rand(0.9f, 1.3f);
+                    if (sz.h * sc < LARGE_MIN_H) continue;   // 帯には大きな飾りだけ
+                    float r = sz.r * sc;
+                    float lat = w.Rand(ROAD_CLEAR + r, Mathf.Max(ROAD_CLEAR + r + 1f, BAND_DIST_M - 5f));
+                    float arc = w.Rand(a0 + 2f, a1 - 2f);
+                    Vector3 p = w.Side(arc, (w.rng.Next(2) == 0 ? -1f : 1f) * lat);
+                    bool tree = ap[0] == TREES || ap[0] == ACACIA || ap[0] == DEADTREE || ap[0] == CACTI || ap[0] == CGROUP;
+                    if (w.Add("RoadsideBand", ap[0], ap[1], p, w.Rand(0f, 360f), sc, tree ? 0.2f : 0.4f, trunk: tree)) counts[k]++;
+                }
+            }
+        }
+
         static void Canyon(Work w, StageDef def, float goalArc)
         {
             float total = CoursePath.Length(w.course);
-            // 予算（MAX_PER_STAGE）に収まるよう、一つしかない見どころから先に置く
-            // 幌馬車の野営地（約 500m ごと、道の横）
+            // 一つしかない見どころから先に：幌馬車の野営地（約 500m ごと、アカシア付き）と廃屋
             for (float a = CAMP_SPACING_M * 0.5f; a < goalArc; a += CAMP_SPACING_M)
             {
                 Vector3 c;
-                if (FindBeside(w, a, 26f, 34f, 10f, out c)) WagonCamp(w, c, w.YawAt(a));
+                if (FindBeside(w, a, 26f, 34f, 10f, out c)) WagonCamp(w, c, w.YawAt(a), true);
             }
-            // 廃屋（背景：道から 90〜120m、届かないので Collider なし）
             {
                 Vector3 c;
                 if (FindBeside(w, goalArc * 0.62f, 95f, 120f, 20f, out c))
                 {
                     const string G = "RuinedHomestead";
                     float yaw = w.Rand(0f, 360f);
-                    w.Add(G, TOWNBLOCK, null, c, yaw, 1f, 0.5f, background: false);
+                    w.Add(G, TOWNBLOCK, null, c, yaw, 1f, 0.5f);
                     float rad = yaw * Mathf.Deg2Rad;
-                    var side = new Vector3(c.x + Mathf.Cos(rad) * 15f, 0f, c.z - Mathf.Sin(rad) * 15f);
-                    w.Add(G, SALOON, null, side, yaw + 15f, 1f, 0.5f);
+                    w.Add(G, SALOON, null, new Vector3(c.x + Mathf.Cos(rad) * 15f, 0f, c.z - Mathf.Sin(rad) * 15f), yaw + 15f, 1f, 0.5f);
                     for (int i = 0; i < 6; i++) w.Add(G, FARM, w.Pick(FarmFences), w.Around(c, 22f), w.Rand(0f, 360f), 1f, 0.05f);
                     for (int i = 0; i < 4; i++) w.Add(G, FARM, w.Pick(FarmCrates), w.Around(c, 16f), w.Rand(0f, 360f), 1f, 0.05f);
-                    w.Add(G, DEADTREE, null, w.Around(c, 18f), w.Rand(0f, 360f), 1.2f, 0.2f, trunk: true);
-                    for (int i = 0; i < 3; i++) w.Add(G, FARM, w.Pick(FarmSmall), w.Around(c, 14f), w.Rand(0f, 360f), 1f, 0.05f);
+                    Grove(w, G, c, 28f, 5, 1f, 0f);
                 }
             }
             // 谷の縁に沿った崖の壁（左右交互に 50m ごと）
             int ci = 0;
             for (float a = 40f; a < total; a += 50f)
-                {
-                    int s = (ci % 2 == 0) ? 1 : -1;
-                    string part = CliffParts[ci++ % CliffParts.Length];
-                    float sc = w.Rand(1f, 1.4f);
-                    float r = SizeOf(CLIFFS, part).r * sc;
-                    w.Add("CliffWalls", CLIFFS, part, w.Side(a + w.Rand(-15f, 15f), s * (ROAD_CLEAR + r + w.Rand(4f, 22f))), w.Rand(0f, 360f), sc, 2f);
-                }
-            // 大岩
-            foreach (var c in w.Centers(def.seed + 1, 6, 60f, 160f, 120f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), w.Rand(1f, 1.3f), 1.5f);
-            // 枯れ木の林（6 か所）
-            foreach (var c in w.Centers(def.seed + 3, 6, 25f, 120f, 90f))
             {
-                w.Add("DeadGrove", ACACIA, null, c, w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.2f, trunk: true);
-                for (int i = 0; i < 4; i++) w.Add("DeadGrove", DEADTREE, null, w.Around(c, 16f), w.Rand(0f, 360f), w.Rand(0.8f, 1.3f), 0.2f, trunk: true);
-                for (int i = 0; i < 3; i++) w.Add("DeadGrove", DPROPS, w.Pick(DpGrass), w.Around(c, 14f), w.Rand(0f, 360f), 1f, 0.05f);
+                int s = (ci % 2 == 0) ? 1 : -1;
+                string part = CliffParts[ci++ % CliffParts.Length];
+                float sc = w.Rand(1f, 1.4f);
+                float r = SizeOf(CLIFFS, part).r * sc;
+                w.Add("CliffWalls", CLIFFS, part, w.Side(a + w.Rand(-15f, 15f), s * (ROAD_CLEAR + r + w.Rand(4f, 22f))), w.Rand(0f, 360f), sc, 2f);
             }
-            // 岩場（まとまり 10 か所）
-            foreach (var c in w.Centers(def.seed + 2, 10, 26f, 140f, 70f))
+            // 枯れ木の林：谷底（道から 20〜60m）を 120m ごとに左右交互、縁（60〜120m）にも
+            int side = 1;
+            for (float a = 60f; a < total; a += 120f, side = -side)
+            {
+                Grove(w, "DeadGroveFloor", w.Side(a, side * w.Rand(28f, 45f)), 14f, 5, 0.9f, 0.1f);
+                Grove(w, "DeadGroveRim", w.Side(a + 60f, -side * w.Rand(70f, 110f)), 18f, 4, 1f, 0f);
+            }
+            // 大岩
+            foreach (var c in w.Centers(def.seed + 1, 8, 60f, 160f, 110f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), w.Rand(1f, 1.3f), 1.5f);
+            // 道沿いの帯（大きな岩・枯れ木・中くらいの崖）
+            RoadsideBand(w, goalArc, x =>
+            {
+                int k = x.rng.Next(10);
+                if (k < 4) return new[] { DEADTREE, null };
+                if (k < 7) return new[] { DROCKS, x.Pick(RockMid) };
+                if (k < 9) return new[] { DPROPS, x.Pick(DpRocks) };
+                return new[] { CLIFFS, x.Pick(new[] { "Cliffs_08", "Cliffs_10", "Cliffs_13" }) };
+            });
+            // 岩場（まとまり 14 か所）
+            foreach (var c in w.Centers(def.seed + 2, 14, 26f, 140f, 70f))
                 for (int i = 0; i < 9; i++)
                 {
                     int k = w.Pick(3);
@@ -591,7 +712,9 @@ namespace HorseRace.EditorTools
                     else if (k == 1) w.Add("RockField", RCOLL, w.Pick(Pebbles), w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(1.5f, 3f), 0.1f);
                     else w.Add("RockField", DPROPS, w.Pick(DpRocks), w.Around(c, 20f), w.Rand(0f, 360f), w.Rand(0.8f, 1.6f), 0.2f);
                 }
-            // 道ばたの小さなサボテンと草
+            // 枯れ木をさらに（遠くの斜面）
+            foreach (var c in w.Centers(def.seed + 5, 14, 60f, 200f, 70f)) Grove(w, "DeadGroveFar", c, 16f, 4, 1f, 0f);
+            // 道ばたの小さなサボテンと草（まとまり）
             foreach (var c in w.Centers(def.seed + 4, 8, 20f, 60f, 60f))
                 for (int i = 0; i < 4; i++)
                     w.Add("Scrub", DPROPS, i % 2 == 0 ? w.Pick(DpCacti) : w.Pick(DpGrass), w.Around(c, 8f), w.Rand(0f, 360f), 1f, 0.05f);
@@ -599,29 +722,10 @@ namespace HorseRace.EditorTools
 
         static void Dunes(Work w, StageDef def, float goalArc)
         {
-            // サボテンの林（8 か所）
-            foreach (var c in w.Centers(def.seed + 1, 8, 24f, 150f, 80f))
-            {
-                w.Add("CactusForest", CGROUP, null, c, w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.2f, trunk: true);
-                for (int i = 0; i < 9; i++)
-                {
-                    if (i % 3 == 2) w.Add("CactusForest", DPROPS, w.Pick(DpCacti), w.Around(c, 16f), w.Rand(0f, 360f), w.Rand(0.9f, 1.4f), 0.1f, trunk: true);
-                    else w.Add("CactusForest", CACTI, w.Pick(CactiParts), w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(0.8f, 1.3f), 0.1f, trunk: true);
-                }
-            }
-            // 砂丘の草
-            foreach (var c in w.Centers(def.seed + 2, 10, 20f, 120f, 50f))
-                for (int i = 0; i < 4; i++) w.Add("DuneGrass", DPROPS, w.Pick(DpGrass), w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.8f, 1.2f), 0.05f);
-            // 骨の原（4 か所、骨の馬が横たわる）
-            foreach (var c in w.Centers(def.seed + 3, 4, 24f, 70f, 150f))
-            {
-                w.Add("BoneField", SKELETON, null, c, w.Rand(0f, 360f), 1f, 0.15f, roll: 85f);
-                for (int i = 0; i < 6; i++) w.Add("BoneField", DPROPS, DpBones[i % DpBones.Length], w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.05f);
-            }
-            // オアシス（コースの 35%、右へ 45m 前後）
+            // オアシス（コースの 35%、右へ 45m 前後）：テント・野営地・木の林（Trees＋アカシア 25 本以上）
             {
                 Vector3 c;
-                if (FindBeside(w, goalArc * 0.35f, 40f, 55f, 16f, out c))
+                if (FindBeside(w, goalArc * 0.35f, 45f, 58f, 16f, out c))
                 {
                     const string G = "Oasis";
                     for (int i = 0; i < 3; i++)
@@ -629,12 +733,14 @@ namespace HorseRace.EditorTools
                         float a = (i * 120f) * Mathf.Deg2Rad;
                         w.Add(G, TENT, null, new Vector3(c.x + Mathf.Sin(a) * 11f, 0f, c.z + Mathf.Cos(a) * 11f), i * 120f + 180f, 1f, 0.1f);
                     }
-                    for (int i = 0; i < 4; i++) w.Add(G, ACACIA, null, w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.2f, trunk: true);
-                    WagonCamp(w, c, 0f);
+                    WagonCamp(w, c, 0f, false);
+                    int trees = 0;
+                    for (int ring = 0; ring < 4 && trees < OASIS_TREES + 4; ring++)
+                        trees += Grove(w, G, c, 22f + ring * 10f, 12, 0f, 0.45f);
                     for (int i = 0; i < 6; i++) w.Add(G, DPROPS, "DesertProps_23", w.Around(c, 16f), w.Rand(0f, 360f), 1f, 0.05f);
                 }
             }
-            // 牧場（中継地点、コースの 75%、道から 60〜80m）
+            // 牧場（中継地点、コースの 75%、道から 60〜80m）と木
             {
                 Vector3 c;
                 float rr = SizeOf(RANCH, null).r;
@@ -643,16 +749,48 @@ namespace HorseRace.EditorTools
                     const string G = "RanchWaypoint";
                     w.Add(G, RANCH, null, c, w.YawAt(goalArc * 0.75f) + 90f, 1f, 0.3f);
                     for (int i = 0; i < 8; i++) w.Add(G, i % 2 == 0 ? HAY : FARM, i % 2 == 0 ? w.Pick(HayParts) : w.Pick(FarmBarrels), w.Around(c, rr + 12f), w.Rand(0f, 360f), 1f, 0.05f);
+                    Grove(w, G, c, rr + 22f, 8, 0f, 0.5f);
                 }
             }
             // 幌馬車の野営地（2 か所）
             for (int k = 0; k < 2; k++)
             {
                 Vector3 c;
-                if (FindBeside(w, goalArc * (0.15f + 0.4f * k), 26f, 34f, 10f, out c)) WagonCamp(w, c, w.YawAt(goalArc * (0.15f + 0.4f * k)));
+                if (FindBeside(w, goalArc * (0.15f + 0.4f * k), 26f, 34f, 10f, out c)) WagonCamp(w, c, w.YawAt(goalArc * (0.15f + 0.4f * k)), true);
             }
-            // 砂に埋もれた岩
-            foreach (var c in w.Centers(def.seed + 4, 6, 26f, 140f, 90f))
+            // 骨の原（4 か所、骨の馬が横たわる）
+            foreach (var c in w.Centers(def.seed + 3, 4, 24f, 70f, 150f))
+            {
+                w.Add("BoneField", SKELETON, null, c, w.Rand(0f, 360f), 1f, 0.15f, roll: 85f);
+                for (int i = 0; i < 6; i++) w.Add("BoneField", DPROPS, DpBones[i % DpBones.Length], w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.05f);
+                Tree(w, "BoneField", DEADTREE, null, w.Around(c, 14f));
+            }
+            // サボテンの林（10 か所）
+            foreach (var c in w.Centers(def.seed + 1, 10, 24f, 150f, 80f))
+            {
+                w.Add("CactusForest", CGROUP, null, c, w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.2f, trunk: true);
+                for (int i = 0; i < 10; i++)
+                {
+                    if (i % 3 == 2) w.Add("CactusForest", DPROPS, w.Pick(DpCacti), w.Around(c, 16f), w.Rand(0f, 360f), w.Rand(0.9f, 1.4f), 0.1f, trunk: true);
+                    else w.Add("CactusForest", CACTI, w.Pick(CactiParts), w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(0.8f, 1.3f), 0.1f, trunk: true);
+                }
+            }
+            // 枯れ木（散らばる、30 本以上）
+            foreach (var c in w.Centers(def.seed + 6, 24, 22f, 200f, 50f)) { Tree(w, "DeadTrees", DEADTREE, null, c); Tree(w, "DeadTrees", DEADTREE, null, w.Around(c, 10f)); }
+            // 道沿いの帯（サボテン・サボテンの群れ・枯れ木・岩）
+            RoadsideBand(w, goalArc, x =>
+            {
+                int k = x.rng.Next(10);
+                if (k < 5) return new[] { CACTI, x.Pick(CactiParts) };
+                if (k < 7) return new[] { CGROUP, null };
+                if (k < 9) return new[] { DEADTREE, null };
+                return new[] { DROCKS, x.Pick(RockMid) };
+            });
+            // 砂丘の草（まとまり）
+            foreach (var c in w.Centers(def.seed + 2, 12, 20f, 120f, 50f))
+                for (int i = 0; i < 4; i++) w.Add("DuneGrass", DPROPS, w.Pick(DpGrass), w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.8f, 1.2f), 0.05f);
+            // 砂に埋もれた岩（まとまり）
+            foreach (var c in w.Centers(def.seed + 4, 8, 26f, 140f, 90f))
                 for (int i = 0; i < 5; i++)
                 {
                     if (i == 0) w.Add("Rocks", DROCKS, w.Pick(RockMid), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.8f);
@@ -662,42 +800,6 @@ namespace HorseRace.EditorTools
 
         static void Border(Work w, StageDef def, float goalArc)
         {
-            // メサの輪（背景、道から 110〜300m、見えない壁）
-            foreach (var c in w.Centers(def.seed + 1, 14, 110f, 300f, 90f))
-            {
-                bool b = w.Pick(2) == 1;
-                w.Add("MesaRing", b ? MESAB : MESA, null, c, w.Rand(0f, 360f), w.Rand(1.4f, 2.2f), 3f, background: true);
-            }
-            // 厩舎（背景、遠く）
-            {
-                Vector3 c;
-                if (FindBeside(w, goalArc * 0.3f, 150f, 200f, 10f, out c))
-                    w.Add("FarStable", STABLE, null, c, w.Rand(0f, 360f), 1f, 0.1f, background: true);
-            }
-            // 灰色の岩場（10 か所）
-            int gi = 0;
-            foreach (var c in w.Centers(def.seed + 2, 10, 24f, 150f, 70f))
-                for (int i = 0; i < 9; i++)
-                {
-                    if (i == 0) w.Add("GrayRocks", RSTYL, null, w.Around(c, 14f), w.Rand(0f, 360f), w.Rand(1.2f, 1.8f), 0.2f);
-                    else w.Add("GrayRocks", RockGray(GrayLetters[gi++ % GrayLetters.Length]), null, w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(1.2f, 2.4f), 0.2f);
-                }
-            // サボテンの群れ
-            foreach (var c in w.Centers(def.seed + 3, 8, 22f, 120f, 80f))
-            {
-                w.Add("Cactus", CGROUP, null, c, w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.2f, trunk: true);
-                for (int i = 0; i < 3; i++) w.Add("Cactus", CACTI, w.Pick(CactiParts), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
-                w.Add("Cactus", DPROPS, w.Pick(DpCacti), w.Around(c, 10f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
-            }
-            // 枯れ木と草
-            foreach (var c in w.Centers(def.seed + 4, 6, 22f, 100f, 70f))
-            {
-                w.Add("Scrub", DEADTREE, null, w.Around(c, 8f), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.2f, trunk: true);
-                for (int i = 0; i < 4; i++) w.Add("Scrub", DPROPS, w.Pick(DpGrass), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.05f);
-                w.Add("Scrub", DPROPS, w.Pick(DpRocks), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.2f);
-            }
-            // 大岩
-            foreach (var c in w.Centers(def.seed + 5, 4, 60f, 150f, 120f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), 1.1f, 1.5f);
             // ゴールの手前の小さな集落（ゴールの 350m 手前、道の横 30〜40m）
             {
                 Vector3 c;
@@ -714,8 +816,70 @@ namespace HorseRace.EditorTools
                     w.Add(G, FARM, FARM_LAMP, w.Around(c, 10f), 0f, 1f, 0.05f);
                     for (int i = 0; i < 3; i++) w.Add(G, HAY, w.Pick(HayParts), w.Around(c, 16f), w.Rand(0f, 360f), 1f, 0.05f);
                     for (int i = 0; i < 3; i++) w.Add(G, LOGS, w.Pick(LogParts), w.Around(c, 14f), w.Rand(0f, 360f), 1f, 0.02f);
+                    Grove(w, G, c, 30f, 6, 0f, 0.5f);
                 }
             }
+            // メサの輪（背景、道から 110〜300m、見えない壁）と足元の枯れ木
+            foreach (var c in w.Centers(def.seed + 1, 14, 110f, 300f, 90f))
+            {
+                bool b = w.Pick(2) == 1;
+                float sc = w.Rand(1.4f, 2.2f);
+                if (!w.Add("MesaRing", b ? MESAB : MESA, null, c, w.Rand(0f, 360f), sc, 3f, background: true)) continue;
+                float mr = SizeOf(b ? MESAB : MESA, null).r * sc;
+                for (int i = 0; i < 3; i++)
+                {
+                    float a = w.Rand(0f, Mathf.PI * 2f), d = mr + w.Rand(6f, 16f);
+                    Tree(w, "MesaFeet", DEADTREE, null, new Vector3(c.x + Mathf.Sin(a) * d, 0f, c.z + Mathf.Cos(a) * d));
+                }
+            }
+            // 厩舎（背景、遠く）
+            {
+                Vector3 c;
+                if (FindBeside(w, goalArc * 0.3f, 150f, 200f, 10f, out c))
+                    w.Add("FarStable", STABLE, null, c, w.Rand(0f, 360f), 1f, 0.1f, background: true);
+            }
+            // 道沿いの並木（Trees とアカシアを交互、25m ごと、左右）
+            for (float a = 20f; a < goalArc; a += 25f)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    bool ac = ((int)(a / 25f) + (s > 0 ? 1 : 0)) % 3 == 0;
+                    Tree(w, "TreeLine", ac ? ACACIA : TREES, ac ? null : TreePart(w), w.Side(a + w.Rand(-5f, 5f), s * w.Rand(22f, 32f)));
+                }
+            // サバンナの林（Trees＋アカシア、12 か所）
+            foreach (var c in w.Centers(def.seed + 7, 12, 40f, 160f, 80f)) Grove(w, "SavannaGrove", c, 20f, 8, 0.1f, 0.4f);
+            // 灰色の岩場（10 か所）
+            int gi = 0;
+            foreach (var c in w.Centers(def.seed + 2, 10, 24f, 150f, 70f))
+                for (int i = 0; i < 9; i++)
+                {
+                    if (i == 0) w.Add("GrayRocks", RSTYL, null, w.Around(c, 14f), w.Rand(0f, 360f), w.Rand(1.2f, 1.8f), 0.2f);
+                    else w.Add("GrayRocks", RockGray(GrayLetters[gi++ % GrayLetters.Length]), null, w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(1.2f, 2.4f), 0.2f);
+                }
+            // サボテンの群れ
+            foreach (var c in w.Centers(def.seed + 3, 8, 22f, 120f, 80f))
+            {
+                w.Add("Cactus", CGROUP, null, c, w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.2f, trunk: true);
+                for (int i = 0; i < 3; i++) w.Add("Cactus", CACTI, w.Pick(CactiParts), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
+                w.Add("Cactus", DPROPS, w.Pick(DpCacti), w.Around(c, 10f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
+            }
+            // 道沿いの帯（灰色の岩・木・サボテンの群れ）
+            RoadsideBand(w, goalArc, x =>
+            {
+                int k = x.rng.Next(10);
+                if (k < 4) return new[] { RockGray(GrayLetters[x.rng.Next(GrayLetters.Length)]), null };
+                if (k < 7) return new[] { TREES, TreePart(x) };
+                if (k < 8) return new[] { ACACIA, null };
+                return new[] { CGROUP, null };
+            });
+            // 枯れ木と草（まとまり）
+            foreach (var c in w.Centers(def.seed + 4, 6, 22f, 100f, 70f))
+            {
+                Tree(w, "Scrub", DEADTREE, null, w.Around(c, 8f));
+                for (int i = 0; i < 4; i++) w.Add("Scrub", DPROPS, w.Pick(DpGrass), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.05f);
+                w.Add("Scrub", DPROPS, w.Pick(DpRocks), w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.2f);
+            }
+            // 大岩
+            foreach (var c in w.Centers(def.seed + 5, 4, 60f, 150f, 120f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), 1.1f, 1.5f);
         }
 
         /// <summary>ゴールの町：流し（ゴール後の通り）の両脇に建物 3 棟ずつ（通りのほうを向く）、通りの先に牧場（入れば）。</summary>
@@ -748,7 +912,7 @@ namespace HorseRace.EditorTools
             var w = new Work
             {
                 course = null, h = null, sizeM = 0f, budget = MAX_LOBBY,
-                minX = -175f, maxX = 175f, minZ = -115f, maxZ = 235f,   // ロビーの見えない壁（外周から 32m）の内側
+                minX = -169f, maxX = 169f, minZ = -109f, maxZ = 229f,   // ロビーの柵（LobbyLayout.FENCE_RECT）の 3m 内側
                 rng = new System.Random(seed), hasRect = true,
                 rectMin = new Vector2(townMin.x - 1f, townMin.y - 1f), rectMax = new Vector2(townMax.x + 1f, townMax.y + 1f),
             };
@@ -791,6 +955,20 @@ namespace HorseRace.EditorTools
                     w.Add(G, DPROPS, w.Pick(DpCacti), w.Around(p, 3f), w.Rand(0f, 360f), 1f, 0f, trunk: true);
                 }
             }
+            // 木の並木：町の外周の 13〜15m 外を 10m ごと、ロビーの東西の見えない壁の内側にも
+            for (int i = 0; i < Mathf.FloorToInt(perim / 10f); i++)
+            {
+                Vector3 p; float yaw;
+                PerimeterPoint(townMin, townMax, i * 10f, w.Rand(13f, 15f), out p, out yaw);
+                if (i % 3 == 0) Tree(w, "TreeRows", ACACIA, null, p, 0f);
+                else Tree(w, "TreeRows", TREES, TreePart(w), p, 0f);
+            }
+            for (float z = w.minZ + 10f; z < w.maxZ - 10f; z += 14f)
+                for (int s2 = -1; s2 <= 1; s2 += 2)
+                {
+                    bool ac = ((int)(z / 14f)) % 2 != 0;
+                    Tree(w, "TreeRows", ac ? ACACIA : TREES, ac ? null : TreePart(w), new Vector3(s2 * (w.maxX - 12f), 0f, z + w.Rand(-3f, 3f)), 0f);
+                }
             return w.list;
         }
 
