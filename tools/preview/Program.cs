@@ -36,7 +36,14 @@ class P {
     js.Append("],\"backdrop\":[");
     var bp=DressingPlan.Backdrop(7);
     var sbB=new StringBuilder(); foreach(var q in bp){ if(sbB.Length>0)sbB.Append(','); sbB.Append(Pl(q)); } js.Append(sbB);
+    js.Append("],\"fence\":[");
+    var segs=LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT,LobbyLayout.Gates,LobbyLayout.FENCE_PIECE_M);
+    var sbF=new StringBuilder(); foreach(var sg in segs){ if(sbF.Length>0)sbF.Append(','); sbF.Append("["+V(sg[0])+","+V(sg[1])+"]"); } js.Append(sbF);
+    js.Append("],\"belt\":[");
+    var belt=LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT,3);
+    var sbT=new StringBuilder(); foreach(var q in belt){ if(sbT.Length>0)sbT.Append(','); sbT.Append(Pl(q)); } js.Append(sbT);
     js.Append("]}");
+    Console.WriteLine($"fence {segs.Count}, belt {belt.Count}");
     Console.WriteLine($"lobby {lp.Count}, backdrop {bp.Count}"); File.WriteAllText(Path.Combine(outDir,"world.json"),js.ToString());
   }
 }

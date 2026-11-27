@@ -203,12 +203,12 @@ def proto(asset, part):
     # 部品は原点＝底面の中心になっている。全体モデルは原点のまま
     for o in keep:
         o.location = (0, 0, 0)
-        o.hide_render = True
+        o.hide_render = True  # 回転（取り込み時の軸補正）はそのまま残す
         o.hide_set(True)
     CACHE[key] = keep
     return keep
 
-def place(plan, origin):
+def place(plan, origin, ground=None):
     n = 0
     for q in plan:
         ps = proto(q["a"], q["p"])
@@ -220,8 +220,11 @@ def place(plan, origin):
             o.hide_render = False
             o.hide_set(False)
             pos = Vector((origin[0] + q["pos"][0], origin[2] + q["pos"][2], origin[1] + q["pos"][1]))
+            if ground is not None:
+                pos.z = ground(q['pos'][0], q['pos'][2]) - 0.3
             o.location = pos
-            o.rotation_euler = (0, math.radians(q["roll"]), -math.radians(q["yaw"]))
+            from mathutils import Euler
+            o.rotation_euler = (Euler((0, math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix() @ src.rotation_euler.to_matrix()).to_euler()
             s_ = q["s"]
             o.scale = (src.scale[0] * s_, src.scale[1] * s_, src.scale[2] * s_)
             n += 1
@@ -232,12 +235,36 @@ for st in W["stages"]:
     org = (st["center"][0] - 500, 0, st["center"][2] - 500)
     print("PLACED stage", st["index"], place(st["dress"], org))
 
-# ロビー（町）
+# ロビー（町）：柵の外は外へ向かって上り（0.6 の勾配で最大 12m）、外周 30m は尾根
 lob = Vector((0, -820, 0))
-bpy.ops.mesh.primitive_plane_add(size=300, location=lob)
-bpy.context.active_object.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
+FR = (-172.0, -112.0, 172.0, 232.0); GR = (-210.0, -150.0, 210.0, 270.0)
+def lobby_h(x, z):
+    dx = max(FR[0] - x, 0, x - FR[2]); dz = max(FR[1] - z, 0, z - FR[3])
+    d = math.hypot(dx, dz)
+    h = min(12.0, 0.6 * d)
+    e = min(x - GR[0], GR[2] - x, z - GR[1], GR[3] - z)
+    if e < 30: h += (1 - e / 30) * 22
+    return h
+nx, nz = 106, 106
+verts = []; faces = []
+for j in range(nz):
+    for i in range(nx):
+        x = GR[0] + (GR[2] - GR[0]) * i / (nx - 1); z = GR[1] + (GR[3] - GR[1]) * j / (nz - 1)
+        verts.append((lob.x + x, lob.y + z, lobby_h(x, z)))
+for j in range(nz - 1):
+    for i in range(nx - 1):
+        a = j * nx + i; faces.append((a, a + 1, a + nx + 1, a + nx))
+me = bpy.data.meshes.new("LobbyGround"); me.from_pydata(verts, [], faces)
+og = bpy.data.objects.new("LobbyGround", me); sc.collection.objects.link(og)
+og.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
 for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
     o.location = lob + Vector((0, 0, -13.7))
+FENCE = mat_color("Fence", srgb2lin((0.45, 0.29, 0.18)))
+for a_, b_ in W.get("fence", []):
+    A_ = Vector((lob.x + a_[0], lob.y + a_[2], 0)); B_ = Vector((lob.x + b_[0], lob.y + b_[2], 0))
+    mid = (A_ + B_) / 2; d = B_ - A_
+    box("FencePiece", mid + Vector((0, 0, 0.8)), (d.length, 0.12, 1.57), FENCE, math.atan2(d.y, d.x))
+print("PLACED belt", place(W.get("belt", []), (0, 0, -820), lobby_h))
 print("PLACED lobby", place(W["lobby"], (0, 0, -820)))
 print("PLACED backdrop", place(W["backdrop"], (0, 0, 0)))
 bpy.ops.mesh.primitive_plane_add(size=9000, location=(0, 0, -6))
@@ -286,6 +313,10 @@ def shot(name, loc, target, lens=35):
     print("SHOT", name)
 
 world.mist_settings.start = 3000
+if os.environ.get("LOBBY_ONLY"):
+    for name, eye, tgt in (("9_lobby_eye_N", (0, -825, 1.7), (0, -560, 3)), ("9_lobby_eye_E", (60, -790, 1.7), (400, -790, 3)), ("9_lobby_eye_W", (-60, -790, 1.7), (-400, -790, 3)), ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4)), ("4_lobby_town", (140, -1000, 70), (0, -820, 5))):
+        shot(name, eye, tgt, 24 if name.startswith("9") else 30)
+    raise SystemExit
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
 world.mist_settings.start = 350
 for st in W["stages"]:
@@ -316,4 +347,8 @@ for st in W["stages"]:
         side = Vector((-t.y, t.x, 0))
         cam_pos = p0 - t * 40 + side * 45 + Vector((0, 0, 22))
         shot(f"8_near_{st['index'] + 1}_{j + 1}", cam_pos, p1 + Vector((0, 0, 2)), 26)
+for name, eye, tgt in (("9_lobby_eye_N", (0, -825, 1.7), (0, -560, 3)), ("9_lobby_eye_S", (0, -820, 1.7), (0, -1100, 3)),
+                       ("9_lobby_eye_E", (60, -790, 1.7), (400, -790, 3)), ("9_lobby_eye_W", (-60, -790, 1.7), (-400, -790, 3)),
+                       ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4))):
+    shot(name, eye, tgt, 24)
 print("ENGINE", sc.render.engine)
