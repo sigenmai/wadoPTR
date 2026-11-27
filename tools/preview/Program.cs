@@ -2,11 +2,13 @@ using System; using System.IO; using System.Text; using System.Globalization; us
 class P {
   static string F(float v)=>v.ToString("0.###",CultureInfo.InvariantCulture);
   static string V(Vector3 v)=>"["+F(v.x)+","+F(v.y)+","+F(v.z)+"]";
+  static string Pl(Placement q)=>"{\"a\":\""+q.asset+"\",\"p\":"+(q.part==null?"null":"\""+q.part+"\"")+",\"pos\":"+V(q.position)+",\"yaw\":"+F(q.yawDeg)+",\"roll\":"+F(q.rollDeg)+",\"s\":"+F(q.scale)+"}";
   static void Main(string[] a){
     string outDir=a[0]; var js=new StringBuilder("{\"stages\":[");
     foreach(var d in StageDefinitions.All){
       var local=StageDefinitions.SampleLocal(d); float goal=StageDefinitions.GoalArc(d,local);
-      var h=HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES,d.kind,d.seed,StageDefinitions.Normalize(local));
+      var norm=StageDefinitions.Normalize(local); var h=HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES,d.kind,d.seed,norm);
+      HeightmapGen.ApplyRim(h,StageDefinitions.SIZE,HeightmapGen.HEIGHT_M,HeightmapGen.RIM_WIDTH_M,HeightmapGen.RIM_MIN_M,HeightmapGen.RIM_MAX_M,d.seed,norm);
       var plan=SetPieces.ApplyTerrain(d,local,h,goal);
       var sand=HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES,d.kind,d.seed,d.kind==HeightmapGen.KIND_CANYON?h:null);
       int n=h.GetLength(0);
@@ -22,10 +24,19 @@ class P {
       string bridge= br<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,br))+",\"t\":"+V(WorldLayout.TangentAtArc(local,br))+"}";
       string jump= jp<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,jp))+",\"t\":"+V(WorldLayout.TangentAtArc(local,jp))+"}";
       string sc= plan==null? "null" : "{\"a\":"+V(plan.a)+",\"b\":"+V(plan.b)+",\"drop\":"+F(plan.drop)+"}";
+      var dp=DressingPlan.For(d,local,h,goal,plan);
+      var sbD=new StringBuilder(); foreach(var q in dp){ if(sbD.Length>0)sbD.Append(','); sbD.Append(Pl(q)); }
       if(d.index>0) js.Append(',');
-      js.Append("{\"index\":"+d.index+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"shortcut\":"+sc+"}");
-      Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, shortcut {(plan==null?"none":plan.drop.ToString("0.0")+" m drop")}");
+      js.Append("{\"index\":"+d.index+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"shortcut\":"+sc+",\"dress\":["+sbD+"]}");
+      Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, dress {dp.Count}");
     }
-    js.Append("]}"); File.WriteAllText(Path.Combine(outDir,"world.json"),js.ToString());
+    js.Append("],\"lobby\":[");
+    var lp=DressingPlan.ForLobby(new Vector2(-41f,-82f),new Vector2(41f,82f),new System.Collections.Generic.List<Vector4>(),4242);
+    var sbL=new StringBuilder(); foreach(var q in lp){ if(sbL.Length>0)sbL.Append(','); sbL.Append(Pl(q)); } js.Append(sbL);
+    js.Append("],\"backdrop\":[");
+    var bp=DressingPlan.Backdrop(7);
+    var sbB=new StringBuilder(); foreach(var q in bp){ if(sbB.Length>0)sbB.Append(','); sbB.Append(Pl(q)); } js.Append(sbB);
+    js.Append("]}");
+    Console.WriteLine($"lobby {lp.Count}, backdrop {bp.Count}"); File.WriteAllText(Path.Combine(outDir,"world.json"),js.ToString());
   }
 }

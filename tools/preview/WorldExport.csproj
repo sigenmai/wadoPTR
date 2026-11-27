@@ -7,6 +7,7 @@
     <Compile Include="../../Assets/HorseRace/Editor/Gen/StageDefinitions.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/WorldLayout.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/SetPieces.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/DressingPlan.cs" />
     <ProjectReference Include="../../tests/UnityStubs/UnityStubs.csproj" />
   </ItemGroup>
 </Project>

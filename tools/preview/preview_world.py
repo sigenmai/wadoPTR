@@ -150,10 +150,10 @@ for st in W["stages"]:
     terrain(st)
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     pts = [U(p) + off + Vector((0, 0, 0.4)) for p in st["course"]]
-    polyline(f"Course{st['index']}", pts, 1.6, ROAD)
+    polyline(f"Course{st['index']}", [q - Vector((0, 0, 0.3)) for q in pts], 0.5, ROAD)
     for k, p in enumerate(st["cps"]):
         q = U(p) + off
-        box(f"CP{k}", q + Vector((0, 0, 4)), (1.2, 1.2, 8), CPM)
+        box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM)
     for k, p in enumerate(st["relics"]):
         q = U(p) + off
         bpy.ops.mesh.primitive_ico_sphere_add(radius=3, location=q + Vector((0, 0, 4)))
@@ -175,43 +175,73 @@ for st in W["stages"]:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
         polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
 
-# 代表的な素材を配置（配置はイメージ。実際の Build World の散らし方とは違う）
+# Build World と同じ配置計画（DressingPlan）で素材を置く
 A = lambda *p: os.path.join(assets, *p)
-def place_near_course(st, path, count, dist, scale, seed, prefix=None):
-    rnd = random.Random(seed)
-    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
-    pts = st["course"]
-    for k in range(count):
-        c = pts[rnd.randrange(len(pts))]
-        ang = rnd.uniform(0, 6.283)
-        x = c[0] + math.cos(ang) * dist * rnd.uniform(1, 2)
-        z = c[2] + math.sin(ang) * dist * rnd.uniform(1, 2)
-        x = min(max(x, 20), 980); z = min(max(z, 20), 980)
-        parts = import_part(path, prefix, k)
-        for o in parts:
-            o.location = Vector((x, z, 0)) + off
-            o.location.z = ground_at(st, o.location.x, o.location.y) - 0.3
-            o.rotation_euler.z = rnd.uniform(0, 6.283)
-            o.scale = (scale, scale, scale)
+CACHE = {}
+def proto(asset, part):
+    key = (asset, part)
+    if key in CACHE:
+        return CACHE[key]
+    path = A("Models", asset)
+    if not os.path.exists(path):
+        CACHE[key] = None
+        return None
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=path)
+    new = [o for o in bpy.data.objects if o not in before]
+    meshes = [o for o in new if o.type == "MESH"]
+    if part:
+        sel = [o for o in meshes if o.name.split(".")[0] == part] or [o for o in meshes if o.name.startswith(part)]
+        meshes = sel[:1] if sel else meshes[:1]
+    keep = []
+    for o in meshes:
+        o.parent = None
+        keep.append(o)
+    for o in new:
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+    # 部品は原点＝底面の中心になっている。全体モデルは原点のまま
+    for o in keep:
+        o.location = (0, 0, 0)
+        o.hide_render = True
+        o.hide_set(True)
+    CACHE[key] = keep
+    return keep
+
+def place(plan, origin):
+    n = 0
+    for q in plan:
+        ps = proto(q["a"], q["p"])
+        if not ps:
+            continue
+        for src in ps:
+            o = src.copy()
+            sc.collection.objects.link(o)
+            o.hide_render = False
+            o.hide_set(False)
+            pos = Vector((origin[0] + q["pos"][0], origin[2] + q["pos"][2], origin[1] + q["pos"][1]))
+            o.location = pos
+            o.rotation_euler = (0, math.radians(q["roll"]), -math.radians(q["yaw"]))
+            s_ = q["s"]
+            o.scale = (src.scale[0] * s_, src.scale[1] * s_, src.scale[2] * s_)
+            n += 1
+    return n
 
 S = {st["index"]: st for st in W["stages"]}
-place_near_course(S[0], A("Models/Packs/Cliffs/Cliffs.fbx"), 10, 45, 1.6, 1, "Cliffs")
-place_near_course(S[0], A("Models/Packs/DesertRocks/DesertRocks.fbx"), 14, 25, 1.0, 2, "DesertRocks")
-place_near_course(S[0], A("Models/Props/DeadTree/DeadTree.fbx"), 8, 22, 1.0, 3)
-place_near_course(S[1], A("Models/Packs/Cacti/Cacti.fbx"), 30, 18, 1.0, 4, "Cacti")
-place_near_course(S[1], A("Models/Props/Tent/Tent.fbx"), 3, 40, 1.0, 5)
-place_near_course(S[2], A("Models/Props/MesaRock/MesaRock.fbx"), 5, 170, 2.0, 6)
-place_near_course(S[2], A("Models/ThirdParty/MesaRockB/MesaRockB.fbx"), 3, 190, 2.0, 7)
-place_near_course(S[2], A("Models/Packs/Cacti/Cacti.fbx"), 10, 20, 1.0, 8, "Cacti")
+for st in W["stages"]:
+    org = (st["center"][0] - 500, 0, st["center"][2] - 500)
+    print("PLACED stage", st["index"], place(st["dress"], org))
 
 # ロビー（町）
 lob = Vector((0, -820, 0))
-bpy.ops.mesh.primitive_plane_add(size=260, location=lob)
+bpy.ops.mesh.primitive_plane_add(size=300, location=lob)
 bpy.context.active_object.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
 for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
     o.location = lob + Vector((0, 0, -13.7))
-for o in import_part(A("Models/Props/NoticeBoard/NoticeBoard.fbx")):
-    o.location = lob + Vector((0, -95, 0))
+print("PLACED lobby", place(W["lobby"], (0, 0, -820)))
+print("PLACED backdrop", place(W["backdrop"], (0, 0, 0)))
+bpy.ops.mesh.primitive_plane_add(size=9000, location=(0, 0, -6))
+bpy.context.active_object.data.materials.append(mat_color("Filler", srgb2lin((0.80, 0.62, 0.44))))
 
 # 空と光
 world = bpy.data.worlds.new("W"); sc.world = world
@@ -233,6 +263,14 @@ if sc.render.engine == "BLENDER_EEVEE":
     sc.eevee.use_soft_shadows = True
 sc.render.resolution_x, sc.render.resolution_y = 1600, 900
 sc.view_settings.view_transform = "Standard"
+sc.view_layers[0].use_pass_mist = True
+world.mist_settings.start = 350; world.mist_settings.depth = 750; world.mist_settings.falloff = "LINEAR"
+sc.use_nodes = True
+nt = sc.node_tree
+for n_ in list(nt.nodes): nt.nodes.remove(n_)
+rl = nt.nodes.new("CompositorNodeRLayers"); mix = nt.nodes.new("CompositorNodeMixRGB"); comp = nt.nodes.new("CompositorNodeComposite")
+mix.inputs[2].default_value = (*srgb2lin((0.86, 0.74, 0.58)), 1)
+nt.links.new(rl.outputs["Mist"], mix.inputs[0]); nt.links.new(rl.outputs["Image"], mix.inputs[1]); nt.links.new(mix.outputs[0], comp.inputs[0])
 
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 sc.collection.objects.link(cam)
@@ -247,7 +285,9 @@ def shot(name, loc, target, lens=35):
     bpy.ops.render.render(write_still=True)
     print("SHOT", name)
 
+world.mist_settings.start = 3000
 shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
+world.mist_settings.start = 350
 for st in W["stages"]:
     c = st["center"]
     shot(f"{st['index'] + 1}_stage_{st['index'] + 1}", (c[0] - 650, c[2] - 750, 520), (c[0], c[2], 20), 30)
@@ -264,12 +304,16 @@ if j:
     off = Vector((S[1]["center"][0] - 500, S[1]["center"][2] - 500, 0))
     p = U(j["p"]) + off
     shot("6_dune_jump", p + Vector((-60, -70, 30)), p, 30)
-# 騎手目線（コース上 3m、少し先を見る）
+# コース沿いの近景（コースの横 45m・高さ 22m から、少し先のコースを見る）
 for st in W["stages"]:
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     c = st["course"]
-    k = len(c) // 5
-    eye = U(c[k]) + off + Vector((0, 0, 3.2))
-    tgt = U(c[k + 12]) + off + Vector((0, 0, 2.5))
-    shot(f"7_rider_view_{st['index'] + 1}", eye, tgt, 24)
+    for j, f in enumerate((0.15, 0.45, 0.75)):
+        k = int(len(c) * f)
+        p0 = U(c[k]) + off
+        p1 = U(c[min(k + 8, len(c) - 1)]) + off
+        t = (p1 - p0); t.z = 0; t.normalize()
+        side = Vector((-t.y, t.x, 0))
+        cam_pos = p0 - t * 40 + side * 45 + Vector((0, 0, 22))
+        shot(f"8_near_{st['index'] + 1}_{j + 1}", cam_pos, p1 + Vector((0, 0, 2)), 26)
 print("ENGINE", sc.render.engine)
