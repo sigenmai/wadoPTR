@@ -68,8 +68,10 @@ namespace HorseRace.Tests
                 var sc = shortcuts[i];
                 if (sc != null)
                     Assert.Greater(WorldLayout.DistToSegmentXZ(p.position, sc.a, sc.b), SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND + p.radius, p.group);
-                Assert.That(p.position.x - p.radius, Is.GreaterThanOrEqualTo(DressingPlan.EDGE_MARGIN - 0.01f));
-                Assert.That(p.position.x + p.radius, Is.LessThanOrEqualTo(StageDefinitions.SIZE - DressingPlan.EDGE_MARGIN + 0.01f));
+                // 尾根のシルエット（art-r2-09）は外周の尾根の背に置き、Terrain の外（外の地面）へはみ出してよい（背景専用）
+                float rr = p.group == "RimSilhouette" ? 0f : p.radius;
+                Assert.That(p.position.x - rr, Is.GreaterThanOrEqualTo(DressingPlan.EDGE_MARGIN - 0.01f), p.group + " " + p.asset);
+                Assert.That(p.position.x + rr, Is.LessThanOrEqualTo(StageDefinitions.SIZE - DressingPlan.EDGE_MARGIN + 0.01f));
             }
         }
 
@@ -109,9 +111,11 @@ namespace HorseRace.Tests
             {
                 float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - p.radius;
                 if (d > DressingPlan.REACHABLE_M) Assert.IsFalse(p.collider, p.asset);
-                // メサは背景（見えない壁）。ただし道のすぐ脇の切り通しの門はメッシュの当たり判定
-                if ((p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) && p.group != "MesaGate") Assert.IsTrue(p.background);
-                if (p.group == "MesaGate") Assert.AreEqual(DressingPlan.SHAPE_MESH, p.shape);
+                // メサは背景（見えない壁）。ただし道のすぐ脇の切り通しの門・谷の壁・カーブの外・台地の縁（art-r2-08）はメッシュの当たり判定、
+                // 水場の厩舎（art-r2-05）は外形の当たり判定
+                bool nearRock = p.group == "MesaGate" || p.group == "CanyonWalls" || p.group == "CornerSilhouette" || p.group == "MesaPlateau";
+                if ((p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) && !nearRock && p.group != "WaterStop") Assert.IsTrue(p.background, p.group);
+                if (nearRock && p.collider && p.radius >= 6f) Assert.AreEqual(DressingPlan.SHAPE_MESH, p.shape, p.group);
                 if (p.height < DressingPlan.COLLIDER_MIN_H) Assert.IsFalse(p.collider, p.asset + " " + p.part);
             }
         }
@@ -202,25 +206,24 @@ namespace HorseRace.Tests
             Assert.Greater(Count(plan, p => p.group == "CanyonFloor"), 150);
         }
 
-        /// <summary>崖の壁（art-r1-03）：長い辺（ローカル Z）を道に沿わせる（向きはコースの向き ±（揺らぎ＋カーブ））。裾は高さの 22% 埋める。</summary>
-        [Test] public void CliffWallsAlignWithRoadAndSink()
+        /// <summary>
+        /// 谷の壁（art-r2-08）：道の近くは崖の板（Cliffs）ではなく形のある大きな岩（メサ B・DesertRocks_01〜03・岩のセット）を縦に伸ばして並べ、
+        /// 崖は道から CLIFF_MIN_ROAD_M 以上（足元の縁まで）で、どれも足元に岩のすそ（3〜5 個）。
+        /// </summary>
+        [Test] public void CanyonWallsAreRocksAndCliffsStayFar()
         {
             var plan = Plan(0);
-            var course = courses[0];
-            var cum = DressingPlan.CourseArcs(course);
-            int n = 0;
-            foreach (var p in plan)
-            {
-                if (p.group == "CornerSilhouette") n++;
-                if (p.group != "CliffWalls") continue;
-                n++;
-                float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
-                float tyaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(course, a));
-                float diff = Mathf.Abs(Mathf.DeltaAngle(tyaw, p.yawDeg));
-                diff = Mathf.Min(diff, 180f - diff);
-                Assert.LessOrEqual(diff, DressingPlan.CLIFF_YAW_JITTER + 25f, p.part);
-            }
-            Assert.GreaterOrEqual(n, 20);
+            var walls = plan.Where(p => p.group == "CanyonWalls" || p.group == "CornerSilhouette").ToList();
+            Assert.GreaterOrEqual(walls.Count, 20);
+            Assert.IsTrue(walls.All(p => p.asset != DressingPlan.CLIFFS));
+            Assert.Greater(walls.Count(p => p.scaleY > 1.15f), walls.Count / 2);
+            for (int i = 0; i < 3; i++)
+                foreach (var p in Plan(i).Where(q => q.asset == DressingPlan.CLIFFS))
+                    Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(p.position, courses[i]) - DressingPlan.FootprintRadius(p), DressingPlan.CLIFF_MIN_ROAD_M - 0.01f, p.group + " " + p.part);
+            var cliffs = plan.Where(p => p.asset == DressingPlan.CLIFFS).ToList();
+            Assert.GreaterOrEqual(cliffs.Count, 5);
+            foreach (var c in cliffs)
+                Assert.GreaterOrEqual(plan.Count(p => p.group == "CliffSkirt" && WorldLayout.DistXZ(p.position, c.position) < c.radius * 0.8f), 3, c.part);
         }
 
         /// <summary>遠くの目印（art-r1-10）：どのステージもスタートで進む向き ±35° にあり、コースから 60m 以上離れ、計画に入っている。</summary>

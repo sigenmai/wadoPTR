@@ -197,7 +197,53 @@ namespace HorseRace.EditorTools
                 CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, pass), WorldLayout.TangentAtArc(local, pass));
             foreach (var run in RailRuns(def, local, goalArc))
                 FlattenBed(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, run[0], run[1]);
+            if (def.kind == HeightmapGen.KIND_CANYON)
+            {
+                Vector3 g = WorldLayout.PointAtArc(local, goalArc);
+                float gh = WorldLayout.SampleHeight(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g.x, g.z);
+                CarveGoalNotch(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g, WorldLayout.TangentAtArc(local, goalArc), gh);
+            }
             return plan;
+        }
+
+        // ---- ゴールの奥の尾根の切れ込み（art-r2-06、荒野）----
+        public const float NOTCH_FROM_M = 80f;        // ゴールの先 80m から（コースの終わり・囲いは触らない）
+        public const float NOTCH_RAMP_M = 30f;        // 切り込みの入り口のなめらかさ
+        public const float NOTCH_HALF_M = 20f;        // 底の幅 40m
+        public const float NOTCH_FADE_M = 28f;        // 底の縁から壁へ戻る幅（切り通しと同じ、なめらかな V の壁）
+        public const float NOTCH_GRADE = 0.05f;       // 底はゴールの高さから 5% で上る
+
+        /// <summary>
+        /// ゴールの奥の切れ込みの底の高さ（m、ゴールの地面からの相対）と重み（0〜1）。along = ゴールの向きの距離、lat = 横。
+        /// 峡谷の最後は高さ 60〜100m の壁に向かって走るので（7_rider_1_d_finish）、ゴールの門の奥で壁を底まで切り、空と出張所の給水塔を見せる。
+        /// 元の案は「壁を 25m 下げる」だったが、ここの壁はゴールより約 95m 高く、25m では空が見えないので、底（ゴール + 5% の坂）まで切る。
+        /// </summary>
+        public static float NotchWeight(float along, float lat)
+        {
+            float aw = Smooth01((along - NOTCH_FROM_M) / NOTCH_RAMP_M);
+            float lw = 1f - Smooth01((Mathf.Abs(lat) - NOTCH_HALF_M) / NOTCH_FADE_M);
+            return aw * lw;
+        }
+
+        public static float NotchFloor(float along) => Mathf.Max(0f, along - NOTCH_FROM_M) * NOTCH_GRADE;
+
+        public static void CarveGoalNotch(float[,] h, float sizeM, float heightM, Vector3 goal, Vector3 tangent, float goalH)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
+            Vector3 r = WorldLayout.RightOf(t);
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = x * cell - goal.x, dz = z * cell - goal.z;
+                    float along = dx * t.x + dz * t.z, lat = dx * r.x + dz * r.z;
+                    if (along < NOTCH_FROM_M) continue;
+                    float w = NotchWeight(along, lat);
+                    if (w <= 0f) continue;
+                    float floor = (goalH + NotchFloor(along)) / heightM;
+                    if (h[z, x] > floor) h[z, x] = Mathf.Lerp(h[z, x], floor, w);
+                }
         }
 
         /// <summary>台地の区間（登りの坂の始まり〜台地の端の 1 段目の下りの終わり、弧長 m）。台地が無ければ false。</summary>

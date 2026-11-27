@@ -237,7 +237,7 @@ namespace HorseRace.EditorTools
                 for (int x = 0; x < n; x++)
                 {
                     float px = x * cell, pz = z * cell;
-                    float d = Mathf.Min(Mathf.Min(px, pz), Mathf.Min(terrainSizeM - px, terrainSizeM - pz));
+                    float d = RimDistance(px, pz, terrainSizeM);
                     if (d >= rimWidthM) continue;
                     float w = Smooth(0f, 1f, 1f - d / rimWidthM);
                     if (course != null)
@@ -256,9 +256,29 @@ namespace HorseRace.EditorTools
                     float big = Noise(px / 140f, pz / 140f, seed, 21);
                     float fine = Noise(px / 35f, pz / 35f, seed, 22);
                     float rise = rimMinM + (rimMaxM - rimMinM) * Mathf.Clamp01(0.8f * big + 0.2f * fine);
+                    rise *= RimHeightFactor(px, pz, seed);
                     h[z, x] = Mathf.Clamp01(h[z, x] + w * rise / heightM);
                 }
         }
+
+        // ---- 外周の尾根の形（art-r2-09）：角を丸め、高さを大きくうねらせる（四角いお盆に見せない）----
+        public const float RIM_CORNER_RADIUS_M = 180f;   // 角の丸み（角の近くは尾根が内側へ回り込む）
+        public const float RIM_HEIGHT_PERIOD_M = 250f;   // 尾根の高さのうねりの周期
+        public const float RIM_HEIGHT_VAR = 0.4f;        // ±40%（鞍部と峰）
+
+        /// <summary>角を丸めた正方形 [0, size] の縁から内側への距離（m）。角の丸みの外（角の三角）は負。</summary>
+        public static float RimDistance(float px, float pz, float sizeM)
+        {
+            float r = Mathf.Min(RIM_CORNER_RADIUS_M, sizeM * 0.5f);
+            float cx = Mathf.Clamp(px, r, sizeM - r), cz = Mathf.Clamp(pz, r, sizeM - r);
+            float dx = px - cx, dz = pz - cz;
+            float e = Mathf.Sqrt(dx * dx + dz * dz);
+            return r - e;
+        }
+
+        /// <summary>尾根の高さの倍率（1 ± RIM_HEIGHT_VAR、周期 RIM_HEIGHT_PERIOD_M のノイズ）：尾根の線に鞍部と峰を作る。</summary>
+        public static float RimHeightFactor(float px, float pz, int seed)
+            => 1f + RIM_HEIGHT_VAR * (2f * Noise(px / RIM_HEIGHT_PERIOD_M, pz / RIM_HEIGHT_PERIOD_M, seed, 23) - 1f);
 
         /// <summary>
         /// ApplyRim の長方形の Terrain 版（ロビー用。TerrainData.size の x = sizeXM、z = sizeZM、高さマップは n × n）。

@@ -94,6 +94,42 @@ namespace HorseRace.Tests
             }
         }
 
+        /// <summary>
+        /// スポーンの最初の画面（art-r2-12）：大通りの軸（北）を ±10° で向き、正面 ±25°・12m 以内に建物の外形が無く、
+        /// サルーン（LobbyLayout.SALOON_PART）の正面の中心が ±30° に入る。スタート台は正面 18〜25m（±10°）。
+        /// </summary>
+        [Test] public void SpawnViewOpen()
+        {
+            var parts = Load("Packs/WesternTown/WesternTown.parts.json");
+            float ymin = parts.Min(p => p.min[1]);
+            Vector3 sp = LobbyLayout.SPAWN;
+            float yaw = LobbyLayout.SPAWN_YAW;
+            Assert.LessOrEqual(Mathf.Abs(Mathf.DeltaAngle(yaw, 0f)), 10f, "大通りの軸");
+            float Bearing(float x, float z) => Mathf.DeltaAngle(yaw, Mathf.Atan2(x - sp.x, z - sp.z) * Mathf.Rad2Deg);
+            foreach (var p in parts.Where(p => p.kind == "Building"))
+            {
+                Vector4 r = LobbyRect(p, ymin);
+                // 外形の中の 0.5m ごとの点で、12m 以内かつ ±25° のものが無い
+                for (float x = r.x; x <= r.z; x += 0.5f)
+                    for (float z = r.y; z <= r.w; z += 0.5f)
+                    {
+                        float d = Mathf.Sqrt((x - sp.x) * (x - sp.x) + (z - sp.z) * (z - sp.z));
+                        if (d > 12f) continue;
+                        Assert.Greater(Mathf.Abs(Bearing(x, z)), 25f, p.name + " がスポーンの正面をふさぐ");
+                    }
+            }
+            var saloon = parts.Single(p => p.name == LobbyLayout.SALOON_PART);
+            Vector4 sr = LobbyRect(saloon, ymin);
+            // 正面（大通り側 = 東の辺）の中心
+            float sb = Bearing(sr.z, (sr.y + sr.w) * 0.5f);
+            TestContext.WriteLine($"saloon facade bearing {sb:F1}°");
+            Assert.LessOrEqual(Mathf.Abs(sb), 30f);
+            Vector3 bell = LobbyLayout.START_BELL;
+            float bd = Mathf.Sqrt((bell.x - sp.x) * (bell.x - sp.x) + (bell.z - sp.z) * (bell.z - sp.z));
+            Assert.That(bd, Is.InRange(18f, 25f));
+            Assert.LessOrEqual(Mathf.Abs(Bearing(bell.x, bell.z)), 10f);
+        }
+
         /// <summary>くっついて 1 つになっていた素材は、分けた後の部品の数（split_parts.py の一覧）。</summary>
         [TestCase("Buildings/RanchCompound.parts.json", 8)]
         [TestCase("Buildings/TownBlock.parts.json", 2)]

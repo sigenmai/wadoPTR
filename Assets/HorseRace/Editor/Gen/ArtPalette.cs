@@ -34,6 +34,20 @@ namespace HorseRace.EditorTools
         /// <summary>ステージ（0 荒野 / 1 砂漠 / 2 境目、それ以外 = ロビー・外の地面）の土の色。</summary>
         public static Color Dirt(int stage) => stage == 1 ? DirtDunes : (stage == 2 ? DirtBorder : DirtCanyon);
 
+        // ---- 道の踏み固めた土（art-r2-02）：ステージの土・砂と明るさで 0.15 / 0.10 以上離す（道が読める）----
+        public static readonly Color TrailCanyon = new Color(0.82f, 0.63f, 0.46f);   // 明るい踏み固めた粘土（赤錆の土 0.405 → 0.66）
+        public static readonly Color TrailDunes = new Color(0.48f, 0.34f, 0.22f);    // 暗い踏み固めた土（砂 0.77・砂漠の土 0.53 → 0.36）
+        public static readonly Color TrailBorder = new Color(0.78f, 0.63f, 0.56f);   // 夕景の明るい道（紫の土 0.39 → 0.66、砂 0.77 とも 0.11 離す）
+
+        /// <summary>ステージの道の色。</summary>
+        public static Color Trail(int stage) => stage == 1 ? TrailDunes : (stage == 2 ? TrailBorder : TrailCanyon);
+
+        // ---- 町の地面の板・岩山（art-r2-11）----
+        /// <summary>町の模型の地面の板（WesternTown_001_Ground）：まわりの砂の地面に合わせた暗めの砂色（明るすぎるクリーム色にしない）。</summary>
+        public static readonly Color TownGroundTint = new Color(SandLayer.r * 0.88f, SandLayer.g * 0.82f, SandLayer.b * 0.78f);
+        /// <summary>Buildings/*.fbx（画像付き）の青白い壁を古い木の色へ寄せる掛け色（art-r2-14）。</summary>
+        public static readonly Color BuildingTextureTint = new Color(1.0f, 0.84f, 0.66f);
+
         /// <summary>素材ごとのトゥーンの設定。</summary>
         public struct Style
         {
@@ -57,19 +71,51 @@ namespace HorseRace.EditorTools
         public static bool IsRockAsset(string assetPath)
             => Has(assetPath, "Rock") || Has(assetPath, "Cliffs") || Has(assetPath, "Mesa");
 
-        public static Style StyleFor(string assetPath, string partName)
+        public static Style StyleFor(string assetPath, string partName) => StyleFor(assetPath, partName, null);
+
+        /// <summary>
+        /// 素材の部品の種類（parts.json の kind：Ground / Hill / Rock / Building / Prop …）。名前の末尾 "_Ground" などから。無ければ null。
+        /// split_parts.py は部品名を「パック_番号_種類」にするので、parts.json を読まなくても名前で分かる。
+        /// </summary>
+        public static string PartKind(string partName)
+        {
+            if (string.IsNullOrEmpty(partName)) return null;
+            int i = partName.LastIndexOf('_');
+            if (i < 0 || i + 1 >= partName.Length) return null;
+            string k = partName.Substring(i + 1);
+            return char.IsLetter(k[0]) ? k : null;
+        }
+
+        /// <summary>素材ごとのトゥーンの設定。partKind（parts.json の kind）を渡すと、町の地面の板・岩山にも色の決まりを当てる。</summary>
+        public static Style StyleFor(string assetPath, string partName, string partKind)
         {
             var s = new Style { flatten = DEFAULT_FLATTEN, flattenMip = DEFAULT_FLATTEN_MIP, tint = Color.white, key = "" };
             if (IsBigRock(assetPath, partName)) { s.flatten = ROCK_FLATTEN; s.flattenMip = ROCK_FLATTEN_MIP; s.key = "_Detail"; }
             if (Has(assetPath, "Cliffs")) { s.tint = CliffTint; s.key += "_Rust"; }
             if (Has(assetPath, "RockGray")) { s.tint = RockGrayTint; s.key += "_Warm"; }
+            if (Has(assetPath, "WesternTown"))
+            {
+                string kind = partKind ?? PartKind(partName);
+                // art-r2-11：地面の板は砂の地面の色、岩山・岩は RockGray と同じ暖色（冷たい灰白の塊にしない）
+                if (kind == "Ground") { s.tint = TownGroundTint; s.key += "_Sand"; }
+                else if (kind == "Hill" || kind == "Rock")
+                {
+                    s.tint = RockGrayTint; s.flatten = ROCK_FLATTEN; s.flattenMip = ROCK_FLATTEN_MIP; s.key += "_Warm";
+                }
+            }
             return s;
         }
 
-        /// <summary>色だけで塗られた素材の色を共通の色に寄せる（町の灰色・青 → 古い木、緑 → セージ）。それ以外はそのまま。</summary>
+        /// <summary>Buildings/*.fbx・RanchCompound の部品（画像付きの建物）か。</summary>
+        public static bool IsBuildingModel(string assetPath) => Has(assetPath, "Buildings/") || Has(assetPath, "RanchCompound");
+
+        /// <summary>画像付きの素材に掛ける色（art-r2-14：建物の青白い壁 → 古い木）。それ以外は白。</summary>
+        public static Color TextureTint(string assetPath) => IsBuildingModel(assetPath) ? BuildingTextureTint : Color.white;
+
+        /// <summary>色だけで塗られた素材の色を共通の色に寄せる（町・建物の灰色・青 → 古い木、緑 → セージ）。それ以外はそのまま。</summary>
         public static Color RemapBaseColor(string assetPath, Color c)
         {
-            if (!Has(assetPath, "WesternTown")) return c;
+            if (!Has(assetPath, "WesternTown") && !IsBuildingModel(assetPath)) return c;
             float h, s, v;
             ToHSV(c, out h, out s, out v);
             if (v < 0.12f) return c;                                   // 黒に近い（窓・影）はそのまま

@@ -56,6 +56,7 @@ namespace HorseRace.EditorTools
             { typeof(Podium), new[] { "raceManager", "steps", "fireworks", "namePlates" } },
             { typeof(Checkpoint), new[] { "raceManager" } },
             { typeof(TownCrier), new[] { "raceManager", "boards" } },
+            { typeof(StageAtmosphere), new[] { "raceManager", "sun", "fogColor" } },
         };
 
         static readonly string[] RequiredAssets =
@@ -509,6 +510,44 @@ namespace HorseRace.EditorTools
             }
             if (cool.Count > 0) info.Add("色：暖色（0〜60°）の外の岩のマテリアル " + cool.Count + " 個: " + string.Join("、", cool.ToArray()));
             else info.Add("色：岩のマテリアルはすべて暖色（0〜60°）");
+            CheckCliffDistance(warn, info);
+        }
+
+        /// <summary>
+        /// 崖の板（Cliffs）は道（コースの中心線）から DressingPlan.CLIFF_MIN_ROAD_M 以上（足元の縁 = 外形の半径 × 0.67 まで）。
+        /// 近くの Cliffs は平らな箱に見える（art-r2-08）。シーンの「Cliffs_NN」の部品をすべて調べる。
+        /// </summary>
+        static void CheckCliffDistance(List<string> warn, List<string> info)
+        {
+            var courses = new List<Vector3[]>();
+            foreach (var def in StageDefinitions.All)
+            {
+                var local = StageDefinitions.SampleLocal(def);
+                var w = new Vector3[local.Length];
+                for (int i = 0; i < local.Length; i++) w[i] = local[i] + def.Origin;
+                courses.Add(w);
+            }
+            int n = 0, near = 0;
+            foreach (var t in Object.FindObjectsOfType<Transform>())
+            {
+                if (!t.name.StartsWith("Cliffs_")) continue;
+                n++;
+                Bounds b = GenUtil.RendererBounds(t.gameObject);
+                float foot = Mathf.Max(b.extents.x, b.extents.z) * DressingPlan.CLIFF_HALF_DEPTH;
+                for (int s = 0; s < courses.Count; s++)
+                {
+                    Vector3 o = StageDefinitions.All[s].Origin;
+                    Vector3 p = t.position;
+                    if (p.x < o.x || p.z < o.z || p.x > o.x + StageDefinitions.SIZE || p.z > o.z + StageDefinitions.SIZE) continue;
+                    float d = WorldLayout.DistToPolylineXZ(p, courses[s]) - foot;
+                    if (d < DressingPlan.CLIFF_MIN_ROAD_M - 0.5f)
+                    {
+                        near++;
+                        if (near <= 5) warn.Add("崖の板が道に近すぎます（" + t.name + "、道から " + d.ToString("F0") + "m、" + DressingPlan.CLIFF_MIN_ROAD_M + "m 以上）");
+                    }
+                }
+            }
+            if (near == 0) info.Add("見た目：崖の板 " + n + " 枚はどれも道から " + DressingPlan.CLIFF_MIN_ROAD_M + "m 以上");
         }
 
         /// <summary>テクスチャの平均の色（小さな RenderTexture に縮めて読む。読めない設定のテクスチャでもよい）。無ければ白。</summary>

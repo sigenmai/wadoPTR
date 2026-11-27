@@ -24,8 +24,8 @@ namespace HorseRace.EditorTools
         // ---- トゥーンの影 ----
         /// <summary>影色（全ステージ共通）。暗い紫寄りの茶ではなく、明るい赤茶の影。</summary>
         public static readonly Color ShadowColor = new Color(0.70f, 0.52f, 0.54f);
-        /// <summary>境目（ステージ 3）の飾りだけ：紫の夕景の影。</summary>
-        public static readonly Color ShadowColorDusk = new Color(0.50f, 0.40f, 0.58f);
+        /// <summary>境目（ステージ 3）：紫の夕景の影（art-r2-10：影の段の地面が輝度 0.25 以上になるよう、前の (0.50,0.40,0.58) より明るく）。</summary>
+        public static readonly Color ShadowColorDusk = new Color(0.62f, 0.52f, 0.70f);
         /// <summary>影の段にも足す太陽の割合（HorseToon.shader の lightCol * 0.5）。</summary>
         public const float SHADOW_LIGHT_FLOOR = 0.5f;
         /// <summary>峡谷の底の地面（影の段）の最低の輝度（Validator が確かめる）。</summary>
@@ -51,6 +51,77 @@ namespace HorseRace.EditorTools
             return new Color(albedo.r * shadow.r * (ambient.r + SunColor.r * k),
                 albedo.g * shadow.g * (ambient.g + SunColor.g * k),
                 albedo.b * shadow.b * (ambient.b + SunColor.b * k));
+        }
+
+        // ------------------------------------------------------------------
+        // ステージごとの光（art-r2-10）：荒野 = 赤錆の昼、砂漠 = 砂金の午後、境目 = 紫の夕景
+        // ------------------------------------------------------------------
+
+        /// <summary>1 つのステージ（またはロビー）の太陽・霧・環境光・影の色。StageAtmosphere（Udon）が切り替える。</summary>
+        public struct StageLight
+        {
+            public Vector3 sunEuler;
+            public Color sunColor;
+            public float sunIntensity;
+            public Color fogColor;
+            public float fogStart, fogEnd;
+            public Color ambientSky, ambientEquator, ambientGround;
+            public Color shadow;
+        }
+
+        public const int LOBBY_LIGHT = 3;
+
+        /// <summary>ステージ i（0 荒野 / 1 砂漠 / 2 境目、それ以外 = ロビー＝荒野と同じ）の光。</summary>
+        public static StageLight ForStage(int i)
+        {
+            var l = new StageLight
+            {
+                sunEuler = SUN_EULER, sunColor = SunColor, sunIntensity = SUN_INTENSITY,
+                fogColor = FogColor, fogStart = FOG_START_M, fogEnd = FOG_END_M,
+                ambientSky = AmbientSky, ambientEquator = AmbientEquator, ambientGround = AmbientGround,
+                shadow = ShadowColor,
+            };
+            if (i == 1)
+            {
+                // 砂漠：少し低い午後の太陽（48°）、金色の霧、影は砂色に近い暖かい茶
+                l.sunEuler = new Vector3(48f, -35f, 0f);
+                l.sunColor = new Color(1f, 0.90f, 0.70f);
+                l.sunIntensity = 1.3f;
+                l.fogColor = new Color(0.92f, 0.80f, 0.60f);
+                l.ambientSky = new Color(0.84f, 0.76f, 0.60f);
+                l.ambientEquator = new Color(0.86f, 0.70f, 0.50f);
+                l.ambientGround = new Color(0.66f, 0.50f, 0.36f);
+                l.shadow = new Color(0.74f, 0.58f, 0.52f);
+            }
+            else if (i == 2)
+            {
+                // 境目：地平線近くの夕日（16°）、橙の光、紫がかった霧と影
+                l.sunEuler = new Vector3(16f, -60f, 0f);
+                l.sunColor = new Color(1f, 0.70f, 0.50f);
+                l.sunIntensity = 1.35f;
+                l.fogColor = new Color(0.70f, 0.56f, 0.64f);
+                l.ambientSky = new Color(0.66f, 0.56f, 0.74f);
+                l.ambientEquator = new Color(0.82f, 0.60f, 0.58f);
+                l.ambientGround = new Color(0.74f, 0.58f, 0.68f);
+                l.shadow = ShadowColorDusk;
+            }
+            return l;
+        }
+
+        /// <summary>影の段の色（ステージの太陽の色・強さで。ShadowedColor のステージ版）。</summary>
+        public static Color ShadowedColor(Color albedo, StageLight l, Color ambient)
+        {
+            float k = l.sunIntensity * SHADOW_LIGHT_FLOOR;
+            return new Color(albedo.r * l.shadow.r * (ambient.r + l.sunColor.r * k),
+                albedo.g * l.shadow.g * (ambient.g + l.sunColor.g * k),
+                albedo.b * l.shadow.b * (ambient.b + l.sunColor.b * k));
+        }
+
+        /// <summary>そのステージの地面（土と砂）の影の段の輝度のうち暗いほう（環境光は一番暗い地面側）。</summary>
+        public static float MinFloorShadowLuminance(int stage, Color dirt, Color sand)
+        {
+            var l = ForStage(stage);
+            return Mathf.Min(Luminance(ShadowedColor(dirt, l, l.ambientGround)), Luminance(ShadowedColor(sand, l, l.ambientGround)));
         }
 
         /// <summary>

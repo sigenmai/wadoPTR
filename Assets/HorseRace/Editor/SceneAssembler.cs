@@ -132,6 +132,31 @@ namespace HorseRace.EditorTools
             RenderSettings.sun = light;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.62f, 0.55f, 0.50f);
+            ctx.sun = light;
+        }
+
+        /// <summary>
+        /// ステージごとの空気（art-r2-10）：太陽の上に StageAtmosphere を付け、LightingPlan.ForStage(0〜3) の値を書き込む
+        /// （3 = ロビー）。実行時は RaceManager の state / stage を見て霧・環境光・太陽・影の色を入れ替える。
+        /// </summary>
+        static void StageAtmosphere(WorldContext ctx)
+        {
+            if (ctx.sun == null) return;
+            var at = GenUtil.AddU<StageAtmosphere>(ctx.sun.gameObject);
+            at.raceManager = ctx.raceManager;
+            at.sun = ctx.sun;
+            const int N = LightingPlan.LOBBY_LIGHT + 1;
+            at.sunEuler = new Vector3[N]; at.sunColor = new Color[N]; at.sunIntensity = new float[N];
+            at.fogColor = new Color[N]; at.fogStart = new float[N]; at.fogEnd = new float[N];
+            at.ambientSky = new Color[N]; at.ambientEquator = new Color[N]; at.ambientGround = new Color[N]; at.shadowColor = new Color[N];
+            for (int i = 0; i < N; i++)
+            {
+                LightingPlan.StageLight l = LightingPlan.ForStage(i);
+                at.sunEuler[i] = l.sunEuler; at.sunColor[i] = l.sunColor; at.sunIntensity[i] = l.sunIntensity;
+                at.fogColor[i] = l.fogColor; at.fogStart[i] = l.fogStart; at.fogEnd[i] = l.fogEnd;
+                at.ambientSky[i] = l.ambientSky; at.ambientEquator[i] = l.ambientEquator; at.ambientGround[i] = l.ambientGround;
+                at.shadowColor[i] = l.shadow;
+            }
         }
 
         // ---- 見えてはいけない場所の対処（Task 11c）----
@@ -180,9 +205,29 @@ namespace HorseRace.EditorTools
             var root = GenUtil.Child(ctx.root, "Backdrop", Vector3.zero).transform;
             root.position = Vector3.zero;
             var plan = DressingPlan.Backdrop(7);
-            DressingBuilder.Instantiate(plan, root, Vector3.zero, "Backdrop");
             Vector4 f = WorldBounds.FillerRect();
-            TerrainBuilder.BuildFiller(ctx, root);
+            Terrain filler = TerrainBuilder.BuildFiller(ctx, root);
+            // ステージのすぐ外の岩（art-r2-09）は外の地面（縁の高さへ寄せた後）の上に置き直す
+            foreach (var p in plan)
+                if (p.group == "BackdropNear" && filler != null)
+                    p.position = new Vector3(p.position.x, filler.SampleHeight(new Vector3(p.position.x, 0f, p.position.z)) + filler.transform.position.y
+                        - WorldBounds.BACKDROP_SINK * p.height, p.position.z);
+            DressingBuilder.Instantiate(plan, root, Vector3.zero, "Backdrop");
+            // ロビーの見晴らしの切れ目の目印（art-r2-15）：外の地面の高さに合わせて置き、給水塔の上に煙の柱
+            var vista = LobbyLayout.VistaHeroes(5);
+            Vector3 lc = WorldBounds.LOBBY_CENTER;
+            foreach (var p in vista)
+            {
+                float wx = lc.x + p.position.x, wz = lc.z + p.position.z;
+                float g = filler != null ? filler.SampleHeight(new Vector3(wx, 0f, wz)) + filler.transform.position.y : lc.y;
+                p.position = new Vector3(p.position.x, g - lc.y + p.position.y, p.position.z);
+            }
+            var vroot = GenUtil.Child(root, "LobbyVista", Vector3.zero).transform;
+            vroot.position = Vector3.zero;
+            DressingBuilder.Instantiate(vista, vroot, lc, "LobbyVista");
+            foreach (var p in vista)
+                if (p.part == DressingPlan.RANCH_TOWER)
+                    GenUtil.SmokeColumn(vroot, "VistaSmoke", lc + p.position + Vector3.up * (p.height + 1f), new Color(0.30f, 0.27f, 0.26f, 0.6f), 45f, 4f);
             Debug.Log("[HorseRace] 遠景の山並み " + plan.Count + " 個（2 列）、外の地面（Terrain）" + (f.z - f.x).ToString("F0") + "×" + (f.w - f.y).ToString("F0") + "m");
         }
 
@@ -230,6 +275,7 @@ namespace HorseRace.EditorTools
             var go = GenUtil.Child(ctx.root, "RaceManager", Vector3.zero);
             var rm = GenUtil.AddU<RaceManager>(go);
             ctx.raceManager = rm;
+            StageAtmosphere(ctx);
 
             // ---- 乗り物・コース ----
             rm.mounts = ctx.raceMounts.ToArray();

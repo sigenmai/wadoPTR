@@ -101,6 +101,7 @@ namespace HorseRace.EditorTools
         public Material parchmentMaterial;
 
         public RaceManager raceManager;
+        public Light sun;                     // 生成した太陽（StageAtmosphere が向き・色を入れ替える）
         /// <summary>Build World が無効にした既存の Directional Light（失敗したら戻す）。</summary>
         public readonly List<GameObject> disabledLights = new List<GameObject>();
     }

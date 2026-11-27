@@ -76,7 +76,14 @@ def terrain(stage):
     from PIL import Image
     S = np.asarray(Image.fromarray((np.clip(s, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32) / 255
     rock = np.clip((slope - 28) / 12, 0, 1) * (1 - S)
-    col = np.array(DIRT)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(SAND) * S[..., None] + np.array(ROCK) * rock[..., None]
+    dirt = stage.get("dirt", DIRT)
+    col = np.array(dirt)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(SAND) * S[..., None] + np.array(ROCK) * rock[..., None]
+    # 道の踏み固めた土（HeightmapGen.TrailMask、ステージごとの ArtPalette.Trail：art-r2-02）
+    tp = os.path.join(ex, f"t{i}.bin")
+    if os.path.exists(tp) and stage.get("trail"):
+        T = read_grid(tp)
+        T = np.asarray(Image.fromarray((np.clip(T, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32)[..., None] / 255
+        col = col * (1 - T) + np.array(stage["trail"])[None, None] * T
     # 等高線をうっすら（立体感）
     band = (np.mod(h, 10.0) < 0.6)[..., None] * 0.06
     col = np.clip(col - band, 0, 1)
@@ -181,9 +188,60 @@ for st in W["stages"]:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
         polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
 
+# ---- 色の決まり（GenUtil.Toonify / ArtPalette と同じ：art-r2-13）----
+TINTS = W.get("tints", {})
+def hsv(c):
+    mx, mn = max(c), min(c); d = mx - mn
+    if d <= 1e-5: return 0.0, (0.0 if mx <= 1e-5 else d / mx), mx
+    r, g, b = c
+    if mx == r: h = 60 * (((g - b) / d) % 6)
+    elif mx == g: h = 60 * ((b - r) / d + 2)
+    else: h = 60 * ((r - g) / d + 4)
+    return h % 360, d / mx, mx
+def lerp3(a, b, t): return [a[k] + (b[k] - a[k]) * t for k in range(3)]
+def remap_base(asset, c):
+    """ArtPalette.RemapBaseColor：町・建物の灰色・青 → 古い木、緑 → セージ（色だけの素材）。"""
+    if "WesternTown" not in asset and "Buildings/" not in asset and "RanchCompound" not in asset: return c
+    h, s_, v = hsv(c)
+    if v < 0.12: return c
+    if s_ < 0.12 and v > 0.25: return lerp3(c, W["wood"], 0.65)
+    if 180 <= h <= 260 and s_ >= 0.08: return lerp3(c, W["wood"], 0.7)
+    if 75 <= h < 170 and s_ >= 0.15: return lerp3(c, W["sage"], 0.7)
+    return c
+def lin2srgb(c): return [(1.055 * x ** (1 / 2.4) - 0.055) if x > 0.0031308 else 12.92 * x for x in c]
+def styled(mat, asset, tint):
+    """マテリアルを複製して Unity と同じ色の決まりを当てる。画像付きはアルファで切り抜き（半透明にしない）。"""
+    if mat is None or not mat.use_nodes: return mat
+    m = mat.copy()
+    bs = m.node_tree.nodes.get("Principled BSDF")
+    if bs is None: return m
+    inp = bs.inputs["Base Color"]
+    if inp.is_linked:
+        m.blend_method = "CLIP"; m.shadow_method = "CLIP"
+        k = W.get("buildingTex") if ("Buildings/" in asset or "RanchCompound" in asset) else None
+        mul = [tint[j] * (k[j] if k else 1.0) for j in range(3)]
+        if any(abs(x - 1) > 1e-3 for x in mul):
+            mix = m.node_tree.nodes.new("ShaderNodeMixRGB"); mix.blend_type = "MULTIPLY"; mix.inputs[0].default_value = 1.0
+            src = inp.links[0].from_socket
+            m.node_tree.links.new(src, mix.inputs[1]); mix.inputs[2].default_value = (*mul, 1)
+            m.node_tree.links.new(mix.outputs[0], inp)
+    else:
+        c = list(inp.default_value)[:3]
+        c = srgb2lin([x * t for x, t in zip(remap_base(asset, lin2srgb(c)), tint)])
+        inp.default_value = (*c, 1)
+    return m
+def apply_style(obj, asset, part):
+    kind = obj.name.split(".")[0].split("_")[-1] if part is None and "WesternTown" in asset else None
+    if kind == "Ground": tint = W["townGround"]
+    elif kind in ("Hill", "Rock"): tint = W["warmRock"]
+    else: tint = TINTS.get(asset + "|" + (part or ""), [1, 1, 1])
+    for slot in obj.material_slots:
+        slot.material = styled(slot.material, asset, tint)
+
 # Build World と同じ配置計画（DressingPlan）で素材を置く
 A = lambda *p: os.path.join(assets, *p)
 CACHE = {}
+PARTS = {}
 def proto(asset, part):
     key = (asset, part)
     if key in CACHE:
@@ -192,17 +250,43 @@ def proto(asset, part):
     if not os.path.exists(path):
         CACHE[key] = None
         return None
+    if part and path in PARTS:
+        # 部品のパックは 1 回だけ取り込み、部品ごとに選ぶ（町のパックを部品の数だけ取り込むとメモリが足りない）
+        allm = PARTS[path]
+        sel = [o for o in allm if o.name.split(".")[0] == part] or [o for o in allm if o.name.startswith(part)]
+        if not sel:
+            CACHE[key] = None
+            return None
+        o = sel[0].copy()
+        o.data = sel[0].data
+        sc.collection.objects.link(o)
+        apply_style(o, asset, part)
+        o.parent = None
+        o.location = (0, 0, 0)
+        o.hide_render = True
+        o.hide_set(True)
+        CACHE[key] = [o]
+        return CACHE[key]
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
+    if part:
+        for o in meshes:
+            o.hide_render = True
+            o.hide_set(True)
+        PARTS[path] = meshes
+        CACHE.pop(key, None)
+        return proto(asset, part)
     if not part:
-        # 全体モデル：部品ごとのオブジェクト（split_parts.py）を配置どおり 1 つにまとめる
+        # 全体モデル：部品ごとのオブジェクト（split_parts.py）を配置どおり 1 つにまとめる（色の決まりは部品ごとに先に当てる）
+        for o in meshes: apply_style(o, asset, None)
         meshes = [join_whole(meshes, new)]
         new = meshes
     else:
         sel = [o for o in meshes if o.name.split(".")[0] == part] or [o for o in meshes if o.name.startswith(part)]
         meshes = sel[:1] if sel else meshes[:1]
+        for o in meshes: apply_style(o, asset, part)
     keep = []
     for o in meshes:
         o.parent = None
@@ -271,7 +355,12 @@ for j in range(nz - 1):
 me = bpy.data.meshes.new("LobbyGround"); me.from_pydata(verts, [], faces)
 og = bpy.data.objects.new("LobbyGround", me); sc.collection.objects.link(og)
 og.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
-for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
+_before = set(bpy.data.objects)
+bpy.ops.import_scene.fbx(filepath=A("Models/Packs/WesternTown/WesternTown.fbx"))
+_new = [o for o in bpy.data.objects if o not in _before]
+_meshes = [o for o in _new if o.type == "MESH"]
+for o in _meshes: apply_style(o, "Packs/WesternTown/WesternTown.fbx", None)
+for o in [join_whole(_meshes, _new)]:
     o.location = lob + Vector((0, 107, -13.7))   # 町の南端をロビー中心 +25m（LobbyBuilder と同じ）
 # 遊びに使う物の目印（LobbyLayout.FunctionalSpots の位置・半径）：広場＝赤、待機場所・柵の馬＝青、たまり場＝橙、練習場＝緑、予備の遺物＝水色
 PRR = W['practiceRect']
@@ -311,6 +400,7 @@ print("PLACED belt", place(W.get("belt", []), LOBO))
 print("PLACED crown", place(W.get("crown", []), LOBO))
 print("PLACED lobby", place(W["lobby"], LOBO))
 print("PLACED backdrop", place(W["backdrop"], (0, 0, 0)))
+print("PLACED vista", place(W.get("vista", []), LOBO, ground=None))
 # 外の地面（TerrainBuilder.BuildFiller と同じ考え方の高さ：filler.bin）
 _fd = open(os.path.join(ex, "filler.bin"), "rb").read()
 FN = struct.unpack("<i", _fd[:4])[0]; FX0, FZ0, FX1, FZ1 = struct.unpack("<ffff", _fd[4:20])
@@ -325,7 +415,7 @@ for p_ in fme.polygons: p_.use_smooth = True
 # 空と光
 world = bpy.data.worlds.new("W"); sc.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[0].default_value = (*srgb2lin((0.62, 0.78, 0.92)), 1)
+world.node_tree.nodes["Background"].inputs[0].default_value = (*srgb2lin(W.get("lobbyFog", (0.86, 0.72, 0.56))), 1)   # 空 = 霧の色（Unity の霧と同じ）
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
 sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
 sun.data.energy = 5.0
@@ -357,9 +447,18 @@ sc.camera = cam
 cam.data.clip_end = 20000
 
 SHOTS = [x for x in os.environ.get("SHOTS", "").split(",") if x]   # 例 SHOTS=7_rider_1,8_near_1_3 で一部だけ描く
+def fog_at(x, y):
+    """カメラのいる所のステージの霧の色（LightingPlan.ForStage、ロビーはロビーの色）。"""
+    for st_ in W["stages"]:
+        c_ = st_["center"]
+        if abs(x - c_[0]) <= 600 and abs(y - c_[2]) <= 600: return st_.get("fog", W.get("lobbyFog"))
+    return W.get("lobbyFog", (0.86, 0.74, 0.58))
 def shot(name, loc, target, lens=35):
     if SHOTS and not any(name.startswith(x) for x in SHOTS):
         return
+    fc = srgb2lin(fog_at(loc[0], loc[1]))
+    world.node_tree.nodes["Background"].inputs[0].default_value = (*fc, 1)
+    mix.inputs[2].default_value = (*fc, 1)
     cam.location = Vector(loc)
     cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
@@ -372,12 +471,12 @@ if os.environ.get("LOBBY_ONLY"):
     _o = (lob.x, lob.y)
     for name, eye, tgt, lens in (("L1_aerial", (-150, -80, 150), (0, 100, 0), 26),
                                  ("L2_top", (0, 107, 300), (0, 107.1, 0), 30),
-                                 ("L3_plaza_spawn_north", (-11.5, 30, 1.7), (-11.5 + 90 * math.sin(math.radians(W["spawnYaw"])), 30 + 90 * math.cos(math.radians(W["spawnYaw"])), 2), 24),
+                                 ("L3_plaza_spawn_north", (W["spawn"][0], W["spawn"][2], 1.7), (W["spawn"][0] + 90 * math.sin(math.radians(W["spawnYaw"])), W["spawn"][2] + 90 * math.cos(math.radians(W["spawnYaw"])), 2), 24),
                                  ("L4_plaza_overview", (5, 8, 14), (-18, 40, 0), 24),
                                  ("L5_west_strip", (-33, 17, 9), (-24, 80, 0), 24),
                                  ("L6_practice_lane", (25, 82, 3.2), (28, 140, 2), 24),
                                  ("L7_practice_from_above", (55, 60, 40), (27, 114, 0), 26),
-                                 ("L8_south_outward", (-11.5, 28, 1.7), (-11.5, -280, 3), 24),
+                                 ("L8_south_outward", (W["spawn"][0], 28, 1.7), (W["spawn"][0], -280, 3), 24),
                                  ("L9_east_outward", (30, 100, 3.2), (400, 100, 3), 24)):
         shot(name, (_o[0] + eye[0], _o[1] + eye[1], eye[2]), (_o[0] + tgt[0], _o[1] + tgt[1], tgt[2]), lens)
     raise SystemExit
@@ -467,7 +566,7 @@ def eye_shot(name, rel_eye, rel_tgt, lens=24):
         e = e + _V((0, 4.0, 0)); tg = tg + _V((0, 4.0, 0))
     shot(name, tuple(e), tuple(tg), lens)
 sp = W["spawn"]; syaw = math.radians(W["spawnYaw"])
-eye_shot("9_lobby_eye_N", (-11.5, 30, 1.7), (-11.5 + math.sin(syaw) * 200, 30 + math.cos(syaw) * 200, 3))   # スポーン → 町の大通り
+eye_shot("9_lobby_eye_N", (sp[0], sp[2], 1.7), (sp[0] + math.sin(syaw) * 200, sp[2] + math.cos(syaw) * 200, 3))   # スポーン → 町の大通り
 eye_shot("9_lobby_eye_E", (-30, 100, 1.7), (400, 100, 3))
 eye_shot("9_lobby_eye_W", (30, 80, 1.7), (-400, 80, 3))
 eye_shot("9_lobby_eye_S", (0, 170, 1.7), (0, -400, 3))

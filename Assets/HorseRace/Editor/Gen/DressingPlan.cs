@@ -14,6 +14,7 @@ namespace HorseRace.EditorTools
         public float yawDeg;
         public float rollDeg;       // 横倒し（骨の馬など）
         public float scale = 1f;
+        public float scaleY = 1f;   // 縦だけの追加の拡大（art-r2-08：岩を縦に伸ばして崖の代わりにする）。高さ height はこれ込み
         public float radius;        // 足元の半径（m、拡大込み）。重なり・道からの距離の判定に使う
         public float height;        // 高さ（m、拡大込み）
         public bool collider;       // 当たり判定を付けるか（届く範囲の大きなものだけ）
@@ -42,7 +43,7 @@ namespace HorseRace.EditorTools
         public const float TREE_SCALE_MIN = 0.8f, TREE_SCALE_MAX = 1.4f;
         public const int OASIS_TREES = 25;
         // テーマごとの木の最少本数（テストで確認）
-        public const int MIN_DEAD_TREES_CANYON = 90, MIN_DEAD_TREES_DUNES = 30, MIN_TREES_BORDER = 120, MIN_TREES_LOBBY = 20;
+        public const int MIN_DEAD_TREES_CANYON = 50, MIN_DEAD_TREES_DUNES = 30, MIN_TREES_BORDER = 50, MIN_TREES_LOBBY = 20;   // art-r2-04：枯れ木・緑の木は素材の 8% まで
         public const float ROAD_CLEAR = 18f;       // 散らす飾り：道の中心から（足元の半径込み）
         public const float ROAD_MIN = 13f;         // 道沿いに意図して置くもの（柵・町の建物）：平らな道 ±12m の外
         public const float REACHABLE_M = 60f;      // これより遠い飾りには Collider を付けない（コース外リセットで届かない）
@@ -53,7 +54,7 @@ namespace HorseRace.EditorTools
         // ---- 近景（art-r1-02）：峡谷は道から 30m 以内に 100m ごと 10 個以上 ----
         public const float NEAR_FIELD_M = 30f;
         public const int NEAR_PER_100M = 10;
-        public const float CANYON_FLOOR_STEP_M = 22f;    // 谷底の近景：弧長 22m ごと、左右交互
+        public const float CANYON_FLOOR_STEP_M = 18f;    // 谷底の近景：弧長 22m ごと、左右交互
         public const float CANYON_FLOOR_MAX_LAT = 28f;
         public const float CANYON_BAND_MAX_LAT = 32f;    // 峡谷の道沿いの帯は道から 32m まで（狭い谷で斜面・縁に乗らない）
         // ---- 道の目印（art-r1-10）----
@@ -67,12 +68,14 @@ namespace HorseRace.EditorTools
         public const float CLIFF_SINK = 0.22f;           // 高さに対する沈め量（斜面に埋める）
         public const float CLIFF_YAW_JITTER = 6f;
         public const float MESA_GATE_FOOTPRINT = 0.55f;  // メサの門：道側の裾の半径 ÷ 外形の半径（裾は斜面に埋まる）
+        public const float STRETCHED_ROCK_FOOTPRINT = 0.85f;   // 縦に伸ばした岩：足元の半径 ÷ 外形の半径
 
         public const int SHAPE_NONE = 0, SHAPE_BOX = 1, SHAPE_MESH = 2, SHAPE_TRUNK = 3;
 
         // ---- 素材のパス（Assets/HorseRace/Models からの相対）----
         public const string CLIFFS = "Packs/Cliffs/Cliffs.fbx", DROCKS = "Packs/DesertRocks/DesertRocks.fbx",
             RCOLL = "Packs/RockCollection/RockCollection.fbx", DPROPS = "Packs/DesertProps/DesertProps.fbx",
+            GEMS = "Packs/Gems/Gems.fbx", CAMEL = "Camel.fbx",
             CACTI = "Packs/Cacti/Cacti.fbx", CAMPFIRE = "Packs/Campfire/Campfire.fbx", LOGS = "Packs/WoodLogs/WoodLogs.fbx",
             HAY = "Packs/HayBales/HayBales.fbx", FARM = "Packs/FarmProps/FarmProps.fbx",
             ACACIA = "Props/AcaciaGrove/AcaciaGrove.fbx", CGROUP = "Props/CactusGroup/CactusGroup.fbx", DEADTREE = "Props/DeadTree/DeadTree.fbx",
@@ -106,6 +109,35 @@ namespace HorseRace.EditorTools
         static readonly string[] TreeParts = { "Trees_01", "Trees_02" };
         static readonly string[] DeadAndRocks = { "DesertRocks_10", "DesertRocks_11", "DesertRocks_12", "DesertRocks_13", "DesertRocks_14", "DesertRocks_15" };
         static readonly char[] GrayLetters = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H' };
+        // ---- 町（WesternTown）の小物・岩（art-r2-05、Blender で部品の一覧を描いて確認）----
+        static readonly string[] TownCrates = Town("Prop", 22, 112, 113, 116, 118);   // 木箱の山
+        public const string TOWN_CART = "WesternTown_115_Prop", TOWN_BARRELS = "WesternTown_117_Prop", TOWN_SIGN = "WesternTown_038_Prop";
+        static readonly string[] TownCacti = Town("Prop", 7, 8, 10, 15, 17, 18, 19, 20, 21, 23, 24, 25, 26, 32, 34, 35, 40, 41, 42, 43, 44, 53, 54, 55,
+            58, 59, 60, 61, 62, 64, 65, 66, 69, 71, 75, 76, 77, 78, 85, 86, 89, 90, 91, 97, 98, 99, 105, 107, 108, 109, 110, 114, 119, 120, 121, 123, 124, 126);
+        static readonly string[] TownRocksBig = Town("Rock", 3, 5, 6, 16, 27, 28, 33, 45, 46, 51, 68, 73, 74, 81, 92, 93, 95, 96, 103, 104, 125, 128, 133, 134, 136, 137);
+        static readonly string[] TownRocksSmall = Town("Rock", 4, 9, 13, 14, 31, 50, 63, 72, 100, 101, 102, 106, 111, 122, 129, 130, 131, 132, 135);
+        static readonly string[] TownPebbles = Town("Prop", 11, 12, 87, 88);
+        static readonly string[] RanchBuildings = { "RanchCompound_07_Building", "RanchCompound_09_Building", "RanchCompound_10_Building" };
+        static readonly string[] RstylParts = Parts2("RockSetStylized", 1, 7, "_Rock");
+        static readonly string[] RstylBig = { "RockSetStylized_01_Rock", "RockSetStylized_02_Rock", "RockSetStylized_06_Rock", "RockSetStylized_07_Rock" };
+
+        static string[] Town(string kind, params int[] n)
+        {
+            var r = new string[n.Length];
+            for (int i = 0; i < n.Length; i++) r[i] = "WesternTown_" + n[i].ToString("000") + "_" + kind;
+            return r;
+        }
+
+        static string[] Parts2(string pack, int a, int b, string suffix)
+        {
+            var r = new string[b - a + 1];
+            for (int i = a; i <= b; i++) r[i - a] = pack + "_" + i.ToString("00") + suffix;
+            return r;
+        }
+
+        /// <summary>宝石の部品（Gems_0g_0k、g = 1〜4 の組、k = 1〜8）。</summary>
+        static string Gem(int g, int k) => "Gems_0" + (1 + GenMod(g, 4)) + "_0" + (1 + GenMod(k, 8));
+        static int GenMod(int a, int n) => ((a % n) + n) % n;
 
         static string[] Parts(string pack, int a, int b)
         {
@@ -321,6 +353,165 @@ namespace HorseRace.EditorTools
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_048_Building"), new Size(7.7f, 6.9f) },
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_056_Building"), new Size(6.3f, 5.5f) },
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_057_Building"), new Size(6.5f, 13.0f) },
+            // art-r2-05：町の小物・岩、牧場の建物、岩のセット、宝石の部品（parts.json の外形から）。ラクダは騎乗の模型と同じ大きさ
+            { Key("Camel.fbx", null), new Size(1.4f, 2.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_003_Rock"), new Size(3.7f, 8.2f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_004_Rock"), new Size(1.6f, 3.2f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_005_Rock"), new Size(10.4f, 9.1f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_006_Rock"), new Size(5.0f, 7.7f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_007_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_008_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_009_Rock"), new Size(2.8f, 1.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_010_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_011_Prop"), new Size(0.6f, 0.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_012_Prop"), new Size(0.6f, 0.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_013_Rock"), new Size(2.5f, 2.5f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_014_Rock"), new Size(2.8f, 2.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_015_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_016_Rock"), new Size(3.7f, 7.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_017_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_018_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_019_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_020_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_021_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_022_Prop"), new Size(1.5f, 1.7f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_023_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_024_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_025_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_026_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_027_Rock"), new Size(3.2f, 6.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_028_Rock"), new Size(6.3f, 10.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_031_Rock"), new Size(2.8f, 1.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_032_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_033_Rock"), new Size(6.3f, 10.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_034_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_035_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_038_Prop"), new Size(1.0f, 0.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_040_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_041_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_042_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_043_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_044_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_045_Rock"), new Size(5.2f, 8.2f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_046_Rock"), new Size(5.6f, 10.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_050_Rock"), new Size(2.1f, 1.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_051_Rock"), new Size(3.8f, 7.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_053_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_054_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_055_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_058_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_059_Prop"), new Size(0.5f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_060_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_061_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_062_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_063_Rock"), new Size(2.5f, 1.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_064_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_065_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_066_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_068_Rock"), new Size(3.8f, 7.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_069_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_071_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_072_Rock"), new Size(0.8f, 3.0f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_073_Rock"), new Size(5.6f, 10.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_074_Rock"), new Size(3.2f, 6.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_075_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_076_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_077_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_078_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_081_Rock"), new Size(6.3f, 10.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_085_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_086_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_087_Prop"), new Size(1.2f, 1.0f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_088_Prop"), new Size(0.6f, 0.5f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_089_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_090_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_091_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_092_Rock"), new Size(6.3f, 10.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_093_Rock"), new Size(3.2f, 6.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_095_Rock"), new Size(5.2f, 8.2f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_096_Rock"), new Size(3.7f, 7.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_097_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_098_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_099_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_100_Rock"), new Size(1.6f, 1.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_101_Rock"), new Size(2.5f, 1.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_102_Rock"), new Size(1.6f, 1.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_103_Rock"), new Size(3.8f, 7.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_104_Rock"), new Size(3.2f, 9.1f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_105_Prop"), new Size(0.9f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_106_Rock"), new Size(3.6f, 3.0f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_107_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_108_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_109_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_110_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_111_Rock"), new Size(3.6f, 3.0f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_112_Prop"), new Size(0.9f, 0.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_113_Prop"), new Size(1.0f, 1.7f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_114_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_115_Prop"), new Size(2.3f, 1.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_116_Prop"), new Size(0.5f, 0.8f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_117_Prop"), new Size(1.8f, 2.5f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_118_Prop"), new Size(0.7f, 1.7f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_119_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_120_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_121_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_122_Rock"), new Size(1.6f, 1.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_123_Prop"), new Size(0.8f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_124_Prop"), new Size(1.0f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_125_Rock"), new Size(7.0f, 12.0f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_126_Prop"), new Size(0.6f, 2.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_128_Rock"), new Size(5.3f, 10.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_129_Rock"), new Size(5.3f, 4.9f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_130_Rock"), new Size(3.2f, 4.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_131_Rock"), new Size(3.2f, 4.4f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_132_Rock"), new Size(3.6f, 3.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_133_Rock"), new Size(3.7f, 7.3f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_134_Rock"), new Size(5.4f, 9.6f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_135_Rock"), new Size(2.0f, 1.5f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_136_Rock"), new Size(9.3f, 11.2f) },
+            { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_137_Rock"), new Size(3.7f, 8.2f) },
+            { Key("Buildings/RanchCompound.fbx", "RanchCompound_07_Building"), new Size(11.1f, 16.1f) },
+            { Key("Buildings/RanchCompound.fbx", "RanchCompound_09_Building"), new Size(13.4f, 16.0f) },
+            { Key("Buildings/RanchCompound.fbx", "RanchCompound_10_Building"), new Size(2.6f, 4.1f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_01_Rock"), new Size(1.9f, 1.9f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_02_Rock"), new Size(0.7f, 1.4f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_03_Rock"), new Size(0.7f, 0.3f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_04_Rock"), new Size(0.9f, 0.7f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_05_Rock"), new Size(0.3f, 0.4f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_06_Rock"), new Size(0.5f, 1.3f) },
+            { Key("ThirdParty/RockSetStylized/RockSetStylized.fbx", "RockSetStylized_07_Rock"), new Size(0.7f, 1.5f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_01"), new Size(0.5f, 1.2f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_02"), new Size(0.2f, 1.1f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_03"), new Size(0.2f, 1.0f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_04"), new Size(0.2f, 0.9f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_05"), new Size(0.2f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_06"), new Size(0.2f, 0.6f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_07"), new Size(0.1f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_01_08"), new Size(0.1f, 0.4f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_01"), new Size(0.5f, 1.2f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_02"), new Size(0.2f, 1.1f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_03"), new Size(0.2f, 1.0f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_04"), new Size(0.2f, 0.9f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_05"), new Size(0.2f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_06"), new Size(0.2f, 0.6f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_07"), new Size(0.1f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_02_08"), new Size(0.1f, 0.4f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_01"), new Size(0.5f, 1.2f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_02"), new Size(0.2f, 1.1f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_03"), new Size(0.2f, 1.0f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_04"), new Size(0.2f, 0.9f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_05"), new Size(0.2f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_06"), new Size(0.2f, 0.6f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_07"), new Size(0.1f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_03_08"), new Size(0.1f, 0.4f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_01"), new Size(0.5f, 1.2f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_02"), new Size(0.2f, 1.1f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_03"), new Size(0.2f, 1.0f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_04"), new Size(0.2f, 0.9f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_05"), new Size(0.2f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_06"), new Size(0.2f, 0.6f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_07"), new Size(0.1f, 0.7f) },
+            { Key("Packs/Gems/Gems.fbx", "Gems_04_08"), new Size(0.1f, 0.4f) },
         };
 
         public static Size SizeOf(string asset, string part)
@@ -349,23 +540,99 @@ namespace HorseRace.EditorTools
             "WagonCamp", "RuinedHomestead", "Oasis", "RanchWaypoint", "Settlement", "BoneField", "GoalTown", "RockField", "Rocks",
             "Scrub", "DuneGrass", "CactusForest", "Cactus", "TownEdge", "DeadGroveFloor", "DeadGroveRim", "DeadGroveFar", "SavannaGrove", "GrayRocks",
             "CanyonFloor", "GuideLine", "Railway", "Backlot", "FinishCamp", "CanyonRim", "MesaPlateau", "RimLandmark",
+            "MinersCamp", "Caravan", "WaterStop", "GoalOutpost", "RimRocks", "FarRocks", "CliffSkirt", "TreeLine",
         };
 
         /// <summary>道のすぐ脇（ROAD_MIN、平らな道 ±12m の外）に意図して置くグループ。それ以外は ROAD_CLEAR より外。</summary>
-        public static readonly HashSet<string> NearRoadGroups = new HashSet<string> { "Roadside", "GoalTown", "CanyonFloor", "GuideLine", "MesaGate", "MesaSaddle", "CornerSilhouette" };
+        public static readonly HashSet<string> NearRoadGroups = new HashSet<string> { "Roadside", "GoalTown", "CanyonFloor", "GuideLine", "MesaGate", "MesaSaddle", "CornerSilhouette", "GoalOutpost" };
 
         public static bool IsSmall(Placement p) => p.height < LARGE_MIN_H;
 
         /// <summary>道・除外の円との距離を調べるときの足元の半径。崖の壁は厚さの半分（長い辺は道に沿う）、メサの門は道側の裾。</summary>
         public static float FootprintRadius(Placement p)
         {
-            if (p.group == "CliffWalls" || p.group == "CornerSilhouette" || p.group == "MesaSaddle" || (p.group == "MesaPlateau" && p.asset == CLIFFS))
-                return p.radius * CLIFF_HALF_DEPTH;
-            if (p.group == "MesaGate") return p.radius * MESA_GATE_FOOTPRINT;
+            if (p.asset == CLIFFS) return p.radius * CLIFF_HALF_DEPTH;
+            if (p.group == "MesaGate" || p.asset == MESAB || p.asset == MESA) return p.radius * MESA_GATE_FOOTPRINT;
+            if (p.scaleY > 1.01f) return p.radius * STRETCHED_ROCK_FOOTPRINT;   // 縦に伸ばした岩（art-r2-08）は裾が斜面に埋まる
             return p.radius;
         }
 
         public static bool IsTree(Placement p) => p.asset == TREES || p.asset == ACACIA || p.asset == DEADTREE;
+
+        // ---- 素材の偏りの上限（art-r2-04）----
+        public const float KEY_SHARE_MAX = 0.08f;    // 1 つの素材（部品）はステージの飾りの 8% まで
+        public const float PACK_SHARE_MAX = 0.25f;   // 1 つのパックは 25% まで（RockCollection・DesertProps・DesertRocks は部品ごとに数える）
+        public const int SHARE_BASE = 600;           // 置いている途中の割合の分母の最小（最初の数個で上限にかからない）
+        public const int MESA_LUSH_MAX = 60;         // 境目の緑の木（Trees・アカシア）の合計
+
+        /// <summary>割合を数える単位：部品のあるパックは部品、モデル全体はモデル。</summary>
+        public static string ShareKey(string asset, string part) => part == null ? asset : asset + "|" + part;
+
+        /// <summary>パック全体でも 25% を数えるか（小石・砂漠の小物・砂漠の岩は部品ごとだけ）。</summary>
+        public static bool PackCapped(string asset) => asset != RCOLL && asset != DPROPS && asset != DROCKS;
+
+        /// <summary>割合の上限をかけない（1 か所だけの、形の決まったまとまり）。数には入る。</summary>
+        public static readonly HashSet<string> ShareExempt = new HashSet<string>
+        {
+            "Landmark", "FinishLandmark", "GoalTown", "GoalOutpost", "MesaGate", "MesaSaddle", "Railway", "RimLandmark", "GiantSkeleton",
+            "GuideLine", "CanyonRim",
+        };
+
+        /// <summary>
+        /// 最後に割合をそろえる：素材が KEY_SHARE_MAX・パックが PACK_SHARE_MAX を超えていたら、上限をかけないまとまり以外から
+        /// 後に置いたものを外す（外すと分母も減るので、超えなくなるまで繰り返す）。
+        /// </summary>
+        static void EnforceShares(Work w)
+        {
+            for (int guard = 0; guard < 4000; guard++)
+            {
+                int n = w.list.Count;
+                string worstKey = null; bool worstPack = false; float worst = 0f;
+                foreach (var kv in w.keyCount)
+                {
+                    float over = kv.Value - KEY_SHARE_MAX * n;
+                    if (over > worst) { worst = over; worstKey = kv.Key; worstPack = false; }
+                }
+                foreach (var kv in w.packCount)
+                {
+                    if (!PackCapped(kv.Key)) continue;
+                    float over = kv.Value - PACK_SHARE_MAX * n;
+                    if (over > worst) { worst = over; worstKey = kv.Key; worstPack = true; }
+                }
+                if (worstKey == null) return;
+                bool removed = false;
+                for (int i = w.list.Count - 1; i >= 0; i--)
+                {
+                    var p = w.list[i];
+                    if (ShareExempt.Contains(p.group)) continue;
+                    if (worstPack ? p.asset != worstKey : ShareKey(p.asset, p.part) != worstKey) continue;
+                    w.Count(p, -1);
+                    w.list.RemoveAt(i);
+                    removed = true;
+                    break;
+                }
+                if (!removed) return;
+            }
+        }
+
+        /// <summary>素材（部品）ごとの数と、ステージの飾りに占める一番大きい割合（テスト・Validator 用）。</summary>
+        public static float MaxShare(List<Placement> list, bool pack, out string which)
+        {
+            var c = new Dictionary<string, int>();
+            foreach (var p in list)
+            {
+                if (pack && !PackCapped(p.asset)) continue;
+                string k = pack ? p.asset : ShareKey(p.asset, p.part);
+                int v; c.TryGetValue(k, out v); c[k] = v + 1;
+            }
+            which = null; float best = 0f;
+            foreach (var kv in c)
+            {
+                float f = kv.Value / (float)Mathf.Max(1, list.Count);
+                if (f > best) { best = f; which = kv.Key; }
+            }
+            return best;
+        }
 
         /// <summary>コース点列の累積弧長。</summary>
         public static float[] CourseArcs(Vector3[] course)
@@ -408,8 +675,9 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>小物が全体の SMALL_SHARE_MAX を超えたら、まとまりの外の小物 → 後から置いたまとまりの小物の順に外す。</summary>
-        static void TrimSmall(List<Placement> list)
+        static void TrimSmall(Work w)
         {
+            var list = w.list;
             int small = 0;
             foreach (var p in list) if (IsSmall(p)) small++;
             for (int pass = 0; pass < 2 && small > SMALL_SHARE_MAX * list.Count; pass++)
@@ -418,6 +686,7 @@ namespace HorseRace.EditorTools
                     var p = list[i];
                     if (!IsSmall(p)) continue;
                     if (pass == 0 && ClusterGroups.Contains(p.group)) continue;
+                    w.Count(p, -1);
                     list.RemoveAt(i);
                     small--;
                 }
@@ -451,6 +720,38 @@ namespace HorseRace.EditorTools
             public bool hasRect;
             public System.Random rng;
             public int budget;
+            // ---- 1 つの素材に偏らない（art-r2-04）：ステージだけ ----
+            public bool capShares;
+            public int lushMax = int.MaxValue;              // 境目：緑の木（Trees・アカシア）の上限
+            public int lush;
+            public Dictionary<string, int> keyCount = new Dictionary<string, int>();
+            public Dictionary<string, int> packCount = new Dictionary<string, int>();
+
+            /// <summary>この素材をもう 1 つ置くと、素材ごと（KEY_SHARE_MAX）・パックごと（PACK_SHARE_MAX）の割合を超えるか。分母は max(今の数 + 1, SHARE_BASE)。</summary>
+            public bool OverShare(string group, string asset, string part)
+            {
+                if (lushMax < int.MaxValue && (asset == TREES || asset == ACACIA) && lush >= lushMax) return true;
+                if (!capShares || ShareExempt.Contains(group)) return false;
+                float n = Mathf.Max(list.Count + 1, SHARE_BASE);
+                int k;
+                keyCount.TryGetValue(ShareKey(asset, part), out k);
+                if (k + 1 > KEY_SHARE_MAX * n) return true;
+                if (PackCapped(asset))
+                {
+                    packCount.TryGetValue(asset, out k);
+                    if (k + 1 > PACK_SHARE_MAX * n) return true;
+                }
+                return false;
+            }
+
+            public void Count(Placement p, int d)
+            {
+                string key = ShareKey(p.asset, p.part);
+                int k;
+                keyCount.TryGetValue(key, out k); keyCount[key] = k + d;
+                packCount.TryGetValue(p.asset, out k); packCount[p.asset] = k + d;
+                if (p.asset == TREES || p.asset == ACACIA) lush += d;
+            }
 
             public float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);
             public int Pick(int n) => rng.Next(n);
@@ -462,7 +763,7 @@ namespace HorseRace.EditorTools
             public float RoadDist(Vector3 p) => course == null ? float.MaxValue : RoadClearance(def, course, cum, p);
 
             /// <summary>rBounds ≥ 0 なら範囲・置かない長方形・円はその半径で調べる（木の枝が柵や町の縁にかかってよいとき）。重なりは r で調べる。</summary>
-            public bool Allowed(Vector3 p, float r, float minRoad, bool ignoreCircles, float rBounds = -1f)
+            public bool Allowed(Vector3 p, float r, float minRoad, bool ignoreCircles, float rBounds = -1f, float rOverlap = -1f)
             {
                 float rr = r;
                 if (rBounds >= 0f) r = rBounds;
@@ -473,7 +774,7 @@ namespace HorseRace.EditorTools
                         if (WorldLayout.DistXZ(p, new Vector3(c.x, 0f, c.z)) < c.w + r) return false;
                 if (capR > 0f && WorldLayout.DistToSegmentXZ(p, capA, capB) < capR + r) return false;
                 if (hasRect && p.x + r > rectMin.x && p.x - r < rectMax.x && p.z + r > rectMin.y && p.z - r < rectMax.y) return false;
-                r = rr;
+                r = rOverlap >= 0f ? rOverlap : rr;
                 if (r >= 1.5f)
                     foreach (var q in list)
                         if (q.radius >= 1.5f && WorldLayout.DistXZ(p, q.position) < 0.75f * (r + q.radius)) return false;
@@ -482,12 +783,14 @@ namespace HorseRace.EditorTools
 
             /// <summary>置けたら true。</summary>
             public bool Add(string group, string asset, string part, Vector3 p, float yaw, float scale, float sink,
-                float minRoad = ROAD_CLEAR, bool trunk = false, bool background = false, float roll = 0f, bool ignoreCircles = false, float rBounds = -1f)
+                float minRoad = ROAD_CLEAR, bool trunk = false, bool background = false, float roll = 0f, bool ignoreCircles = false, float rBounds = -1f,
+                float scaleY = 1f, float rOverlap = -1f)
             {
                 if (list.Count >= budget) return false;
+                if (OverShare(group, asset, part)) return false;
                 Size s = SizeOf(asset, part);
-                float r = s.r * scale, hh = s.h * scale;
-                if (!Allowed(p, r, minRoad, ignoreCircles, rBounds)) return false;
+                float r = s.r * scale, hh = s.h * scale * scaleY;
+                if (!Allowed(p, r, minRoad, ignoreCircles, rBounds, rOverlap)) return false;
                 float y = Ground(p.x, p.z);
                 for (int i = 0; i < 4; i++)
                 {
@@ -499,10 +802,11 @@ namespace HorseRace.EditorTools
                 list.Add(new Placement
                 {
                     group = group, asset = asset, part = part, position = new Vector3(p.x, y - sink, p.z),
-                    yawDeg = yaw, rollDeg = roll, scale = scale, radius = r, height = hh, collider = col,
+                    yawDeg = yaw, rollDeg = roll, scale = scale, scaleY = scaleY, radius = r, height = hh, collider = col,
                     shape = !col ? SHAPE_NONE : (trunk ? SHAPE_TRUNK : (r >= 6f ? SHAPE_MESH : SHAPE_BOX)),
                     background = background,
                 });
+                Count(list[list.Count - 1], 1);
                 return true;
             }
 
@@ -555,6 +859,7 @@ namespace HorseRace.EditorTools
                 course = courseLocal, def = def, cum = CourseArcs(courseLocal), h = heights, sizeM = StageDefinitions.SIZE, budget = MAX_PER_STAGE,
                 minX = EDGE_MARGIN, minZ = EDGE_MARGIN, maxX = StageDefinitions.SIZE - EDGE_MARGIN, maxZ = StageDefinitions.SIZE - EDGE_MARGIN,
                 rng = new System.Random(def.seed * 7919 + 17),
+                capShares = true, lushMax = def.kind == HeightmapGen.KIND_MESA ? MESA_LUSH_MAX : int.MaxValue,
             };
             foreach (var c in StageExclusions(def, courseLocal, goalArc)) w.circles.Add(c);
             if (shortcut != null)
@@ -563,18 +868,23 @@ namespace HorseRace.EditorTools
                 w.capR = SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND + 4f;
             }
             if (def.kind == HeightmapGen.KIND_MESA) GoalTown(w, goalArc);   // 町の建物を先に（道沿いの固定の場所）
-            else FinishCamp(w, def, goalArc);                                 // 荒野・砂漠：ゴールの先の野営地と最後の直線の先の目印
+            else { GoalOutpost(w, def, goalArc); FinishCamp(w, def, goalArc); }   // 荒野・砂漠：ゴールの先の出張所（art-r2-06）と最後の直線の先の目印
             Landmark(w, def, goalArc);        // 遠くの目印（スタートから見える）
+            if (def.kind == HeightmapGen.KIND_DUNES) GiantSkeletons(w, def, goalArc);   // 砂丘の上の巨大な骨（art-r2-16）
             CornerSilhouettes(w, def, goalArc);   // 急カーブの外側の崖（先を隠す）
             if (def.kind == HeightmapGen.KIND_MESA) { MesaGate(w, def, goalArc); MesaPlateau(w, def, goalArc); FinalApproachRail(w, def, goalArc); }
             if (def.kind == HeightmapGen.KIND_CANYON) { RimLandmarks(w, def, goalArc); CanyonRimFences(w, def, goalArc); }
             if (def.kind == HeightmapGen.KIND_DUNES) Railway(w, def, goalArc);
             GuideLine(w, def, goalArc);       // 道の目印（カーブの外側の杭・柵、直線の標柱）
+            Vignettes(w, def, goalArc);       // 道から 30〜60m の人の大きさの見どころ（art-r2-05）
             if (def.kind == HeightmapGen.KIND_CANYON) Canyon(w, def, goalArc);
             else if (def.kind == HeightmapGen.KIND_DUNES) Dunes(w, def, goalArc);
             else Border(w, def, goalArc);
             Roadside(w, goalArc);
-            TrimSmall(w.list);
+            RimSilhouettes(w, def, goalArc);  // 外周の尾根の上のシルエット（art-r2-09）
+            EnforceShares(w);
+            TrimSmall(w);
+            EnforceShares(w);
             return w.list;
         }
 
@@ -765,6 +1075,40 @@ namespace HorseRace.EditorTools
             }
         }
 
+        /// <summary>崖（Cliffs）は道からこれ以上（足元の縁まで）離す。近くでは平らな箱に見える（art-r2-08）。</summary>
+        public const float CLIFF_MIN_ROAD_M = 90f;
+
+        /// <summary>
+        /// 道の近く（CLIFF_MIN_ROAD_M 以内）の大きな岩（art-r2-08）：メサ B・DesertRocks_01〜03・岩のセットの大きな部品から 1 つ。
+        /// 拡大は高さ hMin〜hMax m になるように、縦だけ 1.2〜1.8 倍（崖の代わりに背の高い岩）。
+        /// </summary>
+        static void NearRock(Work w, float hMin, float hMax, out string asset, out string part, out float scale, out float scaleY)
+        {
+            int k = w.Pick(3);
+            if (k == 0) { asset = MESAB; part = null; }
+            else if (k == 1) { asset = DROCKS; part = w.Pick(RockBig); }
+            else { asset = RSTYL; part = w.Pick(RstylBig); }
+            scaleY = w.Rand(1.2f, 1.8f);
+            float h0 = SizeOf(asset, part).h * scaleY;
+            scale = w.Rand(hMin, hMax) / Mathf.Max(0.1f, h0);
+        }
+
+        /// <summary>崖 1 枚の足元に DesertRocks_04〜09 を 3〜5 個（高さの 30% を沈める）：箱の底の縁を隠す（art-r2-08）。</summary>
+        static void CliffSkirt(Work w, Placement cliff)
+        {
+            int n = 3 + w.Pick(3);
+            float rr = cliff.radius * CLIFF_HALF_DEPTH;
+            for (int i = 0; i < n; i++)
+            {
+                float a = (i / (float)n * 360f + w.Rand(-25f, 25f)) * Mathf.Deg2Rad;
+                float d = rr * w.Rand(0.8f, 1.05f);
+                string part = w.Pick(RockMid);
+                float sc = w.Rand(1.0f, 1.6f);
+                var p = new Vector3(cliff.position.x + Mathf.Sin(a) * d, 0f, cliff.position.z + Mathf.Cos(a) * d);
+                w.Add("CliffSkirt", DROCKS, part, p, w.Rand(0f, 360f), sc, 0.3f * SizeOf(DROCKS, part).h * sc, CLIFF_MIN_ROAD_M - 30f, ignoreCircles: true, rOverlap: 0f);
+            }
+        }
+
         static void Canyon(Work w, StageDef def, float goalArc)
         {
             float total = CoursePath.Length(w.course);
@@ -785,63 +1129,101 @@ namespace HorseRace.EditorTools
                     w.Add(G, SALOON, null, new Vector3(c.x + Mathf.Cos(rad) * 15f, 0f, c.z - Mathf.Sin(rad) * 15f), yaw + 15f, 1f, 0.5f);
                     for (int i = 0; i < 6; i++) w.Add(G, FARM, w.Pick(FarmFences), w.Around(c, 22f), w.Rand(0f, 360f), 1f, 0.05f);
                     for (int i = 0; i < 4; i++) w.Add(G, FARM, w.Pick(FarmCrates), w.Around(c, 16f), w.Rand(0f, 360f), 1f, 0.05f);
+                    w.Add(G, WTOWN, TOWN_CART, w.Around(c, 12f), w.Rand(0f, 360f), 1f, 0.05f);
                     Grove(w, G, c, 28f, 5, 1f, 0f);
                 }
             }
             // 谷底の近景（道から 14〜28m、22m ごとに左右交互）を最初に：走っていて速さを感じる中景の物
             CanyonFloor(w, goalArc);
-            // 谷の縁に沿った崖の壁（左右交互に 50m ごと）。部品の広い面（ローカル ±X）を道へ向け、長い辺（ローカル Z）を道に沿わせる
-            // （Blender で測った：Cliffs は低ポリの塊で、Z 方向が長く、±X の面が一番広い）。壁の裾を谷底の縁に置き、高さの 22% を斜面に埋める
+            // 谷の縁の壁（左右交互に 50m ごと）：道の近くは崖（Cliffs）ではなく、形と模様のある大きな岩（メサ B・DesertRocks_01〜03・岩のセット）を
+            // 縦に 1.2〜1.8 倍・向き ±25° でばらして並べる（art-r2-08：近くの Cliffs は平らな箱に見える）。高さの 22% を斜面に埋める
             int ci = 0;
-            for (float a = 40f; a < total; a += 50f)
+            for (float a = 40f; a < total; a += 50f, ci++)
             {
                 int s = (ci % 2 == 0) ? 1 : -1;
-                string part = CliffParts[ci++ % CliffParts.Length];
+                string asset, part; float sc, sy;
+                NearRock(w, 14f, 26f, out asset, out part, out sc, out sy);
+                float r = SizeOf(asset, part).r * sc;
+                float foot = asset == MESAB ? r * MESA_GATE_FOOTPRINT : r * STRETCHED_ROCK_FOOTPRINT;
+                float arc = a + w.Rand(-15f, 15f);
+                float yaw = w.YawAt(arc) + w.Rand(-25f, 25f) + (w.Pick(2) == 0 ? 0f : 180f);
+                w.Add("CanyonWalls", asset, part, w.Side(arc, s * (ROAD_CLEAR + w.Extra(arc) + foot + w.Rand(0f, 8f))), yaw, sc,
+                    CLIFF_SINK * SizeOf(asset, part).h * sc * sy, rBounds: foot, scaleY: sy);
+            }
+            // 崖（Cliffs）は道から CLIFF_MIN_ROAD_M より遠い上の斜面だけ（左右交互に 70m ごと）、足元に岩のすそ
+            ci = 0;
+            for (float a = 60f; a < total; a += 70f, ci++)
+            {
+                int s = (ci % 2 == 0) ? -1 : 1;
+                string part = CliffParts[ci % CliffParts.Length];
                 float sc = w.Rand(1f, 1.4f);
                 Size cs = SizeOf(CLIFFS, part);
                 float r = cs.r * sc;
-                float arc = a + w.Rand(-15f, 15f);
-                float yaw = w.YawAt(arc) + (w.Pick(2) == 0 ? 0f : 180f) + w.Rand(-CLIFF_YAW_JITTER, CLIFF_YAW_JITTER);
-                w.Add("CliffWalls", CLIFFS, part, w.Side(arc, s * (ROAD_CLEAR + w.Extra(arc) + r * CLIFF_HALF_DEPTH + w.Rand(0f, 8f))), yaw, sc,
-                    CLIFF_SINK * cs.h * sc, rBounds: r * CLIFF_HALF_DEPTH);
+                for (int tries = 0; tries < 3; tries++)
+                {
+                    float arc = a + w.Rand(-15f, 15f);
+                    float yaw = w.YawAt(arc) + (w.Pick(2) == 0 ? 0f : 180f) + w.Rand(-CLIFF_YAW_JITTER, CLIFF_YAW_JITTER);
+                    if (w.Add("CliffBack", CLIFFS, part, w.Side(arc, s * (CLIFF_MIN_ROAD_M + 2f + w.Extra(arc) + r * CLIFF_HALF_DEPTH + w.Rand(0f, 20f))), yaw, sc,
+                        CLIFF_SINK * cs.h * sc, CLIFF_MIN_ROAD_M + 6f, rBounds: r * CLIFF_HALF_DEPTH))
+                    {
+                        CliffSkirt(w, w.list[w.list.Count - 1]);
+                        break;
+                    }
+                }
             }
-            // 枯れ木の林：谷底（道から 20〜60m）を 120m ごとに左右交互、縁（60〜120m）にも
+            // 枯れ木の林：谷底（道から 28〜45m）を 120m ごとに左右交互（art-r2-04：枯れ木は半分にし、縁は岩場に）
             int side = 1;
             for (float a = 60f; a < total; a += 120f, side = -side)
             {
-                Grove(w, "DeadGroveFloor", w.Side(a, side * w.Rand(28f, 45f)), 14f, 5, 0.9f, 0.1f);
-                Grove(w, "DeadGroveRim", w.Side(a + 60f, -side * w.Rand(70f, 110f)), 18f, 4, 1f, 0f);
+                Grove(w, "DeadGroveFloor", w.Side(a, side * w.Rand(28f, 45f)), 14f, 3, 0.9f, 0.1f);
+                TownRockPile(w, "RimRocks", w.Side(a + 60f, -side * w.Rand(70f, 110f)), 16f, 5);
             }
             // 大岩
             foreach (var c in w.Centers(def.seed + 1, 8, 60f, 160f, 110f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), w.Rand(1f, 1.3f), 1.5f);
-            // 道沿いの帯（大きな岩・枯れ木・中くらいの崖）。狭い谷なので道から 32m まで（斜面・縁に乗らない）
+            // 道沿いの帯（大きな岩・枯れ木・町の岩・岩のセット）。狭い谷なので道から 32m まで（斜面・縁に乗らない）
             RoadsideBand(w, goalArc, x =>
             {
                 int k = x.rng.Next(10);
-                if (k < 4) return new[] { DEADTREE, null };
-                if (k < 7) return new[] { DROCKS, x.Pick(RockMid) };
-                if (k < 9) return new[] { DPROPS, x.Pick(DpRocks) };
-                return new[] { CLIFFS, x.Pick(new[] { "Cliffs_08", "Cliffs_10", "Cliffs_13" }) };
+                if (k < 2) return new[] { DEADTREE, null };
+                if (k < 5) return new[] { DROCKS, x.Pick(RockMid) };
+                if (k < 7) return new[] { DPROPS, x.Pick(DpRocks) };
+                if (k < 9) return new[] { WTOWN, x.Pick(TownRocksBig) };
+                return new[] { RSTYL, x.Pick(RstylBig) };
             }, CANYON_BAND_MAX_LAT);
             // 岩場（まとまり 14 か所）
             foreach (var c in w.Centers(def.seed + 2, 14, 26f, 140f, 70f))
                 for (int i = 0; i < 9; i++)
                 {
-                    int k = w.Pick(3);
+                    int k = w.Pick(4);
                     if (k == 0) w.Add("RockField", DROCKS, w.Pick(i < 3 ? RockMid : RockSmall), w.Around(c, 22f), w.Rand(0f, 360f), w.Rand(0.8f, 1.3f), 0.3f);
                     else if (k == 1) w.Add("RockField", RCOLL, w.Pick(Pebbles), w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(1.5f, 3f), 0.1f);
+                    else if (k == 2) w.Add("RockField", WTOWN, w.Pick(TownRocksSmall), w.Around(c, 18f), w.Rand(0f, 360f), w.Rand(0.8f, 1.3f), 0.2f);
                     else w.Add("RockField", DPROPS, w.Pick(DpRocks), w.Around(c, 20f), w.Rand(0f, 360f), w.Rand(0.8f, 1.6f), 0.2f);
                 }
-            // 枯れ木をさらに（遠くの斜面）
-            foreach (var c in w.Centers(def.seed + 5, 14, 60f, 200f, 70f)) Grove(w, "DeadGroveFar", c, 16f, 4, 1f, 0f);
+            // 遠くの斜面：町の岩の山（枯れ木は 1 本だけ）
+            foreach (var c in w.Centers(def.seed + 5, 14, 60f, 200f, 70f)) TownRockPile(w, "FarRocks", c, 16f, 4);
             // 道ばたの小さなサボテンと草（まとまり）
             foreach (var c in w.Centers(def.seed + 4, 8, 20f, 60f, 60f))
                 for (int i = 0; i < 4; i++)
                     w.Add("Scrub", DPROPS, i % 2 == 0 ? w.Pick(DpCacti) : w.Pick(DpGrass), w.Around(c, 8f), w.Rand(0f, 360f), 1f, 0.05f);
         }
 
+        /// <summary>町（WesternTown）の岩の山：大きな岩 1 つ、小さな岩・砂漠の岩、枯れ木 1 本（art-r2-04/05）。</summary>
+        static void TownRockPile(Work w, string group, Vector3 c, float radius, int n)
+        {
+            string big = w.Pick(TownRocksBig);
+            float bs = w.Rand(0.9f, 1.4f);
+            w.Add(group, WTOWN, big, c, w.Rand(0f, 360f), bs, 0.25f * SizeOf(WTOWN, big).h * bs);
+            for (int i = 1; i < n; i++)
+            {
+                if (i % 2 == 1) w.Add(group, WTOWN, w.Pick(TownRocksSmall), w.Around(c, radius), w.Rand(0f, 360f), w.Rand(0.9f, 1.5f), 0.3f);
+                else w.Add(group, DROCKS, w.Pick(i == 2 ? RockMid : DeadAndRocks), w.Around(c, radius), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.4f);
+            }
+            Tree(w, group, DEADTREE, null, w.Around(c, radius));
+        }
+
         /// <summary>
-        /// 谷底の近景：弧長 CANYON_FLOOR_STEP_M ごとに左右交互、道の脇（ROAD_MIN+1〜28m）に小さな岩・砂漠の岩・枯れ木を 1 つ、
+        /// 谷底の近景：弧長 CANYON_FLOOR_STEP_M ごとに左右交互、道の脇（ROAD_MIN+1〜28m）に小さな岩・砂漠の岩・町の岩・枯れ木・農場のがらくたを 1 つ、
         /// 1 つおきに小石の群れ（RockCollection 3〜5 個、拡大 2〜3）。CP の黒板の横（右側）は空ける（除外の円）。
         /// </summary>
         static void CanyonFloor(Work w, float goalArc)
@@ -851,10 +1233,12 @@ namespace HorseRace.EditorTools
             for (float a = 30f; a < goalArc - 10f; a += CANYON_FLOOR_STEP_M, i++)
             {
                 float sd = (i % 2 == 0) ? 1f : -1f;
-                int k = w.Pick(10);
+                int k = w.Pick(20);
                 string asset, part; float sc; bool tree = false;
-                if (k < 4) { asset = DROCKS; part = w.Pick(DeadAndRocks); sc = w.Rand(1.0f, 1.6f); }
-                else if (k < 7) { asset = DPROPS; part = w.Pick(DpRocks); sc = w.Rand(0.9f, 1.4f); }
+                if (k < 6) { asset = DROCKS; part = w.Pick(DeadAndRocks); sc = w.Rand(1.0f, 1.6f); }
+                else if (k < 11) { asset = DPROPS; part = w.Pick(DpRocks); sc = w.Rand(0.9f, 1.4f); }
+                else if (k < 14) { asset = WTOWN; part = w.Pick(TownRocksSmall); sc = w.Rand(0.8f, 1.2f); }
+                else if (k < 16) { asset = k == 14 ? FARM : LOGS; part = k == 14 ? w.Pick(FarmCrates) : w.Pick(LogParts); sc = 1.2f; }
                 else { asset = DEADTREE; part = null; sc = w.Rand(0.9f, 1.2f); tree = true; }
                 float r = SizeOf(asset, part).r * sc;
                 float arc = a + w.Rand(-4f, 4f);
@@ -893,16 +1277,16 @@ namespace HorseRace.EditorTools
         {
             const string G = "GuideLine";
             float lastCorner = -1000f, lastPost = -1000f, cornerSide = 0f;
-            int post = 0;
+            int post = 0, piece = 0;
             for (float a = 20f; a < goalArc - 30f; a += GUIDE_STEP_M)
             {
                 float k = Curvature(w.course, a);
                 if (Mathf.Abs(k) > GUIDE_CURVATURE) { lastCorner = a; cornerSide = k > 0f ? 1f : -1f; }   // 左へ曲がる → 外側は右（+）
                 if (a - lastCorner <= GUIDE_AFTER_M)
                 {
-                    // 荒野・砂漠：柵（DesertProps_06）と杭の列（_10）を交互（course-r1-09：急カーブの外側の線）
-                    string part = def.kind == HeightmapGen.KIND_MESA ? (w.Pick(2) == 0 ? "FarmProps_03" : "FarmProps_04") : (w.Pick(2) == 0 ? "DesertProps_06" : "DesertProps_10");
-                    string asset = def.kind == HeightmapGen.KIND_MESA ? FARM : DPROPS;
+                    // 柵（FarmProps_03 / 04）を 2 枚、3 枚目ごとに杭の列（DesertProps_10）（art-r2-03：骨のあばら DesertProps_06 は使わない）
+                    string part = FencePiece(piece++);
+                    string asset = part.StartsWith("FarmProps") ? FARM : DPROPS;
                     float r = SizeOf(asset, part).r;
                     float lat = Mathf.Max(GUIDE_LATERAL, ROAD_MIN + r + 0.05f) + (StageDefinitions.HalfWidthAt(def, a) - HeightmapGen.RUNWAY_M);
                     // 柵・杭の列の長い辺を道に沿わせる（FarmProps_03 は X が長い。FarmProps_04 は Z が長い）
@@ -912,12 +1296,27 @@ namespace HorseRace.EditorTools
                 }
                 else if (a - lastPost >= GUIDE_STRAIGHT_STEP_M)
                 {
+                    // 直線：40m ごとに左右交互の標柱、そのうち 1 本おき（80m ごと）は街灯（FarmProps_02）
+                    bool lamp = post % 2 == 1;
                     float sd = (post++ % 2 == 0) ? 1f : -1f;
-                    float lat = Mathf.Max(GUIDE_LATERAL, ROAD_MIN + SizeOf(DPROPS, "DesertProps_05").r + 0.05f) + (StageDefinitions.HalfWidthAt(def, a) - HeightmapGen.RUNWAY_M);
-                    if (w.Add(G, DPROPS, "DesertProps_05", w.Side(a, sd * lat), w.YawAt(a), 1f, 0.1f, ROAD_MIN)) lastPost = a;
+                    string asset = lamp ? FARM : DPROPS, part = lamp ? FARM_LAMP : "DesertProps_05";
+                    float lat = Mathf.Max(GUIDE_LATERAL, ROAD_MIN + SizeOf(asset, part).r + 0.05f) + (StageDefinitions.HalfWidthAt(def, a) - HeightmapGen.RUNWAY_M);
+                    if (w.Add(G, asset, part, w.Side(a, sd * lat), w.YawAt(a), 1f, 0.1f, ROAD_MIN)) lastPost = a;
                 }
             }
         }
+
+        /// <summary>道の目印の柵の並び（art-r2-03）：FarmProps_03・FarmProps_04・DesertProps_10（杭の列）の順に繰り返す。</summary>
+        public static string FencePiece(int k)
+        {
+            int m = ((k % 3) + 3) % 3;
+            return m == 0 ? "FarmProps_03" : (m == 1 ? "FarmProps_04" : "DesertProps_10");
+        }
+
+        /// <summary>骨（あばら・頭骨 DesertProps_06/07/08）を置いてよいまとまり（art-r2-03）。1 ステージ BONE_MAX 個まで。</summary>
+        public static readonly HashSet<string> BoneGroups = new HashSet<string> { "BoneField", "GiantSkeleton" };
+        public const int BONE_MAX = 12;
+        public static bool IsBonePart(string part) => part == "DesertProps_06" || part == "DesertProps_07" || part == "DesertProps_08";
 
         /// <summary>ステージごとの遠くの目印の素材（部品）と拡大。</summary>
         public static void LandmarkAsset(int kind, out string asset, out string part, out float scale)
@@ -1056,7 +1455,8 @@ namespace HorseRace.EditorTools
             foreach (var c in w.Centers(def.seed + 3, 4, 24f, 70f, 150f))
             {
                 w.Add("BoneField", SKELETON, null, c, w.Rand(0f, 360f), 1f, 0.15f, roll: 85f);
-                for (int i = 0; i < 6; i++) w.Add("BoneField", DPROPS, DpBones[i % DpBones.Length], w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.05f);
+                // 頭骨 1・あばら 1 と骨 4（あばら・頭骨はステージで BONE_MAX まで、art-r2-03）
+                for (int i = 0; i < 6; i++) w.Add("BoneField", DPROPS, i == 0 ? "DesertProps_07" : (i == 3 ? "DesertProps_08" : "DesertProps_14"), w.Around(c, 10f), w.Rand(0f, 360f), w.Rand(0.9f, 1.3f), 0.05f);
                 Tree(w, "BoneField", DEADTREE, null, w.Around(c, 14f));
             }
             // サボテンの林（10 か所）
@@ -1132,15 +1532,26 @@ namespace HorseRace.EditorTools
                 if (FindBeside(w, goalArc * 0.3f, 150f, 200f, 10f, out c))
                     w.Add("FarStable", STABLE, null, c, w.Rand(0f, 360f), 1f, 0.1f, background: true);
             }
-            // 道沿いの並木（Trees とアカシアを交互、25m ごと、左右）
+            // 道沿いの並び（25m ごと、左右）：夕景の乾いた土地（art-r2-04）＝枯れ木・サボテンの群れ・灰色の岩・岩のセット・町のサボテン、
+            // 緑の木（Trees・アカシア）は 4 つに 1 つ（ステージで MESA_LUSH_MAX 本まで）
+            int li = 0;
             for (float a = 20f; a < goalArc; a += 25f)
-                for (int s = -1; s <= 1; s += 2)
+                for (int s = -1; s <= 1; s += 2, li++)
                 {
-                    bool ac = ((int)(a / 25f) + (s > 0 ? 1 : 0)) % 3 == 0;
-                    Tree(w, "TreeLine", ac ? ACACIA : TREES, ac ? null : TreePart(w), w.Side(a + w.Rand(-5f, 5f), s * w.Rand(22f, 32f)));
+                    Vector3 p = w.Side(a + w.Rand(-5f, 5f), s * w.Rand(22f, 32f));
+                    switch (li % 8)
+                    {
+                        case 0: Tree(w, "TreeLine", TREES, TreePart(w), p); break;
+                        case 1: case 5: Tree(w, "TreeLine", DEADTREE, null, p); break;
+                        case 2: w.Add("TreeLine", CGROUP, null, p, w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.2f, trunk: true); break;
+                        case 3: w.Add("TreeLine", RockGray(GrayLetters[li % GrayLetters.Length]), null, p, w.Rand(0f, 360f), w.Rand(1.4f, 2.2f), 0.3f); break;
+                        case 4: Tree(w, "TreeLine", ACACIA, null, p); break;
+                        case 6: w.Add("TreeLine", RSTYL, w.Pick(RstylBig), p, w.Rand(0f, 360f), w.Rand(2.5f, 3.5f), 0.3f, scaleY: w.Rand(1.2f, 1.6f)); break;
+                        default: w.Add("TreeLine", WTOWN, w.Pick(TownCacti), p, w.Rand(0f, 360f), w.Rand(0.9f, 1.2f), 0.1f, trunk: true); break;
+                    }
                 }
-            // サバンナの林（Trees＋アカシア、12 か所）
-            foreach (var c in w.Centers(def.seed + 7, 12, 40f, 160f, 80f)) Grove(w, "SavannaGrove", c, 20f, 8, 0.1f, 0.4f);
+            // 夕景の林（枯れ木が多く、緑は少し、12 か所）
+            foreach (var c in w.Centers(def.seed + 7, 12, 40f, 160f, 80f)) Grove(w, "SavannaGrove", c, 20f, 6, 0.6f, 0.2f);
             // 灰色の岩場（10 か所）
             int gi = 0;
             foreach (var c in w.Centers(def.seed + 2, 10, 24f, 150f, 70f))
@@ -1161,8 +1572,9 @@ namespace HorseRace.EditorTools
             {
                 int k = x.rng.Next(10);
                 if (k < 4) return new[] { RockGray(GrayLetters[x.rng.Next(GrayLetters.Length)]), null };
-                if (k < 7) return new[] { TREES, TreePart(x) };
-                if (k < 8) return new[] { ACACIA, null };
+                if (k < 5) return new[] { TREES, TreePart(x) };
+                if (k < 7) return new[] { DEADTREE, null };
+                if (k < 8) return new[] { WTOWN, x.Pick(TownCacti) };
                 return new[] { CGROUP, null };
             });
             // 枯れ木と草（まとまり）
@@ -1174,6 +1586,10 @@ namespace HorseRace.EditorTools
             }
             // 大岩
             foreach (var c in w.Centers(def.seed + 5, 4, 60f, 150f, 120f)) w.Add("BigRocks", DROCKS, w.Pick(RockBig), c, w.Rand(0f, 360f), 1.1f, 1.5f);
+            // 岩のセットの岩場（8 か所）：部品ごとにばらして置く（art-r2-04）
+            foreach (var c in w.Centers(def.seed + 8, 8, 30f, 150f, 70f))
+                for (int i = 0; i < 6; i++)
+                    w.Add("GrayRocks", RSTYL, RstylParts[i % RstylParts.Length], w.Around(c, 12f), w.Rand(0f, 360f), w.Rand(2f, 3.2f), 0.2f, scaleY: w.Rand(1f, 1.4f));
         }
 
         public const float GOAL_STREET_FROM = -260f, GOAL_STREET_TO = 60f;   // ゴールからの弧長（course-r1-12：最後の 260m は町の通り）
@@ -1232,6 +1648,265 @@ namespace HorseRace.EditorTools
             w.Add("GoalTown", RANCH, RANCH_TOWER, tp, WorldLayout.YawDeg(-dir), 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
         }
 
+        // ------------------------------------------------------------------
+        // ゴールの先の出張所（art-r2-06）・見どころ（art-r2-05）・尾根のシルエット（art-r2-09）・巨大な骨（art-r2-16）
+        // ------------------------------------------------------------------
+
+        public const float OUTPOST_TOWER_ALONG = 125f;   // 荒野：給水塔はゴールの先 125m（尾根の切れ込みの中）、ゴールの向きの線上
+        public const float OUTPOST_TOWER_SCALE = 1.4f;
+        public const float OUTPOST_DUNES_ALONG = 102f;   // 砂漠：高い建物（WesternTown_084）はゴールの先 102m
+
+        /// <summary>ゴールの位置・向き・右（Terrain ローカル）から、ゴールの先 along m・横 lat m の点。</summary>
+        static Vector3 GoalFrame(Work w, float goalArc, float along, float lat)
+        {
+            Vector3 g = WorldLayout.PointAtArc(w.course, goalArc), t = WorldLayout.TangentAtArc(w.course, goalArc);
+            Vector3 r = WorldLayout.RightOf(t);
+            Vector3 p = g + t * along + r * lat;
+            return new Vector3(p.x, 0f, p.z);
+        }
+
+        /// <summary>
+        /// ゴールの先の出張所（art-r2-06、荒野・砂漠）：最後の直線から見てゴールの門の奥に「着く場所」を作る。ゴールの向きの線上と ±25〜32m に、
+        ///   荒野：牧場の建物（RanchCompound_07/09/10）、線上に給水塔（RanchCompound_11 ×1.4、尾根の切れ込み SetPieces.CarveGoalNotch の中）、
+        ///         街灯（暖色の灯り）2 本、焚き火の煙、木箱と荷車。
+        ///   砂漠：高い建物（WesternTown_084）を線上に、通りの建物 2 棟、テント 3 張り、ラクダ 2 頭、干し草。
+        /// </summary>
+        static void GoalOutpost(Work w, StageDef def, float goalArc)
+        {
+            const string G = "GoalOutpost";
+            float yaw = w.YawAt(goalArc);
+            if (def.kind == HeightmapGen.KIND_CANYON)
+            {
+                w.Add(G, RANCH, RANCH_TOWER, GoalFrame(w, goalArc, OUTPOST_TOWER_ALONG, 0f), yaw + 180f, OUTPOST_TOWER_SCALE, 0.3f, ROAD_MIN, background: true, ignoreCircles: true);
+                w.Add(G, RANCH, RanchBuildings[0], GoalFrame(w, goalArc, 96f, 32f), yaw - 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, RANCH, RanchBuildings[1], GoalFrame(w, goalArc, 100f, -34f), yaw + 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, RANCH, RanchBuildings[2], GoalFrame(w, goalArc, 82f, 22f), yaw + 180f, 1f, 0.1f, ROAD_MIN, ignoreCircles: true);
+                for (int sd = -1; sd <= 1; sd += 2) w.Add(G, FARM, FARM_LAMP, GoalFrame(w, goalArc, 84f, sd * 12f), yaw, 1.2f, 0.05f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, CAMPFIRE, "Campfire_01", GoalFrame(w, goalArc, 90f, -16f), 0f, 1.2f, 0.05f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, WTOWN, TOWN_CART, GoalFrame(w, goalArc, 88f, 16f), yaw + 30f, 1f, 0.05f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, WTOWN, TownCrates[0], GoalFrame(w, goalArc, 92f, -24f), yaw + 10f, 1f, 0.05f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, WTOWN, TOWN_BARRELS, GoalFrame(w, goalArc, 105f, 20f), yaw - 20f, 1f, 0.05f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, HAY, "HayBales_01", GoalFrame(w, goalArc, 86f, -9f), yaw, 1f, 0.05f, ROAD_MIN, ignoreCircles: true);
+            }
+            else
+            {
+                w.Add(G, WTOWN, TOWN_TALL_A, GoalFrame(w, goalArc, OUTPOST_DUNES_ALONG, 0f), yaw + 180f, 1f, 0.6f, ROAD_MIN, background: true, ignoreCircles: true);
+                w.Add(G, WTOWN, StreetBuildings[0], GoalFrame(w, goalArc, 88f, 28f), yaw - 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
+                w.Add(G, WTOWN, StreetBuildings[4], GoalFrame(w, goalArc, 92f, -30f), yaw + 90f, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
+                for (int i = 0; i < 3; i++)
+                    w.Add(G, TENT, null, GoalFrame(w, goalArc, 74f + i * 9f, (i % 2 == 0 ? 1f : -1f) * 20f), yaw + 60f * i, 1f, 0.1f, ROAD_MIN, ignoreCircles: true);
+                for (int i = 0; i < 2; i++)
+                    w.Add(G, CAMEL, null, GoalFrame(w, goalArc, 80f + i * 6f, -14f - i * 3f), yaw + 70f + 40f * i, 1f, 0.02f, ROAD_MIN, ignoreCircles: true);
+                for (int i = 0; i < 3; i++)
+                    w.Add(G, HAY, HayParts[i], GoalFrame(w, goalArc, 78f + i * 1.4f, 13f + i), yaw + 30f * i, 1f, 0.03f, ROAD_MIN, ignoreCircles: true);
+            }
+        }
+
+        /// <summary>出張所の目印（荒野 = 給水塔、砂漠 = 高い建物）の素材・ゴールの先の距離・拡大。</summary>
+        public static void GoalOutpostLandmark(int kind, out string asset, out string part, out float along, out float scale)
+        {
+            if (kind == HeightmapGen.KIND_DUNES) { asset = WTOWN; part = TOWN_TALL_A; along = OUTPOST_DUNES_ALONG; scale = 1f; }
+            else { asset = RANCH; part = RANCH_TOWER; along = OUTPOST_TOWER_ALONG; scale = OUTPOST_TOWER_SCALE; }
+        }
+
+        // ---- 道沿いの見どころ（art-r2-05）：道から VIGNETTE_LAT_MIN〜MAX m、VIGNETTE_STEP_MIN〜MAX m ごと ----
+        public const float VIGNETTE_LAT_MIN = 30f, VIGNETTE_LAT_MAX = 60f;
+        public const float VIGNETTE_STEP_MIN = 350f, VIGNETTE_STEP_MAX = 450f;
+
+        /// <summary>ステージごとの見どころのまとまりの名前（荒野 = 鉱夫の野営、砂漠 = 隊商、境目 = 水場）。</summary>
+        public static string VignetteGroup(int kind) => kind == HeightmapGen.KIND_CANYON ? "MinersCamp" : (kind == HeightmapGen.KIND_DUNES ? "Caravan" : "WaterStop");
+
+        static void Vignettes(Work w, StageDef def, float goalArc)
+        {
+            string G = VignetteGroup(def.kind);
+            int k = 0;
+            for (float a = 200f; a < goalArc - 150f; a += w.Rand(VIGNETTE_STEP_MIN, VIGNETTE_STEP_MAX), k++)
+            {
+                Vector3 c;
+                if (!FindBesideRange(w, a - 30f, a + 30f, VIGNETTE_LAT_MIN + 8f, VIGNETTE_LAT_MAX - 8f, 9f, out c)) continue;
+                Vector3 toRoad = WorldLayout.PointAtArc(w.course, a) - c;
+                float face = WorldLayout.YawDeg(new Vector3(toRoad.x, 0f, toRoad.z).normalized);
+                if (def.kind == HeightmapGen.KIND_CANYON) MinersCamp(w, G, c, face, k);
+                else if (def.kind == HeightmapGen.KIND_DUNES) Caravan(w, G, c, face, k);
+                else WaterStop(w, G, c, face, k);
+            }
+        }
+
+        static Vector3 Rel(Vector3 c, float face, float right, float fwd)
+        {
+            float a = face * Mathf.Deg2Rad;
+            Vector3 f = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), r = new Vector3(f.z, 0f, -f.x);
+            return new Vector3(c.x + f.x * fwd + r.x * right, 0f, c.z + f.z * fwd + r.z * right);
+        }
+
+        /// <summary>鉱夫の野営：テント 2 張り、焚き火（煙）、薪の山、荷車と樽からこぼれる宝石、街灯（暖色の灯り）。</summary>
+        static void MinersCamp(Work w, string G, Vector3 c, float face, int k)
+        {
+            w.Add(G, CAMPFIRE, "Campfire_01", c, 0f, 1f, 0.05f);
+            w.Add(G, TENT, null, Rel(c, face, -7f, -5f), face + 30f, 1f, 0.1f);
+            w.Add(G, TENT, null, Rel(c, face, 6f, -7f), face - 25f, 1f, 0.1f);
+            w.Add(G, LOGS, "WoodLogs_08", Rel(c, face, 3f, 2.5f), face + 90f, 1.4f, 0.05f);
+            Vector3 cart = Rel(c, face, -6f, 4f);
+            w.Add(G, WTOWN, k % 2 == 0 ? TOWN_CART : TOWN_BARRELS, cart, face + 40f, 1f, 0.05f);
+            for (int i = 0; i < 5; i++)
+                w.Add(G, GEMS, Gem(k + i / 3, 2 + i), new Vector3(cart.x + w.Rand(-1.8f, 1.8f), 0f, cart.z + w.Rand(1.6f, 2.8f)), w.Rand(0f, 360f), w.Rand(0.8f, 1.2f), 0.05f, ignoreCircles: true);
+            w.Add(G, FARM, FARM_LAMP, Rel(c, face, 2.5f, 6f), face, 1.1f, 0.05f);
+            w.Add(G, WTOWN, TownCrates[k % TownCrates.Length], Rel(c, face, 8f, 2f), face + 15f, 1f, 0.05f);
+            w.Add(G, WTOWN, TownPebbles[k % TownPebbles.Length], Rel(c, face, -9f, 1f), face, 1.3f, 0.1f);
+        }
+
+        /// <summary>隊商：ラクダ 2〜3 頭（Animator を外した置き物）、テント 2 張り、干し草、木箱と樽の山。</summary>
+        static void Caravan(Work w, string G, Vector3 c, float face, int k)
+        {
+            int camels = 2 + k % 2;
+            for (int i = 0; i < camels; i++)
+                w.Add(G, CAMEL, null, Rel(c, face, -5f + i * 3.2f, 3f + (i % 2) * 1.5f), face + 80f + i * 25f, 1f, 0.02f);
+            w.Add(G, TENT, null, Rel(c, face, -8f, -6f), face + 20f, 1f, 0.1f);
+            w.Add(G, TENT, null, Rel(c, face, 7f, -6f), face - 35f, 1f, 0.1f);
+            for (int i = 0; i < 3; i++) w.Add(G, HAY, HayParts[i], Rel(c, face, 4f + i * 1.3f, 1f + (i % 2)), face + i * 40f, 1f, 0.03f);
+            w.Add(G, WTOWN, TownCrates[(k + 1) % TownCrates.Length], Rel(c, face, 1f, -3f), face + 10f, 1f, 0.05f);
+            w.Add(G, WTOWN, TOWN_BARRELS, Rel(c, face, -2f, -3.5f), face - 30f, 1f, 0.05f);
+            w.Add(G, WTOWN, TownCacti[(k * 7) % TownCacti.Length], Rel(c, face, 11f, 2f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
+        }
+
+        /// <summary>水場：厩舎、牧場の小屋（RanchCompound_10）、柵、樽・木箱、干し草、町のサボテン。</summary>
+        static void WaterStop(Work w, string G, Vector3 c, float face, int k)
+        {
+            w.Add(G, STABLE, null, Rel(c, face, 0f, -6f), face + 180f, 1f, 0.1f);
+            w.Add(G, RANCH, RanchBuildings[2], Rel(c, face, 10f, -2f), face + 90f, 1f, 0.1f);
+            for (int i = 0; i < 4; i++) w.Add(G, FARM, FarmFences[i % FarmFences.Length], Rel(c, face, -10f + i * 2.8f, 4f), face + 90f, 1f, 0.05f);
+            w.Add(G, WTOWN, TOWN_BARRELS, Rel(c, face, -9f, -1f), face, 1f, 0.05f);
+            w.Add(G, WTOWN, TownCrates[(k + 2) % TownCrates.Length], Rel(c, face, 7f, 4f), face + 25f, 1f, 0.05f);
+            w.Add(G, HAY, "HayBales_01", Rel(c, face, -6f, 6f), face, 1f, 0.05f);
+            w.Add(G, HAY, HayParts[1 + k % 5], Rel(c, face, -4.8f, 6.5f), face + 40f, 1f, 0.03f);
+            w.Add(G, WTOWN, TownCacti[(k * 5 + 3) % TownCacti.Length], Rel(c, face, 13f, 5f), w.Rand(0f, 360f), 1f, 0.1f, trunk: true);
+            w.Add(G, FARM, FARM_LAMP, Rel(c, face, 3f, 5f), face, 1.1f, 0.05f);
+        }
+
+        // ---- 巨大な骨（art-r2-16）----
+        public const float GIANT_SKELETON_SCALE = 7f, GIANT_SKELETON_SINK = 0.35f;
+
+        /// <summary>
+        /// 砂漠の巨大な骨の場所：スタートの位置から進む向き ±30°・250〜400m で、コースから 80m 以上・端から 70m 以上の点のうち一番高い所（砂丘の上）。
+        /// </summary>
+        public static bool GiantSkeletonSpot(StageDef def, Vector3[] course, float[,] h, out Vector3 spot)
+        {
+            float s = StageDefinitions.START_ARC_M;
+            Vector3 p0 = WorldLayout.PointAtArc(course, s), t0 = WorldLayout.TangentAtArc(course, s);
+            float best = float.MinValue; spot = Vector3.zero;
+            for (float a = -30f; a <= 30.01f; a += 5f)
+                for (float d = 250f; d <= 400.01f; d += 25f)
+                {
+                    float yaw = (WorldLayout.YawDeg(t0) + a) * Mathf.Deg2Rad;
+                    var p = new Vector3(p0.x + Mathf.Sin(yaw) * d, 0f, p0.z + Mathf.Cos(yaw) * d);
+                    if (p.x < 70f || p.z < 70f || p.x > StageDefinitions.SIZE - 70f || p.z > StageDefinitions.SIZE - 70f) continue;
+                    if (WorldLayout.DistToPolylineXZ(p, course) < 80f) continue;
+                    float g = h == null ? 0f : WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z);
+                    if (g > best) { best = g; spot = p; }
+                }
+            return best > float.MinValue;
+        }
+
+        static void GiantSkeletons(Work w, StageDef def, float goalArc)
+        {
+            const string G = "GiantSkeleton";
+            float sk = SizeOf(SKELETON, null).h * GIANT_SKELETON_SCALE;
+            Vector3 p;
+            if (GiantSkeletonSpot(def, w.course, w.h, out p))
+                w.Add(G, SKELETON, null, p, w.Rand(0f, 360f), GIANT_SKELETON_SCALE, GIANT_SKELETON_SINK * sk, LANDMARK_MIN_ROAD_M - 10f, background: true, roll: 85f, ignoreCircles: true);
+            // 2 頭目：踏み切りへ向かう坂の手前の横、高い所
+            float jump = SetPieces.JumpArc(def, goalArc);
+            if (jump < 0f) return;
+            float bestG = float.MinValue; Vector3 bestP = Vector3.zero;
+            for (int i = 0; i < 12; i++)
+            {
+                Vector3 q = w.Side(jump - 160f + i * 10f, (i % 2 == 0 ? 1f : -1f) * (70f + (i % 4) * 10f));
+                if (!w.Allowed(q, 9f, LANDMARK_MIN_ROAD_M - 10f, true)) continue;
+                float g = w.Ground(q.x, q.z);
+                if (g > bestG) { bestG = g; bestP = q; }
+            }
+            if (bestG > float.MinValue)
+                w.Add(G, SKELETON, null, bestP, w.Rand(0f, 360f), GIANT_SKELETON_SCALE * 0.85f, GIANT_SKELETON_SINK * sk * 0.85f, LANDMARK_MIN_ROAD_M - 10f,
+                    background: true, roll: 85f, ignoreCircles: true);
+        }
+
+        // ---- 尾根のシルエット（art-r2-09）----
+        public const float RIM_SIL_STEP_MIN = 70f, RIM_SIL_STEP_MAX = 120f;
+        public const float RIM_SIL_INSET_M = 28f;    // 角を丸めた外周から内側へ（尾根の背）
+
+        /// <summary>角を丸めた正方形（HeightmapGen.RimDistance と同じ角の丸み）の縁から inset m 内側の周の長さ s の点。</summary>
+        public static Vector3 RimPathPoint(float s, float inset, float sizeM)
+        {
+            float R = Mathf.Min(HeightmapGen.RIM_CORNER_RADIUS_M, sizeM * 0.5f), rho = Mathf.Max(1f, R - inset);
+            float L = sizeM - 2f * R, A = rho * Mathf.PI * 0.5f, per = 4f * (L + A);
+            s = ((s % per) + per) % per;
+            // 下の辺 → 右下の角 → 右の辺 → 右上の角 → 上の辺 → 左上の角 → 左の辺 → 左下の角
+            Vector2[] cs = { new Vector2(sizeM - R, R), new Vector2(sizeM - R, sizeM - R), new Vector2(R, sizeM - R), new Vector2(R, R) };
+            for (int i = 0; i < 4; i++)
+            {
+                float a0 = -90f + i * 90f;   // 辺の外向きの角度（下の辺 = -90°）
+                if (s < L)
+                {
+                    Vector2 c0 = cs[(i + 3) % 4];
+                    float ang = a0 * Mathf.Deg2Rad;
+                    float nx = Mathf.Cos(ang), ny = Mathf.Sin(ang), tx = -ny, ty = nx;
+                    return new Vector3(c0.x + nx * rho + tx * s, 0f, c0.y + ny * rho + ty * s);
+                }
+                s -= L;
+                if (s < A)
+                {
+                    float ang = (a0 + s / A * 90f) * Mathf.Deg2Rad;
+                    return new Vector3(cs[i].x + Mathf.Cos(ang) * rho, 0f, cs[i].y + Mathf.Sin(ang) * rho);
+                }
+                s -= A;
+            }
+            return new Vector3(sizeM * 0.5f, 0f, inset);
+        }
+
+        public static float RimPathLength(float inset, float sizeM)
+        {
+            float R = Mathf.Min(HeightmapGen.RIM_CORNER_RADIUS_M, sizeM * 0.5f), rho = Mathf.Max(1f, R - inset);
+            return 4f * (sizeM - 2f * R + rho * Mathf.PI * 0.5f);
+        }
+
+        /// <summary>
+        /// 外周の尾根の背に 70〜120m ごとのシルエット（art-r2-09）：荒野 = メサ・メサ B ×1.5〜3、砂漠 = 骨の馬 ×5〜6（横倒し）と DesertRocks_01〜03 ×1.5〜2、
+        /// 境目 = メサ ×2〜3。高さの 25% を埋める。足元の縁はコースから 30m 以上（背景専用、当たり判定なし）。
+        /// </summary>
+        static void RimSilhouettes(Work w, StageDef def, float goalArc)
+        {
+            const string G = "RimSilhouette";
+            float per = RimPathLength(RIM_SIL_INSET_M, w.sizeM);
+            int k = 0;
+            for (float s = w.Rand(0f, 60f); s < per; s += w.Rand(RIM_SIL_STEP_MIN, RIM_SIL_STEP_MAX), k++)
+            {
+                Vector3 p = RimPathPoint(s, RIM_SIL_INSET_M, w.sizeM);
+                string asset, part = null; float sc, roll = 0f;
+                if (def.kind == HeightmapGen.KIND_CANYON) { asset = k % 2 == 0 ? MESA : MESAB; sc = w.Rand(1.5f, 3f); }
+                else if (def.kind == HeightmapGen.KIND_DUNES)
+                {
+                    if (k % 3 == 1) { asset = SKELETON; sc = w.Rand(5f, 6f); roll = 85f; }
+                    else { asset = DROCKS; part = RockBig[k % RockBig.Length]; sc = w.Rand(1.5f, 2f); }
+                }
+                else { asset = MESA; sc = w.Rand(2f, 3f); }
+                for (int tries = 0; tries < 3; tries++, sc *= 0.8f)
+                {
+                    Size sz = SizeOf(asset, part);
+                    float r = sz.r * sc, foot = asset == MESA || asset == MESAB ? r * MESA_GATE_FOOTPRINT : r * 0.8f;
+                    if (w.RoadDist(p) - foot < 30f) continue;
+                    bool free = true;
+                    foreach (var c in w.circles) if (WorldLayout.DistXZ(p, new Vector3(c.x, 0f, c.z)) < c.w + foot) { free = false; break; }
+                    if (!free) continue;
+                    if (w.Add(G, asset, part, p, w.Rand(0f, 360f), sc, 0.25f * sz.h * sc, 0f, background: true, roll: roll, ignoreCircles: false, rBounds: 0f, rOverlap: 0f))
+                    {
+                        var q = w.list[w.list.Count - 1];
+                        q.collider = false; q.shape = SHAPE_NONE;
+                        break;
+                    }
+                }
+            }
+        }
+
         /// <summary>半径 20m 未満の置かない円（ゲートの足元・黒板・合図）に p（半径 r）がかかるか。</summary>
         static bool NearSmallCircle(Work w, Vector3 p, float r)
         {
@@ -1247,8 +1922,6 @@ namespace HorseRace.EditorTools
         /// <summary>荒野・砂漠のゴール（course-r1-12）：ゴールの 40〜80m 先の横に幌馬車の野営地（焚き火の煙）、最後の直線の延長線上の遠くにメサ ×1.5。</summary>
         static void FinishCamp(Work w, StageDef def, float goalArc)
         {
-            Vector3 c;
-            if (FindBesideRange(w, goalArc + 40f, goalArc + 80f, 26f, 40f, 10f, out c)) WagonCamp(w, c, w.YawAt(goalArc), def.kind == HeightmapGen.KIND_DUNES);
             Vector3 lm;
             if (FinishLandmarkSpot(def, w.course, goalArc, out lm))
                 w.Add("FinishLandmark", MESA, null, lm, w.Rand(0f, 360f), FINISH_LANDMARK_SCALE, 0.2f * SizeOf(MESA, null).h * FINISH_LANDMARK_SCALE,
@@ -1297,16 +1970,17 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < corners.Count; i++)
             {
                 var c = corners[i];
-                string part = "Cliffs_0" + (1 + i % 5);
-                Size cs = SizeOf(CLIFFS, part);
+                // art-r2-08：道のすぐ外なので崖（Cliffs）ではなくメサ B（縦に伸ばす）。裾は斜面に埋まる
+                Size cs = SizeOf(MESAB, null);
+                float sy = 1.3f + 0.1f * (i % 4);
                 for (int tries = 0; tries < 6; tries++)
                 {
-                    float sc = 0.9f - tries * 0.06f;
+                    float sc = 0.7f - tries * 0.05f;
                     float r = cs.r * sc;
                     float extra = StageDefinitions.HalfWidthAt(def, c.apexArc) - HeightmapGen.RUNWAY_M;
-                    float lat = -c.side * (ROAD_CLEAR + 4f + extra + r * CLIFF_HALF_DEPTH + tries * 3f);
-                    float yaw = w.YawAt(c.apexArc) + (i % 2 == 0 ? 0f : 180f);
-                    if (w.Add("CornerSilhouette", CLIFFS, part, w.Side(c.apexArc, lat), yaw, sc, CLIFF_SINK * cs.h * sc, ROAD_MIN, rBounds: r * CLIFF_HALF_DEPTH))
+                    float lat = -c.side * (ROAD_CLEAR + 4f + extra + r * MESA_GATE_FOOTPRINT + tries * 3f);
+                    float yaw = w.YawAt(c.apexArc) + i * 67f;
+                    if (w.Add("CornerSilhouette", MESAB, null, w.Side(c.apexArc, lat), yaw, sc, CLIFF_SINK * cs.h * sc * sy, ROAD_MIN, rBounds: r * MESA_GATE_FOOTPRINT, scaleY: sy))
                         break;
                 }
             }
@@ -1351,8 +2025,8 @@ namespace HorseRace.EditorTools
                 for (float a = run.x; a <= run.y; a += GUIDE_STEP_M, k++)
                     for (int sd = -1; sd <= 1; sd += 2)
                     {
-                        string part = k % 3 == 2 ? "DesertProps_10" : "DesertProps_06";
-                        w.Add("CanyonRim", DPROPS, part, w.Side(a, sd * 34f), w.YawAt(a) + 90f, 1f, 0.05f);
+                        string part = FencePiece(k);
+                        w.Add("CanyonRim", part.StartsWith("FarmProps") ? FARM : DPROPS, part, w.Side(a, sd * 34f), w.YawAt(a) + (part == "FarmProps_04" ? 0f : 90f), 1f, 0.05f);
                     }
         }
 
@@ -1375,14 +2049,15 @@ namespace HorseRace.EditorTools
             if (saddle >= 0f)
                 for (int sd = -1; sd <= 1; sd += 2)
                 {
-                    string part = sd < 0 ? "Cliffs_01" : "Cliffs_03";
-                    const float SC = 0.8f;
-                    Size cs = SizeOf(CLIFFS, part);
+                    // art-r2-08：崖の板ではなく DesertRocks_01 / 03 を縦に 1.5 倍
+                    string part = sd < 0 ? "DesertRocks_01" : "DesertRocks_03";
+                    const float SC = 0.8f, SY = 1.5f;
+                    Size cs = SizeOf(DROCKS, part);
                     float r = cs.r * SC;
-                    float yaw = w.YawAt(saddle) + (sd < 0 ? 0f : 180f);
+                    float yaw = w.YawAt(saddle) + (sd < 0 ? 20f : 200f);
                     for (int tries = 0; tries < 4; tries++)
-                        if (w.Add("MesaSaddle", CLIFFS, part, w.Side(saddle, sd * (StageDefinitions.CHOKE_HALF_M + 3f + r * CLIFF_HALF_DEPTH + tries * 2f)), yaw, SC,
-                            CLIFF_SINK * cs.h * SC * 0.5f, ROAD_MIN, rBounds: r * CLIFF_HALF_DEPTH, ignoreCircles: true)) break;
+                        if (w.Add("MesaSaddle", DROCKS, part, w.Side(saddle, sd * (StageDefinitions.CHOKE_HALF_M + 3f + r * STRETCHED_ROCK_FOOTPRINT + tries * 2f)), yaw, SC,
+                            CLIFF_SINK * cs.h * SC * SY * 0.5f, ROAD_MIN, rBounds: r * STRETCHED_ROCK_FOOTPRINT, ignoreCircles: true, scaleY: SY)) break;
                 }
             int i = 0;
             for (float a = top0; a <= top1; a += 45f, i++)
@@ -1398,12 +2073,13 @@ namespace HorseRace.EditorTools
                 }
                 else
                 {
-                    string part = CliffParts[7 + i % 6];   // Cliffs_08〜13
-                    Size cs = SizeOf(CLIFFS, part);
-                    float sc = 0.7f;
-                    float r = cs.r * sc;
-                    w.Add("MesaPlateau", CLIFFS, part, w.Side(a, sd * (SetPieces.MESA_BAND_HALF + 3f + r * CLIFF_HALF_DEPTH)), w.YawAt(a) + (sd > 0 ? 180f : 0f), sc,
-                        0.45f * cs.h * sc, rBounds: r * CLIFF_HALF_DEPTH);
+                    // art-r2-08：台地の縁はメサ B・岩のセット（縦に伸ばす）。崖の板（Cliffs）は道の近くに置かない
+                    string asset, part; float sc, sy;
+                    NearRock(w, 10f, 18f, out asset, out part, out sc, out sy);
+                    float r = SizeOf(asset, part).r * sc;
+                    float foot = asset == MESAB ? r * MESA_GATE_FOOTPRINT : r * STRETCHED_ROCK_FOOTPRINT;
+                    w.Add("MesaPlateau", asset, part, w.Side(a, sd * (SetPieces.MESA_BAND_HALF + 3f + foot)), w.YawAt(a) + w.Rand(-25f, 25f), sc,
+                        0.45f * SizeOf(asset, part).h * sc * sy, rBounds: foot, scaleY: sy);
                 }
             }
             // 背景のメサ（鞍部から 300m、左右）
@@ -1639,6 +2315,40 @@ namespace HorseRace.EditorTools
                     });
                 }
             }
+            // 3 列目（art-r2-09）：ステージのすぐ外（ステージとロビーの間の広い外の地面）にも大岩 ×5〜6 を 220m ごと。
+            // 外接長方形の外の山並みだけでは、ステージの南・ステージの間を向いたときに地平線が空になる
+            var rects = WorldBounds.PlayableRects();
+            string[] near = { "DesertRocks_01", "DesertRocks_02", "DesertRocks_03" };
+            for (int si = 0; si < StageDefinitions.All.Length; si++)
+            {
+                Vector4 r = rects[si];
+                float rw = r.z - r.x, rd = r.w - r.y, per = 2f * (rw + rd);
+                for (float t0 = 110f; t0 < per; t0 += WorldBounds.BACKDROP_SPACING3_M, k++)
+                {
+                    float t = t0 + ((float)rng.NextDouble() * 2f - 1f) * 40f;
+                    string part = near[k % near.Length];
+                    float scale = 5f + (float)rng.NextDouble();
+                    Size sz = SizeOf(DROCKS, part);
+                    float rad = sz.r * scale, h = sz.h * scale;
+                    Vector3 p, nrm;
+                    if (t < rw) { p = new Vector3(r.x + t, 0f, r.y); nrm = new Vector3(0f, 0f, -1f); }
+                    else if (t < rw + rd) { p = new Vector3(r.z, 0f, r.y + (t - rw)); nrm = new Vector3(1f, 0f, 0f); }
+                    else if (t < 2f * rw + rd) { p = new Vector3(r.z - (t - rw - rd), 0f, r.w); nrm = new Vector3(0f, 0f, 1f); }
+                    else { p = new Vector3(r.x, 0f, r.w - (t - 2f * rw - rd)); nrm = new Vector3(-1f, 0f, 0f); }
+                    p = p + nrm * (rad + WorldBounds.BACKDROP_CLEAR3_M + (float)rng.NextDouble() * 40f);
+                    bool clear = true;
+                    foreach (var q in rects) if (WorldBounds.DistToRect(p, q) < rad + WorldBounds.BACKDROP_CLEAR3_M) clear = false;
+                    foreach (var q in list) if (WorldLayout.DistXZ(p, q.position) < 0.6f * (rad + q.radius)) clear = false;
+                    if (!clear) continue;
+                    list.Add(new Placement
+                    {
+                        group = "BackdropNear", asset = DROCKS, part = part,
+                        position = new Vector3(p.x, WorldBounds.FILLER_Y + WorldBounds.FillerBaseHeight(p.x, p.z) - WorldBounds.BACKDROP_SINK * h, p.z),
+                        yawDeg = (float)rng.NextDouble() * 360f, scale = scale, radius = rad, height = h,
+                        collider = false, shape = SHAPE_NONE, background = false,
+                    });
+                }
+            }
             return list;
         }
 
@@ -1681,6 +2391,8 @@ namespace HorseRace.EditorTools
         public const float BACKDROP_JITTER_M = 60f;
         public const float BACKDROP_SINK = 0.25f;          // 高さに対する埋める割合
         public const float BACKDROP_CLEAR_M = 80f;         // 山の足元と遊べる範囲の間はこれ以上空ける
+        public const float BACKDROP_SPACING3_M = 220f;     // 3 列目（ステージのすぐ外、art-r2-09）
+        public const float BACKDROP_CLEAR3_M = 60f;
         public const float FILLER_MARGIN_M = 1000f;        // 外の地面は遊べる範囲よりこれだけ広く（2 列目の山並みの外まで）
         public const float FILLER_Y = -3f;                 // ロビーの地面（最低 -2m）より下
 
@@ -1725,6 +2437,83 @@ namespace HorseRace.EditorTools
             float u = Mathf.Clamp01((dU - 120f) / 400f);
             float rise = u * u * (3f - 2f * u) * (20f + 40f * HeightmapGen.Noise01(x / 400f, z / 400f, 5, 32));
             return wave * t * t * (3f - 2f * t) + rise;
+        }
+
+        // ---- 外の地面の高さ（art-r2-01）：TerrainBuilder.BuildFiller と tools/preview が同じ式を使う ----
+        public const int FILLER_RES = 513;
+        public const float FILLER_DEPTH_M = 40f;       // FILLER_Y からこれだけ下まで（ステージ・ロビーの下に埋める高さ）
+        public const float FILLER_RANGE_M = 360f;
+        public const float FILLER_BLEND_M = 150f;      // 遊べる範囲の縁から、この距離で基本の高さへ戻る
+        public const float FILLER_UNDER_M = 3f;        // 遊べる範囲の縁の 1 マス以内：まわり 3×3 の一番低い地面からこれだけ下
+        public const float FILLER_SEAM_M = 0.8f;       // その外：縁の地面からこれだけ下（継ぎ目の段・すき間を見せない）
+
+        /// <summary>点と長方形の符号付きの x/z 距離（外 = +、中 = −（一番近い辺までの距離））。</summary>
+        public static float SignedDistToRect(Vector3 p, Vector4 r)
+        {
+            float d = DistToRect(p, r);
+            if (d > 0f) return d;
+            return -Mathf.Min(Mathf.Min(p.x - r.x, r.z - p.x), Mathf.Min(p.z - r.y, r.w - p.z));
+        }
+
+        /// <summary>
+        /// 外の地面（Terrain、セル cellX × cellZ m）の頂点 (wx, wz) のワールドの高さ（art-r2-01）。ground(i, x, z) = 長方形 i（rects）の地面のワールドの高さ。
+        ///   ・遊べる範囲の 1 マスより奥：FILLER_Y − FILLER_DEPTH_M（完全に埋める。頂点の間の補間でもステージの地面より上に出ない）。
+        ///   ・縁の 1 マス以内（中・外とも）：縁の点 q（長方形の 2m 内側）のまわり ±1 マス 3×3 の一番低い地面 − FILLER_UNDER_M。
+        ///     頂点 1 つで縁の高さを取ると、マスの中で地面が 3m 以上下がる所（峡谷の壁・砂丘の崩れ面・切り通し・溝）で外の地面が上に出る。
+        ///   ・その外：同じ 3×3 の一番低い地面 − FILLER_SEAM_M から、FILLER_BLEND_M かけて基本の高さ（FillerBaseHeight）へ。
+        /// </summary>
+        public static float FillerHeight(float wx, float wz, float cellX, float cellZ, Vector4[] rects, System.Func<int, float, float, float> ground)
+        {
+            float y = FILLER_Y + FillerBaseHeight(wx, wz);
+            int best = -1; float bd = float.MaxValue;
+            var wp = new Vector3(wx, 0f, wz);
+            for (int i = 0; i < rects.Length; i++)
+            {
+                float d = SignedDistToRect(wp, rects[i]);
+                if (d < bd) { bd = d; best = i; }
+            }
+            if (best < 0 || bd >= FILLER_BLEND_M || ground == null) return y;
+            float cell = Mathf.Max(cellX, cellZ);
+            if (bd < -cell) return FILLER_Y - FILLER_DEPTH_M;
+            Vector4 r = rects[best];
+            float qx = Mathf.Clamp(wx, r.x + 2f, r.z - 2f), qz = Mathf.Clamp(wz, r.y + 2f, r.w - 2f);
+            float low = float.MaxValue;
+            for (int k = -1; k <= 1; k++)
+                for (int m = -1; m <= 1; m++)
+                {
+                    float sx = Mathf.Clamp(qx + k * cellX, r.x + 0.5f, r.z - 0.5f), sz = Mathf.Clamp(qz + m * cellZ, r.y + 0.5f, r.w - 0.5f);
+                    low = Mathf.Min(low, ground(best, sx, sz));
+                }
+            float under = Mathf.Lerp(FILLER_UNDER_M, FILLER_SEAM_M, Mathf.Clamp01((bd - cell) / cell));
+            float target = low - under;
+            if (bd <= cell) return target;
+            float u = Mathf.Clamp01(bd / FILLER_BLEND_M);
+            return Mathf.Lerp(target, y, u * u * (3f - 2f * u));
+        }
+
+        /// <summary>外の地面の高さの格子（[z, x]、n × n、ワールドの高さ m）。FillerRect 全体。</summary>
+        public static float[,] FillerGrid(int n, Vector4[] rects, System.Func<int, float, float, float> ground)
+        {
+            Vector4 f = FillerRect();
+            float cellX = (f.z - f.x) / (n - 1), cellZ = (f.w - f.y) / (n - 1);
+            var h = new float[n, n];
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                    h[z, x] = FillerHeight(f.x + x * cellX, f.y + z * cellZ, cellX, cellZ, rects, ground);
+            return h;
+        }
+
+        /// <summary>FillerGrid の (wx, wz) での双線形補間（Terrain の描画と同じ）。</summary>
+        public static float SampleFiller(float[,] grid, float wx, float wz)
+        {
+            Vector4 f = FillerRect();
+            int n = grid.GetLength(0);
+            float u = (wx - f.x) / (f.z - f.x) * (n - 1), v = (wz - f.y) / (f.w - f.y) * (n - 1);
+            int x0 = Mathf.Clamp((int)Mathf.Floor(u), 0, n - 2), z0 = Mathf.Clamp((int)Mathf.Floor(v), 0, n - 2);
+            float fx = Mathf.Clamp01(u - x0), fz = Mathf.Clamp01(v - z0);
+            float a = grid[z0, x0] + (grid[z0, x0 + 1] - grid[z0, x0]) * fx;
+            float b = grid[z0 + 1, x0] + (grid[z0 + 1, x0 + 1] - grid[z0 + 1, x0]) * fx;
+            return a + (b - a) * fz;
         }
 
         /// <summary>点と長方形の x/z 距離（中なら 0）。</summary>
@@ -1785,6 +2574,58 @@ namespace HorseRace.EditorTools
             for (int k = 0; k < def.halfWidthM.Length && 2 * k + 1 < def.widthArc.Length; k++)
                 if (def.halfWidthM[k] < HeightmapGen.RUNWAY_M && def.widthArc[2 * k] - CHOKE_WARN_M > 40f) r.Add(def.widthArc[2 * k] - CHOKE_WARN_M);
             return r;
+        }
+
+        // ---- ゴールゲート（art-r2-07）：CourseBuilder.GoalGate と tools/preview が同じ数字で置く ----
+        public const float GATE_POST_H = 7f, GATE_POST_THICK = 1.4f;
+        public const float GATE_BEAM_Y = 6.5f, GATE_BEAM_GAP = 0.9f, GATE_BEAM_THICK = 0.8f;
+        public const float GATE_STAKE_SCALE = 1.9f, GATE_LAMP_SCALE = 1.25f;
+        public const float WOODLOG_01_LEN = 1.5f;   // WoodLogs_01（丸太 1 本）の長さ（ローカル X）
+        /// <summary>幕（手配書の紙）の中心の高さ：下の横木から吊るす。</summary>
+        public const float GATE_BANNER_Y = GATE_BEAM_Y - GATE_BEAM_GAP - 0.85f;
+
+        /// <summary>ゴールゲートの模型 1 つ：素材（Models からの相対）・部品・位置・回転（オイラー °）・拡大。light = 街灯の灯りを付ける。</summary>
+        public struct GatePart
+        {
+            public string asset, part;
+            public Vector3 position, euler, scale;
+            public bool light;
+        }
+
+        /// <summary>
+        /// ゴールゲートの模型（art-r2-07）：柱 = 立てた丸太 WoodLogs_01（高さ 7m・太さ 1.4m）、外側に杭 DesertProps_03 ×1.9、
+        /// 横木 = 丸太 1 本（WoodLogs_01）を横に寝かせて 2 段（0.9m 間隔、太さ 0.8）、柱の外に街灯 ×1.25、足元に干し草と樽。
+        /// 前の横木（WoodLogs_03 の丸太の束を 27m に引き伸ばした物）は宙に浮いた平らな岩の板に見えた。
+        /// c = ゴールの中心の地面、t = 進む向き、ground(p) = p の真下の地面の点。
+        /// </summary>
+        public static List<GatePart> GoalGateParts(Vector3 c, Vector3 t, System.Func<Vector3, Vector3> ground)
+        {
+            t = new Vector3(t.x, 0f, t.z).normalized;
+            Vector3 r = WorldLayout.RightOf(t);
+            float yaw = WorldLayout.YawDeg(t);
+            var l = new List<GatePart>();
+            const string LOGS = "Packs/WoodLogs/WoodLogs.fbx", DP = "Packs/DesertProps/DesertProps.fbx", FARM = "Packs/FarmProps/FarmProps.fbx", HAY = "Packs/HayBales/HayBales.fbx";
+            float G = CourseGeometry.GATE_HALF;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 post = ground(c + r * (s * G));
+                l.Add(new GatePart { asset = LOGS, part = "WoodLogs_01", position = post + Vector3.up * (GATE_POST_H * 0.5f - 0.3f), euler = new Vector3(0f, yaw, 90f),
+                    scale = new Vector3(GATE_POST_H / WOODLOG_01_LEN, GATE_POST_THICK, GATE_POST_THICK) });
+                l.Add(new GatePart { asset = DP, part = "DesertProps_03", position = ground(c + r * (s * (G + 0.95f))) - Vector3.up * 0.2f, euler = new Vector3(0f, yaw, 0f),
+                    scale = Vector3.one * GATE_STAKE_SCALE });
+                l.Add(new GatePart { asset = FARM, part = "FarmProps_02", position = ground(c + r * (s * (G + 1.4f + 0.6f)) - t * 0.6f), euler = new Vector3(0f, yaw + (s > 0 ? 90f : -90f), 0f),
+                    scale = Vector3.one * GATE_LAMP_SCALE, light = true });
+                Vector3 foot = c + r * (s * (G + 1.2f)) + t * 1.6f;
+                l.Add(new GatePart { asset = HAY, part = "HayBales_01", position = ground(foot), euler = new Vector3(0f, yaw + s * 20f, 0f), scale = Vector3.one });
+                l.Add(new GatePart { asset = HAY, part = "HayBales_01", position = ground(foot + r * (s * 1.6f)), euler = new Vector3(0f, yaw - s * 30f, 0f), scale = Vector3.one * 0.9f });
+                l.Add(new GatePart { asset = FARM, part = "FarmProps_15", position = ground(foot - t * 3f), euler = Vector3.zero, scale = Vector3.one * 1.2f });
+                l.Add(new GatePart { asset = FARM, part = "FarmProps_22", position = ground(foot - t * 3.9f + r * (s * 0.8f)), euler = new Vector3(0f, 40f, 0f), scale = Vector3.one * 1.2f });
+            }
+            float span = G * 2f + GATE_POST_THICK;
+            for (int k = 0; k < 2; k++)
+                l.Add(new GatePart { asset = LOGS, part = "WoodLogs_01", position = c + Vector3.up * (GATE_BEAM_Y - k * GATE_BEAM_GAP), euler = new Vector3(0f, yaw, 0f),
+                    scale = new Vector3(span / WOODLOG_01_LEN, GATE_BEAM_THICK, GATE_BEAM_THICK) });
+            return l;
         }
 
         /// <summary>合図の飾りの位置（Terrain ローカル、y = 0）：全力の合図の街灯 2 本と札、絞りの手前の黒板。</summary>

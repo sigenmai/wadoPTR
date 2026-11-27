@@ -106,7 +106,25 @@ namespace HorseRace.Tests
                 Assert.IsFalse(seen);
                 Assert.AreEqual("vista", what, "方位 " + g.x);
                 Assert.Less(LobbyLayout.HorizonElevationDeg(f, eye, g.x), 3f, "切れ目の地平線");
+                // art-r2-15：切れ目の真ん中 ±8° に高さ 20m を超えるシルエット（メサ・給水塔）
+                bool hero = false;
+                foreach (var p in LobbyLayout.VistaHeroes(5))
+                {
+                    if (p.height <= 20f) continue;
+                    float az = Mathf.Atan2(p.position.x - LobbyLayout.SPAWN.x, p.position.z - LobbyLayout.SPAWN.z) * Mathf.Rad2Deg;
+                    if (Mathf.Abs(Mathf.DeltaAngle(az, g.x)) <= 8f) hero = true;
+                }
+                Assert.IsTrue(hero, "切れ目の目印 " + g.x);
             }
+            // 切れ目の扇の小物は柵の外 40〜200m、遊べる地面（ロビーの Terrain）の外か縁
+            int scatter = 0;
+            foreach (var p in LobbyLayout.VistaHeroes(5))
+            {
+                if (p.group != "VistaScatter") continue;
+                scatter++;
+                Assert.Greater(LobbyLayout.DistOutside(f, p.position), LobbyLayout.VISTA_SCATTER_FROM * 0.5f);   // 斜めの方位では柵からの垂直の距離は短い
+            }
+            Assert.GreaterOrEqual(scatter, 18);
         }
 
         /// <summary>柵の外の地面はゆるい（スポーンから見た地平線は切れ目以外で 10° 以下：箱の底にいる感じにしない）。北（町の奥）は高い尾根のまま。</summary>

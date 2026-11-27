@@ -354,3 +354,43 @@ namespace UnityEngine
     [AttributeUsage(AttributeTargets.Field)]
     public partial class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }
 }
+
+namespace UnityEngine
+{
+    public enum FogMode { Linear = 1, Exponential = 2, ExponentialSquared = 3 }
+
+    public enum LightType { Spot = 0, Directional = 1, Point = 2 }
+    public enum LightShadows { None = 0, Hard = 1, Soft = 2 }
+
+    public sealed class Light : Behaviour
+    {
+        public LightType type { get; set; }
+        public Color color { get; set; }
+        public float intensity { get; set; }
+        public float range { get; set; }
+        public LightShadows shadows { get; set; }
+    }
+
+    public sealed class RenderSettings : Object
+    {
+        public static Light sun { get; set; }
+        public static Rendering.AmbientMode ambientMode { get; set; }
+        public static Color ambientLight { get; set; }
+        public static Color ambientSkyColor { get; set; }
+        public static Color ambientEquatorColor { get; set; }
+        public static Color ambientGroundColor { get; set; }
+        public static bool fog { get; set; }
+        public static FogMode fogMode { get; set; }
+        public static Color fogColor { get; set; }
+        public static float fogStartDistance { get; set; }
+        public static float fogEndDistance { get; set; }
+        public static float fogDensity { get; set; }
+        public static Material skybox { get; set; }
+    }
+
+}
+
+namespace UnityEngine.Rendering
+{
+    public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3, Custom = 4 }
+}

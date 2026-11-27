@@ -111,7 +111,7 @@ namespace HorseRace.EditorTools
 
         /// <summary>
         /// 岩の橋（course-r1-07）：地形の背（中央 ±7m）が溝を渡る。溝の縁（背の両脇、横 9〜36m）は Collider 付きの岩（DesertRocks_04〜09、Block）で守り、
-        /// 背の両脇の溝の中に崖（Cliffs_10〜13 ×0.35〜0.5）を溝へ向けて置く。溝の両端の外（38〜54m）は平らな遠回り（約 40m 長い安全な道）。
+        /// 背の両脇の溝の中に大岩（DesertRocks_01〜03 ×0.32〜0.44、縦 1.5 倍）を溝へ向けて置く。溝の両端の外（38〜54m）は平らな遠回り（約 40m 長い安全な道）。
         /// 溝の底は落とし穴（ResetVolume）。橋の両端に街灯と焚き火の煙、溝の底に赤い灯り。
         /// </summary>
         static void Bridge(StageBuild sb, Transform root)
@@ -147,10 +147,12 @@ namespace HorseRace.EditorTools
                 for (int e = -1; e <= 1; e += 2)
                 {
                     int k = (s + 1) + (e + 1) / 2;
-                    string part = "Cliffs_1" + k;   // Cliffs_10〜13
-                    float sc = 0.35f + 0.05f * k;
+                    // art-r2-08：崖の板（Cliffs）は近くで平らな箱に見えるので、形のある大岩（DesertRocks_01〜03）を縦に伸ばす
+                    string part = "DesertRocks_0" + (1 + k % 3);
+                    float sc = 0.32f + 0.04f * k;
                     Vector3 w = sb.GroundWorld(center + r * (s * (SetPieces.SPINE_HALF + 3f)) + t * (e * 3.5f));
-                    var c = GenUtil.InstantiatePart(GenUtil.Pack("Cliffs"), part, spine, w - Vector3.up * 1f, yaw + (s > 0 ? 0f : 180f), sc, new Vector3(6f, 8f, 6f), Rock);
+                    var c = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, spine, w - Vector3.up * 1f, yaw + (s > 0 ? 0f : 180f) + k * 23f, sc, new Vector3(6f, 8f, 6f), Rock);
+                    c.transform.localScale = new Vector3(sc, sc * 1.5f, sc);
                     DressingBuilder.SetStatic(c);
                     GenUtil.Tag(c, "S" + st + "/SetPieceDecor/spine#" + (decorIndex++));
                 }
@@ -280,8 +282,8 @@ namespace HorseRace.EditorTools
                 for (int s = -1; s <= 1; s += 2)
                 {
                     Vector3 w = new Vector3(o0.x + q.x, o0.y + low, o0.z + q.z) + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 2.5f));
-                    var face = GenUtil.InstantiatePart(GenUtil.Pack("Cliffs"), "Cliffs_13", g, w - Vector3.up * 1f, yaw + s * 90f, 0.35f,
-                        new Vector3(6f, 6f, 6f), Rock);
+                    var face = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_05", g, w - Vector3.up * 1f, yaw + s * 90f, 1.2f,
+                        new Vector3(6f, 6f, 6f), Rock);   // art-r2-08：崖の板の代わりに形のある岩
                     DressingBuilder.SetStatic(face);
                     GenUtil.Tag(face, "S" + (sb.def.index + 1) + "/SetPieceDecor/face#" + (decorIndex++));
                 }

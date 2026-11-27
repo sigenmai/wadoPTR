@@ -6,6 +6,7 @@ namespace UnityEngine
         public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
         public static Vector3 zero => new Vector3(0, 0, 0);
         public static Vector3 up => new Vector3(0, 1, 0);
+        public static Vector3 one => new Vector3(1, 1, 1);
         public float magnitude => Mathf.Sqrt(x * x + y * y + z * z);
         public Vector3 normalized { get { float m = magnitude; return m > 1e-5f ? this / m : zero; } }
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);

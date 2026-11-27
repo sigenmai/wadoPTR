@@ -25,7 +25,7 @@ namespace HorseRace.Tests
             for (int k = 0; k < n; k++)
                 foreach (var (z, x) in new[] { (0, k), (n - 1, k), (k, 0), (k, n - 1) })
                 {
-                    float want = Mathf.Min(1f, raw[z, x] + HeightmapGen.RIM_MIN_M / 200f);
+                    float want = Mathf.Min(1f, raw[z, x] + HeightmapGen.RIM_MIN_M * (1f - HeightmapGen.RIM_HEIGHT_VAR) / 200f);
                     Assert.GreaterOrEqual(h[z, x], want - 1e-4f, $"edge ({x},{z})");
                 }
         }

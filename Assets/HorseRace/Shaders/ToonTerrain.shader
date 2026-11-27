@@ -48,6 +48,8 @@ Shader "HorseRace/ToonTerrain"
             sampler2D _Splat0, _Splat1, _Splat2, _Splat3;
             float4 _Splat0_ST, _Splat1_ST, _Splat2_ST, _Splat3_ST;
             fixed4 _ShadowColor;
+            // art-r2-10：ステージごとの影色（StageAtmosphere が VRCShader.SetGlobalColor で入れる。a < 0.5 = 未設定 → マテリアルの _ShadowColor）
+            float4 _Udon_ShadowColor;
             float _ShadowLightFloor, _ShadeThreshold, _ShadeSoftness, _StrataScale, _StrataTile;
 
             struct v2f
@@ -104,7 +106,8 @@ Shader "HorseRace/ToonTerrain"
 
                 float3 lightCol = _LightColor0.rgb;
                 float3 ambient = ShadeSH9(float4(n, 1));
-                float3 shadowed = albedo * _ShadowColor.rgb * (ambient + lightCol * _ShadowLightFloor);
+                float3 shadowTint = _Udon_ShadowColor.a > 0.5 ? _Udon_ShadowColor.rgb : _ShadowColor.rgb;
+                float3 shadowed = albedo * shadowTint * (ambient + lightCol * _ShadowLightFloor);
                 float3 litCol = albedo * (ambient * 0.5 + lightCol);
                 float3 col = lerp(shadowed, litCol, shade);
                 UNITY_APPLY_FOG(i.fogCoord, col);

@@ -39,12 +39,15 @@ namespace HorseRace.EditorTools
 
         // ---- 町の中の配置（ロビー中心からの相対 m、町の南端 z = 25・通りの高さ y = 0）。Blender で測った町の空き地（建物・岩・サボテン・起伏の無い所）----
         // 広場＝町の南の入口（x -29〜-7、z 25〜48 の空き地）
-        public static readonly Vector3 SPAWN = new Vector3(-11.5f, 0f, 30f);            // 北北東（町の大通り）を向く
-        /// <summary>スポーンの向き（北から東へ °）：町の大通り（x ≈ -5〜6）が正面の真ん中に来る。</summary>
-        public const float SPAWN_YAW = 15f;
+        // art-r2-12：スポーンは大通りの中心線（x ≈ 0.4）の 3m 西、大通りの軸（北）をまっすぐ向く。正面 18〜25m にスタート台と次のレースの時計
+        public static readonly Vector3 SPAWN = new Vector3(-2.5f, 0f, 30f);
+        /// <summary>スポーンの向き（北から東へ °）：大通りの軸（北 = 0°）との差は ±10° 以内。</summary>
+        public const float SPAWN_YAW = 2f;
+        /// <summary>サルーン（大通りの西側の 2 階建て、WesternTown_047）。スポーンから正面 ±30° に見える。</summary>
+        public const string SALOON_PART = "WesternTown_047_Building";
         public static readonly Vector3 LEDGER_DESK = new Vector3(-13.6f, 0f, 40.5f);    // 受付カウンター（南＝スポーンを向く。大通りへの視線の左）
         public static readonly Vector3 WANTED_WALL = new Vector3(-26f, 0f, 36.5f);      // 手配書の壁（掲示板 ×1.2、南を向く。視線の外の西）
-        public static readonly Vector3 START_BELL = new Vector3(-20f, 0f, 29.5f);       // スタート台（3m 四方）と鐘
+        public static readonly Vector3 START_BELL = new Vector3(-1.8f, 0f, 51f);        // スタート台（3m 四方）と号砲・次のレースの時計（スポーンの正面 21m、大通りの上）
         public static readonly Vector3 HUD_LEVER = new Vector3(-8f, 0f, 29f);           // 補助表示のレバー
         // 西の空き地（西の建物の列 x ≤ -14.6 と町の西の端 x -36 の間）
         public static readonly Vector3 PARKING_FIRST = new Vector3(-33.5f, 0f, 37f);   // 乗り物の待機場所 ×8（北へ PARKING_STEP ずつ、東を向く）
@@ -460,6 +463,88 @@ namespace HorseRace.EditorTools
         /// 町の裏（東の建物の列の裏と線路の間の狭い帯、x = BACKLOT_X）に 6m ごとに置く物の場所（ロビー中心からの相対）。練習場（z ≥ 86）の手前まで。
         /// 線路（x ≈ 19.2〜21.9）と、線路の東の通り道（x ≥ 23.4 の建物・小物の箱の手前）の間に収まる小さな物だけ。
         /// </summary>
+        // ---- 見晴らしの切れ目の目印（art-r2-15）----
+        public const float VISTA_HERO_DIST_M = 320f;     // 切れ目の真ん中の方位、スポーンから 250〜400m
+        public const float VISTA_SCATTER_FROM = 40f, VISTA_SCATTER_TO = 200f, VISTA_SCATTER_STEP = 15f;
+
+        /// <summary>
+        /// 見晴らしの切れ目ごとに、真ん中の方位の VISTA_HERO_DIST_M m にメサ ×2.5 を 2 つと給水塔（RanchCompound_11、煙の柱）、
+        /// 切れ目の扇（柵の外 40〜200m）に 15m ごとに小石・砂漠の小岩・サボテン。位置はロビー中心からの相対（y = 0、置くときに外の地面の高さに合わせる）。
+        /// </summary>
+        public static List<Placement> VistaHeroes(int seed)
+        {
+            var rng = new System.Random(seed);
+            var list = new List<Placement>();
+            void Add(string group, string asset, string part, Vector3 p, float scale, float yaw)
+            {
+                var sz = DressingPlan.SizeOf(asset, part);
+                list.Add(new Placement
+                {
+                    group = group, asset = asset, part = part, position = new Vector3(p.x, -0.25f * sz.h * scale, p.z), yawDeg = yaw, scale = scale,
+                    radius = sz.r * scale, height = sz.h * scale, collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
+                });
+            }
+            string[] small = { "DesertRocks_10", "DesertRocks_11", "DesertRocks_12", "DesertRocks_13", "DesertRocks_14", "DesertRocks_15" };
+            foreach (var g in VistaGaps)
+            {
+                float a = g.x * Mathf.Deg2Rad;
+                Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), right = new Vector3(dir.z, 0f, -dir.x);
+                Vector3 hero = SPAWN + dir * VISTA_HERO_DIST_M;
+                Add("VistaHero", DressingPlan.MESA, null, hero - right * 45f + dir * 30f, 2.5f, (float)rng.NextDouble() * 360f);
+                Add("VistaHero", DressingPlan.MESA, null, hero + right * 50f + dir * 60f, 2.5f, (float)rng.NextDouble() * 360f);
+                Add("VistaHero", DressingPlan.RANCH, DressingPlan.RANCH_TOWER, hero, 1.2f, g.x + 180f);
+                int k = 0;
+                for (float d = VISTA_SCATTER_FROM; d <= VISTA_SCATTER_TO; d += VISTA_SCATTER_STEP, k++)
+                {
+                    float off = ((float)rng.NextDouble() * 2f - 1f) * g.y * 0.8f * Mathf.Deg2Rad;
+                    float aa = a + off;
+                    // 柵の外 d m（スポーンから柵までの距離 + d）
+                    float toFence = DistToFenceAlong(FENCE_RECT, SPAWN, new Vector3(Mathf.Sin(aa), 0f, Mathf.Cos(aa)));
+                    Vector3 p = SPAWN + new Vector3(Mathf.Sin(aa), 0f, Mathf.Cos(aa)) * (toFence + d);
+                    int kind = k % 3;
+                    if (kind == 0) Add("VistaScatter", DressingPlan.RCOLL, "RockCollection_" + (8 * (1 + rng.Next(23))), p, 2.5f, (float)rng.NextDouble() * 360f);
+                    else if (kind == 1) Add("VistaScatter", DressingPlan.DROCKS, small[rng.Next(small.Length)], p, 1.4f, (float)rng.NextDouble() * 360f);
+                    else Add("VistaScatter", DressingPlan.CACTI, "Cacti_0" + (1 + rng.Next(9)), p, 1f, (float)rng.NextDouble() * 360f);
+                }
+            }
+            return list;
+        }
+
+        /// <summary>柵の中の点 from から向き dir に進んで柵（長方形）を出るまでの距離。</summary>
+        static float DistToFenceAlong(Vector4 rect, Vector3 from, Vector3 dir)
+        {
+            float t = float.MaxValue;
+            if (dir.x > 1e-5f) t = Mathf.Min(t, (rect.z - from.x) / dir.x);
+            if (dir.x < -1e-5f) t = Mathf.Min(t, (rect.x - from.x) / dir.x);
+            if (dir.z > 1e-5f) t = Mathf.Min(t, (rect.w - from.z) / dir.z);
+            if (dir.z < -1e-5f) t = Mathf.Min(t, (rect.y - from.z) / dir.z);
+            return t;
+        }
+
+        // ---- 町の地面の板の縁（art-r2-11）----
+        public const float PLATE_LIP_M = 2f, PLATE_BLEND_M = 8f, PLATE_TOP_OFFSET_M = 0.02f;
+
+        /// <summary>
+        /// 町の模型の地面の板（WesternTown_001_Ground）の外側 dOut m の地形の高さ：板の外 PLATE_LIP_M までは板の上面 + 0.02m、
+        /// その先 PLATE_BLEND_M かけて元の高さ level へ（板の縁・暗い側面を見せない）。板の上（dOut ≤ 0）と遠くは level のまま。
+        /// </summary>
+        public static float PlateBlend(float dOut, float level, float plateTop)
+        {
+            if (dOut <= 0f) return level;
+            float top = plateTop + PLATE_TOP_OFFSET_M;
+            if (dOut <= PLATE_LIP_M) return Mathf.Max(level, top);
+            float u = Mathf.Clamp01((dOut - PLATE_LIP_M) / PLATE_BLEND_M);
+            float s = u * u * (3f - 2f * u);
+            return Mathf.Max(level, Mathf.Lerp(top, level, s));
+        }
+
+        /// <summary>板のまわりの砂の塗りの重み（板の外 PLATE_LIP_M + PLATE_BLEND_M まで 1 → 0）。</summary>
+        public static float PlateSand(float dOut)
+        {
+            if (dOut <= 0f) return 0f;
+            return 1f - Mathf.Clamp01((dOut - PLATE_LIP_M) / PLATE_BLEND_M);
+        }
+
         public const float BACKLOT_X = 22.6f;
         public static List<Vector3> BacklotSpots()
         {

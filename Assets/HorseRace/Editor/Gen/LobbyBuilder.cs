@@ -313,6 +313,9 @@ namespace HorseRace.EditorTools
             float cellX = sizeX / (res - 1), cellZ = sizeZ / (res - 1);
             Vector3 origin = new Vector3(CENTER.x + GROUND_RECT.x, CENTER.y - GROUND_LEVEL, CENTER.z + GROUND_RECT.y);
             Bounds tb = GenUtil.RendererBounds(town);
+            // 町の模型の地面の板（art-r2-11）：板の外 2m は板の上面の高さ、その先 8m で元の地面へ（板の縁・側面を見せない）、砂で塗る
+            var plateT = GenUtil.FindContains(town.transform, "WesternTown_001_Ground");
+            plateBounds = plateT != null ? GenUtil.RendererBounds(plateT.gameObject) : tb;
             var h = new float[res, res];
             for (int z = 0; z < res; z++)
                 for (int x = 0; x < res; x++)
@@ -334,6 +337,7 @@ namespace HorseRace.EditorTools
                     float lx = x * cellX, lz = z * cellZ;
                     float noise = Mathf.Clamp01(0.8f * HeightmapGen.Noise01(lx / 140f, lz / 140f, 99, 21) + 0.2f * HeightmapGen.Noise01(lx / 35f, lz / 35f, 99, 22));
                     level += LobbyLayout.GroundHeight(fenceRect, rel, noise);
+                    level = LobbyLayout.PlateBlend(PlateOut(wx, wz), level, GROUND_LEVEL);
                     // 練習場の小さな丘（上面は通り +0.45m、半径 5m でなめらかに）：当たり判定は見えない台（Bump）
                     float db = WorldLayout.DistXZ(rel, LobbyLayout.PRACTICE_BUMP);
                     if (db < 6f) level = Mathf.Max(level, GROUND_LEVEL + 0.45f - 1.45f * Mathf.Clamp01((db - 1.5f) / 4.5f));
@@ -365,6 +369,15 @@ namespace HorseRace.EditorTools
         }
 
         static Terrain ctxLobbyTerrain;
+        static Bounds plateBounds;
+
+        /// <summary>町の地面の板の外形からの外向きの距離（m、中は 0）。</summary>
+        static float PlateOut(float wx, float wz)
+        {
+            float dx = Mathf.Max(0f, Mathf.Max(plateBounds.min.x - wx, wx - plateBounds.max.x));
+            float dz = Mathf.Max(0f, Mathf.Max(plateBounds.min.z - wz, wz - plateBounds.max.z));
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
 
         /// <summary>
         /// ロビーの地面の塗り（art-r1-05）：柵の中は土、柵の外の土手は砂（ゆるい所）と岩（急な所、18〜28°）、その間は土。
@@ -385,6 +398,7 @@ namespace HorseRace.EditorTools
                     float outside = Mathf.Clamp01(LobbyLayout.DistOutside(fenceRect, rel) / 3f);
                     float rock = Mathf.Clamp01((slope - 18f) / 10f) * outside;
                     float sand = (1f - Mathf.Clamp01((slope - 6f) / 10f)) * outside * (1f - rock);
+                    sand = Mathf.Max(sand, LobbyLayout.PlateSand(PlateOut(origin.x + hx * cellX, origin.z + hz * cellZ)) * (1f - rock));   // 板の縁の砂（art-r2-11）
                     a[z, x, TerrainBuilder.LAYER_ROCK] = rock;
                     a[z, x, TerrainBuilder.LAYER_SAND] = sand;
                     a[z, x, TerrainBuilder.LAYER_STRATA] = 0f;

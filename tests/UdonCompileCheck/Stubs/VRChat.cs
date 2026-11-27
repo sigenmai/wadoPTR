@@ -149,3 +149,14 @@ namespace VRC.SDK3.Persistence
         public static bool HasKey(VRC.SDKBase.VRCPlayerApi player, string key) => false;
     }
 }
+
+namespace VRC.SDKBase
+{
+    /// <summary>VRChat の VRCShader（グローバルのシェーダー変数。名前は _Udon で始まる必要がある）。</summary>
+    public static partial class VRCShader
+    {
+        public static int PropertyToID(string name) => 0;
+        public static void SetGlobalColor(int id, Color value) { }
+        public static void SetGlobalFloat(int id, float value) { }
+    }
+}

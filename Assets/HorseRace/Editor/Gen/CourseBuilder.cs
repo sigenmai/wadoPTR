@@ -263,30 +263,20 @@ namespace HorseRace.EditorTools
             Vector3 right = gate.right, fwd = gate.forward;
             float yaw = gate.eulerAngles.y;
             var deco = GenUtil.Child(gate, "Dressing", Vector3.zero).transform;
-            for (int s = -1; s <= 1; s += 2)
+            // 柱・横木・杭・街灯・干し草・樽（art-r2-07）：置き方は CourseMarks.GoalGateParts（tools/preview も同じ）
+            foreach (var gp0 in CourseMarks.GoalGateParts(c, fwd, p => sb.GroundWorld(p)))
             {
-                // 柱：丸太（WoodLogs_01）を立てて 6m
-                Vector3 post = sb.GroundWorld(c + right * (s * GATE_HALF));
-                SetPieceBuilder.UprightLog(deco, "WoodLogs_01", post - Vector3.up * 0.3f, yaw, 6.6f, 2.2f);
-                // 柱の街灯 2 本（柱の外、暖色の灯り）
-                Vector3 lamp = sb.GroundWorld(c + right * (s * (GATE_HALF + 1.4f)) - fwd * 0.6f);
-                SetPieceBuilder.Lamp(deco, lamp, yaw + (s > 0 ? 90f : -90f), SetPieceBuilder.LampWarm, 10f, 1.25f);
-                Vector3 foot = sb.GroundWorld(c + right * (s * (GATE_HALF + 1.2f)) + fwd * 1.6f);
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", deco, foot, yaw + s * 20f, 1f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", deco, sb.GroundWorld(foot + right * (s * 1.6f)), yaw - s * 30f, 0.9f,
-                    new Vector3(1.5f, 1.6f, 1.5f), Wood));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_15", deco, sb.GroundWorld(foot - fwd * 3f), 0f, 1.2f,
-                    new Vector3(0.5f, 0.7f, 0.5f), Wood));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_22", deco, sb.GroundWorld(foot - fwd * 3.9f + right * (s * 0.8f)), 40f, 1.2f,
-                    new Vector3(0.5f, 0.5f, 0.5f), Wood));
+                if (gp0.light)
+                {
+                    SetPieceBuilder.Lamp(deco, gp0.position, gp0.euler.y, SetPieceBuilder.LampWarm, 10f, gp0.scale.x);
+                    continue;
+                }
+                var go = GenUtil.InstantiatePart(GenUtil.MODELS + "/" + gp0.asset, gp0.part, deco, gp0.position, gp0.euler.y, 1f, new Vector3(1f, 1f, 1f), Wood);
+                go.transform.rotation = Quaternion.Euler(gp0.euler.x, gp0.euler.y, gp0.euler.z);
+                go.transform.localScale = gp0.scale;
+                DressingBuilder.SetStatic(go);
             }
-            // 横木：丸太（WoodLogs_03）を X に引き伸ばして柱の間（2 × GATE_HALF + 1）に渡す
-            var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_03", deco, c + Vector3.up * 6.1f, yaw, 1f, new Vector3(1.2f, 0.3f, 1f), DarkWood);
-            Bounds bb = GenUtil.RendererBounds(beam);
-            float beamLen = Mathf.Max(0.5f, Mathf.Max(bb.size.x, bb.size.z));
-            beam.transform.localScale = new Vector3((GATE_HALF * 2f + 1f) / beamLen, 2.2f, 2.2f);
-            DressingBuilder.SetStatic(beam);
-            // 幕（ui-r1-10 / course-r1-12）：手配書の紙（WantedPosters_02、1.4m）3 枚を横木から吊り、紙はパレットの赤に塗る。
+            // 幕（ui-r1-10 / course-r1-12）：手配書の紙（WantedPosters_02、1.4m）3 枚を下の横木から吊り、紙はパレットの赤に塗る。
             // 1 枚に 1 文字ずつ「ゴ」「ー」「ル」（金・縁取り、看板の文字）。表と裏
             string[] glyphs = { "ゴ", "ー", "ル" };
             var redMat = GenUtil.ToonColor(Red);
@@ -296,10 +286,10 @@ namespace HorseRace.EditorTools
                 for (int side = 0; side < 2; side++)
                 {
                     float z = side == 0 ? -0.15f : 0.15f;
-                    var sheet = GenUtil.PaperSheet(gate, "Banner_" + gi + (side == 0 ? "" : "_Back"), "WantedPosters_02", new Vector3(gx, 4.3f, z), null, 1.4f, 1.6f);
+                    var sheet = GenUtil.PaperSheet(gate, "Banner_" + gi + (side == 0 ? "" : "_Back"), "WantedPosters_02", new Vector3(gx, CourseMarks.GATE_BANNER_Y, z), null, 1.4f, 1.6f);
                     if (side == 1) sheet.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
                     foreach (var rr in sheet.GetComponentsInChildren<Renderer>(true)) rr.sharedMaterial = redMat;
-                    var gt = GenUtil.Text(gate, "BannerText_" + gi + (side == 0 ? "" : "_Back"), new Vector3(gx, 5.1f, side == 0 ? -0.2f : 0.2f),
+                    var gt = GenUtil.Text(gate, "BannerText_" + gi + (side == 0 ? "" : "_Back"), new Vector3(gx, CourseMarks.GATE_BANNER_Y + 0.25f, side == 0 ? -0.2f : 0.2f),
                         Quaternion.Euler(0f, side == 0 ? 0f : 180f, 0f), glyphs[gi], 9f, UiStyle.Gold, new Vector2(1.3f, 1.4f), TextStyle.Sign, true);
                     gt.fontStyle = TMPro.FontStyles.Bold;
                 }

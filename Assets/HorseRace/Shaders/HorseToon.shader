@@ -97,6 +97,8 @@ Shader "HorseRace/Toon"
             #include "AutoLight.cginc"
 
             fixed4 _ShadowColor, _RimColor;
+            // art-r2-10：ステージごとの影色（StageAtmosphere が VRCShader.SetGlobalColor で入れる。a < 0.5 = 未設定 → マテリアルの _ShadowColor）
+            float4 _Udon_ShadowColor;
             float _ShadeSteps, _ShadeThreshold, _ShadeSoftness, _RimPower, _RimStrength, _ShadowLightFloor;
 
             struct v2f
@@ -146,7 +148,8 @@ Shader "HorseRace/Toon"
                 float3 lightCol = _LightColor0.rgb;
                 float3 ambient = ShadeSH9(float4(n, 1));
                 // 影の段にも太陽の半分を足す（影は「暗く」ではなく「色を変える」：LightingPlan.SHADOW_LIGHT_FLOOR）
-                float3 shadowed = albedo * _ShadowColor.rgb * (ambient + lightCol * _ShadowLightFloor);
+                float3 shadowTint = _Udon_ShadowColor.a > 0.5 ? _Udon_ShadowColor.rgb : _ShadowColor.rgb;
+                float3 shadowed = albedo * shadowTint * (ambient + lightCol * _ShadowLightFloor);
                 float3 litCol = albedo * (ambient * 0.5 + lightCol);
                 float3 col = lerp(shadowed, litCol, shade);
 

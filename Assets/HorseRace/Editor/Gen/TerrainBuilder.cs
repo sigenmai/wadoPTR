@@ -60,7 +60,7 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             sb.terrain = tgo.GetComponent<Terrain>();
             sb.terrain.heightmapPixelError = 4f;
-            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail), "Stage" + (def.index + 1));
+            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail), "Stage" + (def.index + 1), def.index);
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -198,7 +198,8 @@ namespace HorseRace.EditorTools
             return tex;
         }
 
-        public static readonly Color TrailColor = new Color(0.55f, 0.40f, 0.28f);
+        /// <summary>道の色はステージごと（art-r2-02：ArtPalette.Trail）。</summary>
+        public static Color TrailColor(int stage) => ArtPalette.Trail(stage);
 
         /// <summary>道の踏み固めた土の重み（R8 相当の RGBA、Terrain 全体の UV）を Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。</summary>
         public static Texture2D TrailTexture(string name, float[,] trail)
@@ -219,7 +220,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>
-        public static void ApplyToonMaterial(Terrain t, Texture2D trail, string name)
+        public static void ApplyToonMaterial(Terrain t, Texture2D trail, string name, int stage)
         {
             ApplyToonMaterial(t);
             var baseMat = t.materialTemplate;
@@ -230,7 +231,7 @@ namespace HorseRace.EditorTools
             m.CopyPropertiesFromMaterial(baseMat);
             m.shader = baseMat.shader;
             m.SetTexture("_TrailTex", trail);
-            m.SetColor("_TrailColor", TrailColor);
+            m.SetColor("_TrailColor", TrailColor(stage));
             EditorUtility.SetDirty(m);
             t.materialTemplate = m;
         }
@@ -304,15 +305,15 @@ namespace HorseRace.EditorTools
         // 外の地面（art-r1-11）
         // ------------------------------------------------------------------
 
-        public const int FILLER_RES = 513;
-        public const float FILLER_DEPTH_M = 40f;       // FILLER_Y からこれだけ下まで（うねりの谷・ステージの下）
-        public const float FILLER_RANGE_M = 360f;      // 高さの範囲（ステージの尾根の高さまで届く）
-        public const float FILLER_BLEND_M = 150f;      // 遊べる範囲の縁から、この距離で基本の高さへ戻る
+        public const int FILLER_RES = WorldBounds.FILLER_RES;
+        public const float FILLER_DEPTH_M = WorldBounds.FILLER_DEPTH_M;
+        public const float FILLER_RANGE_M = WorldBounds.FILLER_RANGE_M;
+        public const float FILLER_BLEND_M = WorldBounds.FILLER_BLEND_M;
 
         /// <summary>
-        /// ワールド全体の下の外の地面（低解像度の Terrain、WorldBounds.FillerRect）。基本の高さは WorldBounds.FillerBaseHeight
-        /// （±6m のうねり、山並みへ向かって 20〜60m 上る）。ステージ・ロビーの地面の縁から FILLER_BLEND_M の間は、その縁の高さ − 0.8m へ
-        /// なめらかに合わせ（継ぎ目の段・すき間を見せない）、遊べる範囲の下は地面の 3m 下に隠す。砂と土（斜面は岩）で塗る。
+        /// ワールド全体の下の外の地面（低解像度の Terrain、WorldBounds.FillerRect）。高さは WorldBounds.FillerHeight（art-r2-01）：
+        /// 遊べる範囲の 1 マスより奥は完全に埋め、縁の 1 マスはまわり 3×3 の一番低い地面の 3m 下、その外は縁の高さ − 0.8m から
+        /// FILLER_BLEND_M かけて基本の高さ（±6m のうねり、山並みへ向かって 20〜60m 上る）へ。砂と土（斜面は岩）で塗る。
         /// </summary>
         public static Terrain BuildFiller(WorldContext ctx, Transform parent)
         {
@@ -330,32 +331,16 @@ namespace HorseRace.EditorTools
                 terrains.Add(sb.terrain);
             }
             if (ctx.lobbyTerrain != null) { rects.Add(WorldBounds.LobbyRect()); terrains.Add(ctx.lobbyTerrain); }
+            System.Func<int, float, float, float> ground = (i, x, z) =>
+            {
+                Terrain t = terrains[i];
+                return t == null ? WorldBounds.FILLER_Y : t.SampleHeight(new Vector3(x, 0f, z)) + t.transform.position.y;
+            };
+            float[,] world = WorldBounds.FillerGrid(n, rects.ToArray(), ground);
             var h = new float[n, n];
             for (int z = 0; z < n; z++)
                 for (int x = 0; x < n; x++)
-                {
-                    float wx = f.x + x * cellX, wz = f.y + z * cellZ;
-                    float y = WorldBounds.FILLER_Y + WorldBounds.FillerBaseHeight(wx, wz);
-                    int best = -1; float bd = float.MaxValue;
-                    var wp = new Vector3(wx, 0f, wz);
-                    for (int i = 0; i < rects.Count; i++)
-                    {
-                        float d = WorldBounds.DistToRect(wp, rects[i]);
-                        if (d < bd) { bd = d; best = i; }
-                    }
-                    if (best >= 0 && bd < FILLER_BLEND_M && terrains[best] != null)
-                    {
-                        Vector4 r = rects[best];
-                        // 縁の高さ：長方形の中へ 2m 入った最寄りの点の地面
-                        var q = new Vector3(Mathf.Clamp(wx, r.x + 2f, r.z - 2f), 0f, Mathf.Clamp(wz, r.y + 2f, r.w - 2f));
-                        Terrain t = terrains[best];
-                        float edgeY = t.SampleHeight(q) + t.transform.position.y;
-                        float target = bd <= 0f ? edgeY - 3f : edgeY - 0.8f;
-                        float u = Mathf.Clamp01(bd / FILLER_BLEND_M);
-                        y = Mathf.Lerp(target, y, u * u * (3f - 2f * u));
-                    }
-                    h[z, x] = Mathf.Clamp01((y - baseY) / FILLER_RANGE_M);
-                }
+                    h[z, x] = Mathf.Clamp01((world[z, x] - baseY) / FILLER_RANGE_M);
             var td = CreateTerrainData("OuterGround", h, sizeX, sizeZ, FILLER_RANGE_M);
             td.terrainLayers = Layers(VARIANT_LOBBY);
             int res = 512;

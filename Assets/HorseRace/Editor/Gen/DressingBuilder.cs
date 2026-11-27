@@ -58,9 +58,11 @@ namespace HorseRace.EditorTools
                     ? GenUtil.InstantiatePart(path, p.part, parent, w, p.yawDeg, p.scale, fb, Fallback)
                     : GenUtil.PlaceModel(path, parent, System.IO.Path.GetFileNameWithoutExtension(p.asset), w, p.yawDeg, p.scale, fb, Fallback);
                 if (p.rollDeg != 0f) go.transform.rotation = Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
+                if (p.scaleY != 1f) go.transform.localScale = new Vector3(s, s * p.scaleY, s);   // 縦に伸ばした岩（art-r2-08）
                 // 手直し用の安定した id（名前の末尾）。見えない壁の名前にも付くよう、壁を作る前に付ける
                 GenUtil.Tag(go, LayoutOverrides.IdFor(scope, p, index));
-                if (p.asset == DressingPlan.SKELETON)
+                // 骨の馬・ラクダは Animator を外して動かない置き物にする（スターターの馬と同じ）
+                if (p.asset == DressingPlan.SKELETON || p.asset == DressingPlan.CAMEL)
                     foreach (var a in go.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(a);
                 if (p.collider)
                 {
@@ -105,6 +107,15 @@ namespace HorseRace.EditorTools
                     GenUtil.Particles(air, "CampFlames", w + Vector3.up * 0.4f, new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
                     GenUtil.SmokeColumn(air, "CampSmoke", w + Vector3.up * 1f, SetPieceBuilder.SmokeGrey, 20f, 1.6f);
                     GenUtil.PointLight(air, "CampLight", w + Vector3.up * 1.2f, new Color(1f, 0.6f, 0.3f), 9f, 1.2f);
+                }
+                else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"))
+                    GenUtil.PointLight(air, "CampLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 12f, 1.5f);   // 見どころ・出張所の街灯（art-r2-05/06）
+                else if (q.group == "GiantSkeleton")
+                {
+                    // 砂丘の上の巨大な骨（art-r2-16）：夕方も見える暖色の灯りと、風下へ流れる砂ぼこり
+                    GenUtil.PointLight(air, "GiantSkeletonLight", w + Vector3.up * (q.height * 0.5f), SetPieceBuilder.LampWarm, 40f, 1.4f);
+                    GenUtil.DustBox(air, "GiantSkeletonDust", w + Vector3.up * 2f, new Vector3(q.radius * 2f, 2f, q.radius * 2f),
+                        new Color(0.92f, 0.78f, 0.56f, 0.12f), new Vector3(2.2f, 0.2f, 0.9f), 4f);
                 }
                 else if (q.group == "Landmark" || q.part == DressingPlan.RANCH_TOWER || q.group == "FinishLandmark")
                 {
