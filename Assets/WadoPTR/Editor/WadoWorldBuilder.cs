@@ -55,6 +55,14 @@ namespace WadoPTR.EditorTools
         static Dictionary<string, GameObject> propObjects;
         static TMP_FontAsset fontGothic, fontDot, fontHand;
 
+        // 「いまのシーンに設置」モード: 部屋は作らず、シーン内の目印 (WadoPTR_Anchors) の位置に処理ラインだけを置く
+        const string AnchorRootName = "WadoPTR_Anchors";
+        const string InstallRootName = "WadoPTR_Gameplay";
+        static bool installMode;
+        static Transform installRoot;
+        static Dictionary<string, Pose> poses;
+        static HashSet<string> skipped;
+
         // ---------------------------------------------------------------- 入口
         [MenuItem("WadoPTR/処理室を建てる (Build World Scene)", false, 0)]
         public static void Build()
@@ -79,6 +87,8 @@ namespace WadoPTR.EditorTools
                 EnsureProgramAssets();
                 LoadData();
 
+                installMode = false;
+                installRoot = null;
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 groups = new Dictionary<string, Transform>();
                 propObjects = new Dictionary<string, GameObject>();
@@ -115,6 +125,155 @@ namespace WadoPTR.EditorTools
                 Debug.LogException(e);
                 EditorUtility.DisplayDialog("WadoPTR", "生成中にエラーが出ました。Console を確認してください。\n\n" + e.Message, "OK");
             }
+        }
+
+        // ---------------------------------------------------------------- 自作マップへの設置
+        [MenuItem("WadoPTR/いまのシーンに処理ラインを設置 (Install Into Open Scene)", false, 1)]
+        public static void InstallIntoOpenScene()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorUtility.DisplayDialog("WadoPTR", "再生を止めてから実行してください。", "OK");
+                return;
+            }
+            if (EditorApplication.isCompiling)
+            {
+                EditorUtility.DisplayDialog("WadoPTR", "スクリプトのコンパイルが終わってから、もう一度実行してください。", "OK");
+                return;
+            }
+            if (!EnsureTmpEssentials()) return;
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("WadoPTR", "準備中", 0.1f);
+                EnsureFolders();
+                EnsureProgramAssets();
+                LoadData();
+                BuildMaterials();
+                BuildFonts();
+
+                installMode = true;
+                groups = new Dictionary<string, Transform>();
+                propObjects = new Dictionary<string, GameObject>();
+
+                EditorUtility.DisplayProgressBar("WadoPTR", "目印を読む", 0.3f);
+                bool firstTime = SyncAnchorMarkers();
+
+                // 前回設置した分は作り直す (目印とあなたのマップには触らない)
+                var old = GameObject.Find(InstallRootName);
+                if (old != null) UnityEngine.Object.DestroyImmediate(old);
+                installRoot = new GameObject(InstallRootName).transform;
+
+                EditorUtility.DisplayProgressBar("WadoPTR", "処理ライン", 0.6f);
+                BuildGameplay();
+                BuildStandaloneAmbience();
+                EnsureSceneDescriptor();
+
+                var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorUtility.ClearProgressBar();
+                installMode = false;
+                Debug.Log("[WadoPTR] 処理ラインを設置しました: " + scene.name);
+                EditorUtility.DisplayDialog("WadoPTR", firstTime
+                    ? "処理ラインを仮の位置に設置し、目印 (" + AnchorRootName + ") を作りました。\n\n目印をあなたのマップに合わせて動かし、もう一度このメニューを実行すると、その位置で組み直されます。\n置きたくない部品は、目印を非アクティブにしてください。"
+                    : "目印の位置で処理ラインを組み直しました。", "OK");
+            }
+            catch (Exception e)
+            {
+                installMode = false;
+                EditorUtility.ClearProgressBar();
+                Debug.LogException(e);
+                EditorUtility.DisplayDialog("WadoPTR", "設置中にエラーが出ました。Console を確認してください。\n\n" + e.Message, "OK");
+            }
+        }
+
+        /// <summary>
+        /// シーン内の目印を読む。無い目印は既定の位置に作る。戻り値は「目印の親を今回はじめて作ったか」。
+        /// 目印は EditorOnly タグなのでビルドには含まれない。
+        /// </summary>
+        static bool SyncAnchorMarkers()
+        {
+            var rootGo = GameObject.Find(AnchorRootName);
+            bool created = rootGo == null;
+            if (created) rootGo = new GameObject(AnchorRootName);
+            rootGo.tag = "EditorOnly";
+            var names = poses.Keys.ToList();
+            names.Sort();
+            foreach (string name in names)
+            {
+                Transform t = rootGo.transform.Find(name);
+                if (t == null)
+                {
+                    t = MakeMarker(name, rootGo.transform, poses[name]).transform;
+                }
+                poses[name] = new Pose(t.position, t.rotation);
+                if (!t.gameObject.activeSelf) skipped.Add(name);
+            }
+            return created;
+        }
+
+        static GameObject MakeMarker(string name, Transform parent, Pose pose)
+        {
+            var go = new GameObject(name);
+            go.tag = "EditorOnly";
+            go.transform.SetParent(parent, false);
+            go.transform.position = pose.position;
+            go.transform.rotation = pose.rotation;
+            // 小さな立方体と、読む側 (-Z) へ伸びる棒、名前。どれもエディタ上の目安
+            Cube("dot", go.transform, Vector3.zero, Vector3.one * 0.06f, mats["mark"], false);
+            Cube("front", go.transform, new Vector3(0, 0, -0.12f), new Vector3(0.015f, 0.015f, 0.24f), mats["neon_cyan"], false);
+            var label = Text("name", go.transform, new Vector3(0.05f, 0.12f, -0.01f), 0.05f, 1.2f, fontGothic, Color.white, "left", name);
+            label.enableWordWrapping = false;
+            foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.tag = "EditorOnly";
+            return go;
+        }
+
+        /// <summary>設置モードの表示の下地。full モードでは layout.json の板がその役をする。</summary>
+        static void Backing(Transform panel, float cx, float cy, float w, float h, string mat)
+        {
+            if (!installMode) return;
+            Cube("backing", panel, new Vector3(cx, cy, 0.03f), new Vector3(w, h, 0.04f), mats[mat], false);
+        }
+
+        static void Caption(Transform panel, float x, float y, float size, float width, TMP_FontAsset font, Color color, string align, string text)
+        {
+            if (!installMode) return;
+            Text("caption", panel, new Vector3(x, y, 0), size, width, font, color, align, text);
+        }
+
+        static void BuildStandaloneAmbience()
+        {
+            var sys = Group("System");
+            var ambGo = new GameObject("WadoAmbience");
+            ambGo.transform.SetParent(sys, false);
+            var amb = AddUdon<WadoAmbience>(ambGo);
+            Pose table = AnchorPose("Table");
+            amb.dripSource = Audio("Sfx_Drip", sys, new Vector3(table.position.x, FloorY() + 0.1f, table.position.z), true, 10f);
+            amb.clipDrip = Clip("drip");
+            var drips = new List<Transform>();
+            foreach (var d in new[] { new Vector3(-3.3f, 0, 1.7f), new Vector3(3.1f, 0, 1.4f), new Vector3(-0.2f, 0, -1.0f) })
+            {
+                var t = new GameObject("DripPoint").transform;
+                t.SetParent(ambGo.transform, false);
+                Vector3 w = table.position + Quaternion.Euler(0, table.rotation.eulerAngles.y, 0) * d;
+                t.position = new Vector3(w.x, FloorY() + 0.05f, w.z);
+                drips.Add(t);
+            }
+            amb.dripPoints = drips.ToArray();
+            EditorUtility.SetDirty(amb);
+        }
+
+        /// <summary>VRChat のシーン記述子が無ければ足す。すでにあれば触らない。</summary>
+        static void EnsureSceneDescriptor()
+        {
+            if (UnityEngine.Object.FindObjectOfType<VRC_SceneDescriptor>() != null) return;
+            var world = new GameObject("VRCWorld");
+            var spawn = AnchorObject("Spawn", world.transform);
+            var desc = world.AddComponent<VRCSceneDescriptor>();
+            desc.spawns = new[] { spawn };
+            desc.RespawnHeightY = FloorY() - 10f;
+            EditorUtility.SetDirty(desc);
+            Debug.Log("[WadoPTR] VRCSceneDescriptor が無かったので追加しました (スポーンは目印 Spawn の位置)。");
         }
 
         // ---------------------------------------------------------------- 前提
@@ -200,6 +359,7 @@ namespace WadoPTR.EditorTools
         {
             L = JsonUtility.FromJson<Layout>(File.ReadAllText(Root + "/Editor/layout.json"));
             anchors = L.anchors.ToDictionary(a => a.name, a => a);
+            DefaultPoses();
             phModels = new Dictionary<string, PhModel>();
             var man = JsonUtility.FromJson<PhManifest>(File.ReadAllText(Root + "/Editor/models.json"));
             foreach (var m in man.list) phModels[m.key] = m;
@@ -489,24 +649,54 @@ namespace WadoPTR.EditorTools
             if (string.IsNullOrEmpty(name)) name = "Misc";
             if (groups.TryGetValue(name, out var t)) return t;
             var go = new GameObject(name);
+            if (installMode && installRoot != null) go.transform.SetParent(installRoot, false);
             groups[name] = go.transform;
             return go.transform;
         }
 
+        static Pose AnchorPose(string name)
+        {
+            if (poses == null || !poses.TryGetValue(name, out var p)) throw new Exception("基準点がありません: " + name);
+            return p;
+        }
+
         static Vector3 AnchorPos(string name)
         {
-            if (!anchors.TryGetValue(name, out var a)) throw new Exception("layout.json に基準点がありません: " + name);
-            return V(a.pos);
+            return AnchorPose(name).position;
+        }
+
+        /// <summary>目印が無効化されている (= その部品は置かない)。設置モードでのみ意味を持つ。</summary>
+        static bool Skipped(string name)
+        {
+            return skipped != null && skipped.Contains(name);
         }
 
         static Transform AnchorObject(string name, Transform parent)
         {
-            var a = anchors[name];
+            Pose a = AnchorPose(name);
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
-            go.transform.position = V(a.pos);
-            go.transform.rotation = Quaternion.Euler(0, a.yaw, 0);
+            go.transform.position = a.position;
+            go.transform.rotation = a.rotation;
             return go.transform;
+        }
+
+        /// <summary>プレイヤーが立つ床の高さ。スポーン地点の高さを床とみなす。</summary>
+        static float FloorY()
+        {
+            return AnchorPos("Spawn").y;
+        }
+
+        /// <summary>layout.json の基準点を既定の配置として読み込む。</summary>
+        static void DefaultPoses()
+        {
+            poses = new Dictionary<string, Pose>();
+            skipped = new HashSet<string>();
+            foreach (var a in L.anchors)
+            {
+                // Memo0 は台の上に寝かせて置く
+                poses[a.name] = new Pose(V(a.pos), Quaternion.Euler(a.name == "Memo0" ? 90f : 0f, a.yaw, 0));
+            }
         }
 
         static GameObject Cube(string name, Transform parent, Vector3 localPos, Vector3 size, Material mat, bool collider)
@@ -830,6 +1020,7 @@ namespace WadoPTR.EditorTools
             points.SetParent(sys, false);
             body.tablePoint = AnchorObject("Table", points);
             body.hatchPoint = AnchorObject("Hatch", points);
+            body.hatchPoint.rotation = body.tablePoint.rotation;    // 原体は台と同じ向きのまま滑ってくる
             body.trayPoint = AnchorObject("Tray", points);
             body.chutePoint = AnchorObject("Chute", points);
 
@@ -855,9 +1046,13 @@ namespace WadoPTR.EditorTools
             body.clipChime = Clip("chime_up");
 
             // --- 搬入口の扉
-            var door = Cube("HatchDoor", Group("Line"), Vector3.zero, new Vector3(0.05f, 0.74f, 0.94f), mats["steel"], false);
-            door.transform.position = AnchorPos("HatchDoor");
-            body.hatchDoor = door.transform;
+            if (!Skipped("HatchDoor"))
+            {
+                var door = Cube("HatchDoor", Group("Line"), Vector3.zero, new Vector3(0.05f, 0.74f, 0.94f), mats["steel"], false);
+                door.transform.position = AnchorPos("HatchDoor");
+                door.transform.rotation = AnchorPose("HatchDoor").rotation;
+                body.hatchDoor = door.transform;
+            }
 
             // --- 原体
             var loose = new GameObject("Loose").transform;
@@ -865,6 +1060,7 @@ namespace WadoPTR.EditorTools
             var root = new GameObject("Gentai").transform;
             root.SetParent(sys, false);
             root.position = AnchorPos("Table");
+            root.rotation = AnchorPose("Table").rotation;
             body.root = root;
 
             float[] hp = { 6f, 5f, 5f, 6f, 6f, 9f };
@@ -953,6 +1149,7 @@ namespace WadoPTR.EditorTools
             var chuteGo = new GameObject("ChuteTrigger");
             chuteGo.transform.SetParent(sys, false);
             chuteGo.transform.position = AnchorPos("Chute");
+            chuteGo.transform.rotation = AnchorPose("Chute").rotation;
             chuteGo.layer = LayerIgnoreRaycast;
             var ccol = chuteGo.AddComponent<BoxCollider>();
             ccol.isTrigger = true;
@@ -961,18 +1158,23 @@ namespace WadoPTR.EditorTools
             AddUdon<WadoChute>(chuteGo);
 
             // --- 搬送ベルト (設置後に現れる)
+            // BeltFrom から Chute へ向かう直線。どの向きでも組めるよう、ベルト自身の座標 (x = 進行方向) で作る
             var belt = new GameObject("Belt");
             belt.transform.SetParent(Group("Line"), false);
             Vector3 from = AnchorPos("BeltFrom");
             Vector3 to = AnchorPos("Chute");
-            float x0 = from.x, x1 = to.x - 0.55f;
-            float tz = L.room.tableZ, ty = L.room.tableY;
-            Cube("Belt_Bed", belt.transform, new Vector3((x0 + x1) / 2, ty - 0.045f, tz), new Vector3(x1 - x0, 0.05f, 0.62f), mats["rubber"], true);
-            Cube("Belt_Rail_F", belt.transform, new Vector3((x0 + x1) / 2, ty - 0.02f, tz - 0.34f), new Vector3(x1 - x0, 0.1f, 0.04f), mats["steel"], false);
-            Cube("Belt_Rail_B", belt.transform, new Vector3((x0 + x1) / 2, ty - 0.02f, tz + 0.34f), new Vector3(x1 - x0, 0.1f, 0.04f), mats["steel"], false);
-            Cube("Belt_Leg_A", belt.transform, new Vector3(x0 + 0.3f, (ty - 0.07f) / 2, tz), new Vector3(0.06f, ty - 0.07f, 0.5f), mats["steel"], false);
-            Cube("Belt_Leg_B", belt.transform, new Vector3(x1 - 0.3f, (ty - 0.07f) / 2, tz), new Vector3(0.06f, ty - 0.07f, 0.5f), mats["steel"], false);
-            Audio("Belt_Hum", belt.transform, new Vector3((x0 + x1) / 2, ty, tz), true, 7f, Clip("amb_conveyor"), 0.22f);
+            Vector3 flat = new Vector3(to.x - from.x, 0, to.z - from.z);
+            float len = Mathf.Max(0.2f, flat.magnitude - 0.55f);
+            belt.transform.position = from;
+            belt.transform.rotation = flat.sqrMagnitude > 0.0001f ? Quaternion.FromToRotation(Vector3.right, flat.normalized) : Quaternion.identity;
+            float drop = Mathf.Max(0.2f, from.y - FloorY());
+            Cube("Belt_Bed", belt.transform, new Vector3(len / 2, -0.045f, 0), new Vector3(len, 0.05f, 0.62f), mats["rubber"], true);
+            Cube("Belt_Rail_F", belt.transform, new Vector3(len / 2, -0.02f, -0.34f), new Vector3(len, 0.1f, 0.04f), mats["steel"], false);
+            Cube("Belt_Rail_B", belt.transform, new Vector3(len / 2, -0.02f, 0.34f), new Vector3(len, 0.1f, 0.04f), mats["steel"], false);
+            Cube("Belt_Leg_A", belt.transform, new Vector3(Mathf.Min(0.3f, len / 2), -0.07f - (drop - 0.07f) / 2, 0), new Vector3(0.06f, drop - 0.07f, 0.5f), mats["steel"], false);
+            Cube("Belt_Leg_B", belt.transform, new Vector3(Mathf.Max(len - 0.3f, len / 2), -0.07f - (drop - 0.07f) / 2, 0), new Vector3(0.06f, drop - 0.07f, 0.5f), mats["steel"], false);
+            var hum = Audio("Belt_Hum", belt.transform, Vector3.zero, true, 7f, Clip("amb_conveyor"), 0.22f);
+            hum.transform.localPosition = new Vector3(len / 2, 0, 0);
             game.beltVisual = belt;
             if (groups.TryGetValue("OrganShelf", out var shelf)) game.organShelfVisual = shelf.gameObject;
 
@@ -1111,11 +1313,16 @@ namespace WadoPTR.EditorTools
             game.txtMoney = Text("txtMoney", money, new Vector3(0, -0.03f, 0), 0.3f, 2.8f, fontDot, Amber, "left", "¥0");
             game.txtRate = Text("txtRate", money, new Vector3(0, -0.385f, 0), 0.052f, 2.0f, fontDot, LedDim, "left", "");
             game.txtRank = Text("txtRank", money, new Vector3(2.76f, 0.1f, 0), 0.08f, 1.4f, fontDot, LedGreen, "right", "研修中");
+            Backing(money, 1.38f, -0.22f, 3.0f, 0.78f, "led_black");
+            Caption(money, 0, 0.1f, 0.07f, 1.2f, fontDot, LedDim, "left", "本日残高");
 
             // 相場
             var market = Panel("Market");
             game.txtMarket = Text("txtMarket", market, Vector3.zero, 0.105f, 1.9f, fontDot, LedWhite, "left", "");
             game.txtMarket.lineSpacing = 22f;
+            Backing(market, 0.93f, -0.49f, 2.1f, 1.5f, "led_black");
+            Caption(market, 0, 0.16f, 0.09f, 1.9f, fontDot, Amber, "left", "本日の買取相場");
+            Caption(market, 0, -1.12f, 0.045f, 1.9f, fontDot, LedDim, "left", "基準比。九十秒ごとに改定。");
 
             // 稼働状況
             var lines = Panel("Lines");
@@ -1129,22 +1336,33 @@ namespace WadoPTR.EditorTools
                 Text("lineName" + i, lines, new Vector3(0.2f, y, 0), 0.085f, 1.7f, fontDot, LedWhite, "left", lineNames[i]);
             }
             game.lineLamps = lamps;
+            Backing(lines, 0.93f, -0.47f, 2.1f, 1.5f, "led_black");
+            Caption(lines, 0, 0.18f, 0.09f, 1.9f, fontDot, LedGreen, "left", "稼働状況");
 
             // 計量表示
             var scale = Panel("Scale");
             game.txtScale = Text("txtScale", scale, Vector3.zero, 0.085f, 1.15f, fontDot, LedGreen, "left", "計量待機");
+            Backing(scale, 0.58f, -0.25f, 1.3f, 0.8f, "led_black");
+            Caption(scale, 0, 0.1f, 0.06f, 1.1f, fontDot, LedDim, "left", "計量");
 
             // 伝票
             var slip = Panel("Slip");
             game.txtSlip = Text("txtSlip", slip, Vector3.zero, 0.04f, 1.18f, fontDot, Ink, "left", "");
             game.txtSlip.lineSpacing = 30f;
+            Backing(slip, 0.57f, -0.43f, 1.25f, 1.2f, "paper");
+            Caption(slip, 0, 0.1f, 0.05f, 0.6f, fontDot, Ink, "left", "伝票");
 
             // 搬入表示と呼出・清掃
             var hatch = Panel("HatchText");
             game.txtHatch = Text("txtHatch", hatch, Vector3.zero, 0.105f, 1.42f, fontDot, LedRed, "left", "搬入待機");
+            Backing(hatch, 0.7f, -0.23f, 1.5f, 0.62f, "led_black");
             var call = Panel("CallButton");
+            Backing(call, 0, 0.08f, 0.36f, 0.5f, "rust");
+            Caption(call, 0, 0.25f, 0.055f, 0.5f, fontGothic, new Color(0.91f, 0.79f, 0.69f), "center", "搬入呼出");
             Button("Button_Call", call, Vector3.zero, new Vector3(0.16f, 0.16f, 0.03f), mats["button_green"], game, WadoGame.ActCall, 0, "搬入呼出");
             var sweep = Panel("SweepButton");
+            Backing(sweep, 0, 0.08f, 0.36f, 0.5f, "rust");
+            Caption(sweep, 0, 0.25f, 0.055f, 0.5f, fontGothic, new Color(0.91f, 0.79f, 0.69f), "center", "床清掃");
             Button("Button_Sweep", sweep, Vector3.zero, new Vector3(0.16f, 0.16f, 0.03f), mats["button_grey"], game, WadoGame.ActSweep, 0, "床清掃");
 
             // 発注端末
@@ -1161,14 +1379,20 @@ namespace WadoPTR.EditorTools
             }
             game.rowName = names;
             game.rowInfo = infos;
+            Backing(term, 1.35f, -0.82f, 2.9f, 2.1f, "led_black");
+            Caption(term, 0, 0.15f, 0.075f, 3.0f, fontDot, Amber, "left", "発注端末  WADO-PTR/7");
 
             // 名簿
             var roster = Panel("Roster");
             game.txtRoster = Text("txtRoster", roster, Vector3.zero, 0.05f, 1.3f, fontGothic, Ink, "left", "");
+            Backing(roster, 0.67f, -0.34f, 1.5f, 1.1f, "paper");
+            Caption(roster, 0, 0.14f, 0.075f, 1.3f, fontGothic, Ink, "left", "夜勤者名簿");
 
             // 異動願
             var transfer = Panel("Transfer");
             game.txtTransfer = Text("txtTransfer", transfer, Vector3.zero, 0.036f, 1.12f, fontGothic, Ink, "left", "");
+            Backing(transfer, 0.58f, -0.52f, 1.3f, 1.5f, "paper");
+            Caption(transfer, 0, 0.15f, 0.08f, 1.1f, fontGothic, Ink, "left", "異動願");
             Text("lblSubmit", transfer, new Vector3(0.3f, -0.72f, 0), 0.045f, 0.5f, fontGothic, Ink, "center", "提出");
             Button("Button_Transfer", transfer, new Vector3(0.3f, -0.9f, 0), new Vector3(0.14f, 0.14f, 0.03f), mats["button_grey"], game, WadoGame.ActTransfer, 0, "異動願 提出");
             var confirmHolder = new GameObject("TransferConfirm");
@@ -1186,6 +1410,24 @@ namespace WadoPTR.EditorTools
             game.txtSchedule = Text("txtSchedule", sched, new Vector3(0.03f, -0.22f, 0), 0.042f, 1.3f, fontGothic, Ink, "left", "");
             game.scheduleBoard = sched.gameObject;
 
+            if (installMode && !Skipped("Manual"))
+            {
+                var manual = Panel("Manual");
+                Backing(manual, 1.14f, -0.61f, 2.5f, 1.36f, "paper");
+                Text("title", manual, Vector3.zero, 0.125f, 2.3f, fontGothic, Ink, "left", "作業標準書  第三版");
+                Text("sub", manual, new Vector3(0, -0.16f, 0), 0.045f, 2.3f, fontGothic, new Color(0.29f, 0.25f, 0.22f), "left", "和堂PTR  下請第七  夜間処理室");
+                Text("body", manual, new Vector3(0, -0.27f, 0), 0.082f, 2.35f, fontGothic, Ink, "left",
+                    "<b>一、呼出</b>　搬入口の緑のボタンで原体を呼ぶ。\n<b>二、分割</b>　刃物を取り、<color=#B3261E>切取線</color>に沿って入れる。\n　　　　　線は一本ずつ。体幹は最後に開く。\n<b>三、計量</b>　外れた部材を計量口へ運ぶ。\n　　　　　鮮度は時間とともに落ちる。\n<b>四、発注</b>　残高は端末で設備と人員に替える。");
+                Text("foot", manual, new Vector3(0, -1.15f, 0), 0.05f, 2.3f, fontGothic, new Color(0.7f, 0.15f, 0.12f), "left", "手順についての質問は受け付けていません。");
+            }
+            if (installMode && !Skipped("Hygiene"))
+            {
+                var hygiene = Panel("Hygiene");
+                Backing(hygiene, 0.55f, -0.38f, 1.25f, 0.9f, "paper");
+                Text("body", hygiene, Vector3.zero, 0.05f, 1.1f, fontGothic, Ink, "left",
+                    "<size=140%><b>衛生五則</b></size>\n一　手洗いは三十秒\n二　私語をしない\n三　原体に名前をつけない\n四　原体に話しかけない\n五　返事があっても作業を止めない");
+            }
+
             // 前任者の走り書き
             string[] memo = {
                 "刃は線に沿って。\n迷うと手が止まる。\n手が止まると鮮度が落ちる。\n　　　　　　――前の人",
@@ -1200,11 +1442,11 @@ namespace WadoPTR.EditorTools
             var memoObjs = new GameObject[memo.Length];
             for (int i = 0; i < memo.Length; i++)
             {
-                var a = anchors["Memo" + i];
+                Pose a = AnchorPose("Memo" + i);
                 var go = new GameObject("Memo" + i);
                 go.transform.SetParent(Group("Memos"), false);
-                go.transform.position = V(a.pos);
-                go.transform.rotation = Quaternion.Euler(i == 0 ? 90f : 0f, a.yaw, i % 2 == 0 ? 3f : -4f);
+                go.transform.position = a.position;
+                go.transform.rotation = a.rotation * Quaternion.Euler(0, 0, i % 2 == 0 ? 3f : -4f);
                 Cube("paper", go.transform, new Vector3(0.15f, -0.15f, 0.004f), new Vector3(0.32f, 0.32f, 0.004f), mats["note"], false);
                 Text("text", go.transform, new Vector3(0.02f, -0.025f, 0), 0.024f, 0.29f, fontHand, new Color(0.05f, 0.04f, 0.08f), "left", memo[i]);
                 memoObjs[i] = go;
@@ -1212,16 +1454,19 @@ namespace WadoPTR.EditorTools
             game.memos = memoObjs;
 
             // 汚れ (処理数で増える)
-            float ty = L.room.tableY, tz = L.room.tableZ;
+            // 処理台からの相対位置 (dx, 台の上か床か, dz, 幅, 奥行, 向き, 絵柄)。台を動かせば一緒に動く
+            Pose tablePose = AnchorPose("Table");
+            Quaternion tableYaw = Quaternion.Euler(0, tablePose.rotation.eulerAngles.y, 0);
+            float floorY = FloorY();
             var stainDefs = new[] {
-                new float[] { 0.2f, ty + 0.002f, tz, 0.9f, 0.6f, 20f, 0 },
-                new float[] { 0.5f, 0.004f, tz - 0.75f, 1.2f, 0.9f, 60f, 1 },
-                new float[] { -0.6f, ty + 0.003f, tz + 0.1f, 0.8f, 0.5f, 140f, 2 },
-                new float[] { 2.3f, 0.005f, tz - 0.4f, 1.8f, 0.7f, 5f, 3 },
-                new float[] { -1.0f, 0.006f, tz + 0.9f, 1.4f, 1.1f, 200f, 0 },
-                new float[] { 3.3f, 0.007f, 0.1f, 1.2f, 1.0f, 80f, 2 },
-                new float[] { -2.6f, 0.008f, tz - 0.7f, 2.4f, 0.8f, 185f, 3 },
-                new float[] { 0.0f, 0.009f, -1.4f, 2.2f, 1.6f, 300f, 1 },
+                new float[] { 0.45f, 1, 0f, 0.9f, 0.6f, 20f, 0 },
+                new float[] { 0.75f, 0, -0.75f, 1.2f, 0.9f, 60f, 1 },
+                new float[] { -0.35f, 1, 0.1f, 0.8f, 0.5f, 140f, 2 },
+                new float[] { 2.55f, 0, -0.4f, 1.8f, 0.7f, 5f, 3 },
+                new float[] { -0.75f, 0, 0.9f, 1.4f, 1.1f, 200f, 0 },
+                new float[] { 3.55f, 0, -0.8f, 1.2f, 1.0f, 80f, 2 },
+                new float[] { -2.35f, 0, -0.7f, 2.4f, 0.8f, 185f, 3 },
+                new float[] { 0.25f, 0, -2.3f, 2.2f, 1.6f, 300f, 1 },
             };
             var stains = new GameObject[stainDefs.Length];
             for (int i = 0; i < stainDefs.Length; i++)
@@ -1231,8 +1476,10 @@ namespace WadoPTR.EditorTools
                 q.name = "Stain" + i;
                 UnityEngine.Object.DestroyImmediate(q.GetComponent<Collider>());
                 q.transform.SetParent(Group("Stains"), false);
-                q.transform.position = new Vector3(d[0], d[1], d[2]);
-                q.transform.rotation = Quaternion.Euler(90f, d[5], 0);
+                Vector3 sp = tablePose.position + tableYaw * new Vector3(d[0], 0, d[2]);
+                sp.y = (d[1] > 0.5f ? tablePose.position.y : floorY) + 0.002f + 0.001f * i;
+                q.transform.position = sp;
+                q.transform.rotation = Quaternion.Euler(90f, d[5] + tableYaw.eulerAngles.y, 0);
                 q.transform.localScale = new Vector3(d[3], d[4], 1f);
                 var mr = q.GetComponent<MeshRenderer>();
                 mr.sharedMaterial = mats["stain" + (int)d[6]];
