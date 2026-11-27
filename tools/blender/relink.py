@@ -64,7 +64,7 @@ def fix_textures(src, extra_dirs=()):
         bc = bsdf.inputs["Base Color"]
         if bc.links:
             node = bc.links[0].from_node
-            if node.type == 'TEX_IMAGE' and node.image and node.image.has_data:
+            if node.type == 'TEX_IMAGE' and node.image and node.image.size[0] > 0:
                 continue
         mn = _norm(m.name.split(".")[0])
         pick = None

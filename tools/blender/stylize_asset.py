@@ -16,6 +16,8 @@
   6. 仕上げたテクスチャを貼って FBX 書き出し（Unity 向き：正面 +Z / 上 +Y）
 """
 import bpy, bmesh, sys, os, math, subprocess
+# HR_STYLE=lowpoly のとき：面をフラット表示（角ばったローポリ風）＋ 強いトゥーン化
+LOWPOLY = os.environ.get("HR_STYLE") == "lowpoly"
 from mathutils import Vector
 
 argv = sys.argv[sys.argv.index("--") + 1:]
@@ -36,7 +38,10 @@ elif ext in (".glb", ".gltf"):
 elif ext == ".obj":
     bpy.ops.wm.obj_import(filepath=src)
 
-# ---- 見つからないテクスチャを探して付け直す
+sys.path.insert(0, HERE)
+import relink
+relink.fix_textures(src, tex_dirs)
+# ---- （旧）見つからないテクスチャを探して付け直す
 for img in bpy.data.images:
     path = bpy.path.abspath(img.filepath).replace("\\", "/")
     if img.packed_file or (path and os.path.exists(path)):
@@ -150,12 +155,15 @@ bpy.ops.object.mode_set(mode='EDIT')
 bpy.ops.mesh.select_all(action='SELECT')
 bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.006, correct_aspect=True)
 bpy.ops.object.mode_set(mode='OBJECT')
-bpy.ops.object.shade_smooth()
-try:
-    bpy.ops.object.shade_smooth_by_angle(angle=math.radians(50))
-except Exception:
-    lo.data.use_auto_smooth = True
-    lo.data.auto_smooth_angle = math.radians(50)
+if LOWPOLY:
+    bpy.ops.object.shade_flat()
+else:
+    bpy.ops.object.shade_smooth()
+    try:
+        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(50))
+    except Exception:
+        lo.data.use_auto_smooth = True
+        lo.data.auto_smooth_angle = math.radians(50)
 
 # ---- テクスチャ転写（Cycles のベイクがこの環境で動かないため、Python で自前に行う）
 #  低ポリの各テクセル → 3D 位置 → 元モデルの最も近い面 → その面の UV → 元テクスチャの色
@@ -317,7 +325,7 @@ save_png("height", h_map)
 
 # ---- トゥーン化（Python 側）
 final_png = os.path.join(outdir, f"{name}_Albedo.png")
-r = subprocess.run(["python3", os.path.join(HERE, "toonify_texture.py"), paths["color"], paths["ao"], paths["height"], final_png],
+r = subprocess.run(["python3", os.path.join(HERE, "toonify_texture.py"), paths["color"], paths["ao"], paths["height"], final_png] + (["strong"] if LOWPOLY else []),
                    capture_output=True, text=True,
                    env={k: v for k, v in os.environ.items() if not k.startswith("PYTHON")})
 print(r.stdout.strip(), r.stderr.strip()[-400:])
@@ -339,6 +347,7 @@ bpy.ops.object.select_all(action='DESELECT')
 lo.select_set(True)
 out_fbx = os.path.join(outdir, f"{name}.fbx")
 bpy.ops.export_scene.fbx(filepath=out_fbx, use_selection=True, object_types={'MESH'}, axis_forward='-Z', axis_up='Y',
-                         apply_scale_options='FBX_SCALE_ALL', bake_space_transform=True, path_mode='COPY', embed_textures=False)
+                         apply_scale_options='FBX_SCALE_ALL', bake_space_transform=True, path_mode='COPY', embed_textures=False,
+                         mesh_smooth_type='FACE' if LOWPOLY else 'OFF')
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(outdir, f"_{name}.blend"))
 print("RESULT", name, "tris", tris0, "->", tris2, "size", tuple(round(d, 2) for d in lo.dimensions))
