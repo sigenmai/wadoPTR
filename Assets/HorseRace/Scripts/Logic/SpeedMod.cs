@@ -6,6 +6,7 @@ namespace HorseRace
     /// Add/Tick mutate the arrays in place.</summary>
     public class SpeedMod : UdonSharp.UdonSharpBehaviour
     {
+        public const int SLOTS = 8;
         public const float MIN_COMBINED = 0.4f;
 
         public static float Combined(float[] factors, float[] remaining)

@@ -14,6 +14,20 @@ namespace HorseRace
         public const int ABILITY_BOMB = 5;
         public const int ABILITY_MIRAGE = 6;
 
+        // Secondary tuning values
+        public const float DUST_SLOW_FACTOR = 0.8f;
+        public const float LASSO_SELF_BONUS_MPS = 4f;
+        public const float LASSO_SELF_SECONDS = 2f;
+        public const float LASSO_TARGET_FACTOR = 0.7f;
+        public const float LASSO_TARGET_SECONDS = 1f;
+        public const float WALL_WIDTH = 6f;
+        public const float WALL_AHEAD = 20f;
+        public const float WALL_SECONDS = 6f;
+        public const float BALL_HIT_FACTOR = 0.6f;
+        public const float BALL_HIT_SECONDS = 1.2f;
+        public const int BALL_BOUNCES = 3;
+        public const float BALL_CURVE_DEG_PER_M_PER_ROLL_DEG = 0.5f;
+
         static int Clamp(int lv)
         {
             if (lv < 1) return 1;
