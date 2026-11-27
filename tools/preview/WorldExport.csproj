@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>disable</Nullable><LangVersion>latest</LangVersion><NoWarn>CS0618;CS8632</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/HorseRace/Scripts/Logic/**/*.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/HeightmapGen.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/CoursePath.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/StageDefinitions.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/WorldLayout.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/SetPieces.cs" />
+    <ProjectReference Include="../../tests/UnityStubs/UnityStubs.csproj" />
+  </ItemGroup>
+</Project>

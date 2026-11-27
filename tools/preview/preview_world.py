@@ -1,0 +1,275 @@
+"""ワールド生成ツールと同じ計算結果（world.json / h*.bin / s*.bin）から下見用の 3D シーンを作って描画する。
+blender -b --python preview_world.py -- <exportフォルダ> <assetsルート> <出力フォルダ>
+Unity (x, y, z) → Blender (x, z, y)
+"""
+import bpy, bmesh, sys, os, json, struct, math, random
+import numpy as np
+from mathutils import Vector
+
+ex, assets, out = sys.argv[sys.argv.index("--") + 1:][:3]
+os.makedirs(out, exist_ok=True)
+W = json.load(open(os.path.join(ex, "world.json")))
+bpy.ops.wm.read_factory_settings(use_empty=True)
+sc = bpy.context.scene
+random.seed(4)
+
+def U(v):  # Unity → Blender
+    return Vector((v[0], v[2], v[1]))
+
+def read_grid(path):
+    d = open(path, "rb").read()
+    n = struct.unpack("<i", d[:4])[0]
+    return np.frombuffer(d[4:], dtype="<f4").reshape(n, n)
+
+def mat_color(name, rgb, emit=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*rgb, 1)
+    b.inputs["Roughness"].default_value = 0.9
+    if emit:
+        b.inputs["Emission Color"].default_value = (*rgb, 1)
+        b.inputs["Emission Strength"].default_value = emit
+    m.diffuse_color = (*rgb, 1)
+    return m
+
+def img_material(name, arr):
+    h, w, _ = arr.shape
+    img = bpy.data.images.new(name, w, h)
+    rgba = np.concatenate([arr, np.ones((h, w, 1), np.float32)], 2)
+    img.pixels.foreach_set(rgba.astype(np.float32).ravel())
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    t = m.node_tree.nodes.new("ShaderNodeTexImage")
+    t.image = img
+    m.node_tree.links.new(t.outputs[0], m.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    m.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 1.0
+    return m
+
+def srgb2lin(c):
+    return [((x + 0.055) / 1.055) ** 2.4 for x in c]
+
+DIRT, ROCK, SAND = (0.62, 0.36, 0.22), (0.55, 0.45, 0.38), (0.90, 0.76, 0.52)
+
+def terrain(stage):
+    i = stage["index"]
+    h = read_grid(os.path.join(ex, f"h{i}.bin")) * 200.0
+    s = read_grid(os.path.join(ex, f"s{i}.bin"))
+    step = 2
+    hh = h[::step, ::step]
+    n = hh.shape[0]
+    size = 1000.0
+    ox, oz = stage["center"][0] - 500, stage["center"][2] - 500
+    me = bpy.data.meshes.new(f"T{i}")
+    verts = [(ox + x / (n - 1) * size, oz + z / (n - 1) * size, float(hh[z, x])) for z in range(n) for x in range(n)]
+    faces = [(z * n + x, z * n + x + 1, (z + 1) * n + x + 1, (z + 1) * n + x) for z in range(n - 1) for x in range(n - 1)]
+    me.from_pydata(verts, [], faces)
+    uv = me.uv_layers.new()
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            vi = me.loops[li].vertex_index
+            z, x = divmod(vi, n)
+            uv.data[li].uv = (x / (n - 1), z / (n - 1))
+    # 色：TerrainBuilder と同じ考え方（砂 → 急斜面の岩 → 土）
+    gy, gx = np.gradient(h, size / (h.shape[0] - 1))
+    slope = np.degrees(np.arctan(np.hypot(gx, gy)))
+    from PIL import Image
+    S = np.asarray(Image.fromarray((np.clip(s, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32) / 255
+    rock = np.clip((slope - 28) / 12, 0, 1) * (1 - S)
+    col = np.array(DIRT)[None, None] * (1 - S[..., None] - rock[..., None]).clip(0, 1) + np.array(SAND) * S[..., None] + np.array(ROCK) * rock[..., None]
+    # 等高線をうっすら（立体感）
+    band = (np.mod(h, 10.0) < 0.6)[..., None] * 0.06
+    col = np.clip(col - band, 0, 1)
+    col = np.array([srgb2lin(c) for c in col.reshape(-1, 3)]).reshape(col.shape).astype(np.float32)
+    o = bpy.data.objects.new(f"Terrain_{stage['label']}", me)
+    sc.collection.objects.link(o)
+    o.data.materials.append(img_material(f"TerrainCol{i}", col))
+    for p in me.polygons:
+        p.use_smooth = True
+    return o
+
+def polyline(name, pts, radius, mat):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    sp = cu.splines.new("POLY")
+    sp.points.add(len(pts) - 1)
+    for k, p in enumerate(pts):
+        sp.points[k].co = (*p, 1)
+    cu.bevel_depth = radius
+    cu.bevel_resolution = 1
+    o = bpy.data.objects.new(name, cu)
+    sc.collection.objects.link(o)
+    o.data.materials.append(mat)
+    return o
+
+def box(name, loc, size, mat, rot_z=0.0):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=(0, 0, rot_z))
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = size
+    o.data.materials.append(mat)
+    return o
+
+def import_part(path, part_prefix=None, index=None):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=path)
+    new = [o for o in bpy.data.objects if o not in before]
+    meshes = [o for o in new if o.type == "MESH"]
+    keep = meshes
+    if part_prefix is not None and index is not None and len(meshes) > 1:
+        meshes.sort(key=lambda o: o.name)
+        keep = [meshes[index % len(meshes)]]
+    for o in new:
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+    for o in keep:
+        o.location = (0, 0, 0)
+    return keep
+
+ROAD = mat_color("Road", srgb2lin((0.85, 0.72, 0.55)))
+CPM = mat_color("CP", srgb2lin((0.95, 0.95, 0.9)))
+RELIC = mat_color("Relic", srgb2lin((0.2, 0.9, 0.8)), emit=4.0)
+BRIDGE = mat_color("Bridge", srgb2lin((0.5, 0.33, 0.24)))
+JUMP = mat_color("Jump", srgb2lin((0.95, 0.8, 0.55)))
+SHORT = mat_color("Shortcut", srgb2lin((0.95, 0.35, 0.2)), emit=1.5)
+START = mat_color("Start", srgb2lin((0.95, 0.95, 0.95)))
+GOAL = mat_color("Goal", srgb2lin((0.9, 0.2, 0.2)))
+
+def ground_at(stage, x, z):
+    i = stage["index"]
+    h = GRID[i]
+    n = h.shape[0]
+    lx, lz = x - (stage["center"][0] - 500), z - (stage["center"][2] - 500)
+    gx = min(max(lx / 1000 * (n - 1), 0), n - 1)
+    gz = min(max(lz / 1000 * (n - 1), 0), n - 1)
+    return float(h[int(round(gz)), int(round(gx))]) * 200.0
+
+GRID = {}
+for st in W["stages"]:
+    GRID[st["index"]] = read_grid(os.path.join(ex, f"h{st['index']}.bin"))
+    terrain(st)
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    pts = [U(p) + off + Vector((0, 0, 0.4)) for p in st["course"]]
+    polyline(f"Course{st['index']}", pts, 1.6, ROAD)
+    for k, p in enumerate(st["cps"]):
+        q = U(p) + off
+        box(f"CP{k}", q + Vector((0, 0, 4)), (1.2, 1.2, 8), CPM)
+    for k, p in enumerate(st["relics"]):
+        q = U(p) + off
+        bpy.ops.mesh.primitive_ico_sphere_add(radius=3, location=q + Vector((0, 0, 4)))
+        bpy.context.active_object.data.materials.append(RELIC)
+    s0, s1 = U(st["course"][1]) + off, U(st["course"][-1]) + off
+    box("StartLine", s0 + Vector((0, 0, 0.5)), (28, 3, 1), START)
+    box("GoalGate", s1 + Vector((0, 0, 6)), (30, 2, 12), GOAL)
+    if st["bridge"]:
+        p = U(st["bridge"]["p"]) + off
+        t = st["bridge"]["t"]
+        yaw = math.atan2(t[2], t[0])
+        box("RockBridge", p + Vector((0, 0, 0.5)), (26, 26, 2), BRIDGE, yaw)
+    if st["jump"]:
+        p = U(st["jump"]["p"]) + off
+        t = st["jump"]["t"]
+        yaw = math.atan2(t[2], t[0])
+        box("DuneJump", p + Vector((0, 0, 1.5)), (16, 20, 3), JUMP, yaw)
+    if st["shortcut"]:
+        a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
+        polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
+
+# 代表的な素材を配置（配置はイメージ。実際の Build World の散らし方とは違う）
+A = lambda *p: os.path.join(assets, *p)
+def place_near_course(st, path, count, dist, scale, seed, prefix=None):
+    rnd = random.Random(seed)
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    pts = st["course"]
+    for k in range(count):
+        c = pts[rnd.randrange(len(pts))]
+        ang = rnd.uniform(0, 6.283)
+        x = c[0] + math.cos(ang) * dist * rnd.uniform(1, 2)
+        z = c[2] + math.sin(ang) * dist * rnd.uniform(1, 2)
+        x = min(max(x, 20), 980); z = min(max(z, 20), 980)
+        parts = import_part(path, prefix, k)
+        for o in parts:
+            o.location = Vector((x, z, 0)) + off
+            o.location.z = ground_at(st, o.location.x, o.location.y) - 0.3
+            o.rotation_euler.z = rnd.uniform(0, 6.283)
+            o.scale = (scale, scale, scale)
+
+S = {st["index"]: st for st in W["stages"]}
+place_near_course(S[0], A("Models/Packs/Cliffs/Cliffs.fbx"), 10, 45, 1.6, 1, "Cliffs")
+place_near_course(S[0], A("Models/Packs/DesertRocks/DesertRocks.fbx"), 14, 25, 1.0, 2, "DesertRocks")
+place_near_course(S[0], A("Models/Props/DeadTree/DeadTree.fbx"), 8, 22, 1.0, 3)
+place_near_course(S[1], A("Models/Packs/Cacti/Cacti.fbx"), 30, 18, 1.0, 4, "Cacti")
+place_near_course(S[1], A("Models/Props/Tent/Tent.fbx"), 3, 40, 1.0, 5)
+place_near_course(S[2], A("Models/Props/MesaRock/MesaRock.fbx"), 5, 170, 2.0, 6)
+place_near_course(S[2], A("Models/ThirdParty/MesaRockB/MesaRockB.fbx"), 3, 190, 2.0, 7)
+place_near_course(S[2], A("Models/Packs/Cacti/Cacti.fbx"), 10, 20, 1.0, 8, "Cacti")
+
+# ロビー（町）
+lob = Vector((0, -820, 0))
+bpy.ops.mesh.primitive_plane_add(size=260, location=lob)
+bpy.context.active_object.data.materials.append(mat_color("LobbyGround", srgb2lin(DIRT)))
+for o in import_part(A("Models/Packs/WesternTown/WesternTown.fbx")):
+    o.location = lob + Vector((0, 0, -13.7))
+for o in import_part(A("Models/Props/NoticeBoard/NoticeBoard.fbx")):
+    o.location = lob + Vector((0, -95, 0))
+
+# 空と光
+world = bpy.data.worlds.new("W"); sc.world = world
+world.use_nodes = True
+world.node_tree.nodes["Background"].inputs[0].default_value = (*srgb2lin((0.62, 0.78, 0.92)), 1)
+world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
+sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
+sun.data.energy = 5.0
+sun.rotation_euler = (math.radians(50), math.radians(10), math.radians(-35))
+sc.collection.objects.link(sun)
+
+engine = "BLENDER_EEVEE"
+try:
+    sc.render.engine = "BLENDER_EEVEE"
+except Exception:
+    engine = "BLENDER_WORKBENCH"
+if sc.render.engine == "BLENDER_EEVEE":
+    sc.eevee.taa_render_samples = 16
+    sc.eevee.use_soft_shadows = True
+sc.render.resolution_x, sc.render.resolution_y = 1600, 900
+sc.view_settings.view_transform = "Standard"
+
+cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
+sc.collection.objects.link(cam)
+sc.camera = cam
+cam.data.clip_end = 20000
+
+def shot(name, loc, target, lens=35):
+    cam.location = Vector(loc)
+    cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.data.lens = lens
+    sc.render.filepath = os.path.join(out, name + ".png")
+    bpy.ops.render.render(write_still=True)
+    print("SHOT", name)
+
+shot("00_overview", (0, -2600, 1800), (0, 0, 0), 28)
+for st in W["stages"]:
+    c = st["center"]
+    shot(f"{st['index'] + 1}_stage_{st['index'] + 1}", (c[0] - 650, c[2] - 750, 520), (c[0], c[2], 20), 30)
+lob_t = (0, -820, 5)
+shot("4_lobby_town", (140, -1000, 70), lob_t, 30)
+# 見どころの近景
+b = S[0]["bridge"]
+if b:
+    off = Vector((S[0]["center"][0] - 500, S[0]["center"][2] - 500, 0))
+    p = U(b["p"]) + off
+    shot("5_rock_bridge", p + Vector((110, -140, 140)), p, 32)
+j = S[1]["jump"]
+if j:
+    off = Vector((S[1]["center"][0] - 500, S[1]["center"][2] - 500, 0))
+    p = U(j["p"]) + off
+    shot("6_dune_jump", p + Vector((-60, -70, 30)), p, 30)
+# 騎手目線（コース上 3m、少し先を見る）
+for st in W["stages"]:
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    c = st["course"]
+    k = len(c) // 5
+    eye = U(c[k]) + off + Vector((0, 0, 3.2))
+    tgt = U(c[k + 12]) + off + Vector((0, 0, 2.5))
+    shot(f"7_rider_view_{st['index'] + 1}", eye, tgt, 24)
+print("ENGINE", sc.render.engine)

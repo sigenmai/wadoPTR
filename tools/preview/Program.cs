@@ -1,0 +1,31 @@
+using System; using System.IO; using System.Text; using System.Globalization; using UnityEngine; using HorseRace.EditorTools;
+class P {
+  static string F(float v)=>v.ToString("0.###",CultureInfo.InvariantCulture);
+  static string V(Vector3 v)=>"["+F(v.x)+","+F(v.y)+","+F(v.z)+"]";
+  static void Main(string[] a){
+    string outDir=a[0]; var js=new StringBuilder("{\"stages\":[");
+    foreach(var d in StageDefinitions.All){
+      var local=StageDefinitions.SampleLocal(d); float goal=StageDefinitions.GoalArc(d,local);
+      var h=HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES,d.kind,d.seed,StageDefinitions.Normalize(local));
+      var plan=SetPieces.ApplyTerrain(d,local,h,goal);
+      var sand=HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES,d.kind,d.seed,d.kind==HeightmapGen.KIND_CANYON?h:null);
+      int n=h.GetLength(0);
+      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"h{d.index}.bin")))){ bw.Write(n); for(int z=0;z<n;z++)for(int x=0;x<n;x++)bw.Write(h[z,x]); }
+      int m=sand.GetLength(0);
+      using(var bw=new BinaryWriter(File.Create(Path.Combine(outDir,$"s{d.index}.bin")))){ bw.Write(m); for(int z=0;z<m;z++)for(int x=0;x<m;x++)bw.Write(sand[z,x]); }
+      var ch=SetPieces.WithHeights(local,h);
+      var sbC=new StringBuilder(); for(int i=0;i<ch.Length;i+=5){ if(sbC.Length>0)sbC.Append(','); sbC.Append(V(ch[i])); }
+      var cps=WorldLayout.CheckpointArcs(goal,StageDefinitions.CP_SPACING_M);
+      var sbP=new StringBuilder(); foreach(var c in cps){ if(sbP.Length>0)sbP.Append(','); var p=WorldLayout.PointAtArc(ch,c); sbP.Append(V(p)); }
+      var sbR=new StringBuilder(); for(int i=0;i<d.relicFractions.Length;i++){ if(sbR.Length>0)sbR.Append(','); var p=WorldLayout.PointAtArc(ch,d.relicFractions[i]*goal); sbR.Append(V(p)); }
+      float br=SetPieces.BridgeArc(d,goal), jp=SetPieces.JumpArc(d,goal);
+      string bridge= br<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,br))+",\"t\":"+V(WorldLayout.TangentAtArc(local,br))+"}";
+      string jump= jp<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,jp))+",\"t\":"+V(WorldLayout.TangentAtArc(local,jp))+"}";
+      string sc= plan==null? "null" : "{\"a\":"+V(plan.a)+",\"b\":"+V(plan.b)+",\"drop\":"+F(plan.drop)+"}";
+      if(d.index>0) js.Append(',');
+      js.Append("{\"index\":"+d.index+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"shortcut\":"+sc+"}");
+      Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, shortcut {(plan==null?"none":plan.drop.ToString("0.0")+" m drop")}");
+    }
+    js.Append("]}"); File.WriteAllText(Path.Combine(outDir,"world.json"),js.ToString());
+  }
+}
