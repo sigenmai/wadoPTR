@@ -147,6 +147,7 @@ namespace UnityEditor.Animations
     public sealed class AnimatorState : Object
     {
         public Motion motion { get; set; }
+        public bool writeDefaultValues { get; set; }
         public AnimatorStateTransition AddTransition(AnimatorState destinationState) => null;
     }
 

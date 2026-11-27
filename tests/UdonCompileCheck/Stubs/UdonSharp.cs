@@ -37,6 +37,8 @@ namespace UdonSharp
         public void SendCustomEventDelayedSeconds(string eventName, float delaySeconds, EventTiming eventTiming = EventTiming.Update) { }
         public void SendCustomEventDelayedFrames(string eventName, int delayFrames, EventTiming eventTiming = EventTiming.Update) { }
 
+        /// <summary>UdonSharp 1.1+ / SDK 3.1+: hides the interact prompt (UdonBehaviour.DisableInteractive).</summary>
+        public bool DisableInteractive { get; set; }
         public virtual void Interact() { }
         public virtual void OnDeserialization() { }
         public virtual void OnPreSerialization() { }
@@ -47,6 +49,10 @@ namespace UdonSharp
         public virtual void OnPlayerTriggerEnter(VRCPlayerApi player) { }
         public virtual void OnPlayerTriggerExit(VRCPlayerApi player) { }
         public virtual void OnStationEntered(VRCPlayerApi player) { }
+        // SDK 3.4+ avatar events, SDK 3.7+ persistence event
+        public virtual void OnAvatarChanged(VRCPlayerApi player) { }
+        public virtual void OnAvatarEyeHeightChanged(VRCPlayerApi player, float prevEyeHeightAsMeters) { }
+        public virtual void OnPlayerRestored(VRCPlayerApi player) { }
         public virtual void OnStationExited(VRCPlayerApi player) { }
         public virtual void OnPickup() { }
         public virtual void OnDrop() { }

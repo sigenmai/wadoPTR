@@ -43,7 +43,9 @@ namespace HorseRace.EditorTools
             var root = GenUtil.World(parent, name, pos, yaw);
             var t = root.transform;
 
-            var seat = GenUtil.Child(t, "SeatAnchor", new Vector3(0f, 1.6f, -0.1f)).transform;
+            // 座席：腰が鞍に来る位置（馬の既定値。着席後に SeatFit がアバターの腰を測って動かす）
+            float seatY = SeatMath.AnchorY(SeatMath.SADDLE_HORSE_Y, SeatMath.FallbackHipsY(1.6f), 0f);
+            var seat = GenUtil.Child(t, "SeatAnchor", new Vector3(0f, seatY, SeatMath.SADDLE_HORSE_Z)).transform;
             var exit = GenUtil.Child(t, "ExitPoint", new Vector3(-1.6f, 0f, 0f)).transform;
 
             var rb = root.AddComponent<Rigidbody>();
@@ -60,11 +62,18 @@ namespace HorseRace.EditorTools
             station.disableStationExit = false;   // レース中だけ MountController が true にする
             station.canUseStationFromStation = false;
             station.seated = true;
+            // 騎乗ポーズ（RidePoseBuilder：Sitting レイヤーをまたがるポーズに置き換える）。無ければ VRChat の既定の座りポーズ
+            var ridePose = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(RidePoseBuilder.STATION_CONTROLLER);
+            if (ridePose == null) GenUtil.Warn("騎乗ポーズのコントローラーが見つかりません: " + RidePoseBuilder.STATION_CONTROLLER);
+            station.animatorController = ridePose;
 
             var mc = GenUtil.AddU<MountController>(root);
             mc.slotIndex = slot;
             mc.station = station;
             mc.seatAnchor = seat;
+            mc.seatHeight = seatY;
+            mc.seatForward = SeatMath.SADDLE_HORSE_Z;
+            mc.seatFit = BuildSeatFit(t, mc, seat);
             mc.groundMask = WorldLayers.GroundMask;
             mc.obstacleMask = WorldLayers.ObstacleMask;
 
@@ -110,6 +119,61 @@ namespace HorseRace.EditorTools
             ctx.casters.Add(caster);
             ctx.revolvers.Add(caster.revolver);
             return mc;
+        }
+
+        // ------------------------------------------------------------------
+        // 鞍の位置合わせ（SeatFit）と調整札（文字＋見えない当たり判定。モデルは作らない）
+        // ------------------------------------------------------------------
+
+        static readonly string[] ButtonLabels = { "▲", "▼", "▲", "▼", "▲", "▼", "戻す" };
+        static readonly string[] ButtonHints = { "鞍：上へ 1cm", "鞍：下へ 1cm", "鞍：前へ 1cm", "鞍：後ろへ 1cm", "鞍：前に 1° 傾ける", "鞍：後ろに 1° 傾ける", "鞍：元に戻す" };
+
+        static SeatFit BuildSeatFit(Transform t, MountController mc, Transform seat)
+        {
+            var go = GenUtil.Child(t, "SeatFit", Vector3.zero);
+            var sf = GenUtil.AddU<SeatFit>(go);
+            sf.mount = mc;
+            sf.seatAnchor = seat;
+            // 鞍の点は FBX を Blender で測った値（SeatMath の SADDLE_*）
+            var sy = new float[SeatMath.SEAT_TYPES];
+            var sz = new float[SeatMath.SEAT_TYPES];
+            for (int i = 0; i < SeatMath.SEAT_TYPES; i++) { sy[i] = SeatMath.DefaultSaddleY(i); sz[i] = SeatMath.DefaultSaddleZ(i); }
+            sf.saddleY = sy;
+            sf.saddleZ = sz;
+
+            // 札：鞍の右前（体の箱の外）。乗り手から見て読める向き（右前の下を見る）。位置は SeatFit が毎フレーム鞍に合わせる
+            sf.panelOffset = new Vector3(0.56f, 0.12f, 0.25f);
+            var panel = GenUtil.Child(go.transform, "SeatPanel", new Vector3(0.56f, SeatMath.SADDLE_HORSE_Y + 0.12f, SeatMath.SADDLE_HORSE_Z + 0.25f));
+            panel.transform.localRotation = Quaternion.Euler(55f, 20f, 0f);
+            sf.panelRoot = panel;
+            var pt = panel.transform;
+            GenUtil.Text(pt, "Title", new Vector3(0f, 0.105f, 0f), Quaternion.identity, "鞍の位置", 0.22f, Gold, new Vector2(0.24f, 0.03f));
+            string[] heads = { "高さ", "前後", "傾き" };
+            for (int c = 0; c < 3; c++)
+                GenUtil.Text(pt, "Head_" + c, new Vector3(-0.075f + 0.075f * c, 0.075f, 0f), Quaternion.identity, heads[c], 0.16f, Gold, new Vector2(0.07f, 0.025f));
+            var buttons = new Transform[SeatFit.BUTTONS];
+            for (int b = 0; b < SeatFit.BUTTONS; b++)
+            {
+                Vector3 p = b == SeatFit.BTN_RESET ? new Vector3(0.115f, -0.03f, 0f)
+                    : new Vector3(-0.075f + 0.075f * (b / 2), (b % 2 == 0) ? 0.04f : -0.005f, 0f);
+                var btn = GenUtil.Child(pt, "Button_" + b, p);
+                var col = btn.AddComponent<BoxCollider>();
+                col.isTrigger = true;
+                col.size = new Vector3(b == SeatFit.BTN_RESET ? 0.07f : 0.055f, 0.04f, 0.03f);
+                var sab = GenUtil.AddU<SeatAdjustButton>(btn);
+                sab.seatFit = sf;
+                sab.button = b;
+                GenUtil.SetInteractText(sab, ButtonHints[b]);
+                GenUtil.Text(btn.transform, "Label", Vector3.zero, Quaternion.identity, ButtonLabels[b], b == SeatFit.BTN_RESET ? 0.16f : 0.22f, Gold, new Vector2(0.06f, 0.035f));
+                buttons[b] = btn.transform;
+            }
+            sf.buttons = buttons;
+            sf.readout = GenUtil.Text(pt, "Readout", new Vector3(-0.02f, -0.05f, 0f), Quaternion.identity, "", 0.13f, Gold, new Vector2(0.2f, 0.05f));
+            GenUtil.Text(pt, "KeysHint", new Vector3(0f, -0.085f, 0f), Quaternion.identity, "PC: PgUp/PgDn 高さ・Home/End 前後・Ins/Del 傾き", 0.07f, Gold, new Vector2(0.3f, 0.02f));
+            // 当たり判定は Rider（物理の衝突なし。CP・砂地のトリガーを踏まない）
+            GenUtil.SetLayerRecursive(panel, WorldLayers.Rider);
+            panel.SetActive(false);
+            return sf;
         }
 
         // ------------------------------------------------------------------

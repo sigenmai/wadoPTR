@@ -93,6 +93,7 @@ namespace UnityEngine
         public static int FloorToInt(float v) => (int)Math.Floor(v);
         public static int CeilToInt(float v) => (int)Math.Ceiling(v);
         public static int RoundToInt(float v) => (int)Math.Round(v);
+        public static float Round(float f) => (float)Math.Round(f);
         public static float PerlinNoise(float x, float y) => 0.5f;
     }
 
@@ -107,11 +108,11 @@ namespace UnityEngine
     }
 
     /// <summary>Subset of UnityEngine.HumanBodyBones with the real numeric values.</summary>
-    public enum HumanBodyBones { Hips = 0, LeftUpperLeg = 1, RightUpperLeg = 2, Spine = 7, Chest = 8, Neck = 9, Head = 10, LeftHand = 17, RightHand = 18, LastBone = 55 }
+    public enum HumanBodyBones { Hips = 0, LeftUpperLeg = 1, RightUpperLeg = 2, Spine = 7, Chest = 8, Neck = 9, Head = 10, LeftHand = 17, RightHand = 18, LeftIndexDistal = 29, RightIndexDistal = 44, LastBone = 55 }
 
     public enum QueryTriggerInteraction { UseGlobal = 0, Ignore = 1, Collide = 2 }
 
-    public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, LeftShift = 304, RightShift = 303 }
+    public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, Delete = 127, Insert = 277, Home = 278, End = 279, PageUp = 280, PageDown = 281, LeftShift = 304, RightShift = 303 }
 
     public partial class Object
     {

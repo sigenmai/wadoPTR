@@ -811,6 +811,8 @@ namespace HorseRace
                 StateEnterLocal(prev);
             }
 
+            if (state == RaceMath.STATE_LOBBY) LobbySeatLocal(localId);
+
             RefreshDisplays();
         }
 
@@ -822,6 +824,64 @@ namespace HorseRace
             if (Networking.IsOwner(m.gameObject) && mountParking != null && i < mountParking.Length && mountParking[i] != null)
                 m.TeleportTo(mountParking[i].position, mountParking[i].eulerAngles.y);
             m.AssignRider(-1, slotMount[i], slotCoat[i]);
+        }
+
+        /// <summary>
+        /// ロビーで台帳にサインした人は、自分の乗り物（置き場）に座って待つ（立って待たない）。
+        /// 新しく枠に入った・乗り物や毛色を変えた（サインし直し）ときだけ座らせる。ロビーでは Jump で自由に降りられ、
+        /// 降りた後は自分の乗り物を Interact でまた座れる（MountController.Interact）。カウントダウンでは StageBeginLocal が必ず座らせる。
+        /// ロビーでは乗ったまま町の中を歩ける（InputLocked=false、レース外なので能力・降車禁止なし）。
+        /// </summary>
+        private void LobbySeatLocal(int localId)
+        {
+            int n = SlotCount();
+            for (int i = 0; i < n; i++)
+            {
+                MountController m = mounts[i];
+                int pid = slotPlayerId[i];
+                if (m == null || pid < 0) continue;
+                if (pid != localId)
+                {
+                    if (m.riderPlayerId != pid)
+                    {
+                        m.SetRaceActive(false);
+                        m.AssignRider(pid, slotMount[i], slotCoat[i]);
+                    }
+                    continue;
+                }
+                bool fresh = m.riderPlayerId != pid;
+                bool changed = Networking.IsOwner(m.gameObject) && (m.syncMount != slotMount[i] || m.syncCoat != slotCoat[i]);
+                if (!fresh && !changed) continue;
+                if (practiceArea != null) practiceArea.ReleaseLocal();
+                m.SetRaceActive(false);
+                m.InputLocked = false;
+                m.AssignRider(pid, slotMount[i], slotCoat[i]);   // 所有権を取って座る
+                if (fresh && mountParking != null && i < mountParking.Length && mountParking[i] != null)
+                    m.TeleportTo(mountParking[i].position, mountParking[i].eulerAngles.y);
+                // 練習用の馬から降りた同じフレームの UseStation は無視されることがあるので少し後でもう一度
+                SendCustomEventDelayedFrames(nameof(_ReseatLobbyLocal), 3);
+            }
+        }
+
+        public void _ReseatLobbyLocal()
+        {
+            if (state != RaceMath.STATE_LOBBY) return;
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null) return;
+            int s = FindSlot(local.playerId);
+            if (s < 0 || s >= SlotCount() || mounts[s] == null) return;
+            MountController m = mounts[s];
+            if (m.IsLocalRider()) return;
+            if (practiceArea != null && practiceArea.IsRidingPracticeHorse()) return;
+            m.AssignRider(local.playerId, slotMount[s], slotCoat[s]);
+        }
+
+        /// <summary>練習用の馬に乗る前に、ロビーで座っている自分の乗り物から降りる（Station から Station へは乗り換えられない）。</summary>
+        public void LeaveLobbyMountLocal()
+        {
+            if (state != RaceMath.STATE_LOBBY) return;
+            MountController m = LocalMount();
+            if (m != null && m.IsLocalRider()) m.ExitLocal();
         }
 
         /// <summary>ステージ開始（COUNTDOWN 突入）：全員の乗り物を割り当て直し、自分の乗り物だけ着席・スタート位置・進行リセット。</summary>

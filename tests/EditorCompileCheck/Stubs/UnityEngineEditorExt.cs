@@ -457,3 +457,64 @@ namespace UnityEngine
 
     public sealed class Font : Object { }
 }
+
+namespace UnityEngine
+{
+    /// <summary>Mirrors UnityEngine.AnimationClip (parts used by RidePoseBuilder).</summary>
+    public partial class AnimationClip
+    {
+        public AnimationClip() { }
+        public float frameRate { get; set; }
+    }
+
+    /// <summary>Mirrors UnityEngine.AnimationCurve.</summary>
+    public partial class AnimationCurve
+    {
+        public static AnimationCurve Constant(float timeStart, float timeEnd, float value) => new AnimationCurve();
+    }
+
+    /// <summary>
+    /// Mirrors UnityEngine.HumanTrait. MuscleName returns Unity 2022.3's 95 muscle names (same list as
+    /// tests/HorseRace.Tests/RidePoseTests.cs, which checks RidePose against it).
+    /// </summary>
+    public sealed partial class HumanTrait
+    {
+        public static int MuscleCount => MuscleName.Length;
+        public static string[] MuscleName => new string[0];
+    }
+}
+
+namespace UnityEditor
+{
+    /// <summary>Mirrors UnityEditor.EditorCurveBinding.</summary>
+    public partial struct EditorCurveBinding
+    {
+        public string path;
+        public string propertyName;
+        public System.Type type { get; set; }
+        public static EditorCurveBinding FloatCurve(string inPath, System.Type inType, string inPropertyName) => default(EditorCurveBinding);
+    }
+
+    /// <summary>Mirrors UnityEditor.AnimationClipSettings (a class with public fields).</summary>
+    public partial class AnimationClipSettings
+    {
+        public bool loopTime;
+        public bool loopBlend;
+        public bool loopBlendOrientation;
+        public bool loopBlendPositionY;
+        public bool loopBlendPositionXZ;
+        public bool keepOriginalOrientation;
+        public bool keepOriginalPositionY;
+        public bool keepOriginalPositionXZ;
+        public bool heightFromFeet;
+        public bool mirror;
+    }
+
+    /// <summary>Mirrors UnityEditor.AnimationUtility (parts used by RidePoseBuilder).</summary>
+    public partial class AnimationUtility
+    {
+        public static void SetEditorCurve(UnityEngine.AnimationClip clip, EditorCurveBinding binding, UnityEngine.AnimationCurve curve) { }
+        public static AnimationClipSettings GetAnimationClipSettings(UnityEngine.AnimationClip clip) => new AnimationClipSettings();
+        public static void SetAnimationClipSettings(UnityEngine.AnimationClip clip, AnimationClipSettings srcClipInfo) { }
+    }
+}

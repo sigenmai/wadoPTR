@@ -50,6 +50,8 @@ namespace HorseRace
         [UdonSynced] public double syncFinishAt = -1.0;
         /// <summary>送った時のサーバー時刻（OnPreSerialization で入れる）。受け手の補間の時間軸。</summary>
         [UdonSynced] public double syncTime;
+        /// <summary>乗り手が合わせた SeatAnchor（x = 乗り物ローカルの高さ, y = 前後, z = 前傾の角度）。他の人の画面の Station も同じ位置に置く。</summary>
+        [UdonSynced] public Vector3 syncSeat;
 
         // ---- 公開状態 ----
         [Header("Slot")]
@@ -74,6 +76,8 @@ namespace HorseRace
         public Transform seatAnchor;
         public MountVisual visual;
         public MountInputVR vrInput;
+        /// <summary>鞍の位置合わせ（アバターの腰を測る・微調整・保存）。無ければ seatHeight / seatForward の固定位置。</summary>
+        public SeatFit seatFit;
 
         [Header("Ground")]
         public LayerMask groundMask = -1;
@@ -87,6 +91,7 @@ namespace HorseRace
 
         [Header("Seat (anti-motion-sickness)")]
         public float seatHeight = 1.6f;
+        public float seatForward = -0.05f;
         public float seatMaxLag = 0.5f;
         public float seatPitchScale = 0.5f;
 
@@ -133,6 +138,8 @@ namespace HorseRace
         private float bodyPitch;
         private float seatPitch;
         private float seatY;
+        private float seatLocalY;
+        private bool interactDisabled;
 
         // ---- 非オーナー補間（送信時刻つきのサンプルを InterpMath.BUFFER 個）----
         private double[] bufTime;
@@ -166,7 +173,8 @@ namespace HorseRace
             yaw = transform.eulerAngles.y;
             syncPos = transform.position;
             syncYaw = yaw;
-            seatY = transform.position.y + seatHeight;
+            seatLocalY = seatHeight;
+            seatY = transform.position.y + seatLocalY;
             if (station == null) Debug.LogWarning("[HorseRace] MountController: VRCStation が未設定です " + gameObject.name);
             if (seatAnchor == null) Debug.LogWarning("[HorseRace] MountController: seatAnchor が未設定です " + gameObject.name);
             if (visual != null) visual.Apply(syncMount, syncCoat);
@@ -234,7 +242,7 @@ namespace HorseRace
             cruiseLevel = 0;
             Grounded = true;
             fallStartY = pos.y;
-            seatY = pos.y + seatHeight;
+            seatY = pos.y + seatLocalY;   // 座席はすぐ新しい位置へ（平滑化で遅れて付いてこない）
             bodyPitch = 0f;
             seatPitch = 0f;
             bufCount = 0;
@@ -434,6 +442,7 @@ namespace HorseRace
                 return;
             }
             seated = true;
+            if (seatFit != null) seatFit.OnSeated();
             if (vrInput != null) vrInput.SendCustomEventDelayedSeconds("Calibrate", 0.5f);
         }
 
@@ -441,11 +450,47 @@ namespace HorseRace
         {
             if (player == null || !player.isLocal) return;
             seated = false;
+            if (seatFit != null) seatFit.OnUnseated();
             if (player.playerId == riderPlayerId && raceActive && !InputLocked)
             {
                 // 降車した瞬間に戻す（同じフレーム内の UseStation は無視されることがあるので 1 フレーム後）
                 SendCustomEventDelayedFrames(nameof(_Reseat), 1);
             }
+        }
+
+        /// <summary>
+        /// 自分の乗り物（割り当て済み）から降りていたら、体をクリック／Interact でまた座る（ロビーで降りた後など）。
+        /// 他の人の乗り物・座っている間は Interact できない（DisableInteractive）。
+        /// </summary>
+        public override void Interact()
+        {
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null || station == null || seated) return;
+            if (riderPlayerId != local.playerId) return;
+            station.UseStation(local);
+        }
+
+        /// <summary>自分が乗っていれば降りる（練習用の馬に乗り換えるときなど）。</summary>
+        public void ExitLocal()
+        {
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (local == null || station == null || !seated) return;
+            station.ExitStation(local);
+        }
+
+        /// <summary>今の見た目の鞍の種類（SeatMath.SEAT_*）。</summary>
+        public int SeatType()
+        {
+            return SeatMath.SeatType(syncMount, syncCoat);
+        }
+
+        private void UpdateInteractable()
+        {
+            VRCPlayerApi local = Networking.LocalPlayer;
+            bool disable = local == null || seated || riderPlayerId != local.playerId;
+            if (disable == interactDisabled) return;
+            interactDisabled = disable;
+            DisableInteractive = disable;
         }
 
         public void _Reseat()
@@ -488,6 +533,7 @@ namespace HorseRace
                 UpdateRemote(dt);
             }
 
+            UpdateInteractable();
             float targetPitch = SampleGroundPitch();
             bodyPitch = MountMath.SmoothAngle(bodyPitch, targetPitch, dt * 3f);
             seatPitch = MountMath.SmoothAngle(seatPitch, targetPitch * seatPitchScale, dt);
@@ -713,17 +759,57 @@ namespace HorseRace
             return ANIM_GALLOP;
         }
 
+        /// <summary>
+        /// SeatAnchor（Station の入る位置）を置く。高さ・前後・前傾は
+        ///   自分が乗っている：SeatFit（腰の測定＋微調整）→ syncSeat に入れて送る
+        ///   他の人が乗っている：受け取った syncSeat
+        ///   誰も乗っていない：鞍の種類ごとの既定値
+        /// 高さは平滑化して上下動を伝えない（酔い対策）。
+        /// </summary>
         private void UpdateSeat(float dt)
         {
             if (seatAnchor == null) return;
+            int type = SeatType();
+            float ly = seatHeight;
+            float lz = seatForward;
+            float tilt = 0f;
+            if (IsLocalRider())
+            {
+                if (seatFit != null)
+                {
+                    ly = seatFit.AnchorY(type);
+                    lz = seatFit.AnchorZ(type);
+                    tilt = seatFit.Tilt(type);
+                }
+                syncSeat = new Vector3(ly, lz, tilt);
+            }
+            else if (riderPlayerId >= 0 && !Networking.IsOwner(gameObject) && syncSeat.sqrMagnitude > 0.0001f)
+            {
+                // （まだ 1 度も受け取っていない＝0 ベクトルのときは下の既定値）
+                ly = syncSeat.x;
+                lz = syncSeat.y;
+                tilt = syncSeat.z;
+            }
+            else if (seatFit != null)
+            {
+                ly = seatFit.DefaultAnchorY(type);
+                lz = seatFit.DefaultAnchorZ(type);
+            }
+            // 受け取った値が壊れていても座席が遠くへ飛ばない
+            ly = Mathf.Clamp(ly, -1f, 4f);
+            lz = Mathf.Clamp(lz, -1.5f, 1.5f);
+            tilt = Mathf.Clamp(tilt, -SeatMath.TILT_LIMIT, SeatMath.TILT_LIMIT);
+            seatLocalY = ly;
+
             Vector3 root = transform.position;
-            float targetY = root.y + seatHeight;
+            float yawDeg = transform.eulerAngles.y;
+            float targetY = root.y + ly;
             seatY = MountMath.SmoothAngle(seatY, targetY, dt);
             seatY = Mathf.Clamp(seatY, targetY - seatMaxLag, targetY + seatMaxLag);
-            Vector3 p = root + Vector3.up * seatHeight;
+            Vector3 p = root + Quaternion.Euler(0f, yawDeg, 0f) * new Vector3(0f, 0f, lz);
             p.y = seatY;
             seatAnchor.position = p;
-            seatAnchor.rotation = Quaternion.Euler(seatPitch, transform.eulerAngles.y, 0f);
+            seatAnchor.rotation = Quaternion.Euler(seatPitch + tilt, yawDeg, 0f);
         }
 
         // =====================================================================

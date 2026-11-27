@@ -21,6 +21,7 @@ namespace HorseRace
         private int appliedRiderId = -1;
         private float claimTime;
         private bool seenSeated;
+        private bool retried;
 
         /// <summary>乗り手は Jump で自由に降りられる（raceActive=false）。降りたのを見つけたら杭の記録も外して馬を戻す。</summary>
         private void Update()
@@ -30,6 +31,12 @@ namespace HorseRace
             {
                 seenSeated = true;
                 return;
+            }
+            // ロビーの自分の乗り物から降りた直後は UseStation が無視されることがあるので一度だけ座り直す
+            if (!seenSeated && !retried && Time.time - claimTime > 0.3f)
+            {
+                retried = true;
+                mount.AssignRider(riderId, MountMath.MOUNT_HORSE, coat);
             }
             // 着席は 1〜数フレーム遅れるので、座った後に降りたか、3 秒たっても座れなかったら解放
             if (seenSeated || Time.time - claimTime > 3f) Release();
@@ -50,10 +57,12 @@ namespace HorseRace
                 if (other != null && other.IsValid()) return; // 使用中
             }
             if (raceManager != null && raceManager.IsLocalRacing()) return;
+            if (raceManager != null) raceManager.LeaveLobbyMountLocal();
             Networking.SetOwner(local, gameObject);
             riderId = local.playerId;
             claimTime = Time.time;
             seenSeated = false;
+            retried = false;
             RequestSerialization();
             Apply();
         }

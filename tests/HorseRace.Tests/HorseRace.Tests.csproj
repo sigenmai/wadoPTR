@@ -21,6 +21,7 @@
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LobbyLayout.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LayoutOverrides.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/CourseBarrier.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/RidePose.cs" />
     <ProjectReference Include="../UnityStubs/UnityStubs.csproj" />
   </ItemGroup>
 </Project>

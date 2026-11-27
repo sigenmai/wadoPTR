@@ -30,6 +30,7 @@ namespace VRC.SDKBase
         public Vector3 GetPosition() => Vector3.zero;
         public Vector3 GetBonePosition(HumanBodyBones tt) => Vector3.zero;
         public Quaternion GetBoneRotation(HumanBodyBones tt) => Quaternion.identity;
+        public float GetAvatarEyeHeightAsMeters() => 1.6f;
         public Quaternion GetRotation() => Quaternion.identity;
         public void TeleportTo(Vector3 teleportPos, Quaternion teleportRot) { }
         public void SetVoiceDistanceNear(float near) { }
@@ -134,5 +135,17 @@ namespace VRC.SDK3.UdonNetworkCalling
     {
         public static VRC.SDKBase.VRCPlayerApi CallingPlayer => null;
         public static bool InNetworkCall => false;
+    }
+}
+
+namespace VRC.SDK3.Persistence
+{
+    /// <summary>Mirrors VRC.SDK3.Persistence.PlayerData (SDK 3.7+). Setters write the local player's data; getters read any player's.</summary>
+    public static partial class PlayerData
+    {
+        public static void SetFloat(string key, float value) { }
+        public static float GetFloat(VRC.SDKBase.VRCPlayerApi player, string key) => 0f;
+        public static bool TryGetFloat(VRC.SDKBase.VRCPlayerApi player, string key, out float value) { value = 0f; return false; }
+        public static bool HasKey(VRC.SDKBase.VRCPlayerApi player, string key) => false;
     }
 }

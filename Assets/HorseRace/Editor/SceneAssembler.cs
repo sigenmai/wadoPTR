@@ -12,7 +12,7 @@ namespace HorseRace.EditorTools
     /// <summary>
     /// メニュー「HorseRace/Build World」：開いているシーンに HorseRace_Generated を作り直す（前のものは消す）。
     ///   1. UdonSharp のプログラムアセットが無いスクリプトに作る（作ったときはコンパイル待ちのため一度止まる → もう一度実行）
-    ///   2. 毛色マテリアル（HorseMaterialBuilder）と Mount.controller（MountAnimatorBuilder）を作る
+    ///   2. 毛色マテリアル（HorseMaterialBuilder）と Mount.controller（MountAnimatorBuilder）、騎乗ポーズ Station_Ride.controller（RidePoseBuilder）を作る
     ///   3. レイヤー Ground / Mount / Rider / Block を用意（WorldLayers）
     ///   4. ステージ ×3（Terrain・砂地・コース・見えない柵・飾り）、ロビー（町・受付・手配書・柵の馬・鐘・練習場・たまり場・掲示板・中継）
     ///   5. 乗り物（レース用 8 頭は待機場所、練習用 2 頭は杭の横）、スターター、RaceManager
@@ -40,6 +40,7 @@ namespace HorseRace.EditorTools
                 Progress("毛色マテリアル・アニメーター", 0.01f);
                 HorseMaterialBuilder.Create();
                 MountAnimatorBuilder.Build();
+                RidePoseBuilder.Build();   // VRCStation 用の騎乗ポーズ（MountBuilder が全頭の Station に入れる）
                 if (!WorldLayers.Ensure()) return;
 
                 foreach (GameObject g in scene.GetRootGameObjects())

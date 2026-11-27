@@ -24,7 +24,9 @@ namespace HorseRace.EditorTools
         {
             { typeof(RaceManager), new[] { "mounts", "startPoints", "firstCheckpoints", "finishPens", "lobbySpawn", "starter", "stageResetTargets",
                 "refillTargets", "spectator", "ledgers", "rankBoards", "posterCards", "mountPickers", "startBell", "practiceArea" } },
-            { typeof(MountController), new[] { "station", "seatAnchor", "visual", "vrInput" } },
+            { typeof(MountController), new[] { "station", "seatAnchor", "visual", "vrInput", "seatFit" } },
+            { typeof(SeatFit), new[] { "mount", "seatAnchor", "saddleY", "saddleZ", "panelRoot", "buttons", "readout" } },
+            { typeof(SeatAdjustButton), new[] { "seatFit" } },
             { typeof(MountVisual), new[] { "horseModel", "camelModel", "skeletonModel", "horseAnimator", "camelAnimator", "skeletonAnimator",
                 "horseController", "camelController", "skeletonController", "horseCoatRenderers", "coatMaterials", "breathAudio" } },
             { typeof(MountInputVR), new[] { "mount", "seatAnchor" } },

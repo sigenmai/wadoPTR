@@ -22,6 +22,7 @@ namespace UnityEngine
         public const float Deg2Rad = (PI * 2f) / 360f;
         public static float Tan(float v) => (float)Math.Tan(v);
         public static int RoundToInt(float v) => (int)Math.Round(v);
+        public static float Round(float f) => (float)Math.Round(f);
         public static float Floor(float v) => (float)Math.Floor(v);
         public static int FloorToInt(float v) => (int)Math.Floor(v);
         public static int CeilToInt(float v) => (int)Math.Ceiling(v);
