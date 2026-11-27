@@ -19,6 +19,8 @@ namespace HorseRace
         public int maxLines = 8;
         [Tooltip("たまり場の黒板用：ロビー中は前回のレースの順位表（ステージ別の着順と総合ポイント）を書く")]
         public bool showLastRace;
+        [Tooltip("コースの黒板：このステージ番号（0..2）。カウントダウン〜ステージ結果の間は、別のステージの黒板は書き直さない（負荷対策）。-1 = 常に書く")]
+        public int stageIndex = -1;
 
         private void Start()
         {
@@ -30,6 +32,8 @@ namespace HorseRace
             if (boardText == null || raceManager == null) return;
             RaceManager rm = raceManager;
             int st = rm.state;
+            if (stageIndex >= 0 && rm.stage != stageIndex
+                && (st == RaceMath.STATE_COUNTDOWN || st == RaceMath.STATE_RACING || st == RaceMath.STATE_STAGE_RESULT)) return;
             string s;
             if (st == RaceMath.STATE_LOBBY)
             {
@@ -75,7 +79,7 @@ namespace HorseRace
                         + "  " + rm.slotTotalPoints[slot].ToString() + "点\n";
                 }
             }
-            boardText.text = s;
+            if (boardText.text != s) boardText.text = s;
         }
 
         /// <summary>前回のレース：「1位 名前  第1 1位／第2 3位／第3 2位  計24点」。</summary>
