@@ -14,7 +14,13 @@ if src.endswith(".blend"):
             bpy.data.objects.remove(o)
 else:
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_scene.fbx(filepath=src)
+    ext = os.path.splitext(src)[1].lower()
+    if ext == ".obj":
+        bpy.ops.wm.obj_import(filepath=src)
+    elif ext in (".glb", ".gltf"):
+        bpy.ops.import_scene.gltf(filepath=src)
+    else:
+        bpy.ops.import_scene.fbx(filepath=src)
 relink.fix_textures(src)
 sc = bpy.context.scene
 mn = Vector((1e9,) * 3); mx = Vector((-1e9,) * 3); tris = 0
