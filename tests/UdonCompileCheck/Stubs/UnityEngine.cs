@@ -240,6 +240,25 @@ namespace UnityEngine
 
     public class Material : Object { }
 
+    public class Texture : Object
+    {
+        public virtual int width { get; set; }
+        public virtual int height { get; set; }
+    }
+
+    public class RenderTexture : Texture
+    {
+        public RenderTexture(int width, int height, int depth) { }
+    }
+
+    public class Camera : Behaviour
+    {
+        public RenderTexture targetTexture { get; set; }
+        public float fieldOfView { get; set; }
+        public float nearClipPlane { get; set; }
+        public float farClipPlane { get; set; }
+    }
+
     public class Renderer : Component
     {
         public bool enabled { get; set; }
