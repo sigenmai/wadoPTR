@@ -104,7 +104,10 @@ namespace HorseRace
             localHidden = true;
             SendCustomEventDelayedSeconds(nameof(_ClearLocalHidden), 3f);
             ApplyVisual();
-            SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(Claim), epoch);
+            // 自分がオーナー（マスターが拾った等）なら直接判定する
+            VRCPlayerApi local = Networking.LocalPlayer;
+            if (Networking.IsOwner(gameObject) && local != null) ClaimBy(local.playerId, epoch);
+            else SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(Claim), epoch);
         }
 
         public void _ClearLocalHidden()
@@ -124,9 +127,16 @@ namespace HorseRace
             if (!Networking.IsOwner(gameObject)) return;
             VRCPlayerApi caller = NetworkCalling.CallingPlayer;
             if (caller == null || !caller.IsValid()) return;
+            ClaimBy(caller.playerId, forEpoch);
+        }
+
+        /// <summary>オーナー側の先着判定（Claim と、オーナー自身が触れたとき）。</summary>
+        private void ClaimBy(int playerId, int forEpoch)
+        {
+            if (!Networking.IsOwner(gameObject)) return;
             if (forEpoch != epoch) return;
             if (isSpare && !spareActive) return;
-            int newHolder = AbilityMath.RelicArbiter(holder, caller.playerId);
+            int newHolder = AbilityMath.RelicArbiter(holder, playerId);
             if (newHolder == holder) return;
             holder = newHolder;
             pickedAt = Time.time;

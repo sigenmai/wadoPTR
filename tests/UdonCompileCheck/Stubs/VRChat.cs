@@ -28,6 +28,8 @@ namespace VRC.SDKBase
         public bool IsUserInVR() => false;
         public TrackingData GetTrackingData(TrackingDataType tt) => default;
         public Vector3 GetPosition() => Vector3.zero;
+        public Vector3 GetBonePosition(HumanBodyBones tt) => Vector3.zero;
+        public Quaternion GetBoneRotation(HumanBodyBones tt) => Quaternion.identity;
         public Quaternion GetRotation() => Quaternion.identity;
         public void TeleportTo(Vector3 teleportPos, Quaternion teleportRot) { }
         public void SetVoiceDistanceNear(float near) { }

@@ -117,10 +117,11 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
   - `IronBall` ×3: 直径 0.7m 程度の球（Collider なし）を `Visual` に。`Ground Mask` = 地形（＋`HR_Wall` ではねさせるなら追加）
   - `Haze`: 自分の頭を包む半透明の砂色の球（裏面描画、半径 0.3m）。ローカルだけで出る
 - **CharmPouch**（腰のお守り袋）: 鞍の脇の小さな袋のモデル（乗り物の子）。`Pouch Renderer`、`Ready Material`（光る）・`Idle Material`、`Glow`（任意）、`Level Marks` に刻印 3 個（光るもの）、`Level Marks Unlit`（任意）。初期状態は消灯にしておく（乗っていない人の袋は更新されない）
-- **RevolverHolder**: `Packs/Revolver/Revolver.fbx` を部品を組んだまま乗り物の子（鞍の脇のホルスター位置）に置き、ルートに `VRC Pickup`（Auto Hold = Yes、Exact Gun にグリップ位置）＋ Rigidbody（Is Kinematic）＋ `RevolverHolder`（スクリプトが NoVariableSync を指定。ネットワークイベントだけ使う）。VRCObjectSync は付けない
+- **RevolverHolder**: `Packs/Revolver/Revolver.fbx` を部品を組んだまま乗り物の子（鞍の脇のホルスター位置）に置き、ルートに `VRC Pickup`（Auto Hold = Yes、Exact Gun にグリップ位置）＋ Rigidbody（Is Kinematic）＋ `RevolverHolder`（同期 Manual。乗っている本人がオーナーになり、構え・狙う向きを送る）。VRCObjectSync は付けない
   - `Caster` = 同じ乗り物の AbilityCaster、`Pickup` = 上の VRC Pickup
   - `Cylinder` = Revolving_Cylinder、`Hammer` = Hammer、`Trigger Part` = Trigger、`Bullets` = Bullet1〜Bullet6（この順）、`Muzzle` = 銃口に置いた空の子（z+ を弾の向きに）
   - 回転軸（`Cylinder Axis`・`Hammer Axis`・`Trigger Axis`）は FBX の向きに合わせて調整
+  - ほかの人から見た銃: `Hand Grip Offset`（手のボーンからグリップまで）、`Holster Hip Offset`／`Holster Hip Euler`（腰のボーン基準の右腰の位置・向き）を調整。`Muzzle` の向きが銃身と合っていること（銃の向きはこれで決まる）
   - `Fx Root`（銃口の火・煙のパーティクルの親）、`Muzzle Flash`、`Smoke`、`Gunshot`、`Dry Fire`、`Tracer`（任意）
 - **RelicPickup**（遺物）: `Packs/Gems/Gems.fbx` の宝石 1 種（色違いの 1 つ）を `Visual` に。Is Trigger の Collider（半径 1.5m 程度）と同じ GameObject に置く。`Race Manager`・`Ground Mask` を設定
   - コース上の遺物（各ステージ数か所）: `Is Spare` OFF
@@ -145,6 +146,13 @@ Unity と VRChat クライアントで実際に確認する項目。自動テス
 - [ ] 同じ相手に 3 発当てるとその相手の Lv が 1 下がり、相手の少し後ろに遺物が落ちて誰でも拾える（1 秒後から）。相手が Lv1 なら落ちない。カウントはステージごとにリセット
 - [ ] 撃つたびに撃鉄が動きシリンダーが 60° 回り、弾が 1 個消える。6 発撃つと撃てない（カチッという音だけ）
 - [ ] 銃声・銃口の火と煙が他のクライアントでも出る
+- [ ] 他の人が構えると、その人の右手（VR で左手に持てば左手）に銃が見え、狙う方向を向く（なめらかに追従）
+- [ ] 他の人が構えていない時は、その人の右腰（ホルスター）に銃が見える。ボーンのないアバターでは鞍のホルスターに見える
+- [ ] 他の人が撃つと、全員の画面でその銃の撃鉄が動きシリンダーが回り、銃口に火花と煙が出る
+- [ ] デスクトップで右クリックを押すと自分の右手に銃が出る（アバターに手のボーンがなければ視線の前）
+- [ ] マスター（遺物のオーナー）自身が遺物を取っても Lv が上がり、他の人の画面からも消える
+- [ ] マスター（予備の遺物のオーナー）が同じ相手から 3 発受けると、Lv が下がり後ろに遺物が落ちる
+- [ ] 投げ縄の引き寄せが Lv で強くなる（4/5/6 m/s）、岩壁の幅が Lv で広くなる（6/7.5/9m）
 - [ ] 被弾（リボルバー・鉄球・投げ縄・砂塵）で視点が回らない
 - [ ] 練習場: 練習用の馬で手配書で選んだ能力が使え、手配書を取り替えると能力も替わる。クールダウンが 1/3、弾が減らない。カカシに当てると揺れる（外し扱いにならない）
 - [ ] レース外（ロビー・カウントダウン中・ゴール後の囲い）ではレース用の乗り物で能力・リボルバーが使えない

@@ -6,7 +6,8 @@ namespace HorseRace
     /// <summary>
     /// 岩壁（1 つの AbilityCaster に 1 つ、壁は最大 3 枚）。全クライアントで AbilityCaster.FxWall から Show。
     /// 各クライアントが自分で地面を下向きレイキャストして高さを合わせ、riseTime で地面からせり上がり、seconds 後に沈んで消える。
-    /// segments の各壁は幅 AbilityMath.WALL_WIDTH（6m）で作り、Collider を付けて MountController の Obstacle Mask に含まれるレイヤーに置く
+    /// 壁の幅は Lv で変わる（AbilityMath.WallWidth: 6/7.5/9m）。segments の各壁は幅 AbilityMath.WALL_WIDTH（6m）で作っておけば、
+    /// 幅に合わせて localScale.x を拡大する。各壁には Collider を付けて MountController の Obstacle Mask に含まれるレイヤーに置く
     /// （Ground Mask には含めない）。見た目は Packs/Cliffs か Packs/DesertRocks の岩。Start で親から外す。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -26,6 +27,7 @@ namespace HorseRace
         private float endTime;
         private int count;
         private Vector3[] basePos;
+        private Vector3[] baseScale;
         private bool started;
 
         private void Start()
@@ -40,27 +42,33 @@ namespace HorseRace
             transform.parent = null;
             int n = segments != null ? segments.Length : 0;
             basePos = new Vector3[n];
+            baseScale = new Vector3[n];
+            for (int i = 0; i < n; i++) if (segments[i] != null) baseScale[i] = segments[i].transform.localScale;
             if (!active) for (int i = 0; i < n; i++) if (segments[i] != null) segments[i].SetActive(false);
         }
 
-        public void Show(Vector3 center, float yaw, int wallCount, float seconds)
+        public void Show(Vector3 center, float yaw, int wallCount, float width, float seconds)
         {
             EnsureInit();
             if (segments == null) return;
             Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
             Vector3 right = rot * Vector3.right;
             count = Mathf.Min(wallCount, segments.Length);
+            if (width <= 0f) width = AbilityMath.WALL_WIDTH;
+            float sx = width / AbilityMath.WALL_WIDTH;
             for (int i = 0; i < segments.Length; i++)
             {
                 if (segments[i] == null) continue;
                 if (i >= count) { segments[i].SetActive(false); continue; }
-                float off = (i - (count - 1) * 0.5f) * AbilityMath.WALL_WIDTH;
+                float off = (i - (count - 1) * 0.5f) * width;
                 Vector3 p = center + right * off;
                 RaycastHit hit;
                 if (Physics.Raycast(p + Vector3.up * groundProbe, Vector3.down, out hit, groundProbe * 2f, groundMask, QueryTriggerInteraction.Ignore))
                     p.y = hit.point.y;
                 basePos[i] = p;
                 segments[i].transform.SetPositionAndRotation(p - Vector3.up * height, rot);
+                Vector3 bs = baseScale[i];
+                segments[i].transform.localScale = new Vector3(bs.x * sx, bs.y, bs.z);
                 segments[i].SetActive(true);
             }
             startTime = Time.time;

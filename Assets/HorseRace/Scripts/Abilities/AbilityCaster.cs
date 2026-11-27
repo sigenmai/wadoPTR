@@ -248,6 +248,15 @@ namespace HorseRace
             return Mathf.Clamp(Level, 1, 3) - 1;
         }
 
+        /// <summary>Lv ごとのインスペクター配列から値を取る。配列が短ければ最後の要素、空なら fallback。</summary>
+        private float LevelValue(float[] arr, float fallback)
+        {
+            if (arr == null || arr.Length == 0) return fallback;
+            int i = LevelIndex();
+            if (i >= arr.Length) i = arr.Length - 1;
+            return arr[i];
+        }
+
         // =====================================================================
         // 発動（発動者のクライアント）
         // =====================================================================
@@ -266,7 +275,7 @@ namespace HorseRace
             if (hit)
             {
                 Vector3 to = foundMount != null ? foundMount.transform.position : foundPoint;
-                mount.ApplyPull(to, AbilityMath.LASSO_SELF_BONUS_MPS, AbilityMath.LASSO_SELF_SECONDS);
+                mount.ApplyPull(to, AbilityMath.LassoPullBonus(Level), AbilityMath.LASSO_SELF_SECONDS);
                 if (foundMount != null)
                 {
                     AbilityCaster tc = foundMount.GetComponent<AbilityCaster>();
@@ -282,13 +291,13 @@ namespace HorseRace
             Vector3 dir = FlatAim();
             Vector3 center = mount.transform.position + dir * AbilityMath.WALL_AHEAD;
             float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxWall), center, yaw, AbilityMath.WallCount(Level));
+            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxWall), center, yaw, AbilityMath.WallCount(Level), AbilityMath.WallWidth(Level));
         }
 
         private void CastBall()
         {
             Vector3 origin = mount.transform.position + Vector3.up * aimHeight + FlatForward() * 1.0f;
-            float curve = aimRoll * AbilityMath.BALL_CURVE_DEG_PER_M_PER_ROLL_DEG * ballCurveScaleByLevel[LevelIndex()];
+            float curve = aimRoll * AbilityMath.BALL_CURVE_DEG_PER_M_PER_ROLL_DEG * LevelValue(ballCurveScaleByLevel, 0.1f);
             SendCustomNetworkEvent(NetworkEventTarget.All, nameof(FxBall), origin, FlatAim(), curve, AbilityMath.BallCount(Level));
         }
 
@@ -359,7 +368,7 @@ namespace HorseRace
         {
             if (m == null) return;
             AbilityCaster tc = m.GetComponent<AbilityCaster>();
-            if (tc != null) tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(HitBall), velocity, ballStunByLevel[LevelIndex()]);
+            if (tc != null) tc.SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(HitBall), velocity, LevelValue(ballStunByLevel, 0.5f));
         }
 
         // =====================================================================
@@ -381,10 +390,10 @@ namespace HorseRace
         }
 
         [NetworkCallable(10)]
-        public void FxWall(Vector3 center, float yaw, int count)
+        public void FxWall(Vector3 center, float yaw, int count, float width)
         {
             EnsureInit();
-            if (rockWall != null) rockWall.Show(center, yaw, count, AbilityMath.WALL_SECONDS);
+            if (rockWall != null) rockWall.Show(center, yaw, count, width, AbilityMath.WALL_SECONDS);
         }
 
         [NetworkCallable(10)]
@@ -488,7 +497,9 @@ namespace HorseRace
                 return;
             }
             Vector3 pos = mount != null ? mount.transform.position - FlatForward() * relicDropBehind : transform.position;
-            relicPool[0].SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(RelicPickup.RequestSpawn), pos);
+            // 自分が予備のオーナー（マスターが落とした等）なら直接呼ぶ
+            if (Networking.IsOwner(relicPool[0].gameObject)) relicPool[0].RequestSpawn(pos);
+            else relicPool[0].SendCustomNetworkEvent(NetworkEventTarget.Owner, nameof(RelicPickup.RequestSpawn), pos);
         }
 
         /// <summary>

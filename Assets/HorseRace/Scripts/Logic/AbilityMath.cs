@@ -74,7 +74,25 @@ namespace HorseRace
             return 45f;
         }
 
+        /// <summary>Lasso self pull bonus (m/s): 4/5/6. Lv1 equals LASSO_SELF_BONUS_MPS.</summary>
+        public static float LassoPullBonus(int lv)
+        {
+            lv = Clamp(lv);
+            if (lv == 1) return LASSO_SELF_BONUS_MPS;
+            if (lv == 2) return 5f;
+            return 6f;
+        }
+
         public static int WallCount(int lv) { return Clamp(lv); }
+
+        /// <summary>Width of each wall segment (m): 6/7.5/9. Lv1 equals WALL_WIDTH.</summary>
+        public static float WallWidth(int lv)
+        {
+            lv = Clamp(lv);
+            if (lv == 1) return WALL_WIDTH;
+            if (lv == 2) return 7.5f;
+            return 9f;
+        }
 
         public static int BallCount(int lv) { return Clamp(lv); }
 

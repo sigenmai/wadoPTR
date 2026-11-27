@@ -106,6 +106,9 @@ namespace UnityEngine
         public static int NameToLayer(string layerName) => 0;
     }
 
+    /// <summary>Subset of UnityEngine.HumanBodyBones with the real numeric values.</summary>
+    public enum HumanBodyBones { Hips = 0, LeftUpperLeg = 1, RightUpperLeg = 2, Spine = 7, Chest = 8, Neck = 9, Head = 10, LeftHand = 17, RightHand = 18, LastBone = 55 }
+
     public enum QueryTriggerInteraction { UseGlobal = 0, Ignore = 1, Collide = 2 }
 
     public enum KeyCode { None = 0, Space = 32, A = 97, D = 100, E = 101, LeftShift = 304, RightShift = 303 }

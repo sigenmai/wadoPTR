@@ -8,7 +8,11 @@ namespace HorseRace
 {
     /// <summary>
     /// 乗り物 1 頭ぶんのリボルバー（spec 5.2b）。Revolver.fbx（部品は組んだまま）のルートに VRC_Pickup（Auto Hold = Yes）と一緒に置く。
-    /// 普段は鞍の脇のホルスター（乗り物の子）にあり、手を離すとそこへ戻る。VRCObjectSync は付けない（見た目の同期は Fx イベントで行う）。
+    /// 普段は鞍の脇のホルスター（乗り物の子）にあり、手を離すとそこへ戻る。VRCObjectSync は付けない。
+    /// ほかの人から見た銃: 乗っている本人（＝この GameObject のオーナー。乗ったら SetOwner）が構え（syncAiming）・左右の手・狙う向き（syncAimDir）を
+    /// Manual 同期で送る（構えの開始・終了で 1 回、構え中は 10Hz）。受け取った側は、構え中は乗り手の手のボーン（GetBonePosition）に銃を置いて
+    /// 銃口を狙う向きへなめらかに向け、構えていなければ右腰（Hips ボーン＋holsterHipOffset、ボーンがなければ鞍のホルスター）に出す。
+    /// 撃鉄・シリンダー・銃口の火と煙・銃声は FxShot イベントで全員に出す。
     ///
     /// 操作:
     ///  - VR：手でつかんで構える（持っている間ずっと「構え中」）、トリガー（OnPickupUseDown）で撃つ。照準は銃口（muzzle）の向き。
@@ -21,11 +25,12 @@ namespace HorseRace
     ///  - 見た目（全員）：FxShot で残弾（Bullet1..6 の表示）・撃鉄・シリンダー 60°・銃口の火と煙・銃声。
     /// 残弾は 1 ステージ 6 発（Refill で補充）。練習場（PracticeArea.infiniteAmmo）では減らない。
     /// </summary>
-    [UdonBehaviourSyncMode(BehaviourSyncMode.NoVariableSync)]
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
     public class RevolverHolder : UdonSharpBehaviour
     {
         public const float AIM_REFRESH_SECONDS = 0.2f;
         public const float CYLINDER_STEP_DEG = 60f;
+        public const float AIM_SEND_INTERVAL = 0.1f;   // 構え中の同期 10Hz
 
         [Tooltip("同じ乗り物の AbilityCaster（mount・casterId・判定レイヤー・練習フラグを使う）")]
         public AbilityCaster caster;
@@ -63,6 +68,18 @@ namespace HorseRace
         public float hammerTime = 0.18f;
         [Tooltip("デスクトップで構えたときの銃の位置（頭基準）")]
         public Vector3 desktopAimOffset = new Vector3(0.18f, -0.18f, 0.45f);
+        [Tooltip("手のボーンから見たグリップ位置（銃の向き基準）")]
+        public Vector3 handGripOffset = new Vector3(0f, 0f, 0f);
+        [Tooltip("腰のボーン（Hips）から見たホルスター位置（ボーンの向き基準。右腰）")]
+        public Vector3 holsterHipOffset = new Vector3(0.18f, -0.05f, 0f);
+        public Vector3 holsterHipEuler = new Vector3(90f, 0f, 0f);
+        [Tooltip("ほかの人から見た銃の向きの追従の速さ")]
+        public float aimSmoothing = 15f;
+
+        // ---- 同期（乗っている本人＝オーナーが書く）----
+        [UdonSynced] public bool syncAiming;
+        [UdonSynced] public bool syncLeftHand;
+        [UdonSynced] public Vector3 syncAimDir;
 
         /// <summary>残弾（表示用。撃った人の値が Fx で全員に配られる）。</summary>
         public int ammo = RevolverMath.AMMO_PER_STAGE;
@@ -75,6 +92,7 @@ namespace HorseRace
         private int cylinderSteps;
         private float cylinderShown;
         private bool desktopAiming;
+        private bool hammerHomed = true;
         private int lastResetSeq = -1;
         private Transform homeParent;
         private Vector3 homeLocalPos;
@@ -82,6 +100,12 @@ namespace HorseRace
         private Quaternion cylinderHome;
         private Quaternion hammerHome;
         private Quaternion triggerHome;
+        private Quaternion muzzleLocalRot = Quaternion.identity;
+        private Quaternion shownRot = Quaternion.identity;
+        private bool shownRotValid;
+        private bool remotePosed;
+        private float nextAimSend;
+        private float nextOwnerTry;
         private bool started;
 
         private void Start()
@@ -97,6 +121,7 @@ namespace HorseRace
             homeParent = transform.parent;
             homeLocalPos = transform.localPosition;
             homeLocalRot = transform.localRotation;
+            if (muzzle != null) muzzleLocalRot = Quaternion.Inverse(transform.rotation) * muzzle.rotation;
             if (cylinder != null) cylinderHome = cylinder.localRotation;
             if (hammer != null) hammerHome = hammer.localRotation;
             if (triggerPart != null) triggerHome = triggerPart.localRotation;
@@ -189,13 +214,46 @@ namespace HorseRace
                 aimModUntil = Time.time + AIM_REFRESH_SECONDS;
             }
 
+            Vector3 dir = Vector3.forward;
+            bool leftHand = false;
+            if (rider && local != null)
+            {
+                if (vr)
+                {
+                    Transform t = muzzle != null ? muzzle : transform;
+                    dir = t.forward;
+                    leftHand = IsLocalHeld() && pickup.currentHand == VRC_Pickup.PickupHand.Left;
+                }
+                else
+                {
+                    VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+                    dir = head.rotation * Vector3.forward;
+                }
+            }
+
+            // 構えの同期（乗っている本人＝オーナーが書く）
+            if (rider) SyncAimLocal(local, aiming, dir, leftHand);
+            else if (syncAiming && Networking.IsOwner(gameObject))
+            {
+                // 降りた・乗り手が替わった：構えを解いて伝える
+                syncAiming = false;
+                RequestSerialization();
+            }
+
             if (rider && !vr && aiming && local != null)
             {
-                VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-                transform.SetPositionAndRotation(head.position + head.rotation * desktopAimOffset, head.rotation);
+                // デスクトップ：自分の右手（ボーンがなければ視線の前）に銃を出す
+                if (!PlaceInHand(local, false, dir))
+                {
+                    VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+                    transform.SetPositionAndRotation(head.position + head.rotation * desktopAimOffset, head.rotation * InvMuzzle());
+                }
                 desktopAiming = true;
                 if (Input.GetMouseButtonDown(0))
-                    Fire(head.position, head.rotation * Vector3.forward);
+                {
+                    VRCPlayerApi.TrackingData head = local.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+                    Fire(head.position, dir);
+                }
             }
             else if (desktopAiming)
             {
@@ -203,7 +261,87 @@ namespace HorseRace
                 ReturnHome();
             }
 
+            if (!rider) UpdateRemotePose(m);
+
             Animate();
+        }
+
+        // =====================================================================
+        // 構えの同期と、ほかの人から見た銃の位置
+        // =====================================================================
+
+        private void SyncAimLocal(VRCPlayerApi local, bool aiming, Vector3 dir, bool leftHand)
+        {
+            if (local == null) return;
+            if (!Networking.IsOwner(gameObject))
+            {
+                if (Time.time >= nextOwnerTry)
+                {
+                    nextOwnerTry = Time.time + 1f;
+                    Networking.SetOwner(local, gameObject);
+                }
+                return;
+            }
+            bool changed = aiming != syncAiming || leftHand != syncLeftHand;
+            if (changed || (aiming && Time.time >= nextAimSend))
+            {
+                syncAiming = aiming;
+                syncLeftHand = leftHand;
+                syncAimDir = dir;
+                nextAimSend = Time.time + AIM_SEND_INTERVAL;
+                RequestSerialization();
+            }
+        }
+
+        /// <summary>乗っていないクライアント：構え中は乗り手の手、構えていなければ右腰（ボーンがなければ鞍のホルスター）。</summary>
+        private void UpdateRemotePose(MountController m)
+        {
+            if (IsLocalHeld()) return;
+            VRCPlayerApi rp = (m != null && m.riderPlayerId >= 0) ? VRCPlayerApi.GetPlayerById(m.riderPlayerId) : null;
+            if (rp == null || !rp.IsValid())
+            {
+                if (remotePosed) { remotePosed = false; ReturnHome(); }
+                return;
+            }
+            if (syncAiming)
+            {
+                Vector3 d = syncAimDir;
+                if (d.sqrMagnitude < 0.0001f) d = m.transform.forward;
+                if (PlaceInHand(rp, syncLeftHand, d)) { remotePosed = true; return; }
+            }
+            else
+            {
+                Vector3 hip = rp.GetBonePosition(HumanBodyBones.Hips);
+                if (hip.sqrMagnitude > 0.0001f)
+                {
+                    Quaternion hr = rp.GetBoneRotation(HumanBodyBones.Hips);
+                    transform.SetPositionAndRotation(hip + hr * holsterHipOffset, hr * Quaternion.Euler(holsterHipEuler));
+                    shownRotValid = false;
+                    remotePosed = true;
+                    return;
+                }
+            }
+            if (remotePosed) { remotePosed = false; ReturnHome(); }
+        }
+
+        /// <summary>player の手のボーンに銃を置き、銃口を dir へ（なめらかに）向ける。ボーンが取れなければ false。</summary>
+        private bool PlaceInHand(VRCPlayerApi player, bool leftHand, Vector3 dir)
+        {
+            HumanBodyBones bone = leftHand ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand;
+            Vector3 hand = player.GetBonePosition(bone);
+            if (hand.sqrMagnitude < 0.0001f) return false;
+            Quaternion target = Quaternion.LookRotation(dir.normalized, Vector3.up) * InvMuzzle();
+            float k = 1f - Mathf.Exp(-aimSmoothing * Time.deltaTime);
+            shownRot = shownRotValid ? Quaternion.Slerp(shownRot, target, k) : target;
+            shownRotValid = true;
+            transform.SetPositionAndRotation(hand + shownRot * handGripOffset, shownRot);
+            return true;
+        }
+
+        /// <summary>銃のルートから見た銃口の向きの逆（ルートの回転 = 銃口の向き × これ）。</summary>
+        private Quaternion InvMuzzle()
+        {
+            return Quaternion.Inverse(muzzleLocalRot);
         }
 
         public override void OnPickupUseDown()
@@ -221,6 +359,7 @@ namespace HorseRace
 
         private void ReturnHome()
         {
+            shownRotValid = false;
             if (homeParent != null && transform.parent != homeParent) transform.parent = homeParent;
             transform.localPosition = homeLocalPos;
             transform.localRotation = homeLocalRot;
@@ -284,6 +423,7 @@ namespace HorseRace
             UpdateBullets();
             cylinderSteps = (cylinderSteps + 1) % 6;
             shotTime = Time.time;
+            hammerHomed = false;
             if (fxRoot != null)
             {
                 Vector3 d = end - origin;
@@ -321,7 +461,13 @@ namespace HorseRace
 
             // 撃鉄と引き金：起きて（前半）落ちる（後半）
             float t = (Time.time - shotTime) / hammerTime;
-            if (t >= 0f && t <= 1.2f)
+            if (t > 1f && !hammerHomed)
+            {
+                hammerHomed = true;
+                if (hammer != null) hammer.localRotation = hammerHome;
+                if (triggerPart != null) triggerPart.localRotation = triggerHome;
+            }
+            if (t >= 0f && t <= 1f)
             {
                 float k = t < 0.5f ? t * 2f : Mathf.Max(0f, 2f - t * 2f);
                 if (hammer != null) hammer.localRotation = hammerHome * Quaternion.AngleAxis(-hammerAngle * k, hammerAxis);
