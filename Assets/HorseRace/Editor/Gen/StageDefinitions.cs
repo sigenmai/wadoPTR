@@ -22,6 +22,10 @@ namespace HorseRace.EditorTools
         /// <summary>遺物 4 か所：公式コース長に対する割合と、コース中心からの横オフセット（m、+ が進行方向右）。</summary>
         public float[] relicFractions;
         public float[] relicSide;
+        /// <summary>見どころ（spec 5.5）。負の値 = なし。割合は公式コース長に対して（実際は CP の中間に寄せる）。</summary>
+        public float bridgeFraction = -1f;     // 荒野：掘った溝に架かる岩橋
+        public bool cliffShortcut;             // 荒野：崖下りの近道（CP の連鎖には入らない枝道）
+        public float jumpFraction = -1f;       // 砂漠：砂丘越えのジャンプ台
 
         public Vector3 Origin => new Vector3(center.x - StageDefinitions.HALF, center.y, center.z - StageDefinitions.HALF);
     }
@@ -59,6 +63,8 @@ namespace HorseRace.EditorTools
                 runoutM = 70f,
                 relicFractions = new[] { 0.2f, 0.42f, 0.63f, 0.84f },
                 relicSide = new[] { -4f, 4f, -4f, 4f },
+                bridgeFraction = 0.3f,
+                cliffShortcut = true,
             },
             new StageDef
             {
@@ -73,6 +79,7 @@ namespace HorseRace.EditorTools
                 runoutM = 70f,
                 relicFractions = new[] { 0.18f, 0.4f, 0.62f, 0.85f },
                 relicSide = new[] { 4f, -4f, 4f, -4f },
+                jumpFraction = 0.5f,
             },
             new StageDef
             {

@@ -19,6 +19,9 @@ namespace UnityEngine
         public static float Sqrt(float v) => (float)Math.Sqrt(v);
         public const float PI = (float)Math.PI;
         public const float Rad2Deg = 360f / (PI * 2f);
+        public const float Deg2Rad = (PI * 2f) / 360f;
+        public static float Tan(float v) => (float)Math.Tan(v);
+        public static int RoundToInt(float v) => (int)Math.Round(v);
         public static float Floor(float v) => (float)Math.Floor(v);
         public static int FloorToInt(float v) => (int)Math.Floor(v);
         public static int CeilToInt(float v) => (int)Math.Ceiling(v);
