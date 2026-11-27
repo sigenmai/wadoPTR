@@ -91,6 +91,7 @@ namespace HorseRace.EditorTools
             Vector3 penP = sb.GroundWorld(WorldLayout.PointAtArc(c, penArc));
             sb.finishPen = GenUtil.World(root, "FinishPen", penP, WorldLayout.YawDeg(penT)).transform;
             Fence.Ring(sb.finishPen, PEN_RADIUS, sb);
+            PenBoards(sb, ctx);
 
             // ---- 遺物 ----
             var relicRoot = GenUtil.Child(root, "Relics", Vector3.zero).transform;
@@ -102,6 +103,53 @@ namespace HorseRace.EditorTools
                 Vector3 p = sb.GroundWorld(WorldLayout.PointAtArc(c, a) + WorldLayout.RightOf(t) * sb.def.relicSide[i]);
                 ctx.courseRelics.Add(Relic(relicRoot, "Relic_" + (i + 1), p, st, false));
             }
+        }
+
+        /// <summary>
+        /// ゴール後の囲いの中の板（すべて既存の模型を置くだけ）。囲いの真ん中（ゴール後に移される所）から見て:
+        ///  - 正面：中継の掲示板（NoticeBoard、NoticeBoardDisplay mode 0 = たまり場と同じ RenderTexture）と追う人を選ぶ木札（DirectorTag）。
+        ///    ゴールした人は残りの走りをここで見る（system-r1-10）。
+        ///  - 右前：黒板（RankBoard penBoard）に全員の順位・ゴール済み・残り時間。
+        ///  - 左前（最終ステージ以外）：手配書の壁（馬・ラクダ・能力 4 枚の PosterCard）と台帳（EntryLedger）。
+        ///    ステージの合間に次の地形に合わせて乗り物・能力を選び直す（system-r1-08）。
+        /// </summary>
+        static void PenBoards(StageBuild sb, WorldContext ctx)
+        {
+            Transform pen = sb.finishPen;
+            Vector3 c = pen.position, fwd = pen.forward, right = pen.right;
+            var root = GenUtil.Child(pen, "PenBoards", Vector3.zero).transform;
+            int st = sb.def.index;
+
+            Vector3 bp = sb.GroundWorld(c + fwd * 9f);
+            ShowBuilder.Board(root, "PenBroadcast", bp, -fwd, NoticeBoardDisplay.MODE_BROADCAST, ctx, out Transform front, out Vector3 panelCenter);
+            GenUtil.PaperSheet(front, "CaptionPaper", "WantedPosters_05", new Vector3(0f, 0.92f, 0.01f), null, 3.1f, 0.28f);
+            GenUtil.Text(front, "Caption", new Vector3(0f, 1.06f, -0.01f), Quaternion.identity, "ゴールした人は残りの走りをここで見られる", 1.0f, UiStyle.InkFace,
+                new Vector2(3f, 0.25f), TextStyle.Ink, true);
+            ShowBuilder.Tags(front, null, ctx);
+
+            Vector3 rp = sb.GroundWorld(c + fwd * 5f + right * 7.5f);
+            Vector3 rdir = rp - c; rdir.y = 0f;
+            var rb = ChalkBoardAt(root, rp, WorldLayout.YawDeg(rdir.normalized), "PenRankBoard", false);
+            rb.stageIndex = st;
+            rb.penBoard = true;
+            rb.maxLines = 8;
+            ctx.rankBoards.Add(rb);
+
+            if (st + 1 >= StageDefinitions.All.Length) return;   // 最後のステージの後は乗り換えなし
+            Vector3 wp = sb.GroundWorld(c + fwd * 5f - right * 7.5f);
+            Vector3 wdir = wp - c; wdir.y = 0f;
+            string next = HudMath.StageHint(st + 1);
+            LobbyBuilder.PosterWallAt(root, ctx, wp, WorldLayout.YawDeg(wdir.normalized), "PenWantedWall",
+                "<b><size=140%>次：" + next + "</size></b>\n手配書を取ると次のステージの乗り物・能力になる", 1.2f);
+            // 台帳（サインし直し）：手配書の壁の手前の机（FarmProps_05）
+            Vector3 dp = sb.GroundWorld(c + fwd * 2.5f - right * 4.5f);
+            float dyaw = WorldLayout.YawDeg(wdir.normalized);
+            var desk = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_05", root, dp, dyaw + 180f, 0.8f, new Vector3(2f, 0.8f, 1f), Wood);
+            desk.name = "PenLedgerDesk";
+            DressingBuilder.AddCollider(desk, false);
+            float top = GenUtil.RendererBounds(desk).max.y;
+            if (top < dp.y + 0.4f) top = dp.y + 0.8f;
+            LobbyBuilder.LedgerBook(root, ctx, new Vector3(dp.x, top + 0.005f, dp.z), dyaw + 180f, "PenLedger", "台帳にサイン（次のステージの選択）");
         }
 
         /// <summary>CP の黒板（RankBoard）。迫ってくる騎手のほうを向けて、コースの右脇に立てる。</summary>

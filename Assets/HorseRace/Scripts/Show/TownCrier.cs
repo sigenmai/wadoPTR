@@ -105,11 +105,13 @@ namespace HorseRace
                 {
                     if (rm.slotPlayerId[i] < 0 || rm.slotStagePlace[i] != place) continue;
                     s += HudMath.Row4(place.ToString() + "着", RaceManager.ShortName(rm.slotPlayerId[i]),
-                        "+" + RaceMath.PointsForPlace(place - 1).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
+                        "+" + RaceMath.PointsForPlace(place - 1, rm.stage).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
                     lines++;
                 }
             }
             if (lines == 0) s += "（出走者なし）\n";
+            string next = HudMath.NextStageLine(rm.stage, RaceManager.STAGE_COUNT);
+            if (next.Length > 0) s += "<b>" + next + "</b>\n";
             s += "― 町の新聞売り";
             return s;
         }

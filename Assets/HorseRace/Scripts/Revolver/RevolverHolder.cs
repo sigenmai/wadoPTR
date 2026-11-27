@@ -178,6 +178,7 @@ namespace HorseRace
                 return InfiniteAmmo() || ammo > 0;
             }
             if (!m.raceActive || m.InputLocked || m.syncFinishAt >= 0.0) return false;
+            if (caster.LockedByStartGrace()) return false;   // 開幕 8 秒は撃てない（system-r1-07）
             int st = caster.raceManager != null ? caster.raceManager.state : RaceMath.STATE_RACING;
             return RevolverMath.CanShoot(ammo, st);
         }
@@ -380,7 +381,9 @@ namespace HorseRace
             }
             MountController m = Mount();
             dir = dir.normalized;
-            bool hit = caster.FindTarget(origin, dir, range, hitRadius);
+            // 馬上の照準補助：乗っていて 10 m/s より速ければ当たり判定 +0.3m（system-r1-05）
+            float radius = RevolverMath.HitRadius(hitRadius, m != null && m.IsLocalRider(), m != null ? m.Speed : 0f);
+            bool hit = caster.FindTarget(origin, dir, range, radius);
             Vector3 end = caster.foundPoint;
             if (!InfiniteAmmo()) ammo = RevolverMath.AmmoAfterShot(ammo);
 
@@ -457,8 +460,10 @@ namespace HorseRace
             // シリンダー：1 発ごとに 60° 回す（0.1 秒で追いつく）
             if (cylinder != null)
             {
-                float target = cylinderSteps * CYLINDER_STEP_DEG;
-                if (cylinderShown > target + 1f) cylinderShown -= 360f; // 一周したとき
+                // 開幕の猶予の間は弾倉を半段ずらして止める（撃てない「封」の見た目。乗っている本人の画面）
+                bool sealedNow = caster != null && Mount() != null && Mount().IsLocalRider() && caster.LockedByStartGrace();
+                float target = cylinderSteps * CYLINDER_STEP_DEG + (sealedNow ? CYLINDER_STEP_DEG * 0.5f : 0f);
+                if (cylinderShown > target + 181f) cylinderShown -= 360f; // 一周したとき（半段戻るときは回さない）
                 float next = Mathf.MoveTowards(cylinderShown, target, CYLINDER_STEP_DEG * 10f * Time.deltaTime);
                 if (next != cylinderShown)
                 {

@@ -31,6 +31,8 @@ namespace HorseRace
         public const int AIM_HEAD = 0;
         public const int AIM_LEFT = 1;
         public const int AIM_RIGHT = 2;
+        /// <summary>よろけ・はじかれを受けた後の守り（秒）。この間は減速が半分の長さ、はじき・よろけなし（system-r1-06）。</summary>
+        public const float GUARD_SECONDS = 1.5f;
 
         [Header("この乗り物")]
         public MountController mount;
@@ -82,6 +84,9 @@ namespace HorseRace
         public float[] ballCurveScaleByLevel = new float[] { 0.1f, 0.15f, 0.2f };
         public float maxRollDeg = 45f;
         public float desktopRollDeg = 30f;
+        [Tooltip("デスクトップの鉄球のカーブ：乗り物の正面から見た視線の左右のずれ（度）がこの範囲で 0 → desktopRollDeg")]
+        public float desktopCurveMinDeg = 10f;
+        public float desktopCurveMaxDeg = 40f;
         public float ballKnock = 3f;
         public float revolverKnock = 2f;
         public float revolverStun = 0.35f;
@@ -102,6 +107,7 @@ namespace HorseRace
         private int[] dropsForShooter;
         private float lastDropAt = -1000f;
         private float hazeUntil;
+        private float guardUntil;
         private bool pouchShownLocal;
         private int lastResetSeq = -1;
         private Vector3 aimDir;
@@ -173,7 +179,22 @@ namespace HorseRace
             if (!mount.raceActive || mount.InputLocked) return false;
             if (mount.syncFinishAt >= 0.0) return false;
             if (raceManager != null && raceManager.state != RaceMath.STATE_RACING) return false;
+            // 開幕 8 秒は使えない（system-r1-07：スタートの混乱を防ぐ）
+            if (raceManager != null && raceManager.InStartGrace()) return false;
             return true;
+        }
+
+        /// <summary>今、開幕の猶予で使えない（お守り袋を消し、リボルバーは「封」）。</summary>
+        public bool LockedByStartGrace()
+        {
+            if (practiceMount || raceManager == null) return false;
+            return raceManager.InStartGrace();
+        }
+
+        /// <summary>被弾後の守りの間か（オーナー側の値）。</summary>
+        public bool IsGuarded()
+        {
+            return Time.time < guardUntil;
         }
 
         public int AbilityId()
@@ -218,8 +239,17 @@ namespace HorseRace
             {
                 VRCPlayerApi.TrackingData td = lp.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
                 aimDir = td.rotation * Vector3.forward;
-                if (Input.GetKey(KeyCode.A)) aimRoll = -desktopRollDeg;
-                else if (Input.GetKey(KeyCode.D)) aimRoll = desktopRollDeg;
+                // 鉄球のカーブは視線の左右のずれから（A/D は旋回なので使わない：system-r1-16）。10〜40° で 0 → desktopRollDeg
+                Vector3 f = FlatForward();
+                Vector3 a = new Vector3(aimDir.x, 0f, aimDir.z);
+                if (a.sqrMagnitude > 0.0001f)
+                {
+                    a = a.normalized;
+                    float off = Mathf.Atan2(f.x * a.z - f.z * a.x, f.x * a.x + f.z * a.z) * Mathf.Rad2Deg;   // 左が正
+                    float mag = Mathf.Abs(off);
+                    float k = Mathf.Clamp01((mag - desktopCurveMinDeg) / Mathf.Max(1f, desktopCurveMaxDeg - desktopCurveMinDeg));
+                    aimRoll = (off > 0f ? -1f : 1f) * k * desktopRollDeg;   // 右を見る = 右へカーブ
+                }
             }
             else
             {
@@ -461,11 +491,31 @@ namespace HorseRace
             return d.normalized;
         }
 
+        /// <summary>守りの間は減速の長さを半分に（見た目・音はそのまま）。</summary>
+        private float GuardedSeconds(float seconds)
+        {
+            return IsGuarded() ? seconds * 0.5f : seconds;
+        }
+
+        /// <summary>はじき・よろけを掛ける（守りの間は掛けない）。掛けたら守りを始める。</summary>
+        private void KnockWithGuard(Vector3 impulse, float stunSeconds)
+        {
+            if (IsGuarded()) return;
+            mount.ApplyKnock(impulse, stunSeconds);
+            StartGuard();
+        }
+
+        private void StartGuard()
+        {
+            guardUntil = Time.time + GUARD_SECONDS;
+            if (pouch != null) pouch.FlashGuard(GUARD_SECONDS);
+        }
+
         [NetworkCallable(20)]
         public void HitDust()
         {
             if (!AcceptHit()) return;
-            mount.AddSpeedMod(AbilityMath.DUST_SLOW_FACTOR, dustHitSeconds);
+            mount.AddSpeedMod(AbilityMath.DUST_SLOW_FACTOR, GuardedSeconds(dustHitSeconds));
             hazeUntil = Time.time + dustHitSeconds;
         }
 
@@ -473,15 +523,17 @@ namespace HorseRace
         public void HitLasso()
         {
             if (!AcceptHit()) return;
-            mount.AddSpeedMod(AbilityMath.LASSO_TARGET_FACTOR, AbilityMath.LASSO_TARGET_SECONDS);
+            bool guarded = IsGuarded();
+            mount.AddSpeedMod(AbilityMath.LASSO_TARGET_FACTOR, GuardedSeconds(AbilityMath.LASSO_TARGET_SECONDS));
+            if (!guarded) StartGuard();
         }
 
         [NetworkCallable(20)]
         public void HitBall(Vector3 velocity, float stunSeconds)
         {
             if (!AcceptHit()) return;
-            mount.AddSpeedMod(AbilityMath.BALL_HIT_FACTOR, AbilityMath.BALL_HIT_SECONDS);
-            mount.ApplyKnock(Flat(velocity) * ballKnock, Mathf.Clamp(stunSeconds, 0f, 1.5f));
+            mount.AddSpeedMod(AbilityMath.BALL_HIT_FACTOR, GuardedSeconds(AbilityMath.BALL_HIT_SECONDS));
+            KnockWithGuard(Flat(velocity) * ballKnock, Mathf.Clamp(stunSeconds, 0f, 1.5f));
         }
 
         /// <summary>
@@ -493,8 +545,8 @@ namespace HorseRace
         public void HitRevolver(Vector3 direction, int shooterId, int hitNumber)
         {
             if (!AcceptHit()) return;
-            mount.AddSpeedMod(RevolverMath.HIT_FACTOR, RevolverMath.HIT_SECONDS);
-            mount.ApplyKnock(Flat(direction) * revolverKnock, revolverStun);
+            mount.AddSpeedMod(RevolverMath.HIT_FACTOR, GuardedSeconds(RevolverMath.HIT_SECONDS));
+            KnockWithGuard(Flat(direction) * revolverKnock, revolverStun);
             if (shooterId < 0 || shooterId >= MAX_CASTERS || shooterId == casterId) return;
             int total = RevolverMath.TotalAfterHit(hitsFromShooter[shooterId], hitNumber);
             hitsFromShooter[shooterId] = total;
@@ -509,11 +561,20 @@ namespace HorseRace
         // Lv・遺物
         // =====================================================================
 
-        /// <summary>遺物を拾った（RelicPickup から、拾った本人のクライアントで）。</summary>
-        public void GrantRelic()
+        /// <summary>この乗り物が今遺物を拾ったら何 Lv 上がるか（system-r1-04：1 位 0、上半分 +1、下半分 +2。練習用・順位なしは +1）。</summary>
+        public int RelicGainNow()
+        {
+            if (practiceMount || raceManager == null || mount == null) return 1;
+            int pid = mount.riderPlayerId;
+            return AbilityMath.RelicGain(raceManager.GetRankOf(pid), raceManager.ActiveCount());
+        }
+
+        /// <summary>遺物を拾った（RelicPickup から、拾った本人のクライアントで）。gain = 上がる Lv（RelicGainNow）。</summary>
+        public void GrantRelic(int gain)
         {
             EnsureInit();
-            Level = AbilityMath.LevelAfterRelic(Level);
+            if (gain <= 0) return;
+            Level = AbilityMath.LevelAfterRelicGain(Level, gain);
             if (relicSound != null) relicSound.Play();
         }
 
@@ -550,6 +611,7 @@ namespace HorseRace
             Level = 1;
             readyAt = 0f;
             hazeUntil = 0f;
+            guardUntil = 0f;
             for (int i = 0; i < MAX_CASTERS; i++)
             {
                 hitsFromShooter[i] = 0;
@@ -567,7 +629,10 @@ namespace HorseRace
             if (pouch == null) return;
             if (local)
             {
-                pouch.Show(IsReady(), Level, readyAt - Time.time, AbilityId(), mount != null ? mount.SeatType() : 0);
+                // 開幕の猶予の間は「封」（使えない札）
+                bool locked = LockedByStartGrace();
+                float rem = locked ? raceManager.StartGraceLeft() : readyAt - Time.time;
+                pouch.Show(IsReady() && !locked, Level, rem, AbilityId(), mount != null ? mount.SeatType() : 0);
                 pouchShownLocal = true;
             }
             else if (pouchShownLocal)

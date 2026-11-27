@@ -7,15 +7,30 @@ namespace HorseRace
     public class SpeedMod : UdonSharp.UdonSharpBehaviour
     {
         public const int SLOTS = 8;
-        public const float MIN_COMBINED = 0.4f;
+        /// <summary>減速の合計の下限（system-r1-06：集中攻撃されても ×0.55 より遅くならない）。</summary>
+        public const float MIN_COMBINED = 0.55f;
+        /// <summary>2 つ目以降の減速 1 つにつき掛ける倍率（いちばん強い減速 × 0.85^(残りの数)）。</summary>
+        public const float EXTRA_DEBUFF = 0.85f;
 
+        /// <summary>
+        /// 有効な倍率の合計。加速（&gt; 1）は掛け算、減速（&lt; 1）は「いちばん強いもの × 0.85^(ほかの減速の数)」。結果の下限 MIN_COMBINED。
+        /// </summary>
         public static float Combined(float[] factors, float[] remaining)
         {
-            float p = 1f;
+            float buff = 1f;
+            float weakest = 1f;
+            int debuffs = 0;
             for (int i = 0; i < remaining.Length; i++)
             {
-                if (remaining[i] > 0f) p *= factors[i];
+                if (remaining[i] <= 0f) continue;
+                float f = factors[i];
+                if (f >= 1f) { buff *= f; continue; }
+                debuffs++;
+                if (f < weakest) weakest = f;
             }
+            float p = weakest;
+            for (int k = 1; k < debuffs; k++) p *= EXTRA_DEBUFF;
+            p *= buff;
             if (p < MIN_COMBINED) p = MIN_COMBINED;
             return p;
         }

@@ -41,6 +41,20 @@ namespace HorseRace.Tests
             Assert.IsFalse(RevolverMath.DropAllowed(10.2f, 10f));
             Assert.IsTrue(RevolverMath.DropAllowed(10f + RevolverMath.DROP_COOLDOWN, 10f));
         }
+        [Test] public void ShootingIsWorthIt()
+        {
+            // 当てたときの相手の損は、外したときの自分の損の 3 倍より大きい（30〜40% の命中率でも撃つ方が得）
+            Assert.Greater(RevolverMath.HitCostMeters(14f), 3f * RevolverMath.MissCostMeters(14f));
+            Assert.AreEqual(1.68f, RevolverMath.MissCostMeters(14f), 1e-3);
+            Assert.AreEqual(7.84f, RevolverMath.HitCostMeters(14f), 1e-3);
+            Assert.Greater(0.35f * RevolverMath.HitCostMeters(14f), 0.65f * RevolverMath.MissCostMeters(14f));
+        }
+        [Test] public void AimAssistWhileGalloping()
+        {
+            Assert.AreEqual(0.55f, RevolverMath.HitRadius(0.25f, true, 14f), 1e-4);
+            Assert.AreEqual(0.25f, RevolverMath.HitRadius(0.25f, true, 8f), 1e-4);
+            Assert.AreEqual(0.25f, RevolverMath.HitRadius(0.25f, false, 14f), 1e-4);
+        }
         [Test] public void DropLevel() { Assert.AreEqual(2, RevolverMath.LevelAfterDrop(3)); Assert.AreEqual(1, RevolverMath.LevelAfterDrop(1)); Assert.IsFalse(RevolverMath.SpawnsDroppedRelic(1)); Assert.IsTrue(RevolverMath.SpawnsDroppedRelic(2)); }
     }
 }

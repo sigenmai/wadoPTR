@@ -28,6 +28,26 @@ namespace HorseRace
             return "";
         }
 
+        /// <summary>
+        /// ステージの地形と有利な乗り物（ステージの合間の電報・囲いの手配書。system-r1-08 / r1-21）。
+        /// 荒野・境目は馬（砂なし）、砂漠はラクダ（馬は砂で ×0.78）。最終ステージは得点 1.5 倍。
+        /// </summary>
+        public static string StageHint(int st)
+        {
+            if (st == 0) return "荒野 ― 馬有利（岩場・崖の近道）";
+            if (st == 1) return "砂漠 ― ラクダ有利（砂で馬は遅い）";
+            if (st == 2) return "境目 ― 馬有利　最終ステージ 得点1.5倍";
+            return "";
+        }
+
+        /// <summary>ステージの合間の電報の締め：「次：砂漠 ― ラクダ有利…」。最後のステージの後は空。</summary>
+        public static string NextStageLine(int stage, int stageCount)
+        {
+            int next = stage + 1;
+            if (next >= stageCount) return "";
+            return "次：" + StageHint(next) + "\n囲いの手配書で乗り物・能力を選び直せる";
+        }
+
         /// <summary>"第1幕 荒野"（st は 0 始まり）。範囲外は "第4幕"。</summary>
         public static string StageLabel(int st)
         {

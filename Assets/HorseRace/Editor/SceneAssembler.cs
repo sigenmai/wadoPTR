@@ -296,6 +296,8 @@ namespace HorseRace.EditorTools
             // ---- 演出 ----
             foreach (var nb in ctx.noticeBoards) if (nb.mode == 0) nb.director = ctx.director;
             foreach (var t in ctx.directorTags) t.director = ctx.director;
+            // 囲いの掲示板の木札も含めて、選んでいる札の印を光らせる（system-r1-10）
+            if (ctx.director != null) ctx.director.tags = ctx.directorTags.ToArray();
         }
 
         /// <summary>

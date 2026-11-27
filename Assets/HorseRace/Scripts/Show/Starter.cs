@@ -68,6 +68,8 @@ namespace HorseRace
         private float skyPunchAt = -10f;
         private bool titleShown;
         private Vector3 skyScale = Vector3.one;
+        private int graceSeenSeq = -1;
+        private int weaponsFreeSeq = -1;
         private bool skyScaleCaptured;
 
         private void Start()
@@ -113,6 +115,7 @@ namespace HorseRace
 
         private void Update()
         {
+            UpdateWeaponsFree();
             if (!running)
             {
                 RelaxPose();
@@ -159,6 +162,22 @@ namespace HorseRace
                 running = false;
                 SetSky("");
             }
+        }
+
+        /// <summary>
+        /// 開幕の猶予（RaceMath.START_GRACE_SECONDS）が終わったら、もう 1 発の空砲（2 発目の音）と「撃ち合い解禁」で知らせる（system-r1-07）。
+        /// 猶予を見ていたステージ（途中から来た人の取りこぼしで鳴らさない）だけ、1 ステージ 1 回。
+        /// </summary>
+        private void UpdateWeaponsFree()
+        {
+            RaceManager rm = raceManager;
+            if (rm == null || rm.state != RaceMath.STATE_RACING) return;
+            if (rm.InStartGrace()) { graceSeenSeq = rm.stageSeq; return; }
+            if (graceSeenSeq != rm.stageSeq || weaponsFreeSeq == rm.stageSeq) return;
+            weaponsFreeSeq = rm.stageSeq;
+            PlayClip(blankClip);
+            if (pistolSmoke != null) pistolSmoke.Play();
+            if (rm.hud != null && rm.IsLocalEntered()) rm.hud.ShowBanner("撃ち合い解禁", new Color(1f, 0.78f, 0.27f), 1.4f, 1.4f);
         }
 
         private void FireBlank(int i)

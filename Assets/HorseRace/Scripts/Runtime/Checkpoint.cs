@@ -22,6 +22,8 @@ namespace HorseRace
         public Checkpoint next;
         [Tooltip("首の札の合図用（ビルドで自動設定）")]
         public RaceManager raceManager;
+        [Tooltip("練習場の往復タイムの門（stageIndex = -1）のとき：計測する PracticeLap")]
+        public PracticeLap practiceLap;
 
         public void OnTriggerEnter(Collider other)
         {
@@ -31,6 +33,12 @@ namespace HorseRace
             if (other.gameObject != mount.gameObject) return; // 体の Collider だけ（リボルバー・騎手の当たり判定の子は数えない）
             if (!mount.IsLocalRider()) return;
             if (!Networking.IsOwner(mount.gameObject)) return;
+            if (stageIndex < 0)
+            {
+                // 練習場の門（system-r1-18）：レースの進行には数えない
+                if (practiceLap != null) practiceLap.GatePassed(index);
+                return;
+            }
             int before = mount.syncCp;
             mount.ReachCheckpoint(this);
             Notify(mount, before);

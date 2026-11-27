@@ -9,6 +9,8 @@ namespace HorseRace
     ///  - 使えるとき：明るい手配書（readyMaterials[能力]）。使えるようになった瞬間に金の火花（sparks.Emit(12)）と readySound。
     ///  - クールダウン中：35% の灰色の手配書（idleMaterials[能力]）と「あと 7」（cooldownText）。
     ///  - Lv：宝石 3 つ（levelMarks）のうち Lv 個を点ける（levelMarksUnlit があれば残りはそちら）。
+    ///  - 開幕の猶予（8 秒）の間は灰色の手配書と「あと 5」（使えない）。
+    ///  - 被弾後の守り（1.5 秒）：金の火花と「守り」の文字（FlashGuard、新しい形は作らない）。
     /// 乗っている本人だけに出す（AbilityCaster が毎フレーム Show、降りたら Hide）。位置は乗り物の種類（鞍の高さ）に合わせて動かす。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -39,6 +41,8 @@ namespace HorseRace
         private int shownType = -1;
         private int shownSeconds = -1;
         private bool visible = true;
+        private float guardUntil;
+        private bool guardShown;
 
         private void Start()
         {
@@ -68,11 +72,17 @@ namespace HorseRace
                 if (m != null && cardRenderers != null)
                     for (int i = 0; i < cardRenderers.Length; i++) if (cardRenderers[i] != null) cardRenderers[i].sharedMaterial = m;
             }
-            int secs = ready ? 0 : Mathf.CeilToInt(remaining);
-            if (secs != shownSeconds)
+            bool guard = Time.time < guardUntil;
+            int secs = guard ? -2 : (ready ? 0 : Mathf.CeilToInt(remaining));
+            if (secs != shownSeconds || guard != guardShown)
             {
                 shownSeconds = secs;
-                if (cooldownText != null) cooldownText.text = ready ? "" : HudMath.CooldownLabel(remaining);
+                guardShown = guard;
+                if (cooldownText != null)
+                {
+                    if (guard) cooldownText.text = "<color=#FFC745>守り</color>";
+                    else cooldownText.text = ready ? "" : HudMath.CooldownLabel(remaining);
+                }
             }
             if (level != shownLevel)
             {
@@ -84,6 +94,13 @@ namespace HorseRace
                     for (int i = 0; i < levelMarksUnlit.Length; i++)
                         if (levelMarksUnlit[i] != null) levelMarksUnlit[i].SetActive(i >= level);
             }
+        }
+
+        /// <summary>被弾後の守りを seconds 秒見せる（金の火花＋「守り」）。</summary>
+        public void FlashGuard(float seconds)
+        {
+            guardUntil = Time.time + seconds;
+            if (visible && sparks != null) sparks.Emit(8);
         }
 
         public void Hide()

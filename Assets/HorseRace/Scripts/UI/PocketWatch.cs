@@ -56,7 +56,9 @@ namespace HorseRace
             VRCPlayerApi local = Networking.LocalPlayer;
             if (local == null || raceManager == null) { SetShown(false); return; }
             float rem = raceManager.GetRemainingSeconds();
-            bool active = rem >= 0f && raceManager.state == RaceMath.STATE_RACING && raceManager.IsLocalEntered();
+            bool lobby = raceManager.state == RaceMath.STATE_LOBBY;
+            if (lobby) rem = raceManager.GetLobbySecondsLeft();   // ロビー：出走時計（system-r1-09）
+            bool active = rem >= 0f && raceManager.IsLocalEntered() && (lobby || raceManager.state == RaceMath.STATE_RACING);
             if (!active) { reveal = 0f; lastTickSecond = -1; SetShown(false); return; }
 
             bool want;
@@ -78,7 +80,7 @@ namespace HorseRace
 
             // 残り 10 秒からは見えていなくても時計の音（手綱を握ったままでも分かる）
             int sec = Mathf.CeilToInt(rem);
-            if (rem <= TICK_FROM_SECONDS && rem > 0f && sec != lastTickSecond)
+            if (!lobby && rem <= TICK_FROM_SECONDS && rem > 0f && sec != lastTickSecond)
             {
                 lastTickSecond = sec;
                 if (tickAudio != null) tickAudio.Play();
@@ -90,7 +92,11 @@ namespace HorseRace
                 float e = reveal * reveal * (3f - 2f * reveal);
                 watchRoot.transform.localScale = baseScale * e;
             }
-            string t = "残り\n" + RaceMath.FormatClock(rem);
+            MountController lm = raceManager.LocalMount();
+            string t;
+            if (lobby) t = "出走まで\n" + RaceMath.FormatClock(rem);
+            else if (lm != null && lm.WrongWay) t = "<color=#D9402A>逆走</color>\n" + RaceMath.FormatClock(rem);
+            else t = "残り\n" + RaceMath.FormatClock(rem);
             if (t != lastText)
             {
                 lastText = t;

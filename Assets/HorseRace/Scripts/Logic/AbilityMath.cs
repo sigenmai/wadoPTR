@@ -96,6 +96,25 @@ namespace HorseRace
 
         public static int BallCount(int lv) { return Clamp(lv); }
 
+        /// <summary>
+        /// 順位で決まる遺物の価値（system-r1-04、順位ベースの逆転）：1 位 0（拾えない・暗く見える）、上半分 +1、下半分 +2。
+        /// 1 人だけ・順位がまだ無い（rank &lt;= 0）ときは +1。
+        /// </summary>
+        public static int RelicGain(int rank, int activeCount)
+        {
+            if (activeCount <= 1 || rank <= 0) return 1;
+            if (rank == 1) return 0;
+            if (rank * 2 <= activeCount) return 1;
+            return 2;
+        }
+
+        /// <summary>遺物 gain 個ぶん Lv を上げる（上限 3、gain 0 なら変えない）。</summary>
+        public static int LevelAfterRelicGain(int lv, int gain)
+        {
+            if (gain <= 0) return Clamp(lv);
+            return Clamp(lv + gain);
+        }
+
         /// <summary>First claim wins: returns holder if already held (>=0), else claimant.</summary>
         public static int RelicArbiter(int holder, int claimant)
         {

@@ -5,8 +5,9 @@ using UnityEngine;
 namespace HorseRace
 {
     /// <summary>
-    /// スタート台の号砲（机に置いた拳銃。クラス名は以前の鐘のまま）。マスターが Interact で撃つ＝レース開始（RaceManager.RequestStart）。
-    /// マスター以外が触ると撃鉄が少し動いてカチッ（tapSound）と鳴るだけで、紙の札（noteText）に「号砲を撃てるのは主催者だけ」と出す。
+    /// スタート台の号砲（机に置いた拳銃。クラス名は以前の鐘のまま）。Interact で撃つ＝レース開始（RaceManager.RequestStart）。
+    /// 撃てるのはマスター、または出走時計の締め切りまで 30 秒未満のときのエントリー者（RaceMath.CanRingStart、system-r1-09）。
+    /// 撃てない人が触ると撃鉄が少し動いてカチッ（tapSound）と鳴るだけ。紙の札（noteText）には出走時計「出走まで 0:42」を書く。
     /// 開始が通ると RaceManager が全員の手元で PlayRing() を呼ぶ：撃鉄が落ち、弾倉が 1 発分回り、銃口から煙、空砲の音（ringSound）。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -45,20 +46,20 @@ namespace HorseRace
         public override void Interact()
         {
             if (raceManager == null) return;
-            if (raceManager.IsLocalMaster())
+            if (raceManager.ActiveCount() == 0)
             {
-                if (raceManager.ActiveCount() == 0)
-                {
-                    ShowNote("台帳に誰もサインしていない");
-                    Tap();
-                    return;
-                }
+                ShowNote("台帳に誰もサインしていない");
+                Tap();
+                return;
+            }
+            if (raceManager.LocalCanStart())
+            {
                 raceManager.RingBell();
             }
             else
             {
                 Tap();
-                ShowNote("号砲を撃てるのは主催者（マスター）だけ");
+                ShowNote(raceManager.IsLocalEntered() ? "出走 30 秒前から撃てる（主催者はいつでも）" : "台帳にサインした人が出走 30 秒前から撃てる");
             }
         }
 
@@ -81,8 +82,13 @@ namespace HorseRace
             ShowNote("");
         }
 
+        private float noteHoldUntil;
+        private float nextClock;
+        private string lastClock = "";
+
         private void Update()
         {
+            UpdateClock();
             if (!animating) return;
             float tf = Time.time - fireAt;
             float tt = Time.time - tapAt;
@@ -102,18 +108,49 @@ namespace HorseRace
         private void ShowNote(string msg)
         {
             if (noteText == null) return;
-            noteText.text = msg.Length > 0 ? msg : DefaultNote();
-            if (msg.Length > 0) SendCustomEventDelayedSeconds(nameof(_ClearNote), 4f);
+            lastClock = "";
+            if (msg.Length > 0)
+            {
+                noteText.text = msg;
+                noteHoldUntil = Time.time + 4f;
+            }
+            else noteHoldUntil = 0f;
+        }
+
+        /// <summary>出走時計（0.25 秒ごと）：「出走まで 0:42」／2 人目を待つ／レース中。</summary>
+        private void UpdateClock()
+        {
+            if (noteText == null || raceManager == null) return;
+            if (Time.time < nextClock || Time.time < noteHoldUntil) return;
+            nextClock = Time.time + 0.25f;
+            string t = ClockNote(raceManager);
+            if (t == lastClock) return;
+            lastClock = t;
+            noteText.text = t;
+        }
+
+        public static string ClockNote(RaceManager rm)
+        {
+            if (rm.state != RaceMath.STATE_LOBBY) return "レース中";
+            float left = rm.GetLobbySecondsLeft();
+            if (left >= 0f)
+            {
+                string s = "<b><size=150%>出走まで " + RaceMath.FormatClock(left) + "</size></b>";
+                if (left < RaceMath.LOBBY_ANYONE_SECONDS) s += "\n号砲：出走者なら誰でも";
+                return s;
+            }
+            if (rm.ActiveCount() == 1) return "あと 1 人サインで出走時計が動く\n（主催者は今すぐ号砲を撃てる）";
+            return DefaultNote();
         }
 
         public static string DefaultNote()
         {
-            return "主催者が号砲を撃つとレース開始";
+            return "台帳に 2 人サインで出走時計が動く";
         }
 
         public void _ClearNote()
         {
-            if (noteText != null) noteText.text = DefaultNote();
+            noteHoldUntil = 0f;
         }
     }
 }

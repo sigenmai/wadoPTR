@@ -10,16 +10,18 @@ namespace HorseRace
     /// 遺物（拾うと能力 Lv +1、上限 3）。見た目は Packs/Gems の宝石（色違いの 1 つを遺物として使う）を visual に。
     /// Is Trigger の Collider と同じ GameObject に置く。乗り物（MountController の Collider ＋ kinematic Rigidbody）が入ると OnTriggerEnter。
     ///
-    /// 先着の確定（spec 5.3 / ruling 3）:
-    ///  1. ローカルの騎手の乗り物が触れたクライアントが、オーナー（既定はマスター）へ Claim(epoch) を送る（NetworkEventTarget.Owner）。
+    /// コースの遺物（isSpare = false）は一人ずつ（system-r1-04、順位ベースの逆転）：
+    ///  - どのクライアントも自分の「拾った」印を epoch ごとに持ち、拾ったら自分の画面でだけ消える。誰でも各遺物を 1 回ずつ拾える（先着の取り合いなし）。
+    ///  - 上がる Lv は順位で決まる（AbilityCaster.RelicGainNow：1 位 0、上半分 +1、下半分 +2）。1 位には遺物が小さく暗く見え、拾えない。
+    ///  - practiceRespawnSeconds &gt; 0（練習場）なら、拾ってからその秒数で自分の画面に戻る。ResetForStage（オーナー）で epoch が進むと全員ぶん戻る。
+    ///
+    /// 予備（落とした遺物）だけは先着で取り合う（spec 5.3 / ruling 3）:
+    ///  1. ローカルの騎手の乗り物が触れたクライアントが、オーナーへ Claim(epoch) を送る（NetworkEventTarget.Owner）。
     ///  2. オーナーは AbilityMath.RelicArbiter(holder, 送ってきた人の playerId) で holder を決め、同期（Manual）する。
-    ///     2 人が同時に触れても、オーナーに先に届いた 1 人だけが holder になる。
     ///  3. holder == 自分 のクライアントだけが、触れた乗り物の AbilityCaster.GrantRelic を 1 回（epoch ごとに 1 回）呼ぶ。
-    ///  拾われた遺物はそのステージ中は消える。ResetForStage（オーナーだけが実行）で元に戻る。
     ///
     /// 予備（isSpare = true）は「落とした遺物」用。普段は出ていない。AbilityCaster.DropRelic が pool[0] のオーナーへ RequestSpawn(pos) を送り、
     /// pool の中で空いているものをそのオーナーが所有して pos に出す。ステージのリセットで全部しまう。
-    /// practiceRespawnSeconds &gt; 0 なら（練習場用）拾われてからその秒数で同じ場所に戻る。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
     public class RelicPickup : UdonSharpBehaviour
@@ -38,6 +40,8 @@ namespace HorseRace
         public float armDelay = 1.0f;
         [Tooltip("0 より大きければ、拾われてからこの秒数で戻る（練習場用）")]
         public float practiceRespawnSeconds = 0f;
+        [Tooltip("1 位（拾えない）のときの見た目の大きさ")]
+        public float dimScale = 0.55f;
 
         /// <summary>拾った人の playerId（-1 = まだ誰も拾っていない）。</summary>
         [UdonSynced] public int holder = -1;
@@ -59,6 +63,12 @@ namespace HorseRace
         private int lastResetSeq = -1;
         private AbilityCaster pendingCaster;
         private bool started;
+        // コースの遺物（一人ずつ）
+        private int localTakenEpoch = -1;
+        private float localTakenAt;
+        private bool dimmed;
+        private float nextDimCheck;
+        private Vector3 visualScale = Vector3.one;
 
         private void Start()
         {
@@ -71,13 +81,22 @@ namespace HorseRace
             if (started) return;
             started = true;
             homePos = transform.position;
+            if (visual != null) visualScale = visual.transform.localScale;
             if (visual == null) Debug.LogWarning("[HorseRace] RelicPickup: visual（Packs/Gems の宝石）が未設定です " + gameObject.name);
         }
 
         public bool IsAvailable()
         {
+            if (!isSpare) return !LocallyTaken();
             if (holder >= 0) return false;
-            if (isSpare) return spareActive;
+            return spareActive;
+        }
+
+        /// <summary>コースの遺物：自分がこの epoch で拾った（練習場は戻るまでの間）。</summary>
+        private bool LocallyTaken()
+        {
+            if (localTakenEpoch != epoch) return false;
+            if (practiceRespawnSeconds > 0f && Time.time - localTakenAt > practiceRespawnSeconds) return false;
             return true;
         }
 
@@ -97,6 +116,18 @@ namespace HorseRace
             AbilityCaster caster = m.GetComponent<AbilityCaster>();
             if (caster == null) return;
             if (!m.raceActive && !caster.practiceMount) return;
+            int gain = caster.RelicGainNow();
+            if (gain <= 0) return;   // 1 位は拾えない（暗く見えている）
+            if (!isSpare)
+            {
+                // コースの遺物：自分の画面だけで拾う（オーナーに聞かない）
+                localTakenEpoch = epoch;
+                localTakenAt = Time.time;
+                caster.GrantRelic(gain);
+                if (pickupSound != null) pickupSound.Play();
+                ApplyVisual();
+                return;
+            }
             if (claimEpoch == epoch && Time.time - claimTime < 2f) return;
             claimEpoch = epoch;
             claimTime = Time.time;
@@ -126,6 +157,7 @@ namespace HorseRace
         public void Claim(int forEpoch)
         {
             if (!Networking.IsOwner(gameObject)) return;
+            if (!isSpare) return;   // コースの遺物は取り合わない
             VRCPlayerApi caller = NetworkCalling.CallingPlayer;
             if (caller == null || !caller.IsValid()) return;
             ClaimBy(caller.playerId, forEpoch);
@@ -136,7 +168,7 @@ namespace HorseRace
         {
             if (!Networking.IsOwner(gameObject)) return;
             if (forEpoch != epoch) return;
-            if (isSpare && !spareActive) return;
+            if (!isSpare || !spareActive) return;
             int newHolder = AbilityMath.RelicArbiter(holder, playerId);
             if (newHolder == holder) return;
             holder = newHolder;
@@ -218,14 +250,12 @@ namespace HorseRace
         private void Update()
         {
             if (visual != null && visual.activeSelf && spinSpeed != 0f)
-                visual.transform.Rotate(0f, spinSpeed * Time.deltaTime, 0f);
-            if (practiceRespawnSeconds > 0f && holder >= 0 && Networking.IsOwner(gameObject)
-                && Time.time - pickedAt > practiceRespawnSeconds)
+                visual.transform.Rotate(0f, (dimmed ? 0.3f : 1f) * spinSpeed * Time.deltaTime, 0f);
+            if (Time.time >= nextDimCheck)
             {
-                holder = -1;
-                epoch++;
-                RequestSerialization();
-                Apply();
+                nextDimCheck = Time.time + 0.5f;
+                UpdateDim();
+                ApplyVisual();   // 練習場の遺物が戻る
             }
         }
 
@@ -251,13 +281,17 @@ namespace HorseRace
             else if (!isSpare) transform.position = homePos;
 
             VRCPlayerApi local = Networking.LocalPlayer;
-            if (local != null && holder >= 0 && holder == local.playerId && grantedEpoch != epoch)
+            if (isSpare && local != null && holder >= 0 && holder == local.playerId && grantedEpoch != epoch)
             {
                 grantedEpoch = epoch;
                 localHidden = false;
                 AbilityCaster c = pendingCaster;
                 if (c == null || c.mount == null || !c.mount.IsLocalRider()) c = FindLocalCaster();
-                if (c != null) c.GrantRelic();
+                if (c != null)
+                {
+                    int g = c.RelicGainNow();
+                    c.GrantRelic(g > 0 ? g : 1);   // 触れたときは拾えた順位だった
+                }
                 if (pickupSound != null) pickupSound.Play();
             }
             if (holder >= 0 && holder != (local != null ? local.playerId : -2)) localHidden = false;
@@ -269,6 +303,17 @@ namespace HorseRace
             if (visual == null) return;
             bool show = IsAvailable() && !localHidden;
             if (visual.activeSelf != show) visual.SetActive(show);
+        }
+
+        /// <summary>ローカルの騎手が 1 位（拾っても Lv が上がらない）なら遺物を小さく・ゆっくり回して見せる。</summary>
+        private void UpdateDim()
+        {
+            bool dim = false;
+            AbilityCaster c = FindLocalCaster();
+            if (c != null && c.mount != null && c.mount.raceActive && c.RelicGainNow() <= 0) dim = true;
+            if (dim == dimmed) return;
+            dimmed = dim;
+            if (visual != null) visual.transform.localScale = dim ? visualScale * dimScale : visualScale;
         }
 
         private AbilityCaster FindLocalCaster()

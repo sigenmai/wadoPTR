@@ -89,7 +89,7 @@ namespace HorseRace
             }
             int st = raceManager.state;
             bool racing = st == RaceMath.STATE_COUNTDOWN || st == RaceMath.STATE_RACING;
-            if (racing && raceManager.IsLocalEntered()) SetText("中継\n\n出走中の方には映りません");
+            if (racing && raceManager.IsLocalEntered()) SetText("中継\n\nゴールすると映ります");
             else if (racing) SetText("中継\n\nまもなく映ります");
             else SetText("中継\n\nレースが始まると\nここに映ります");
         }
@@ -164,6 +164,9 @@ namespace HorseRace
             int count = rm.ActiveCount();
             string s = "<b><size=140%>出走表</size>（" + count.ToString() + "/" + RaceManager.MAX_SLOTS.ToString() + "）</b>\n";
             if (count == 0) return s + "\n受付の台帳にサインして出走登録";
+            float left = rm.GetLobbySecondsLeft();
+            if (left >= 0f) s += "<b>出走まで " + RaceMath.FormatClock(left) + "</b>\n";
+            else if (rm.state == RaceMath.STATE_LOBBY && count == 1) s += "あと 1 人で出走時計が動く\n";
             bool showPoints = rm.state != RaceMath.STATE_LOBBY;
             for (int i = 0; i < RaceManager.MAX_SLOTS; i++)
             {

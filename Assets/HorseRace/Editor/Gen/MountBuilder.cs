@@ -76,6 +76,7 @@ namespace HorseRace.EditorTools
             mc.seatFit = BuildSeatFit(t, mc, seat);
             mc.groundMask = WorldLayers.GroundMask;
             mc.obstacleMask = WorldLayers.ObstacleMask;
+            mc.mountMask = WorldLayers.MountMask;   // 押し合い・ドラフト（system-r1-13）
 
             var visualGo = GenUtil.Child(t, "Visual", Vector3.zero);
             // 練習用は slot = -1 なので、練習用の番号（casterId - 8 = 0, 1）で毛色を変える

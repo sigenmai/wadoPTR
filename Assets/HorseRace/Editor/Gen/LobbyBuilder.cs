@@ -467,27 +467,7 @@ namespace HorseRace.EditorTools
             GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", root, desk + new Vector3(0f, 0f, 1.8f), 180f, 1f, new Vector3(0.3f, 3f, 0.3f), DarkWood).name = "StreetLamp";
             GenUtil.PointLight(root, "DeskLamp", desk + new Vector3(0f, 2.9f, 1.8f), SetPieceBuilder.LampWarm, 8f, 1.2f);
 
-            // 台帳（ui-r1-06）：机の上に手配書の紙（WantedPosters_03）2 枚を平らに並べた見開き。左 = エントリー一覧、右 = 自分の選択（ローカル）
-            var book = GenUtil.World(root, "EntryLedger", new Vector3(desk.x, CENTER.y + top + 0.005f, desk.z), 180f);
-            var pages = GenUtil.Child(book.transform, "Pages", Vector3.zero).transform;
-            pages.localRotation = Quaternion.Euler(90f, 180f, 0f);   // 紙の面を上へ、文字の上を机の奥へ（スポーン側から読める）
-            const float PW = 0.33f, PH = 0.45f;
-            GenUtil.PaperSheet(pages, "LeftPage", "WantedPosters_03", new Vector3(-PW * 0.5f - 0.005f, -PH * 0.5f, 0f), null, PW, PH);
-            GenUtil.PaperSheet(pages, "RightPage", "WantedPosters_03", new Vector3(PW * 0.5f + 0.005f, -PH * 0.5f, 0f), null, PW, PH);
-            var bc = book.AddComponent<BoxCollider>();
-            bc.size = new Vector3(0.75f, 0.2f, 0.55f);
-            bc.center = new Vector3(0f, 0.08f, 0f);
-            var page = GenUtil.Text(pages, "PageText", new Vector3(-PW * 0.5f - 0.005f, 0f, -0.004f), Quaternion.identity, "エントリー台帳", 0.35f,
-                UiStyle.InkFace, new Vector2(PW - 0.03f, PH - 0.04f), TextStyle.Ink, true);
-            page.alignment = TMPro.TextAlignmentOptions.TopLeft;
-            var choice = GenUtil.Text(pages, "ChoiceText", new Vector3(PW * 0.5f + 0.005f, 0f, -0.004f), Quaternion.identity, "", 0.35f,
-                UiStyle.InkFace, new Vector2(PW - 0.04f, PH - 0.06f), TextStyle.Ink, true);
-            var ledger = GenUtil.AddU<EntryLedger>(book);
-            ledger.pageText = page;
-            ledger.choiceText = choice;
-            ledger.signSound = GenUtil.Audio(book, false);
-            GenUtil.SetInteractText(ledger, "台帳にサインする");
-            ctx.ledgers.Add(ledger);
+            LedgerBook(root, ctx, new Vector3(desk.x, CENTER.y + top + 0.005f, desk.z), 180f, "EntryLedger", "台帳にサインする");
             // 台帳の札：机の後ろの掲示板（NoticeBoard ×0.5）の板に書く（宙に浮かせない）
             NoticeSign(root, "LedgerSign", desk + new Vector3(0f, 0f, 1.0f), 0f, 0.5f, "<b><size=140%>受付</size></b>\n台帳にサインでエントリー", 1.0f,
                 UiStyle.InkFace, TextStyle.Ink, Paper);
@@ -566,10 +546,44 @@ namespace HorseRace.EditorTools
 
         static void PosterWall(Transform root, WorldContext ctx)
         {
-            // 手配書の壁（art-r1-12）：掲示板の模型（NoticeBoard ×1.2、板は暗い木の色）に手配書を貼る。当たり判定は板の見えない箱。札は南を向く
-            var wall = GenUtil.World(root, "WantedWall", P(LobbyLayout.WANTED_WALL), 0f);
-            const float WS = 1.2f;
-            var model = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), wall.transform, "Board", wall.transform.position, 0f, WS, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
+            PosterWallAt(root, ctx, P(LobbyLayout.WANTED_WALL), 0f, "WantedWall", "<b><size=140%>手配書</size></b>　―一枚取って乗り物と能力を選ぶ―", 1.2f);
+        }
+
+        /// <summary>台帳（机の上の見開き）。yaw = 本の向き（読む人は yaw + 180 を見る）。ロビーの受付とゴール後の囲い（system-r1-08）で使う。</summary>
+        internal static EntryLedger LedgerBook(Transform root, WorldContext ctx, Vector3 pos, float yaw, string name, string interact)
+        {
+            // 台帳（ui-r1-06）：机の上に手配書の紙（WantedPosters_03）2 枚を平らに並べた見開き。左 = エントリー一覧、右 = 自分の選択（ローカル）
+            var book = GenUtil.World(root, name, pos, yaw);
+            var pages = GenUtil.Child(book.transform, "Pages", Vector3.zero).transform;
+            pages.localRotation = Quaternion.Euler(90f, 180f, 0f);   // 紙の面を上へ、文字の上を机の奥へ（スポーン側から読める）
+            const float PW = 0.33f, PH = 0.45f;
+            GenUtil.PaperSheet(pages, "LeftPage", "WantedPosters_03", new Vector3(-PW * 0.5f - 0.005f, -PH * 0.5f, 0f), null, PW, PH);
+            GenUtil.PaperSheet(pages, "RightPage", "WantedPosters_03", new Vector3(PW * 0.5f + 0.005f, -PH * 0.5f, 0f), null, PW, PH);
+            var bc = book.AddComponent<BoxCollider>();
+            bc.size = new Vector3(0.75f, 0.2f, 0.55f);
+            bc.center = new Vector3(0f, 0.08f, 0f);
+            var page = GenUtil.Text(pages, "PageText", new Vector3(-PW * 0.5f - 0.005f, 0f, -0.004f), Quaternion.identity, "エントリー台帳", 0.35f,
+                UiStyle.InkFace, new Vector2(PW - 0.03f, PH - 0.04f), TextStyle.Ink, true);
+            page.alignment = TMPro.TextAlignmentOptions.TopLeft;
+            var choice = GenUtil.Text(pages, "ChoiceText", new Vector3(PW * 0.5f + 0.005f, 0f, -0.004f), Quaternion.identity, "", 0.35f,
+                UiStyle.InkFace, new Vector2(PW - 0.04f, PH - 0.06f), TextStyle.Ink, true);
+            var ledger = GenUtil.AddU<EntryLedger>(book);
+            ledger.pageText = page;
+            ledger.choiceText = choice;
+            ledger.signSound = GenUtil.Audio(book, false);
+            GenUtil.SetInteractText(ledger, interact);
+            ctx.ledgers.Add(ledger);
+            return ledger;
+        }
+
+        /// <summary>
+        /// 手配書の壁（art-r1-12）：掲示板の模型（NoticeBoard ×scale、板は暗い木の色）に手配書（馬・ラクダ・能力 4 枚）を貼る。当たり判定は板の見えない箱。
+        /// yaw = 読む人が見る向き。ロビーの広場とゴール後の囲い（ステージの合間の乗り換え、system-r1-08）で使う。
+        /// </summary>
+        internal static void PosterWallAt(Transform root, WorldContext ctx, Vector3 pos, float yaw, string name, string titleText, float WS)
+        {
+            var wall = GenUtil.World(root, name, pos, yaw);
+            var model = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), wall.transform, "Board", wall.transform.position, yaw, WS, new Vector3(4.5f, 3.8f, 0.3f), DarkWood);
             var panel = GenUtil.FindDeep(model.transform, "NoticeBoard_Panel");
             float panelY = 2.45f, panelZ = 0f;
             if (panel != null)
@@ -589,7 +603,7 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(model, WorldLayers.Block);
             DressingBuilder.SetStatic(model);
             float cz = panelZ - 0.06f;
-            var title = GenUtil.Text(wall.transform, "Title", new Vector3(0f, panelY + 1.55f, cz - 0.05f), Quaternion.identity, "<b><size=140%>手配書</size></b>　―一枚取って乗り物と能力を選ぶ―", 2.2f,
+            var title = GenUtil.Text(wall.transform, "Title", new Vector3(0f, panelY + 1.55f * WS / 1.2f, cz - 0.05f), Quaternion.identity, titleText, 2.2f * WS / 1.2f,
                 UiStyle.SignFace, new Vector2(6f, 0.5f), TextStyle.Sign, true);
 
             // kind 0 = 乗り物（0 馬 / 1 ラクダ）、kind 1 = 能力（0 砂塵 / 1 投げ縄 / 2 岩壁 / 3 鉄球）
@@ -893,6 +907,7 @@ namespace HorseRace.EditorTools
             }
             // カカシ
             Vector3[] dummies = { LobbyLayout.PRACTICE_DUMMY_1, LobbyLayout.PRACTICE_DUMMY_2 };
+            var dummies2 = new List<PracticeDummy>();
             for (int i = 0; i < 2; i++)
             {
                 var d = GenUtil.World(pr, "Scarecrow_" + (i + 1), P(dummies[i]), 180f);
@@ -910,8 +925,11 @@ namespace HorseRace.EditorTools
                 var dummy = GenUtil.AddU<PracticeDummy>(d);
                 dummy.pivot = pivot;
                 dummy.hitSound = GenUtil.Audio(d, false);
+                if (i == 1) dummy.moveAmplitude = 2.5f;   // 北のカカシは左右に動く的（system-r1-18）
                 ctx.dummies.Add(dummy);
+                dummies2.Add(dummy);
             }
+            PracticeLapBoard(pr, ctx, dummies2);
             // 練習用の馬の杭（馬は SceneAssembler が作って mount をつなぐ）：南の端＝広場から線路沿いに北へ来て最初に着く所
             for (int i = 0; i < 2; i++)
             {
@@ -937,6 +955,36 @@ namespace HorseRace.EditorTools
             var relic = CourseBuilder.Relic(pr, "PracticeRelic", P(LobbyLayout.PRACTICE_RELIC), 3, false);
             relic.practiceRespawnSeconds = 10f;
             ctx.practiceRelics.Add(relic);
+        }
+
+        /// <summary>
+        /// 練習場の往復タイム（system-r1-18）：南と北に見えない門（Is Trigger の箱 + Checkpoint stageIndex -1）、
+        /// 掲示板の模型（NoticeBoard ×0.6）の板に上位 5 人・自分の記録・的に当てた数（PracticeLap）。
+        /// </summary>
+        static void PracticeLapBoard(Transform pr, WorldContext ctx, List<PracticeDummy> dummies)
+        {
+            Vector4 r = LobbyLayout.PRACTICE_RECT;
+            float w = r.z - r.x;
+            var go = GenUtil.World(pr, "PracticeLap", P(LobbyLayout.PRACTICE_LAP_BOARD));
+            var text = NoticeSign(go.transform, "Board", P(LobbyLayout.PRACTICE_LAP_BOARD), 0f, 0.6f, "往復タイム", 1.1f, UiStyle.InkFace, TextStyle.Ink, Paper);
+            var lap = GenUtil.AddU<PracticeLap>(go);
+            lap.boardText = text;
+            lap.lapSound = GenUtil.Audio(go, false);
+            float[] gateZ = { LobbyLayout.PRACTICE_GATE_SOUTH_Z, LobbyLayout.PRACTICE_GATE_NORTH_Z };
+            for (int i = 0; i < 2; i++)
+            {
+                var g = GenUtil.World(pr, i == 0 ? "LapGate_South" : "LapGate_North", P(new Vector3((r.x + r.z) * 0.5f, 0f, gateZ[i])));
+                var box = g.AddComponent<BoxCollider>();
+                box.isTrigger = true;
+                box.size = new Vector3(w, 5f, 2f);
+                box.center = new Vector3(0f, 2f, 0f);
+                g.layer = WorldLayers.TRIGGERS;
+                var cp = GenUtil.AddU<Checkpoint>(g);
+                cp.index = i;
+                cp.stageIndex = -1;
+                cp.practiceLap = lap;
+            }
+            foreach (var d in dummies) d.scoreBoard = lap;
         }
 
         /// <summary>乗り物が立てる面（Ground）の箱。</summary>

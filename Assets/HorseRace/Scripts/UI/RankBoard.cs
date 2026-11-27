@@ -25,6 +25,10 @@ namespace HorseRace
         public bool showLastRace;
         [Tooltip("コースの黒板：このステージ番号（0..2）。カウントダウン〜ステージ結果の間は、別のステージの黒板は書き直さない（負荷対策）。-1 = 常に書く")]
         public int stageIndex = -1;
+        [Tooltip("ゴール後の囲いの黒板：レース中は全員の順位と残り時間（1 秒ごとに書き直す。system-r1-10）")]
+        public bool penBoard;
+
+        private float nextPenTick;
 
         /// <summary>レース中のコースの黒板：上位何人を書くか・大きさ（黒板の基本の文字に対する %）。</summary>
         public const int TOP_LINES = 3;
@@ -33,6 +37,14 @@ namespace HorseRace
 
         private void Start()
         {
+            Refresh();
+        }
+
+        private void Update()
+        {
+            if (!penBoard || raceManager == null || raceManager.state != RaceMath.STATE_RACING) return;
+            if (Time.time < nextPenTick) return;
+            nextPenTick = Time.time + 1f;
             Refresh();
         }
 
@@ -57,6 +69,21 @@ namespace HorseRace
             else if (st == RaceMath.STATE_COUNTDOWN)
             {
                 s = Header(rm.stage, "") + "\nまもなく出走";
+            }
+            else if (st == RaceMath.STATE_RACING && penBoard)
+            {
+                s = Header(rm.stage, " 残り " + RaceMath.FormatClock(rm.GetRemainingSeconds())) + "\n";
+                int line = 0;
+                for (int p = 0; p < RaceManager.MAX_SLOTS && line < maxLines; p++)
+                {
+                    int slot = rm.order[p];
+                    if (slot < 0 || rm.slotPlayerId[slot] < 0) continue;
+                    line++;
+                    MountController m = (rm.mounts != null && slot < rm.mounts.Length) ? rm.mounts[slot] : null;
+                    bool done = m != null && m.syncFinishAt >= rm.stageStartServer;
+                    s += HudMath.Row2(line.ToString() + "位", RaceManager.ShortName(rm.slotPlayerId[slot]) + (done ? " ゴール" : "")) + "\n";
+                }
+                s += "<size=80%>板の札で追う人を選べる</size>";
             }
             else if (st == RaceMath.STATE_RACING && !showLastRace)
             {
@@ -95,7 +122,7 @@ namespace HorseRace
                     {
                         if (rm.slotPlayerId[i] < 0 || rm.slotStagePlace[i] != place) continue;
                         s += HudMath.Row4(place.ToString() + "着", RaceManager.ShortName(rm.slotPlayerId[i]),
-                            "+" + RaceMath.PointsForPlace(place - 1).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
+                            "+" + RaceMath.PointsForPlace(place - 1, rm.stage).ToString(), "計" + rm.slotTotalPoints[i].ToString()) + "\n";
                     }
                 }
             }

@@ -17,6 +17,23 @@ namespace HorseRace.Tests
         }
 
         [Test]
+        public void StageHintsMatchTerrainAdvantage()
+        {
+            for (int i = 0; i < StageDefinitions.All.Length; i++)
+            {
+                string h = HudMath.StageHint(i);
+                Assert.IsTrue(h.StartsWith(StageDefinitions.All[i].label), h);
+                bool sandy = StageDefinitions.All[i].kind == HeightmapGen.KIND_DUNES;
+                // 砂のステージはラクダ、そうでなければ馬が速い（MountMath と表示が食い違わない）
+                bool camelFaster = MountMath.TargetSpeed(1, 3, 0f, false, sandy) > MountMath.TargetSpeed(0, 3, 0f, false, sandy);
+                Assert.AreEqual(camelFaster, h.Contains("ラクダ有利"), h);
+            }
+            StringAssert.Contains("1.5倍", HudMath.StageHint(RaceMath.FINAL_STAGE));
+            Assert.AreEqual("", HudMath.NextStageLine(2, 3));
+            StringAssert.Contains("砂漠", HudMath.NextStageLine(0, 3));
+        }
+
+        [Test]
         public void StageLabels()
         {
             Assert.AreEqual("第1幕 荒野", HudMath.StageLabel(0));

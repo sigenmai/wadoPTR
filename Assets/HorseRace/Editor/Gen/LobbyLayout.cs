@@ -74,6 +74,10 @@ namespace HorseRace.EditorTools
         public static readonly Vector3 PRACTICE_DUMMY_1 = new Vector3(23.5f, 0f, 111f);
         public static readonly Vector3 PRACTICE_DUMMY_2 = new Vector3(33f, 0f, 129f);
         public static readonly Vector3 PRACTICE_RELIC = new Vector3(33f, 0f, 108f);
+        /// <summary>往復タイム（system-r1-18）：南の門（杭の北）・北の門（丘の北）の z と、記録の掲示板。</summary>
+        public const float PRACTICE_GATE_SOUTH_Z = 94f;
+        public const float PRACTICE_GATE_NORTH_Z = 136.5f;
+        public static readonly Vector3 PRACTICE_LAP_BOARD = new Vector3(31.5f, 0f, 90.5f);
 
         /// <summary>ロビーの飾り（DressingPlan.ForLobby）を置かない円（x, _, z, 半径）：南の入口の前（町の南の辺と柵の間＝広場への入口）。
         /// 遊びに使う物はすべて町の中（飾りは町の外形の外だけ）なので、それ以外の円は要らない。</summary>
@@ -108,6 +112,7 @@ namespace HorseRace.EditorTools
             Add("PracticeDummy_1", PRACTICE_DUMMY_1, 0.8f);
             Add("PracticeDummy_2", PRACTICE_DUMMY_2, 0.8f);
             Add("PracticeRelic", PRACTICE_RELIC, 0.8f);
+            Add("PracticeLapBoard", PRACTICE_LAP_BOARD, 1.4f);
             return l;
         }
 

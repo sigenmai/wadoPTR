@@ -146,7 +146,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>掲示板 1 枚。パネルの法線（メッシュから読む）を facing に向け、文字はパネルの少し手前。</summary>
-        static NoticeBoardDisplay Board(Transform parent, string name, Vector3 pos, Vector3 facing, int mode, WorldContext ctx,
+        internal static NoticeBoardDisplay Board(Transform parent, string name, Vector3 pos, Vector3 facing, int mode, WorldContext ctx,
             out Transform front, out Vector3 panelCenter)
         {
             var holder = GenUtil.PlaceModel(GenUtil.Prop("NoticeBoard"), parent, name, pos, 0f, 1f, new Vector3(4.5f, 3.8f, 0.3f), Wood);
@@ -211,7 +211,7 @@ namespace HorseRace.EditorTools
         /// 中継の木札（ui-r1-17）：板の下に手配書の紙（WantedPosters_04、0.42 × 0.3m）を 9 枚ピンで留め、「1位」〜「8位」「おまかせ」（0.9pt）。
         /// 選んでいる札には宝石のピン（Gems_03_02）。
         /// </summary>
-        static DirectorTag[] Tags(Transform front, SpectatorDirector dir, WorldContext ctx)
+        internal static DirectorTag[] Tags(Transform front, SpectatorDirector dir, WorldContext ctx)
         {
             var tags = new DirectorTag[9];
             for (int i = 0; i < 9; i++)

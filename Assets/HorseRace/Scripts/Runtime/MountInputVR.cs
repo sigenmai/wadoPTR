@@ -8,7 +8,8 @@ namespace HorseRace
     /// VR の手綱入力。座席（seatAnchor）基準で両手の位置を見て、
     ///  - 片手を手前に引く → その側へ旋回（steer -1..1）
     ///  - 両手を引く → 減速（brake）
-    ///  - 両手を同時に振り下ろす → 疾走（sprint、最後に振ってから 0.8 秒持続）
+    ///  - 両手を同時に振り下ろす（リボルバーを持っているときは空いている片手を強めに）→ 疾走 ON のまま（ばてるか手綱を引くまで。MountMath.SprintLatch）
+    ///    腕を振り続けなくてよい（system-r1-11：デスクトップの Shift 押しっぱなしと同じ手間）
     /// を出す。挙動の計算は MountController が行い、ここは入力層だけ。
     /// 低スタミナ時は手綱の振動（ハプティクス）で知らせる。
     /// </summary>
@@ -26,7 +27,10 @@ namespace HorseRace
         public float pullRange = 0.2f;
         public float brakeThreshold = 0.5f;
         public float shakeSpeed = 1.2f;
-        public float sprintHold = 0.8f;
+        [Tooltip("片手で振るとき（もう片方の手でリボルバーを持っている）の速さ（m/s）")]
+        public float oneHandShakeSpeed = 1.4f;
+        [Tooltip("振り下ろしの後、この秒数の間の次の振りは何もしない（腕を休める）")]
+        public float swingCooldown = 0.5f;
 
         [Header("Haptics")]
         public float lowStamina = 25f;
@@ -44,6 +48,8 @@ namespace HorseRace
         private Vector3 lastR;
         private bool hasLast;
         private float lastShakeTime = -10f;
+        private RevolverHolder revolver;
+        private bool revolverLooked;
         private float nextHapticTime;
 
         /// <summary>着席後に MountController から呼ばれる。今の手の位置を「手綱を緩めた位置」とする。</summary>
@@ -55,6 +61,17 @@ namespace HorseRace
             restR = HandLocal(local, VRCPlayerApi.TrackingDataType.RightHand);
             calibrated = true;
             hasLast = false;
+        }
+
+        private RevolverHolder Revolver()
+        {
+            if (!revolverLooked && mount != null)
+            {
+                revolverLooked = true;
+                AbilityCaster ac = mount.GetComponent<AbilityCaster>();
+                if (ac != null) revolver = ac.revolver;
+            }
+            return revolver;
         }
 
         private Vector3 HandLocal(VRCPlayerApi local, VRCPlayerApi.TrackingDataType type)
@@ -95,16 +112,28 @@ namespace HorseRace
             }
 
             float dt = Time.deltaTime;
-            if (hasLast && dt > 0f)
+            bool swing = false;
+            if (hasLast && dt > 0f && Time.time - lastShakeTime >= swingCooldown)
             {
                 float vyL = (l.y - lastL.y) / dt;
                 float vyR = (r.y - lastR.y) / dt;
-                if (vyL < -shakeSpeed && vyR < -shakeSpeed) lastShakeTime = Time.time;
+                if (vyL < -shakeSpeed && vyR < -shakeSpeed) swing = true;
+                else
+                {
+                    // リボルバーを持っている手の反対の手だけで振ってもよい
+                    RevolverHolder rv = Revolver();
+                    if (rv != null)
+                    {
+                        if (rv.IsHeldInLocalHand(AbilityCaster.AIM_RIGHT) && vyL < -oneHandShakeSpeed) swing = true;
+                        else if (rv.IsHeldInLocalHand(AbilityCaster.AIM_LEFT) && vyR < -oneHandShakeSpeed) swing = true;
+                    }
+                }
+                if (swing) lastShakeTime = Time.time;
             }
             lastL = l;
             lastR = r;
             hasLast = true;
-            sprint = Time.time - lastShakeTime < sprintHold;
+            sprint = MountMath.SprintLatch(sprint, swing, brake, mount.Exhausted);
 
             if (mount.Stamina < lowStamina && Time.time >= nextHapticTime)
             {

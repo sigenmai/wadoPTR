@@ -6,12 +6,35 @@ namespace HorseRace
     public class RevolverMath : UdonSharp.UdonSharpBehaviour
     {
         public const int AMMO_PER_STAGE = 6;
-        public const float AIM_FACTOR = 0.9f;
-        public const float MISS_FACTOR = 0.8f;
-        public const float MISS_SECONDS = 3f;
+        // system-r1-05：撃つ方が得（外しの損 ≒ 1.7m、当てた相手の損 ≒ 7.8m @14 m/s）
+        public const float AIM_FACTOR = 0.95f;
+        public const float MISS_FACTOR = 0.92f;
+        public const float MISS_SECONDS = 1.5f;
         public const float HIT_FACTOR = 0.6f;
-        public const float HIT_SECONDS = 1f;
+        public const float HIT_SECONDS = 1.4f;
+        /// <summary>馬上の照準補助：撃つ人が乗っていて AIM_ASSIST_MIN_SPEED より速いとき、当たり判定の半径に足す（m）。</summary>
+        public const float AIM_ASSIST_RADIUS = 0.3f;
+        public const float AIM_ASSIST_MIN_SPEED = 10f;
         public const int HITS_TO_DROP = 3;
+
+        /// <summary>外したときに自分が失う距離（m）。</summary>
+        public static float MissCostMeters(float speed)
+        {
+            return speed * (1f - MISS_FACTOR) * MISS_SECONDS;
+        }
+
+        /// <summary>当てたときに相手が失う距離（m、よろけは含めない）。</summary>
+        public static float HitCostMeters(float speed)
+        {
+            return speed * (1f - HIT_FACTOR) * HIT_SECONDS;
+        }
+
+        /// <summary>当たり判定の半径（照準補助込み）。</summary>
+        public static float HitRadius(float baseRadius, bool mounted, float shooterSpeed)
+        {
+            if (mounted && shooterSpeed > AIM_ASSIST_MIN_SPEED) return baseRadius + AIM_ASSIST_RADIUS;
+            return baseRadius;
+        }
 
         public static int AmmoAfterShot(int ammo)
         {

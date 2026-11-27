@@ -66,6 +66,170 @@ namespace HorseRace
             return 0;
         }
 
+        /// <summary>最終ステージ（0 始まりで 2）は点が 1.5 倍（端数は切り上げ）：15/12/9/8/6/5/3/2（system-r1-21）。</summary>
+        public const int FINAL_STAGE = 2;
+
+        public static int PointsForPlace(int place, int stage)
+        {
+            int b = PointsForPlace(place);
+            if (stage != FINAL_STAGE) return b;
+            return (b * 3 + 1) / 2;
+        }
+
+        // ---- 開幕の猶予（system-r1-07）----
+        /// <summary>号砲から何秒間、能力とリボルバーを使えないか。</summary>
+        public const float START_GRACE_SECONDS = 8f;
+
+        public static bool InStartGrace(double serverNow, double stageStartServer)
+        {
+            return serverNow - stageStartServer < START_GRACE_SECONDS;
+        }
+
+        /// <summary>猶予の残り秒数（0 = もう使える）。</summary>
+        public static float StartGraceLeft(double serverNow, double stageStartServer)
+        {
+            double left = stageStartServer + START_GRACE_SECONDS - serverNow;
+            if (left < 0.0) return 0f;
+            return (float)left;
+        }
+
+        // ---- ロビーの出走時計（system-r1-09）----
+        public const float LOBBY_WAIT_SECONDS = 60f;
+        public const float LOBBY_READY_SECONDS = 15f;
+        /// <summary>締め切りまでこれ未満になったら、エントリーした人なら誰でも号砲を撃てる。</summary>
+        public const float LOBBY_ANYONE_SECONDS = 30f;
+
+        /// <summary>
+        /// ロビーの出走の締め切り（サーバー時刻、-1 = なし）。エントリー 2 人以上で 60 秒後に決め、全員が乗った・ワールドの全員がエントリーしたら 15 秒後まで縮める。
+        /// 2 人未満なら -1。縮めるだけで延ばさない。
+        /// </summary>
+        public static double LobbyDeadline(double now, int entrants, int seated, int players, double current)
+        {
+            if (entrants < 2) return -1.0;
+            double d = current;
+            if (d < 0.0) d = now + LOBBY_WAIT_SECONDS;
+            if (seated >= entrants || entrants >= players)
+            {
+                double ready = now + LOBBY_READY_SECONDS;
+                if (ready < d) d = ready;
+            }
+            return d;
+        }
+
+        /// <summary>号砲（スタート台の拳銃）を撃てるか：マスター、または締め切りまで 30 秒未満のときのエントリー者。</summary>
+        public static bool CanRingStart(bool isMaster, bool isEntrant, double now, double deadline)
+        {
+            if (isMaster) return true;
+            return isEntrant && deadline >= 0.0 && deadline - now < LOBBY_ANYONE_SECONDS;
+        }
+
+        // ---- 総合順位の同点（system-r1-12）----
+        /// <summary>
+        /// 総合で a が b より上か：合計点 → 2 人とも走った最後のステージの着順（小さいほうが上）→ 1 着の数。
+        /// stagePlace は index = stage * slots + slot（1 始まり、0 = 走っていない）、slots = totals.Length。完全に同じなら false。
+        /// </summary>
+        public static bool OverallAhead(int a, int b, int[] totals, int[] stagePlace, int stageCount)
+        {
+            if (totals[a] != totals[b]) return totals[a] > totals[b];
+            int slots = totals.Length;
+            for (int st = stageCount - 1; st >= 0; st--)
+            {
+                int pa = stagePlace[st * slots + a];
+                int pb = stagePlace[st * slots + b];
+                if (pa > 0 && pb > 0)
+                {
+                    if (pa != pb) return pa < pb;
+                    break;
+                }
+            }
+            int wa = 0;
+            int wb = 0;
+            for (int st = 0; st < stageCount; st++)
+            {
+                if (stagePlace[st * slots + a] == 1) wa++;
+                if (stagePlace[st * slots + b] == 1) wb++;
+            }
+            return wa > wb;
+        }
+
+        /// <summary>active なスロットの総合順（上から）。同点の決め方は OverallAhead、完全に同じならスロット番号の小さい順。</summary>
+        public static int[] OverallOrder(int[] totals, int[] stagePlace, bool[] active, int stageCount)
+        {
+            int n = 0;
+            for (int i = 0; i < active.Length; i++) if (active[i]) n++;
+            int[] result = new int[n];
+            int count = 0;
+            for (int i = 0; i < active.Length; i++)
+            {
+                if (!active[i]) continue;
+                int j = count;
+                while (j > 0 && OverallAhead(i, result[j - 1], totals, stagePlace, stageCount))
+                {
+                    result[j] = result[j - 1];
+                    j--;
+                }
+                result[j] = i;
+                count++;
+            }
+            return result;
+        }
+
+        // ---- スタートの並び（system-r1-14）----
+        /// <summary>
+        /// スロットごとのスタートのレーン（長さ slots）。overallOrder = 走るスロット（総合順、上から）。
+        /// 第 1 ステージ（stage 0）は seed で混ぜる、第 2・3 ステージは総合の逆順（最下位がレーン 0、首位がいちばん外）。
+        /// 走らないスロットには残りのレーンをスロット番号の順に入れる（重ならない）。
+        /// </summary>
+        public static int[] GridOrder(int[] overallOrder, int stage, int seed, int slots)
+        {
+            int n = overallOrder.Length;
+            int[] seq = new int[n];
+            for (int i = 0; i < n; i++) seq[i] = overallOrder[n - 1 - i];
+            if (stage == 0)
+            {
+                for (int i = 0; i < n; i++) seq[i] = overallOrder[i];
+                int s = (seed < 0 ? -seed : seed) % 65536;
+                for (int i = n - 1; i > 0; i--)
+                {
+                    s = (s * 1103 + 12345) % 65536;
+                    int j = s % (i + 1);
+                    int t = seq[i];
+                    seq[i] = seq[j];
+                    seq[j] = t;
+                }
+            }
+            int[] lane = new int[slots];
+            bool[] used = new bool[slots];
+            for (int i = 0; i < slots; i++) lane[i] = -1;
+            for (int i = 0; i < n; i++)
+            {
+                int slot = seq[i];
+                if (slot < 0 || slot >= slots) continue;
+                lane[slot] = i;
+                used[i] = true;
+            }
+            int next = 0;
+            for (int slot = 0; slot < slots; slot++)
+            {
+                if (lane[slot] >= 0) continue;
+                while (next < slots && used[next]) next++;
+                lane[slot] = next < slots ? next : slot;
+                if (next < slots) used[next] = true;
+            }
+            return lane;
+        }
+
+        // ---- 逆走（system-r1-17）----
+        public const float WRONG_WAY_DOT = -0.3f;
+        public const float WRONG_WAY_MIN_SPEED = 4f;
+        public const float WRONG_WAY_SECONDS = 1.5f;
+
+        /// <summary>次の CP への向きと進む向きの内積・速さから、逆走の兆し（このフレーム）か。</summary>
+        public static bool WrongWayNow(float dotFwdToCp, float speed)
+        {
+            return dotFwdToCp < WRONG_WAY_DOT && speed > WRONG_WAY_MIN_SPEED;
+        }
+
         /// <summary>Seconds until the stage ends (the earlier of the hard limit and 60 s after the first finish). Never negative.</summary>
         public static float RemainingSeconds(double serverNow, double stageStart, double firstFinishAt)
         {

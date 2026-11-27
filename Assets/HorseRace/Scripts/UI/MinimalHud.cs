@@ -282,11 +282,16 @@ namespace HorseRace
 
             // 進み具合（CP の知らせが出ている間は知らせ）
             string p;
+            MountController lmp = rm.LocalMount();
             if (now < noteUntil) p = "<color=" + HudMath.ColorHex(noteColor) + ">" + noteText + "</color>";
+            else if (st == RaceMath.STATE_RACING && lmp != null && lmp.WrongWay) p = "<color=" + HudMath.ColorHex(Red) + "><b>逆走 ↩</b></color>";   // system-r1-17
+            else if (st == RaceMath.STATE_RACING && rm.InStartGrace()) p = "撃ち合いまで " + Mathf.CeilToInt(rm.StartGraceLeft()).ToString();   // system-r1-07
             else
             {
-                MountController lm = rm.LocalMount();
-                p = st == RaceMath.STATE_RACING && lm != null ? HudMath.ProgressBar(lm.syncCp, rm.CheckpointCount(rm.stage), HudMath.PROGRESS_SEGMENTS) : "";
+                p = st == RaceMath.STATE_RACING && lmp != null ? HudMath.ProgressBar(lmp.syncCp, rm.CheckpointCount(rm.stage), HudMath.PROGRESS_SEGMENTS) : "";
+                // 風よけ（ドラフト：system-r1-13）・ひと息（疾走を早めにやめた回復：system-r1-01）を進み具合の横に小さく
+                if (p.Length > 0 && lmp.Draft > 0f) p += " <color=" + HudMath.ColorHex(Gold) + ">風よけ</color>";
+                if (p.Length > 0 && lmp.SecondWindActive) p += " <color=" + HudMath.ColorHex(Gold) + ">ひと息</color>";
             }
             if (p != lastProgress)
             {

@@ -8,6 +8,19 @@ namespace HorseRace.Tests
         [Test] public void Level_Caps() { Assert.AreEqual(2, AbilityMath.LevelAfterRelic(1)); Assert.AreEqual(3, AbilityMath.LevelAfterRelic(3)); }
         [Test] public void Cooldowns() { Assert.AreEqual(18f, AbilityMath.Cooldown(0)); Assert.AreEqual(15f, AbilityMath.Cooldown(3)); Assert.AreEqual(20f, AbilityMath.Cooldown(99)); }
         [Test] public void Scaling() { Assert.AreEqual(8f, AbilityMath.DustRadius(3)); Assert.AreEqual(45f, AbilityMath.LassoRange(2)); Assert.AreEqual(3, AbilityMath.WallCount(3)); Assert.AreEqual(1, AbilityMath.BallCount(1)); Assert.AreEqual(4f, AbilityMath.DustDuration(1)); Assert.AreEqual(8f, AbilityMath.DustRadius(9)); Assert.AreEqual(4f, AbilityMath.DustRadius(0)); }
+        [Test] public void RelicGain_ByRank()
+        {
+            Assert.AreEqual(1, AbilityMath.RelicGain(1, 1));   // 1 人：+1
+            Assert.AreEqual(0, AbilityMath.RelicGain(1, 2));   // 先頭は拾えない
+            Assert.AreEqual(2, AbilityMath.RelicGain(2, 2));
+            Assert.AreEqual(0, AbilityMath.RelicGain(1, 8));
+            for (int r = 2; r <= 4; r++) Assert.AreEqual(1, AbilityMath.RelicGain(r, 8), "rank " + r);
+            for (int r = 5; r <= 8; r++) Assert.AreEqual(2, AbilityMath.RelicGain(r, 8), "rank " + r);
+            Assert.AreEqual(1, AbilityMath.RelicGain(0, 8));   // 順位がまだ無い
+            Assert.AreEqual(3, AbilityMath.LevelAfterRelicGain(2, 2));
+            Assert.AreEqual(3, AbilityMath.LevelAfterRelicGain(1, 2));
+            Assert.AreEqual(2, AbilityMath.LevelAfterRelicGain(2, 0));
+        }
         [Test] public void Relic_FirstClaimWins() { int h = AbilityMath.RelicArbiter(-1, 42); Assert.AreEqual(42, h); Assert.AreEqual(42, AbilityMath.RelicArbiter(h, 7)); }
         [Test] public void LassoPullBonus_ScalesWithLevel()
         {

@@ -66,6 +66,12 @@ namespace HorseRace
         public bool Exhausted;
         public float Speed;
         public bool Grounded = true;
+        /// <summary>逆走している（次の CP と反対へ 1.5 秒以上）。首の札・懐中時計が「逆走」と出す（ローカル）。</summary>
+        public bool WrongWay;
+        /// <summary>前の乗り物の後ろについている（ドラフト、0..1）。ローカル。</summary>
+        public float Draft;
+        /// <summary>今「ひと息」（回復 ×1.25）中か。ローカル。</summary>
+        public bool SecondWindActive;
         /// <summary>Task 11 が Terrain の砂レイヤー比率（0..1）を入れる。</summary>
         public float terrainSandWeight;
         /// <summary>SandZone が増減する。</summary>
@@ -82,6 +88,8 @@ namespace HorseRace
         [Header("Ground")]
         public LayerMask groundMask = -1;
         public LayerMask obstacleMask = -1;
+        [Tooltip("ほかの乗り物の体のレイヤー（押し合い・ドラフト）。0 なら調べない")]
+        public LayerMask mountMask = 0;
         public float rayStartHeight = 1.5f;
         public float groundSnap = 0.6f;
         public float maxStepUp = 0.6f;
@@ -125,6 +133,21 @@ namespace HorseRace
         private float fallStartY;
         private float stunTimer;
         private Vector3 knockVel;
+        // ---- スタミナの判断（system-r1-01）・着地（r1-03）・壁（r1-02）・押し合い（r1-13）・逆走（r1-17）・スタート（r1-15）----
+        private bool wasSprinting;
+        private float secondWindUntil;
+        private float lastSprintHeldAt = -10f;
+        private bool prevSprintReq;
+        private bool stickSprintLatched;
+        private float lastWallAt = -10f;
+        private float nextMountScan;
+        private float wrongWayTimer;
+        private bool startArmed;
+        private double startPressServer = -1.0;
+        private double raceGunServer = -1.0;
+        // TrySlide の結果（out 引数の代わり）
+        private Vector3 slideNext;
+        private float slideGroundY;
         private Vector3 pullTarget;
         private float pullBonus;
         private float pullRemaining;
@@ -242,6 +265,8 @@ namespace HorseRace
             cruiseLevel = 0;
             Grounded = true;
             fallStartY = pos.y;
+            wrongWayTimer = 0f;
+            WrongWay = false;
             seatY = pos.y + seatLocalY;   // 座席はすぐ新しい位置へ（平滑化で遅れて付いてこない）
             bodyPitch = 0f;
             seatPitch = 0f;
@@ -271,6 +296,51 @@ namespace HorseRace
                 if (Grounded) { Grounded = false; fallStartY = transform.position.y; }
             }
             if (stunSeconds > stunTimer) stunTimer = stunSeconds;
+        }
+
+        /// <summary>ステージ開始（COUNTDOWN）で RaceManager が自分の乗り物に呼ぶ。号砲の前後の前進入力を見てスタートダッシュ／立ち上がりを決める（system-r1-15）。</summary>
+        public void ArmStart()
+        {
+            startArmed = true;
+            startPressServer = -1.0;
+            raceGunServer = -1.0;
+        }
+
+        /// <summary>RACING に入ったとき RaceManager が呼ぶ（gunServer = stageStartServer = 号砲のサーバー時刻）。</summary>
+        public void BeginRace(double gunServer)
+        {
+            raceGunServer = gunServer;
+        }
+
+        private void NoteStartPress()
+        {
+            if (!startArmed || startPressServer >= 0.0) return;
+            startPressServer = Networking.GetServerTimeInSeconds();
+        }
+
+        /// <summary>号砲の後、押した時刻と号砲の差でダッシュ（×1.2 1.5 秒＋すぐ速歩の速さ）か立ち上がり（0.5 秒の硬直）。</summary>
+        private void ResolveStart()
+        {
+            if (!startArmed || raceGunServer < 0.0 || InputLocked) return;
+            double now = Networking.GetServerTimeInSeconds();
+            if (startPressServer < 0.0)
+            {
+                if (now - raceGunServer > MountMath.START_WINDOW) startArmed = false;
+                return;
+            }
+            startArmed = false;
+            int r = MountMath.StartBoost((float)(startPressServer - raceGunServer));
+            if (r == MountMath.START_BOOST)
+            {
+                AddSpeedMod(MountMath.START_BOOST_FACTOR, MountMath.START_BOOST_SECONDS);
+                if (cruiseLevel < 3) cruiseLevel = 3;
+                float trot = MountMath.GaitSpeed(syncMount, MountMath.GAIT_TROT);
+                if (Speed < trot) Speed = trot;
+            }
+            else if (r == MountMath.START_STALL)
+            {
+                if (stunTimer < MountMath.START_STALL_SECONDS) stunTimer = MountMath.START_STALL_SECONDS;   // 立ち上がる（Stagger）
+            }
         }
 
         /// <summary>オーナー側。target へ bonusMps の追加速度で seconds 秒引き寄せる。</summary>
@@ -334,7 +404,21 @@ namespace HorseRace
             syncDistToCp = nextCp != null ? Vector3.Distance(pos, nextCp.transform.position) : 0f;
             if (Grounded) airTime = 0f; else airTime += dt;
             // ゴール後は惰性でどこへ行ってもよい
-            if (!raceActive || !hasRespawn || syncFinishAt >= 0.0) { secondsOffCourse = 0f; return; }
+            if (!raceActive || !hasRespawn || syncFinishAt >= 0.0) { secondsOffCourse = 0f; wrongWayTimer = 0f; WrongWay = false; return; }
+
+            // 逆走（system-r1-17）：次の CP と反対へ速く走り続けたら 1.5 秒で知らせる
+            if (nextCp != null && !InputLocked)
+            {
+                Vector3 to = nextCp.transform.position - pos;
+                to.y = 0f;
+                Vector3 f = transform.forward;
+                f.y = 0f;
+                float dot = (to.sqrMagnitude > 1f && f.sqrMagnitude > 0.01f) ? Vector3.Dot(f.normalized, to.normalized) : 1f;
+                if (RaceMath.WrongWayNow(dot, Speed)) wrongWayTimer += dt;
+                else if (dot > 0f) wrongWayTimer = 0f;
+                WrongWay = wrongWayTimer >= RaceMath.WRONG_WAY_SECONDS;
+            }
+            else { wrongWayTimer = 0f; WrongWay = false; }
 
             RaycastHit hit;
             float height;
@@ -404,6 +488,7 @@ namespace HorseRace
         {
             inputVertical = value;
             if (!IsLocalRider()) return;
+            if (verticalArmed && value > 0.6f) NoteStartPress();
             if (verticalArmed && value > 0.6f) { cruiseLevel = Mathf.Min(cruiseLevel + 1, 3); verticalArmed = false; }
             else if (verticalArmed && value < -0.6f) { cruiseLevel = Mathf.Max(cruiseLevel - 1, 0); verticalArmed = false; }
             else if (Mathf.Abs(value) < 0.3f) verticalArmed = true;
@@ -423,8 +508,11 @@ namespace HorseRace
         {
             if (local.IsUserInVR())
             {
+                // スティック押し込みは切り替え（押しっぱなしにしない：system-r1-11）。ばて・手綱で切れる
+                if (Input.GetButtonDown("Oculus_CrossPlatform_PrimaryThumbstick")) stickSprintLatched = !stickSprintLatched;
+                if (Exhausted || (vrInput != null && vrInput.brake)) stickSprintLatched = false;
                 if (vrInput != null && vrInput.sprint) return true;
-                return Input.GetButton("Oculus_CrossPlatform_PrimaryThumbstick");
+                return stickSprintLatched;
             }
             return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
         }
@@ -557,6 +645,7 @@ namespace HorseRace
             SpeedMod.Tick(modRemaining, dt);
             if (stunTimer > 0f) stunTimer -= dt;
             if (pullRemaining > 0f) pullRemaining -= dt;
+            ResolveStart();
 
             bool canControl = !InputLocked && stunTimer <= 0f;
 
@@ -576,7 +665,8 @@ namespace HorseRace
                 }
                 if (brakeHeld && (!brakeWasHeld || Time.time >= brakeRepeatAt))
                 {
-                    cruiseLevel = Mathf.Max(cruiseLevel - 1, 0);
+                    // 疾走中の最初のひと引きは疾走をやめるだけ（歩様は下げない）
+                    if (brakeWasHeld || !prevSprintReq) cruiseLevel = Mathf.Max(cruiseLevel - 1, 0);
                     brakeRepeatAt = Time.time + 0.8f;
                 }
                 if (sprintReq && cruiseLevel < 1) cruiseLevel = 1;
@@ -586,7 +676,12 @@ namespace HorseRace
                 // 硬直中は操作不可だが歩様の設定は残す（解けたら元の歩様へ戻る）
                 steer = 0f;
                 jumpQueued = false;
+                // カウントダウン中の VR の振り下ろしもスタートの入力として数える
+                if (InputLocked && vr && vrInput != null && vrInput.sprint) NoteStartPress();
             }
+            if (sprintReq && !prevSprintReq) NoteStartPress();
+            prevSprintReq = sprintReq;
+            if (sprintReq) lastSprintHeldAt = Time.time;
             brakeWasHeld = brakeHeld;
             if (InputLocked) cruiseLevel = 0;
 
@@ -600,10 +695,24 @@ namespace HorseRace
             float slopeDeg = 0f;
             if (hasGround) slopeDeg = SlopeAlong(hit.normal, fwd);
 
-            // ---- スタミナ・砂 ----
+            // ---- ほかの乗り物：押し合い・ドラフト（0.1 秒ごと）----
+            if (Time.time >= nextMountScan)
+            {
+                nextMountScan = Time.time + 0.1f;
+                ScanMounts(pos, fwd);
+            }
+
+            // ---- スタミナ・砂（system-r1-01）----
             OnSand = sandZoneCount > 0 || terrainSandWeight > 0.5f;
             bool sprinting = sprintReq && !Exhausted && Speed > 0.5f && Grounded;
-            Stamina = MountMath.StepStamina(mount, Stamina, sprinting, dt);
+            // まだ 15 以上残して疾走をやめた＝いい手綱さばき：2 秒間 回復 ×1.25
+            if (wasSprinting && !sprinting && MountMath.EarnsSecondWind(Stamina)) secondWindUntil = Time.time + MountMath.SECOND_WIND_SECONDS;
+            wasSprinting = sprinting;
+            SecondWindActive = Time.time < secondWindUntil;
+            float refillMul = SecondWindActive ? MountMath.SECOND_WIND_MUL : 1f;
+            if (Draft > 0f) refillMul *= MountMath.DRAFT_REFILL_MUL;
+            int gaitNow = cruiseLevel > 0 ? cruiseLevel - 1 : MountMath.GAIT_WALK;
+            Stamina = MountMath.StepStamina(mount, Stamina, sprinting, Exhausted, gaitNow, dt, refillMul);
             Exhausted = MountMath.IsExhausted(Stamina, Exhausted);
 
             // ---- 目標速度 ----
@@ -612,7 +721,8 @@ namespace HorseRace
             {
                 int gait = cruiseLevel - 1;
                 if (sprintReq) gait = MountMath.GAIT_SPRINT;
-                target = MountMath.TargetSpeed(mount, gait, slopeDeg, Exhausted, OnSand) * SpeedMod.Combined(modFactors, modRemaining);
+                float baseSpeed = MountMath.TargetSpeed(mount, gait, slopeDeg, Exhausted, OnSand) + MountMath.DRAFT_SPEED_BONUS * Draft;
+                target = baseSpeed * SpeedMod.Combined(modFactors, modRemaining);
             }
             if (Grounded) Speed = MountMath.Approach(Speed, target, dt);
 
@@ -636,13 +746,15 @@ namespace HorseRace
             float stepLen = step.magnitude;
             if (stepLen > 0.0001f)
             {
-                // 正面の障害物（胸の高さ）
-                if (Physics.Raycast(pos + Vector3.up * chestHeight, step / stepLen, stepLen + bodyRadius,
+                // 正面の障害物（胸の高さ）：かすったら沿って滑る、正面だけ止まる（system-r1-02）
+                Vector3 dir = step / stepLen;
+                RaycastHit ohit;
+                if (Physics.Raycast(pos + Vector3.up * chestHeight, dir, out ohit, stepLen + bodyRadius,
                     obstacleMask, QueryTriggerInteraction.Ignore))
                 {
-                    step = Vector3.zero;
-                    Speed = 0f;
-                    knockVel = Vector3.zero;
+                    Vector3 n = Vector3.ProjectOnPlane(ohit.normal, Vector3.up);
+                    if (n.sqrMagnitude < 0.0001f) n = -dir; else n = n.normalized;
+                    step = WallContact(pos, step, dir, n, dt);
                 }
             }
 
@@ -656,10 +768,18 @@ namespace HorseRace
 
             if (Grounded && nGround && nGroundY - pos.y > maxStepUp)
             {
-                // 壁・急な上り：進めない
-                next = pos;
-                Speed = 0f;
-                nGroundY = groundY;
+                // 壁・急な上り：地面の法線で沿う向きへ滑る（滑れなければ止まる）
+                if (TrySlide(pos, step, nhit.normal, dt))
+                {
+                    next = slideNext;
+                    nGroundY = slideGroundY;
+                }
+                else
+                {
+                    next = pos;
+                    Speed = 0f;
+                    nGroundY = groundY;
+                }
             }
 
             if (Grounded)
@@ -689,10 +809,13 @@ namespace HorseRace
                 next.y += vy * dt;
                 if (nGround && nGroundY - next.y > maxStepUp)
                 {
-                    // 空中で崖の側面に当たった：水平移動を止める
+                    // 空中で崖の側面に当たった：水平移動を止め、当たり方に応じて速さを削る（0 にはしない）
+                    Vector3 hn = Vector3.ProjectOnPlane(nhit.normal, Vector3.up);
+                    float head = 1f;
+                    if (hn.sqrMagnitude > 0.0001f && stepLen > 0.0001f) head = Mathf.Clamp01(-Vector3.Dot(step / stepLen, hn.normalized));
                     next.x = pos.x;
                     next.z = pos.z;
-                    Speed = 0f;
+                    Speed *= MountMath.WallScrapeFactor(head);
                     knockVel = Vector3.zero;
                     nGround = Physics.Raycast(next + Vector3.up * rayStartHeight, Vector3.down, out nhit,
                         rayStartHeight + 200f, groundMask, QueryTriggerInteraction.Ignore);
@@ -704,12 +827,14 @@ namespace HorseRace
                     next.y = nGroundY;
                     vy = 0f;
                     Grounded = true;
-                    float stun = MountMath.LandingStun(fallStartY - nGroundY);
-                    if (stun > 0f)
-                    {
-                        if (stun > stunTimer) stunTimer = stun;
-                        Speed = 0f;
-                    }
+                    // 着地（system-r1-03）：6m 未満は何もなし、高いほど少し硬直・少し減速（止まらない）
+                    float h = fallStartY - nGroundY;
+                    float stun = MountMath.LandingStun(h);
+                    if (stun > stunTimer) stunTimer = stun;
+                    Speed *= MountMath.LandingSpeedKeep(h);
+                    // きれいな着地：10m 未満の落下（2m 以上）で、着地の直前まで疾走を押していた → ×1.15 1.5 秒
+                    if (h >= 2f && MountMath.CleanLanding(h, Time.time - lastSprintHeldAt))
+                        AddSpeedMod(MountMath.CLEAN_LANDING_FACTOR, MountMath.CLEAN_LANDING_SECONDS);
                 }
             }
             jumpQueued = false;
@@ -724,6 +849,133 @@ namespace HorseRace
             if (stunTimer > 0f) syncGait |= GAIT_FLAG_STUN;
             if (InputLocked && Speed < 0.3f) syncGait |= GAIT_FLAG_STAMP;
             WriteSync();
+        }
+
+        /// <summary>
+        /// 胸の高さの障害物に当たった。n = 水平の法線、head = 0 かすった〜1 正面。正面（head &gt; 0.85）だけ止まる。
+        /// それ以外は壁に沿う成分だけ進み、当たった瞬間に速さを WallScrapeFactor(head) 倍、鼻先を滑る向きへ 20°/秒まで回す。
+        /// </summary>
+        private Vector3 WallContact(Vector3 pos, Vector3 step, Vector3 dir, Vector3 n, float dt)
+        {
+            float head = Mathf.Clamp01(-Vector3.Dot(dir, n));
+            bool fresh = Time.time - lastWallAt > 0.25f;
+            lastWallAt = Time.time;
+            if (head > MountMath.WALL_HARD_STOP_HEAD)
+            {
+                Speed = 0f;
+                knockVel = Vector3.zero;
+                return Vector3.zero;
+            }
+            if (fresh) Speed *= MountMath.WallScrapeFactor(head);
+            Vector3 slid = Vector3.ProjectOnPlane(step, n);
+            slid.y = 0f;
+            float len = slid.magnitude;
+            if (len < 0.0001f) return Vector3.zero;
+            // 滑った先にも壁（角）なら止める
+            if (Physics.Raycast(pos + Vector3.up * chestHeight, slid / len, len + bodyRadius * 0.5f, obstacleMask, QueryTriggerInteraction.Ignore))
+                return Vector3.zero;
+            TurnToward(slid / len, dt);
+            return slid;
+        }
+
+        /// <summary>
+        /// 段差（maxStepUp より高い地面）に当たった：地面の法線の水平成分に沿って滑る。法線が上向きすぎる（崖の上の面）ときは ±45° を試す。
+        /// 結果は slideNext / slideGroundY。滑れなければ false。
+        /// </summary>
+        private bool TrySlide(Vector3 pos, Vector3 step, Vector3 groundNormal, float dt)
+        {
+            float stepLen = step.magnitude;
+            if (stepLen < 0.0001f) return false;
+            Vector3 dir = step / stepLen;
+            Vector3 n = Vector3.ProjectOnPlane(groundNormal, Vector3.up);
+            if (n.sqrMagnitude > 0.04f)
+            {
+                n = n.normalized;
+                float head = Mathf.Clamp01(-Vector3.Dot(dir, n));
+                if (head <= MountMath.WALL_HARD_STOP_HEAD)
+                {
+                    Vector3 slid = Vector3.ProjectOnPlane(step, n);
+                    slid.y = 0f;
+                    if (TrySlideTo(pos, slid))
+                    {
+                        if (Time.time - lastWallAt > 0.25f) Speed *= MountMath.WallScrapeFactor(head);
+                        lastWallAt = Time.time;
+                        if (slid.sqrMagnitude > 0.000001f) TurnToward(slid.normalized, dt);
+                        return true;
+                    }
+                }
+            }
+            // 法線から向きが分からない：斜め 45° の左右を試す（速さは cos45 ぶん）
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector3 d2 = Quaternion.Euler(0f, 45f * side, 0f) * step * 0.7071f;
+                if (TrySlideTo(pos, d2))
+                {
+                    if (Time.time - lastWallAt > 0.25f) Speed *= MountMath.WallScrapeFactor(0.7071f);
+                    lastWallAt = Time.time;
+                    TurnToward(d2.normalized, dt);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool TrySlideTo(Vector3 pos, Vector3 slid)
+        {
+            if (slid.sqrMagnitude < 0.000001f) return false;
+            Vector3 cand = pos + slid;
+            RaycastHit h;
+            if (!Physics.Raycast(cand + Vector3.up * rayStartHeight, Vector3.down, out h, rayStartHeight + 200f, groundMask, QueryTriggerInteraction.Ignore))
+                return false;
+            if (h.point.y - pos.y > maxStepUp) return false;
+            slideNext = cand;
+            slideGroundY = h.point.y;
+            return true;
+        }
+
+        /// <summary>鼻先（yaw）を dir の向きへ最大 WALL_SLIDE_TURN_DEG 度/秒で回す。</summary>
+        private void TurnToward(Vector3 dir, float dt)
+        {
+            float targetYaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+            float d = InterpMath.DeltaAngle(yaw, targetYaw);
+            if (d > 90f || d < -90f) return;   // 後ろ向きへは回さない（押し戻されたとき）
+            float maxStep = MountMath.WALL_SLIDE_TURN_DEG * dt;
+            yaw += Mathf.Clamp(d, -maxStep, maxStep);
+        }
+
+        /// <summary>
+        /// 近くの乗り物（system-r1-13）：1.6m 以内は横へ押し合う（knockVel に最大 2 m/s、止めない）。
+        /// 3〜14m 前・±12° 以内に走っている乗り物がいればドラフト（Draft = 1：回復 ×1.6、最高速 +0.6 m/s）。
+        /// </summary>
+        private void ScanMounts(Vector3 pos, Vector3 fwd)
+        {
+            Draft = 0f;
+            if (mountMask.value == 0) return;
+            Collider[] cols = Physics.OverlapSphere(pos, MountMath.DRAFT_MAX_M + 1f, mountMask.value, QueryTriggerInteraction.Ignore);
+            if (cols == null) return;
+            for (int i = 0; i < cols.Length; i++)
+            {
+                Collider c = cols[i];
+                if (c == null) continue;
+                MountController m = c.GetComponentInParent<MountController>();
+                if (m == null || m == this || m.riderPlayerId < 0) continue;
+                if (c.gameObject != m.gameObject) continue;   // 体の Collider だけ（子は数えない）
+                Vector3 d = m.transform.position - pos;
+                d.y = 0f;
+                float dist = d.magnitude;
+                if (dist < 0.01f) continue;
+                if (dist < MountMath.BUMP_RADIUS && Grounded)
+                {
+                    Vector3 away = -d / dist;
+                    float along = Vector3.Dot(knockVel, away);
+                    if (along < MountMath.BUMP_SPEED) knockVel += away * (MountMath.BUMP_SPEED - Mathf.Max(0f, along));
+                }
+                if (Draft <= 0f && Speed > 6f)
+                {
+                    float ang = Mathf.Atan2(fwd.x * d.z - fwd.z * d.x, fwd.x * d.x + fwd.z * d.z) * Mathf.Rad2Deg;
+                    Draft = MountMath.DraftBonus(dist, ang);
+                }
+            }
         }
 
         /// <summary>前方向の坂角度（度、上りが正）。</summary>

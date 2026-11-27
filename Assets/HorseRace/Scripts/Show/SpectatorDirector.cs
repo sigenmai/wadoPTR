@@ -8,7 +8,8 @@ namespace HorseRace
     /// <summary>
     /// 中継カメラ（1 台、RenderTexture 960×540 へ描画）。たまり場の掲示板（NoticeBoardDisplay mode 0）に映す。
     ///
-    /// - 描画するのは COUNTDOWN / RACING の間で、ローカルプレイヤーがレース参加者でないクライアントだけ（参加者は camera.enabled = false）。
+    /// - 描画するのは COUNTDOWN / RACING の間で、ローカルプレイヤーがレース参加者でないか、もうゴールした参加者のクライアントだけ
+    ///   （走っている参加者は camera.enabled = false。ゴールした人は囲いの掲示板で残りの走りを見る：system-r1-10）。
     /// - 毎 0.5 秒、各 MountController の同期値（RaceManager と同じ syncCp / syncDistToCp / syncFinishAt）から順位と前の馬との距離を出し、
     ///   DirectorMath.ChooseTarget で追う馬を決める（基本は先頭／8m 以内の競り合い／能力命中の直後、1 カット 5〜15 秒）。
     ///   ゴール済みの馬は中継の対象から外す（全員ゴールしたらゴール済みも含める）。
@@ -184,7 +185,11 @@ namespace HorseRace
             if (raceManager == null || broadcastCamera == null) return false;
             int st = raceManager.state;
             if (st != RaceMath.STATE_COUNTDOWN && st != RaceMath.STATE_RACING) return false;
-            if (raceManager.IsLocalEntered()) return false;
+            if (raceManager.IsLocalEntered())
+            {
+                MountController lm = raceManager.LocalMount();
+                if (lm == null || lm.syncFinishAt < 0.0 || st != RaceMath.STATE_RACING) return false;
+            }
             if (broadcastCamera.targetTexture == null)
             {
                 // Target Texture が無いカメラは観戦者の画面に直接描画してしまうので使わない

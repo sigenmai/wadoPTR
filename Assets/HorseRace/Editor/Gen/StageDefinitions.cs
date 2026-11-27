@@ -63,7 +63,7 @@ namespace HorseRace.EditorTools
                 },
                 runoutM = 70f,
                 relicFractions = new[] { 0.2f, 0.42f, 0.63f, 0.84f },
-                relicSide = new[] { -4f, 4f, -4f, 4f },
+                relicSide = new[] { -4f, 14f, -4f, 14f },   // 線の上と線の外（±14m）を交互に：拾うには走る線を選ぶ（system-r1-04）
                 bridgeFraction = 0.3f,
                 cliffShortcut = true,
             },
@@ -79,7 +79,7 @@ namespace HorseRace.EditorTools
                 },
                 runoutM = 70f,
                 relicFractions = new[] { 0.18f, 0.4f, 0.62f, 0.85f },
-                relicSide = new[] { 4f, -4f, 4f, -4f },
+                relicSide = new[] { 4f, -14f, 4f, -14f },
                 jumpFraction = 0.5f,
             },
             new StageDef
@@ -95,7 +95,7 @@ namespace HorseRace.EditorTools
                 },
                 runoutM = 110f,
                 relicFractions = new[] { 0.2f, 0.4f, 0.6f, 0.8f },
-                relicSide = new[] { -4f, 4f, 4f, -4f },
+                relicSide = new[] { -4f, 14f, 4f, -14f },
                 passFraction = 0.72f,
             },
         };
