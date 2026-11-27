@@ -406,6 +406,40 @@ for st in W["stages"]:
         side = Vector((-t.y, t.x, 0))
         cam_pos = p0 - t * 40 + side * 45 + Vector((0, 0, 22))
         shot(f"8_near_{st['index'] + 1}_{j + 1}", cam_pos, p1 + Vector((0, 0, 2)), 26)
+# 騎手の目の高さ（地面 + 2.6m）でコースを見る：スタート・途中の一番きついカーブ・見せ場・ゴール前
+def rider_eye(st, k, ahead=10, name=""):
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    c = st["course"]
+    k = max(0, min(k, len(c) - 2))
+    p0 = U(c[k]) + off
+    p1 = U(c[min(k + ahead, len(c) - 1)]) + off
+    p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
+    p1.z = max(p1.z, ground_at(st, p1.x, p1.y)) + 2.0
+    shot(name, p0, p1, 22)
+def nearest_k(st, q):
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    return min(range(len(st["course"])), key=lambda i: ((U(st["course"][i]) + off).xy - q.xy).length)
+for st in W["stages"]:
+    c = st["course"]; n = len(c); sid = st["index"] + 1
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    rider_eye(st, 1, 8, f"7_rider_{sid}_a_start")
+    best, bk = -1, n // 2
+    for i in range(int(n * 0.25), int(n * 0.75)):
+        a = U(c[i]) - U(c[i - 3]); b = U(c[i + 3]) - U(c[i]); a.z = b.z = 0
+        if a.length > 0 and b.length > 0:
+            ang = a.angle(b)
+            if ang > best: best, bk = ang, i
+    rider_eye(st, bk - 4, 8, f"7_rider_{sid}_b_corner")
+    sp = st["bridge"] or st["jump"]
+    if sp:
+        k = nearest_k(st, U(sp["p"]) + off)
+        rider_eye(st, k - 6, 6, f"7_rider_{sid}_c_setpiece")
+    elif st["shortcut"]:
+        k = nearest_k(st, U(st["shortcut"]["a"]) + off)
+        p0 = U(c[max(k - 3, 0)]) + off; p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
+        q = U(st["shortcut"]["b"]) + off
+        shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), 22)
+    rider_eye(st, n - 9, 8, f"7_rider_{sid}_d_finish")
 for name, eye, tgt in (("9_lobby_eye_N", (0, -825, 1.7), (0, -560, 3)), ("9_lobby_eye_S", (0, -820, 1.7), (0, -1100, 3)),
                        ("9_lobby_eye_E", (60, -790, 1.7), (400, -790, 3)), ("9_lobby_eye_W", (-60, -790, 1.7), (-400, -790, 3)),
                        ("9_lobby_ride_SE", (120, -880, 3.2), (300, -1000, 4))):
