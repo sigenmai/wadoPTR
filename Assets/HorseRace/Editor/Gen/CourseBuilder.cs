@@ -140,7 +140,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>
-        /// 区間の門（course-r2-15）：ゴールまでの 25・50・75% に、道の両脇 ±(半幅 + 1.5m) の丸太の柱（WoodLogs_01、6m）、柱の上に同じ倍率の丸太 3 本の横木、
+        /// 区間の門（course-r2-15）：ゴールまでの 25・50・75% に、道の両脇 ±(半幅 + 1.5m) の丸太の柱（WoodLogs_01、6m）、柱の上に丸太 6 本の細い横木（art-r3-01：長さだけ伸ばす）、
         /// 柱の外に街灯 2 本、横木から手配書の紙（WantedPosters_02）に金の文字「残り 1.8 km」（60m 先から読める大きさ）。
         /// </summary>
         static void SectorGates(Transform root, StageBuild sb)
@@ -161,13 +161,15 @@ namespace HorseRace.EditorTools
                 SetPieceBuilder.UprightLog(gate, "WoodLogs_01", l, yaw, H, 1.1f);
                 SetPieceBuilder.UprightLog(gate, "WoodLogs_01", r, yaw, H, 1.1f);
                 float top = Mathf.Max(l.y, r.y) + H - 0.4f;
-                float span = WorldLayout.DistXZ(l, r) + 1.1f, piece = span / CourseMarks.GATE_BEAM_PIECES, sc = piece / CourseMarks.WOODLOG_01_LEN;
+                float span = WorldLayout.DistXZ(l, r) + 1.1f, piece = span / CourseMarks.GATE_BEAM_PIECES;
+                Vector3 bsc = CourseMarks.PostScale(piece + 0.05f, CourseMarks.GATE_BEAM_THICK * 0.8f);   // art-r3-01：長さだけ伸ばし、太さは柱と同じくらい
                 for (int p = 0; p < CourseMarks.GATE_BEAM_PIECES; p++)
                 {
                     Vector3 bp = Vector3.Lerp(l, r, (p + 0.5f) / CourseMarks.GATE_BEAM_PIECES);
-                    var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", gate, new Vector3(bp.x, top, bp.z), yaw + 90f + p * 180f, sc,
+                    var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", gate, new Vector3(bp.x, top, bp.z), yaw + p * 180f, 1f,
                         new Vector3(1.5f, 0.3f, 0.3f), DarkWood);
-                    beam.transform.localScale = Vector3.one * sc;   // 同じ倍率（引き伸ばさない）
+                    beam.transform.rotation = Quaternion.Euler(0f, yaw + p * 180f, 0f);   // ローカル X（長さ）を道の横へ
+                    beam.transform.localScale = bsc;
                     DressingBuilder.SetStatic(beam);
                 }
                 for (int sd = -1; sd <= 1; sd += 2)
@@ -397,6 +399,18 @@ namespace HorseRace.EditorTools
 
         /// <summary>遺物（Packs/Gems の宝石 1 つ、Is Trigger の球 1.5m）。</summary>
         public static RelicPickup Relic(Transform parent, string name, Vector3 pos, int gemIndex, bool spare)
+            => Relic(parent, name, pos, gemIndex, spare, pos);
+
+        /// <summary>遺物の宝石の大きさ（art-r3-04：0.6m では 40m より先で見えなかった）。</summary>
+        public const float RELIC_GEM_M = 1.1f;
+        /// <summary>遺物の灯り（ブーストと同じ青緑、reference-games.md の決まり）。</summary>
+        public static readonly Color RelicTeal = new Color(0.2f, 0.85f, 0.8f);
+
+        /// <summary>
+        /// 遺物（art-r3-04）：宝石 Gems_0N_01 を 1.1m に、宝石の 1m 上に青緑の灯り（7m）、宝石から 5m 立ちのぼる青緑の粒の柱（1 秒 6 粒、150m 先から見える）、
+        /// 足元（ground、宙の遺物は地面）に小石 5 個の輪（拾う判定の外）。灯りと粒は宝石（visual）の子なので、拾われると一緒に消える。
+        /// </summary>
+        public static RelicPickup Relic(Transform parent, string name, Vector3 pos, int gemIndex, bool spare, Vector3 ground)
         {
             var go = GenUtil.World(parent, name, pos);
             var col = go.AddComponent<SphereCollider>();
@@ -410,13 +424,32 @@ namespace HorseRace.EditorTools
                 new Vector3(0.4f, 0.6f, 0.4f), new Color(0.3f, 0.8f, 0.9f));
             gem.name = "Visual";
             gem.transform.localPosition = new Vector3(0f, 0.8f, 0f);
-            // 宝石は大きさがまちまちなので最大 0.6m にそろえ、底を中心に寄せる
+            // 宝石は大きさがまちまちなので最大 RELIC_GEM_M にそろえ、底を中心に寄せる
             Bounds b = GenUtil.RendererBounds(gem);
             float m = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
-            if (m > 0.01f) gem.transform.localScale = Vector3.one * (0.6f / m);
+            if (m > 0.01f) gem.transform.localScale = Vector3.one * (RELIC_GEM_M / m);
             b = GenUtil.RendererBounds(gem);
             Vector3 off = go.transform.position + new Vector3(0f, 0.8f, 0f) - b.center;
             foreach (Transform ch in gem.transform) ch.position += off;
+            // 青緑の灯りと立ちのぼる粒（宝石の子：拾われると消える）
+            GenUtil.PointLight(gem.transform, "RelicGlow", pos + Vector3.up * 1.0f, RelicTeal, 7f, 1.6f);
+            var column = GenUtil.Particles(gem.transform, "RelicColumn", Vector3.zero, new Color(RelicTeal.r, RelicTeal.g, RelicTeal.b, 0.85f), 0.15f, 1.25f, 4f, true, 6f, 0.25f);
+            column.transform.position = pos + Vector3.up * 0.9f;
+            column.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);   // 円すいの向き（ローカル Z）を上へ
+            var csh = column.shape;
+            csh.shapeType = ParticleSystemShapeType.Cone;
+            csh.angle = 2f;
+            csh.radius = 0.25f;
+            // 足元の小石の輪（拾う判定 1.5m の外、RockCollection）
+            for (int i = 0; i < 5; i++)
+            {
+                float a = (i * 72f + 18f) * Mathf.Deg2Rad;
+                Vector3 pp = ground + new Vector3(Mathf.Sin(a) * 2.0f, -0.05f, Mathf.Cos(a) * 2.0f);
+                var peb = GenUtil.InstantiatePart(GenUtil.Pack("RockCollection"), "RockCollection_" + (8 * (1 + (GenUtil.Mod(gemIndex * 5 + i, 23)))).ToString("00"), go.transform, pp,
+                    i * 71f, 2.2f, new Vector3(0.5f, 0.3f, 0.5f), new Color(0.55f, 0.42f, 0.32f));
+                peb.name = "Pebble_" + i;
+                DressingBuilder.SetStatic(peb);
+            }
             var rp = GenUtil.AddU<RelicPickup>(go);
             rp.isSpare = spare;
             rp.visual = gem;
@@ -465,8 +498,8 @@ namespace HorseRace.EditorTools
             clothBack.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
             foreach (var r in clothBack.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Red);
 
-            // 拳銃の柱（ui-r1-20）：街灯の左に杭（DesertProps_03）。拳銃の腕は杭の 2.4m（PistolArm が回して上げる）
-            var pistolPost = GenUtil.Stake(body, "DesertProps_03", pos + go.transform.right * 0.6f, yaw, 1f);
+            // 拳銃の柱（ui-r1-20）：街灯の左に立てた丸太の杭（WoodLogs_01）。拳銃の腕は杭の 2.4m（PistolArm が回して上げる）
+            var pistolPost = GenUtil.WoodPost(body, pos + go.transform.right * 0.6f, yaw, 3.35f, 0.22f);   // 立てた丸太（art-r3-02）
             pistolPost.name = "PistolPost";
             var arm = GenUtil.Child(body, "PistolArm", new Vector3(0.6f, 2.4f, -0.12f)).transform;
             var gun = GenUtil.InstantiateModel(GenUtil.Pack("Revolver"), arm, "Revolver");

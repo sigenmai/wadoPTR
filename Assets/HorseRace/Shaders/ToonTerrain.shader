@@ -3,6 +3,7 @@
 // - TerrainLayer 4 枚まで（_Control の RGBA）。0 土・1 岩・2 砂は平面の UV、3 は「地層の縞」：
 //   ワールドの高さ（y / _StrataScale）を V にして横の縞を急な斜面に描く（峡谷の壁がメサの岩の模様と同じ縞になる）
 // - 道の踏み固めた土（course-r1-09）：_TrailTex（Terrain 全体の UV、R = 重み）で _TrailColor に置き換える（土の斑を少しだけ残す）。
+//   G = 道の中心からの距離 / 16m（art-r3-06）：±1.8m に幅 0.6m の轍を道の色 ×0.85 で描く。
 //   ステージごとのマテリアル（TerrainBuilder.ApplyToonMaterial）。_TrailTex が無い（黒）なら何もしない
 // - 霧・影受け。GPU インスタンシングの地形描画（drawInstanced）は使わない（TerrainBuilder が OFF にする）
 Shader "HorseRace/ToonTerrain"
@@ -23,8 +24,11 @@ Shader "HorseRace/ToonTerrain"
         _ShadeSoftness ("Shade Softness", Range(0.001,0.3)) = 0.05
         _StrataScale ("Strata band height (m)", Float) = 8
         _StrataTile ("Strata horizontal tile (m)", Float) = 45
-        _TrailTex ("Trail mask (R)", 2D) = "black" {}
+        _TrailTex ("Trail mask (R) + centre distance (G)", 2D) = "black" {}
         _TrailColor ("Trail Color", Color) = (0.55,0.40,0.28,1)
+        _RutOffset ("Rut offset (G units)", Float) = 0.1125
+        _RutWidth ("Rut width (G units)", Float) = 0.0375
+        _RutDarken ("Rut darken (0-1)", Range(0,1)) = 0.15
     }
 
     SubShader
@@ -45,6 +49,7 @@ Shader "HorseRace/ToonTerrain"
 
             sampler2D _Control; float4 _Control_ST;
             sampler2D _TrailTex; float4 _TrailColor;
+            float _RutOffset, _RutWidth, _RutDarken;
             sampler2D _Splat0, _Splat1, _Splat2, _Splat3;
             float4 _Splat0_ST, _Splat1_ST, _Splat2_ST, _Splat3_ST;
             fixed4 _ShadowColor;
@@ -90,9 +95,13 @@ Shader "HorseRace/ToonTerrain"
                 float wsum = max(ctl.r + ctl.g + ctl.b + ctl.a, 1e-3);
                 float3 albedo = (c0 * ctl.r + c1 * ctl.g + c2 * ctl.b + c3 * ctl.a) / wsum;
                 // 道：踏み固めた土（土の斑の明るさを 30% だけ残す）
-                float trail = tex2D(_TrailTex, i.uv).r;
+                float2 trTex = tex2D(_TrailTex, i.uv).rg;
+                float trail = trTex.r;
                 float mott = saturate(dot(c0, float3(0.333, 0.333, 0.333)) * 1.5);
                 float3 trailCol = _TrailColor.rgb * (0.92 + 0.16 * mott);
+                // 轍（art-r3-06）：G = 道の中心からの距離（線形に補間される）。±_RutOffset の幅 _RutWidth の 2 本を道の色 × (1 − _RutDarken)
+                float rut = 1.0 - smoothstep(_RutWidth * 0.35, _RutWidth * 0.65, abs(trTex.g - _RutOffset));
+                trailCol *= 1.0 - _RutDarken * rut;
                 albedo = lerp(albedo, trailCol, saturate(trail));
 
                 float3 n = normalize(i.nrm);

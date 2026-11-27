@@ -39,7 +39,7 @@ namespace HorseRace.Tests
         [Test] public void BigRocksKeepDetailAndCliffsAreRust()
         {
             var c = ArtPalette.StyleFor("Packs/Cliffs/Cliffs.fbx", "Cliffs_03");
-            Assert.AreEqual(ArtPalette.ROCK_FLATTEN, c.flatten, 1e-5);
+            Assert.AreEqual(ArtPalette.CLIFF_FLATTEN, c.flatten, 1e-5);   // art-r3-05：崖は面の切り返しを見せる（0.25 → 0.1）
             Assert.AreEqual(ArtPalette.ROCK_FLATTEN_MIP, c.flattenMip, 1e-5);
             Assert.AreEqual(0.82f, c.tint.g, 1e-5);
             Assert.AreEqual(ArtPalette.ROCK_FLATTEN, ArtPalette.StyleFor("Packs/DesertRocks/DesertRocks.fbx", "DesertRocks_02").flatten, 1e-5);
@@ -144,7 +144,7 @@ namespace HorseRace.Tests
             Vector3 c0 = WorldLayout.PointAtArc(local, pass);
             Vector3 r = WorldLayout.RightOf(WorldLayout.TangentAtArc(local, pass));
             float H(float[,] a, Vector3 p) => WorldLayout.SampleHeight(a, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z);
-            Assert.AreEqual(-SetPieces.PASS_DEPTH, H(h, c0) - H(h0, c0), 0.6f);
+            Assert.LessOrEqual(H(h, c0) - H(h0, c0), -SetPieces.PASS_DEPTH + 0.6f);   // art-r3-08：弦より下げるので PASS_DEPTH 以上
             Assert.Greater(H(h, c0 + r * 30f) - H(h0, c0 + r * 30f), 15f);
             Assert.Greater(H(h, c0 - r * 30f) - H(h0, c0 - r * 30f), 15f);
             float slope = HeightmapGen.MaxSlopeDegAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, StageDefinitions.Normalize(local));

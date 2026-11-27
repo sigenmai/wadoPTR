@@ -15,16 +15,25 @@ namespace HorseRace.EditorTools
     {
         public const float DEFAULT_FLATTEN = 0.7f, DEFAULT_FLATTEN_MIP = 4f;
         public const float ROCK_FLATTEN = 0.25f, ROCK_FLATTEN_MIP = 1.5f;
+        /// <summary>崖の板（Cliffs）はさらに平らにしない（art-r3-05：面の切り返しを見せる）。</summary>
+        public const float CLIFF_FLATTEN = 0.1f;
+        /// <summary>宝石（遺物）の明るさ（トゥーンの _Brightness = 1 + GEM_GLOW、art-r3-04：拾える物は一番鮮やかに）。</summary>
+        public const float GEM_GLOW = 0.6f;
 
         public static readonly Color CliffTint = new Color(1.0f, 0.82f, 0.72f);
         public static readonly Color RockGrayTint = new Color(1.0f, 0.80f, 0.66f);
+        // 静的な初期化は書いた順：RockGrayTint の後に置く
+        /// <summary>岩のセット（RockSetStylized）の色：RockGray と同じ暖色に、土の色を少し掛ける（×0.9、art-r3-13）。</summary>
+        public static readonly Color RockSetTint = new Color(RockGrayTint.r * 0.93f, RockGrayTint.g * 0.88f, RockGrayTint.b * 0.84f);
         public static readonly Color WeatheredWood = new Color(0.78f, 0.66f, 0.52f);
         public static readonly Color Sage = new Color(0.62f, 0.66f, 0.52f);
 
         // ---- 地形の色（TerrainBuilder の TerrainLayer）----
         public static readonly Color DirtCanyon = new Color(0.62f, 0.36f, 0.22f);    // 赤錆
-        public static readonly Color DirtDunes = new Color(0.70f, 0.50f, 0.30f);     // 砂金の砂漠の土
-        public static readonly Color DirtBorder = new Color(0.56f, 0.34f, 0.36f);    // 紫の夕景
+        public static readonly Color DirtDunes = new Color(0.62f, 0.44f, 0.27f);     // 砂金の砂漠の土（art-r3-06：明るくした道と分けるため少し暗く）
+        public static readonly Color DirtBorder = new Color(0.62f, 0.40f, 0.40f);    // 紫の夕景（art-r3-07：明るく）
+        /// <summary>外の地面（art-r3-10）：3 ステージの土の平均に近い色（クリーム色の砂の板にしない）。</summary>
+        public static readonly Color DirtOuter = new Color(0.64f, 0.43f, 0.31f);
         public static readonly Color RockLayer = new Color(0.55f, 0.45f, 0.38f);
         public static readonly Color SandLayer = new Color(0.90f, 0.76f, 0.52f);
         /// <summary>地層の縞（峡谷の急斜面）：明るい帯と暗い帯。</summary>
@@ -36,7 +45,9 @@ namespace HorseRace.EditorTools
 
         // ---- 道の踏み固めた土（art-r2-02）：ステージの土・砂と明るさで 0.15 / 0.10 以上離す（道が読める）----
         public static readonly Color TrailCanyon = new Color(0.82f, 0.63f, 0.46f);   // 明るい踏み固めた粘土（赤錆の土 0.405 → 0.66）
-        public static readonly Color TrailDunes = new Color(0.48f, 0.34f, 0.22f);    // 暗い踏み固めた土（砂 0.77・砂漠の土 0.53 → 0.36）
+        public static readonly Color TrailDunes = new Color(0.66f, 0.50f, 0.34f);    // art-r3-06：明るい踏み固めた土（砂より 0.08 以上暗い。前の 0.48 はアスファルトに見えた）
+        /// <summary>轍の色 = 道の色 × RUT_SHADE（art-r3-06）。</summary>
+        public const float RUT_SHADE = 0.85f;
         public static readonly Color TrailBorder = new Color(0.78f, 0.63f, 0.56f);   // 夕景の明るい道（紫の土 0.39 → 0.66、砂 0.77 とも 0.11 離す）
 
         /// <summary>ステージの道の色。</summary>
@@ -44,15 +55,16 @@ namespace HorseRace.EditorTools
 
         // ---- 町の地面の板・岩山（art-r2-11）----
         /// <summary>町の模型の地面の板（WesternTown_001_Ground）：まわりの砂の地面に合わせた暗めの砂色（明るすぎるクリーム色にしない）。</summary>
-        public static readonly Color TownGroundTint = new Color(SandLayer.r * 0.88f, SandLayer.g * 0.82f, SandLayer.b * 0.78f);
+        public static readonly Color TownGroundTint = new Color(0.80f, 0.60f, 0.44f);   // art-r3-09：踏み固めた土（TrailCanyon 寄り）で砂の土手へなじむ
         /// <summary>Buildings/*.fbx（画像付き）の青白い壁を古い木の色へ寄せる掛け色（art-r2-14）。</summary>
-        public static readonly Color BuildingTextureTint = new Color(1.0f, 0.84f, 0.66f);
+        public static readonly Color BuildingTextureTint = new Color(0.98f, 0.78f, 0.58f);   // art-r3-15：もう少し暖かく（遠くでクリーム色の箱に見えた）
 
         /// <summary>素材ごとのトゥーンの設定。</summary>
         public struct Style
         {
             public float flatten, flattenMip;
             public Color tint;          // 白 = 変えない（画像の色・元の色に掛ける）
+            public float glow;          // 0 = ふつう。> 0 ならトゥーンの _Brightness = 1 + glow（遺物の宝石、art-r3-04）
             public string key;          // マテリアルのキャッシュのキーに足す（同じ元マテリアルでも設定ごとに別のマテリアル）
         }
 
@@ -91,8 +103,11 @@ namespace HorseRace.EditorTools
         {
             var s = new Style { flatten = DEFAULT_FLATTEN, flattenMip = DEFAULT_FLATTEN_MIP, tint = Color.white, key = "" };
             if (IsBigRock(assetPath, partName)) { s.flatten = ROCK_FLATTEN; s.flattenMip = ROCK_FLATTEN_MIP; s.key = "_Detail"; }
-            if (Has(assetPath, "Cliffs")) { s.tint = CliffTint; s.key += "_Rust"; }
+            if (Has(assetPath, "Cliffs")) { s.tint = CliffTint; s.flatten = CLIFF_FLATTEN; s.key += "_Rust"; }
             if (Has(assetPath, "RockGray")) { s.tint = RockGrayTint; s.key += "_Warm"; }
+            // art-r3-13：岩のセット（灰白の岩）も暖色へ（遠くで白い「きのこ」の岩に見えた）
+            if (Has(assetPath, "RockSetStylized")) { s.tint = RockSetTint; s.flatten = ROCK_FLATTEN; s.flattenMip = ROCK_FLATTEN_MIP; s.key += "_WarmSet"; }
+            if (Has(assetPath, "Gems")) { s.glow = GEM_GLOW; s.key += "_Glow"; }
             if (Has(assetPath, "WesternTown"))
             {
                 string kind = partKind ?? PartKind(partName);

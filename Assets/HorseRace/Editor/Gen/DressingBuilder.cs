@@ -58,7 +58,7 @@ namespace HorseRace.EditorTools
                     ? GenUtil.InstantiatePart(path, p.part, parent, w, p.yawDeg, p.scale, fb, Fallback)
                     : GenUtil.PlaceModel(path, parent, System.IO.Path.GetFileNameWithoutExtension(p.asset), w, p.yawDeg, p.scale, fb, Fallback);
                 if (p.rollDeg != 0f) go.transform.rotation = Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
-                if (p.scaleY != 1f) go.transform.localScale = new Vector3(s, s * p.scaleY, s);   // 縦に伸ばした岩（art-r2-08）
+                if (p.scaleY != 1f || p.scaleZ != 1f) go.transform.localScale = new Vector3(s, s * p.scaleY, s * p.scaleZ);   // 縦に伸ばした岩（art-r2-08）・立てた丸太の杭（art-r3-02）
                 // 手直し用の安定した id（名前の末尾）。見えない壁の名前にも付くよう、壁を作る前に付ける
                 GenUtil.Tag(go, LayoutOverrides.IdFor(scope, p, index));
                 // 骨の馬・ラクダは Animator を外して動かない置き物にする（スターターの馬と同じ）
@@ -107,8 +107,11 @@ namespace HorseRace.EditorTools
                     GenUtil.Particles(air, "CampFlames", w + Vector3.up * 0.4f, new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
                     GenUtil.SmokeColumn(air, "CampSmoke", w + Vector3.up * 1f, SetPieceBuilder.SmokeGrey, 20f, 1.6f);
                     GenUtil.PointLight(air, "CampLight", w + Vector3.up * 1.2f, new Color(1f, 0.6f, 0.3f), 9f, 1.2f);
+                    // 切り通しの尾根の焚き火（art-r3-08）：300m 先から見える暖色の灯り（18m）
+                    if (q.group == "MesaGate") GenUtil.PointLight(air, "PassBeacon", w + Vector3.up * 3f, SetPieceBuilder.LampWarm, 18f, 2.2f);
                 }
-                else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"))
+                else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"
+                    || q.group == "StreetDressing" || q.group == "RailHalt" || q.group == "GoalTown"))
                     GenUtil.PointLight(air, "CampLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 12f, 1.5f);   // 見どころ・出張所の街灯（art-r2-05/06）
                 else if (q.group == "GiantSkeleton")
                 {
@@ -117,6 +120,13 @@ namespace HorseRace.EditorTools
                     GenUtil.DustBox(air, "GiantSkeletonDust", w + Vector3.up * 2f, new Vector3(q.radius * 2f, 2f, q.radius * 2f),
                         new Color(0.92f, 0.78f, 0.56f, 0.12f), new Vector3(2.2f, 0.2f, 0.9f), 4f);
                 }
+                else if (IsTownBuilding(q))
+                {
+                    // 町の建物ごとに 1 つ、窓の暖かさ（art-r3-15）：正面（向き yaw）の 3m の高さに 6m の灯り
+                    float a = q.yawDeg * Mathf.Deg2Rad;
+                    Vector3 front = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * (q.radius * 0.45f);
+                    GenUtil.PointLight(air, "WindowGlow", w + front + Vector3.up * 3f, SetPieceBuilder.LampWarm, 6f, 1.1f);
+                }
                 else if (q.group == "Landmark" || q.part == DressingPlan.RANCH_TOWER || q.group == "FinishLandmark")
                 {
                     Vector3 top = w + Vector3.up * (q.height + 1f);
@@ -124,6 +134,14 @@ namespace HorseRace.EditorTools
                     GenUtil.PointLight(air, "LandmarkLight", top - Vector3.up * 2f, SetPieceBuilder.LampWarm, 30f, 2f);
                 }
             }
+        }
+
+        /// <summary>灯りを付ける町の建物（ゴールの町・スタートの町・出張所の建物、art-r3-15）。</summary>
+        public static bool IsTownBuilding(Placement q)
+        {
+            if (q.group != "GoalTown" && q.group != "StartTown" && q.group != "GoalOutpost" && q.group != "Settlement" && q.group != "RanchYard") return false;
+            if (q.asset.StartsWith("Buildings/")) return true;
+            return q.part != null && q.part.EndsWith("_Building") && q.part != DressingPlan.RANCH_TOWER;
         }
 
         public static void SetStatic(GameObject go)

@@ -92,8 +92,10 @@ namespace HorseRace.Tests
             {
                 float t = LightingPlan.Luminance(ArtPalette.Trail(i)), d = LightingPlan.Luminance(ArtPalette.Dirt(i)), sand = LightingPlan.Luminance(ArtPalette.SandLayer);
                 TestContext.WriteLine($"stage {i}: trail {t:F3} dirt {d:F3} sand {sand:F3}");
-                Assert.GreaterOrEqual(Mathf.Abs(t - d), 0.15f, "土 " + i);
-                Assert.GreaterOrEqual(Mathf.Abs(t - sand), 0.10f, "砂 " + i);
+                // art-r3-06：砂漠の道は砂より 0.08 以上暗い明るい踏み固めた土（前の暗い道はアスファルトに見えた）。砂漠の土とは色合いで分ける
+                Assert.GreaterOrEqual(Mathf.Abs(t - d), i == 1 ? 0.05f : 0.15f, "土 " + i);
+                Assert.GreaterOrEqual(Mathf.Abs(t - sand), i == 1 ? 0.08f : 0.10f, "砂 " + i);
+                if (i == 1) Assert.Less(t, sand, "砂漠の道は砂より暗い");
             }
             Assert.AreNotEqual(ArtPalette.Trail(0), ArtPalette.Trail(1));
         }
@@ -107,6 +109,7 @@ namespace HorseRace.Tests
             Assert.Greater(guides.Count, 30);
             Assert.IsFalse(guides.Any(p => p.part == "DesertProps_06" || p.part == "DesertProps_10"), "柵の列にあばらに見える杭");
             Assert.Greater(guides.Count(p => p.part == "FarmProps_03" || p.part == "FarmProps_04"), guides.Count / 3);
+            Assert.IsFalse(guides.Any(p => p.part == "DesertProps_03" || p.part == "DesertProps_05"), "骨の杭（art-r3-02）");
             Assert.Greater(guides.Count(p => p.part == "FarmProps_02"), 3, "直線の街灯");
             var bones = plan.Where(p => DressingPlan.IsBonePart(p.part)).ToList();
             foreach (var b in bones) Assert.IsTrue(DressingPlan.BoneGroups.Contains(b.group), b.group + " " + b.part);
@@ -314,24 +317,24 @@ namespace HorseRace.Tests
             var posts = parts.Where(p => p.part == "WoodLogs_01" && Mathf.Abs(p.euler.z - 90f) < 1e-3f).ToList();
             var beams = parts.Where(p => p.part == "WoodLogs_01" && p.euler.z == 0f).ToList();
             Assert.AreEqual(2, posts.Count);
-            Assert.AreEqual(CourseMarks.GATE_BEAM_PIECES, beams.Count);
+            Assert.AreEqual(CourseMarks.GATE_BEAM_PIECES * CourseMarks.GATE_BEAM_TIERS, beams.Count);
             foreach (var p in posts)
             {
                 Assert.AreEqual(CourseMarks.GATE_POST_H, p.scale.x * CourseMarks.WOODLOG_01_LEN, 1e-3f);
-                Assert.AreEqual(CourseMarks.GATE_POST_THICK, p.scale.y, 1e-3f);
+                Assert.AreEqual(CourseMarks.GATE_POST_THICK, p.scale.y * CourseMarks.WOODLOG_01_H, 1e-3f);
             }
-            // course-r2-05：横木は同じ倍率（引き伸ばさない）の丸太 3 本を端と端でつなぐ
+            // art-r3-01：横木は長さだけ伸ばした丸太 6 本 × 2 段（断面 GATE_BEAM_THICK）、端と端でつなぐ
             float total = 0f;
             foreach (var b in beams)
             {
-                Assert.AreEqual(b.scale.x, b.scale.y, 1e-4f, "引き伸ばさない");
-                Assert.AreEqual(b.scale.x, b.scale.z, 1e-4f, "引き伸ばさない");
+                if (b.position.y < CourseMarks.GATE_BEAM_Y - CourseMarks.GATE_BEAM_GAP * 0.5f - CourseMarks.GATE_BEAM_THICK) continue;   // 上の段だけ数える
                 total += b.scale.x * CourseMarks.WOODLOG_01_LEN;
                 Assert.Less(b.position.y, CourseMarks.GATE_POST_H, "横木は柱の上の端より下（柱に載る）");
             }
             Assert.GreaterOrEqual(total, CourseGeometry.GATE_HALF * 2f, "柱から柱まで");
-            Assert.Less(CourseMarks.GATE_BANNER_Y + 0.8f, beams.Min(b => b.position.y), "幕は下の横木から吊る");
-            Assert.AreEqual(2, parts.Count(p => p.part == "DesertProps_03"));
+            Assert.Less(CourseMarks.GATE_BANNER_Y + 0.8f, beams.Min(b => b.position.y + CourseMarks.GATE_BEAM_THICK * 0.5f), "幕は下の横木から吊る");
+            Assert.AreEqual(0, parts.Count(p => DressingPlan.IsBonePart(p.part)), "骨の杭は使わない（art-r3-02）");
+            Assert.GreaterOrEqual(parts.Count(p => p.part == "FarmProps_15" || p.part == "FarmProps_22"), 6, "柱の外の樽の山");
             Assert.AreEqual(2, parts.Count(p => p.light));
         }
 

@@ -130,7 +130,7 @@ namespace HorseRace.EditorTools
             // 尾根の上の岩の冠（切れ目あり、見晴らしの切れ目には置かない）。高さの 25% を地形に埋める
             var crownRoot = GenUtil.World(root, "LobbyRimCrown", CENTER).transform;
             var crown = LobbyLayout.RimCrown(fenceRect, 11);
-            foreach (var c in crown) c.position = new Vector3(c.position.x, TerrainY(c.position) - 0.25f * c.height, c.position.z);
+            LobbyLayout.GroundCrown(crown, TerrainY);   // art-r3-13：足元の 4 隅の一番低い地面へ
             DressingBuilder.Instantiate(crown, crownRoot, CENTER, "Crown");
             Debug.Log("[HorseRace] ロビーの柵 " + segs.Count + " 区間（切れ目 " + LobbyLayout.Gates.Length + "）、柵の外の木の帯 " + trees.Count + " 本、尾根の岩 " + crown.Count + " 個");
         }
@@ -153,6 +153,10 @@ namespace HorseRace.EditorTools
             var plan = DressingPlan.ForLobby(new Vector2(tb.min.x - CENTER.x, tb.min.z - CENTER.z), new Vector2(tb.max.x - CENTER.x, tb.max.z - CENTER.z),
                 LobbyExclusions(), 4242);
             DressingBuilder.Instantiate(plan, dr, CENTER, "Lobby");
+            // 大通りの街灯の暖かい灯り（art-r3-09）
+            foreach (var q in plan)
+                if (q.group == "StreetDressing" && q.part == "FarmProps_02")
+                    GenUtil.PointLight(dr, "StreetLampLight", CENTER + q.position + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 10f, 1.3f);
             DressingBuilder.SetStatic(town);
             int posters = WallPosters(dr, town, tb);
             Debug.Log("[HorseRace] ロビーの飾り: " + plan.Count + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、町の壁の手配書 " + posters + " 枚");
@@ -487,9 +491,9 @@ namespace HorseRace.EditorTools
             NoticeSign(root, "LedgerSign", desk + new Vector3(0f, 0f, 1.0f), 0f, 0.5f, "<b><size=140%>受付</size></b>\n台帳にサインでエントリー", 1.0f,
                 UiStyle.InkFace, TextStyle.Ink, Paper);
 
-            // 操作の紙（ui-r2-07）：受付の東に杭（DesertProps_05）を立て、手配書の紙（WantedPosters_03）に乗り方を書いて留める
+            // 操作の紙（ui-r2-07）：受付の東に立てた丸太の杭（WoodLogs_01、art-r3-02）を立て、手配書の紙（WantedPosters_03）に乗り方を書いて留める
             var howto = GenUtil.World(root, "ControlsSheet", desk + new Vector3(2.6f, 0f, -0.4f), 0f);
-            GenUtil.Stake(howto.transform, "DesertProps_05", howto.transform.position + howto.transform.forward * 0.06f, 0f, 0.5f).name = "SheetPost";
+            GenUtil.WoodPost(howto.transform, howto.transform.position + howto.transform.forward * 0.06f, 0f, 1.56f, 0.16f).name = "SheetPost";
             GenUtil.PaperSheet(howto.transform, "Paper", "WantedPosters_03", new Vector3(0f, 0.75f, 0.01f), null, 0.75f, 0.95f);
             var howtoText = GenUtil.Text(howto.transform, "Text", new Vector3(0f, 1.22f, -0.01f), Quaternion.identity,
                 "<b>乗り方</b>\n<size=80%>" + HudMath.ControlsVR() + "\n\n" + HudMath.ControlsPC() + "</size>", 0.42f, UiStyle.InkFace, new Vector2(0.68f, 0.86f), TextStyle.Ink, true);
@@ -498,7 +502,7 @@ namespace HorseRace.EditorTools
             PosterWall(root, ctx);
 
             // スタート台と鐘（広場の西、art-r1-12）：台 = 丸太の束（WoodLogs_01 ×2）を板のように並べ、四隅に干し草（HayBales_01）。
-            // 当たり判定は見えない箱（3 × 0.6 × 3.5）。鐘の柱 = 杭（DesertProps_03）、鐘 = 真鍮に塗った街灯の頭（FarmProps_02）。触る判定は見えない球
+            // 当たり判定は見えない箱（3 × 0.6 × 3.5）。札の柱 = 立てた丸太（WoodLogs_01）、鐘 = 真鍮に塗った街灯の頭（FarmProps_02）。触る判定は見えない球
             Vector3 sb = P(LobbyLayout.START_BELL);
             var stage = GenUtil.World(root, "StartPlatform", sb + Vector3.up * 0.3f);
             var stageBox = stage.AddComponent<BoxCollider>();
@@ -557,7 +561,7 @@ namespace HorseRace.EditorTools
             bell.tapSound = GenUtil.Audio(bellGo, false, false, SfxBuilder.Clip(SfxMath.CLICK));
             // 札：机の南（スポーン側）に立てた紙。読む人は北を見る
             var noteHolder = GenUtil.World(root, "BellNote", sb + new Vector3(0f, 0.6f, -0.85f), 0f);
-            GenUtil.Stake(noteHolder.transform, "DesertProps_05", noteHolder.transform.position + noteHolder.transform.forward * 0.06f, 0f, 0.42f).name = "NotePost";
+            GenUtil.WoodPost(noteHolder.transform, noteHolder.transform.position + noteHolder.transform.forward * 0.06f, 0f, 1.31f, 0.16f).name = "NotePost";
             GenUtil.PaperSheet(noteHolder.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0.55f, 0.01f), null, 1.2f, 0.5f);
             bell.noteText = GenUtil.Text(noteHolder.transform, "Text", new Vector3(0f, 0.8f, -0.01f), Quaternion.identity,
                 StartBell.DefaultNote(), 0.8f, UiStyle.InkFace, new Vector2(1.1f, 0.42f), TextStyle.Ink, true);
@@ -720,13 +724,13 @@ namespace HorseRace.EditorTools
         static void Hud(Transform root, WorldContext ctx)
         {
             // 真鍮のレバー（ロビー）
-            // レバー（art-r1-12）：街灯の柱（FarmProps_02）に、真鍮に塗った杭（DesertProps_05 ×0.25）のレバー。字は紙の札
+            // レバー（art-r1-12）：街灯の柱（FarmProps_02）に、真鍮に塗った細い丸太（WoodLogs_01、0.78m）のレバー。字は紙の札
             var lever = GenUtil.World(root, "HudLever", P(LobbyLayout.HUD_LEVER), 180f);
             var leverPost = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", lever.transform, lever.transform.position, 180f, 0.6f,
                 new Vector3(0.3f, 1.9f, 0.3f), DarkWood);
             leverPost.name = "Base";
             var handle = GenUtil.Child(lever.transform, "Handle", new Vector3(0f, 1.0f, -0.12f)).transform;
-            var rod = GenUtil.Stake(handle, "DesertProps_05", handle.position, 180f, 0.25f);
+            var rod = GenUtil.WoodPost(handle, handle.position, 180f, 0.78f, 0.1f);
             rod.name = "Rod";
             foreach (var r in rod.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = GenUtil.ToonColor(Brass);
             GenUtil.PaperSheet(lever.transform, "LabelPaper", "WantedPosters_05", new Vector3(0f, 0.55f, -0.14f), null, 0.6f, 0.3f);
@@ -890,7 +894,7 @@ namespace HorseRace.EditorTools
                 GenUtil.SetInteractText(picker, coat == 6 ? "骨の馬にする" : "この毛色の馬にする");
                 ctx.mountPickers.Add(picker);
                 // つなぐ杭
-                GenUtil.Stake(corral, "DesertProps_05", p + new Vector3(-2.6f, 0f, 0f), 90f, 0.45f).name = "HitchPost";
+                GenUtil.WoodPost(corral, p + new Vector3(-2.6f, 0f, 0f), 90f, 1.4f, 0.16f).name = "HitchPost";
             }
             // 厩舎（背景専用）：町の奥の柵の北＝見えない壁の向こう。正面は南（町）を向く。念のため見えない壁でも囲む
             var stable = GenUtil.PlaceModel(GenUtil.Prop("Stable"), root, "Stable", P(LobbyLayout.STABLE), 180f, 1f, new Vector3(14f, 6f, 6f), Wood);
@@ -1017,7 +1021,7 @@ namespace HorseRace.EditorTools
             {
                 Vector3 pp = P(LobbyLayout.PRACTICE_POST_FIRST) + new Vector3(0f, 0f, i * 4.5f);
                 var post = GenUtil.World(pr, "PracticePost_" + (i + 1), pp, 90f);
-                GenUtil.Stake(post.transform, "DesertProps_05", pp, 90f, 0.45f).name = "Post";
+                GenUtil.WoodPost(post.transform, pp, 90f, 1.4f, 0.16f).name = "Post";
                 var col = post.AddComponent<BoxCollider>();
                 col.size = new Vector3(0.5f, 1.4f, 0.5f);
                 col.center = new Vector3(0f, 0.7f, 0f);
@@ -1109,7 +1113,7 @@ namespace HorseRace.EditorTools
         /// </summary>
         /// <summary>
         /// 町の大時計（ui-r2-13）：大通りの軸の上（LobbyLayout.TOWN_CLOCK、スポーンの正面 32m）に掲示板 ×1.4（羊皮紙の板）を 0.8m 持ち上げ、
-        /// 脚の下に杭（DesertProps_05）2 本、両脇に街灯（FarmProps_02）2 本と暖かい灯り。文字は看板の書体（Sign）3pt、TownClockBoard が書く。
+        /// 脚の下に立てた丸太の杭（WoodLogs_01、art-r3-02）2 本、両脇に街灯（FarmProps_02）2 本と暖かい灯り。文字は看板の書体（Sign）3pt、TownClockBoard が書く。
         /// </summary>
         static void TownClock(Transform root, WorldContext ctx)
         {
@@ -1138,7 +1142,7 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < 2; i++)
             {
                 Vector3 sp = new Vector3(i == 0 ? bb.min.x + 0.35f : bb.max.x - 0.35f, p.y, bb.center.z);
-                var st = GenUtil.Stake(go.transform, "DesertProps_05", sp, 0f, 0.55f);
+                var st = GenUtil.WoodPost(go.transform, sp, 0f, 1.72f, 0.16f);
                 st.name = "Stilt_" + i;
                 DressingBuilder.SetStatic(st);
                 // 街灯：杭のさらに外、灯りは板を照らす高さ

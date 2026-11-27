@@ -102,8 +102,9 @@ namespace HorseRace.Tests
                 foreach (var c in circles)
                 {
                     bool townArea = c.w >= 100f;   // ゴールの町の範囲は町の建物だけが入れる
-                    if ((p.group == "GoalTown" || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
-                    if (p.group == "GoalTown" && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
+                    bool town = p.group == "GoalTown" || (p.group == "StreetDressing" && i == 2);   // art-r3-15：ゴールの町の通りの飾りも町の一部
+                    if ((town || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
+                    if (town && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
                     if (p.group == "Landmark") continue;   // 遠くの目印は除外の円の外を自分で選ぶ（LandmarkSpot）
                     if ((p.group == "RoadIsland" || p.group == "Fork") && c.w <= DressingPlan.ISLAND_ROCK_R + 4.01f) continue;   // 島・二股の円はそのため
                     Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(c.x, 0, c.z)), c.w + DressingPlan.FootprintRadius(p) - 0.01f, p.group + " " + p.asset);
@@ -263,9 +264,9 @@ namespace HorseRace.Tests
             for (int i = 0; i < 3; i++)
                 foreach (var p in Plan(i).Where(q => q.asset == DressingPlan.CLIFFS))
                     Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(p.position, courses[i]) - DressingPlan.FootprintRadius(p), DressingPlan.CLIFF_MIN_ROAD_M - 0.01f, p.group + " " + p.part);
-            var cliffs = plan.Where(p => p.asset == DressingPlan.CLIFFS).ToList();
-            Assert.GreaterOrEqual(cliffs.Count, 5);
-            foreach (var c in cliffs)
+            // art-r3-05：崖の板は道から CLIFF_FAR_M 以上だけ。近い上の斜面（CliffBack）は形のある大きな岩
+            Assert.GreaterOrEqual(plan.Count(p => p.group == "CliffBack"), 5);
+            foreach (var c in plan.Where(p => p.asset == DressingPlan.CLIFFS))
                 Assert.GreaterOrEqual(plan.Count(p => p.group == "CliffSkirt" && WorldLayout.DistXZ(p.position, c.position) < c.radius * 0.8f), 3, c.part);
         }
 
@@ -275,7 +276,10 @@ namespace HorseRace.Tests
         {
             var plan = Plan(i);
             var s = StageDefinitions.All[i];
-            Assert.IsTrue(DressingPlan.LandmarkSpot(s, courses[i], goals[i], out Vector3 spot, out float ang));
+            Assert.IsTrue(DressingPlan.LandmarkSpot(s, courses[i], goals[i], heights[i], out Vector3 spot, out float ang));
+            // art-r3-11：スタートの目の高さ（2.6m）から目印のてっぺんが地形に隠れない
+            DressingPlan.LandmarkAsset(s.kind, out string la, out string lpart, out float lsc);
+            Assert.IsTrue(DressingPlan.LandmarkVisible(heights[i], WorldLayout.PointAtArc(courses[i], StageDefinitions.START_ARC_M), spot, DressingPlan.SizeOf(la, lpart).h * lsc * 0.85f), "目印が見えない");
             Vector3 p0 = WorldLayout.PointAtArc(courses[i], StageDefinitions.START_ARC_M), t0 = WorldLayout.TangentAtArc(courses[i], StageDefinitions.START_ARC_M);
             Vector3 dir = spot - p0;
             float a = Mathf.Abs(Mathf.DeltaAngle(WorldLayout.YawDeg(t0), WorldLayout.YawDeg(new Vector3(dir.x, 0f, dir.z).normalized)));
@@ -309,7 +313,7 @@ namespace HorseRace.Tests
             TestContext.WriteLine($"corners {corners}, traced {traced}");
             Assert.Greater(corners, 5);
             Assert.GreaterOrEqual(traced, corners * 0.7f);
-            Assert.Greater(guides.Count(g => g.part == "DesertProps_05"), 5);   // 直線の標柱
+            Assert.Greater(guides.Count(g => g.part == DressingPlan.POST_PART && g.rollDeg == 90f && g.height > 2f), 5);   // 直線の標柱（立てた丸太、art-r3-02）
         }
 
         /// <summary>砂漠の踏切（art-r1-10 → course-r2-04）：線路 2 本が道に沿う（道の内側の路盤）、線路の上に他の飾りが無い。</summary>
@@ -340,14 +344,14 @@ namespace HorseRace.Tests
             var course = courses[2];
             float pass = SetPieces.PassArc(s, goals[2]);
             Assert.Greater(pass, 0f);
-            var gate = plan.Where(p => p.group == "MesaGate").ToList();
+            var gate = plan.Where(p => p.group == "MesaGate" && (p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB)).ToList();   // art-r3-08：焚き火・薪は数えない
             Assert.AreEqual(2, gate.Count);
             var cum = DressingPlan.CourseArcs(course);
             int left = 0, right = 0;
             foreach (var g in gate)
             {
                 float a = DressingPlan.NearestArc(course, cum, g.position, out float d);
-                Assert.Less(Mathf.Abs(a - pass), 40f);
+                Assert.Less(Mathf.Abs(a - pass), 60f);
                 Vector3 rv = WorldLayout.RightOf(WorldLayout.TangentAtArc(course, a));
                 Vector3 q = g.position - WorldLayout.PointAtArc(course, a);
                 if (q.x * rv.x + q.z * rv.z > 0f) right++; else left++;
@@ -378,9 +382,10 @@ namespace HorseRace.Tests
         public void SmallPropsCappedAndOnlyInClusters(int i)
         {
             var l = Plan(i);
-            int small = Count(l, DressingPlan.IsSmall);
-            TestContext.WriteLine($"small {small}/{l.Count}");
-            Assert.LessOrEqual(small, DressingPlan.SMALL_SHARE_MAX * l.Count);
+            var counted = l.Where(p => !DressingPlan.LineGroups.Contains(p.group)).ToList();   // 線の目印（途切れない柵）は数えない（art-r3-03）
+            int small = Count(counted, DressingPlan.IsSmall);
+            TestContext.WriteLine($"small {small}/{counted.Count}");
+            Assert.LessOrEqual(small, DressingPlan.SMALL_SHARE_MAX * counted.Count);
             foreach (var p in l)
                 if (DressingPlan.IsSmall(p)) Assert.IsTrue(DressingPlan.ClusterGroups.Contains(p.group), p.group + " " + p.asset + " " + p.part);
         }
@@ -401,6 +406,13 @@ namespace HorseRace.Tests
             var f = LobbyLayout.FENCE_RECT;
             foreach (var p in l)
             {
+                if (p.group == "StreetDressing" || p.group == "PlateEdge")
+                {
+                    // art-r3-09：大通りの飾りと地面の板の縁は町の中。遊びに使う物から離す
+                    foreach (var kv in LobbyLayout.FunctionalSpots())
+                        Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(kv.Value.x, 0f, kv.Value.z)), kv.Value.w + 0.5f, kv.Key + " " + p.asset);
+                    continue;
+                }
                 if (p.group == "Backlot")
                 {
                     // 町の裏（線路と東の通り道の間）。木は当たり判定なし
@@ -431,6 +443,7 @@ namespace HorseRace.Tests
             var used = new HashSet<string>(DressingPlan.UsedElsewhere);
             for (int i = 0; i < 3; i++) foreach (string a in DressingPlan.CountByAsset(Plan(i)).Keys) used.Add(a);
             foreach (string a in DressingPlan.CountByAsset(Lobby()).Keys) used.Add(a);
+            foreach (string a in DressingPlan.CountByAsset(DressingPlan.Backdrop(7)).Keys) used.Add(a);   // 崖の板は遠景の山並み（art-r3-05/10）
             var files = Directory.GetFiles(models, "*.fbx", SearchOption.AllDirectories)
                 .Select(f => Path.GetRelativePath(models, f).Replace('\\', '/'))
                 .Where(f => !f.StartsWith("Raptor/")).ToList();

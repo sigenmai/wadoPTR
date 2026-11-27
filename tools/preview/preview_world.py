@@ -156,7 +156,6 @@ def import_part(path, part_prefix=None, index=None):
 
 ROAD = mat_color("Road", srgb2lin((0.85, 0.72, 0.55)))
 CPM = mat_color("CP", srgb2lin((0.95, 0.95, 0.9)))
-RELIC = mat_color("Relic", srgb2lin((0.2, 0.9, 0.8)), emit=4.0)
 BRIDGE = mat_color("Bridge", srgb2lin((0.5, 0.33, 0.24)))
 JUMP = mat_color("Jump", srgb2lin((0.95, 0.8, 0.55)))
 SHORT = mat_color("Shortcut", srgb2lin((0.95, 0.35, 0.2)), emit=1.5)
@@ -183,10 +182,11 @@ for st in W["stages"]:
         for k, p in enumerate(st["cps"]):
             q = U(p) + off
             box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM)
+    # 遺物（art-r3-04）：本物の宝石（Gems_0N_01、1.1m）と足元の小石は extras（CourseBuilder.Relic と同じ）。ここでは青緑の灯り（7m）だけ足す
     for k, p in enumerate(st["relics"]):
         q = U(p) + off
-        bpy.ops.mesh.primitive_ico_sphere_add(radius=3, location=q + Vector((0, 0, 4)))
-        bpy.context.active_object.data.materials.append(RELIC)
+        lt = bpy.data.lights.new(f"RelicGlow{st['index']}_{k}", "POINT"); lt.color = (0.2, 0.85, 0.8); lt.energy = 600; lt.shadow_soft_size = 0.3
+        lo = bpy.data.objects.new(lt.name, lt); lo.location = q + Vector((0, 0, 1.0)); sc.collection.objects.link(lo)
     # スタート・ゴール・岩橋・ジャンプは Build World と同じ素材で置く（world.json の extras、下の place）
     if st["shortcut"] and not NO_GUIDE:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
@@ -326,12 +326,13 @@ def place(plan, origin, ground=None):
                 pos.z = ground(q['pos'][0], q['pos'][2]) - 0.3
             o.location = pos
             from mathutils import Euler
-            o.rotation_euler = (Euler((0, math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix() @ src.rotation_euler.to_matrix()).to_euler()
+            # Unity の pitch（ローカル X、負で前が上がる）→ Blender の X は符号が逆（art-r3-12：練習場のジャンプ台の丸太）
+            o.rotation_euler = (Euler((-math.radians(q.get("pitch", 0.0)), math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix() @ src.rotation_euler.to_matrix()).to_euler()
             s_ = q["s"]
             o.scale = (src.scale[0] * s_, src.scale[1] * s_, src.scale[2] * s_)
-            if q.get("sv"):   # 引き伸ばし（Unity のローカル x, y, z）→ 取り込んだ部品の軸（x, z, y）
-                sv = q["sv"]
-                o.scale = (src.scale[0] * sv[0], src.scale[1] * sv[2], src.scale[2] * sv[1])
+            if q.get("sv"):   # 引き伸ばし（Unity のローカル x, y, z）。取り込んだ部品のメッシュの軸は Unity と同じ（x, y = 上, z）で、
+                sv = q["sv"]   # 軸の補正はオブジェクトの回転（X 90°）にある（Blender で WoodLogs_01 のメッシュを測って確認：1.45 × 0.32 × 0.99）
+                o.scale = (src.scale[0] * sv[0], src.scale[1] * sv[1], src.scale[2] * sv[2])
             n += 1
     return n
 
@@ -370,43 +371,27 @@ _meshes = [o for o in _new if o.type == "MESH"]
 for o in _meshes: apply_style(o, "Packs/WesternTown/WesternTown.fbx", None)
 for o in [join_whole(_meshes, _new)]:
     o.location = lob + Vector((0, 107, -13.7))   # 町の南端をロビー中心 +25m（LobbyBuilder と同じ）
-# 遊びに使う物の目印（LobbyLayout.FunctionalSpots の位置・半径）：広場＝赤、待機場所・柵の馬＝青、たまり場＝橙、練習場＝緑、予備の遺物＝水色
-PRR = W['practiceRect']
-bpy.ops.mesh.primitive_plane_add(size=1, location=(lob.x + (PRR[0] + PRR[2]) / 2, lob.y + (PRR[1] + PRR[3]) / 2, 0.06))
-o_ = bpy.context.active_object; o_.scale = (PRR[2] - PRR[0], PRR[3] - PRR[1], 1)
-o_.data.materials.append(mat_color('Practice', srgb2lin((0.55, 0.75, 0.45))))
-GROUPS = {"plaza": ((0.9, 0.15, 0.1), ("Spawn", "Ledger", "Wanted", "StartBell", "HudLever")),
-          "mounts": ((0.15, 0.35, 0.95), ("Parking", "Picker", "CorralFence")),
-          "hangout": ((1.0, 0.55, 0.1), ("Campfire", "NoticeBoard", "LastRace", "TownCrier")),
-          "practice": ((0.2, 0.85, 0.25), ("Practice",)),
-          "spare": ((0.2, 0.9, 0.9), ("SpareRelic",))}
-GM = {k: mat_color("Spot_" + k, srgb2lin(c), emit=0.6) for k, (c, _) in GROUPS.items()}
-for sp in W.get("spots", []):
-    g = next((k for k, (_, pre) in GROUPS.items() if any(sp["n"].startswith(x) for x in pre)), "plaza")
-    if sp["n"] in ("PracticeJump", "PracticeBump"): continue
-    hgt = 3.0 if sp["n"].startswith("NoticeBoard") or sp["n"].startswith("Wanted") else (2.2 if sp["r"] < 2 else 0.8)
-    if sp["n"] == "Spawn": hgt = 0.1   # スポーンは平らな円（目の高さのカメラが中に入らない）
-    bpy.ops.mesh.primitive_cylinder_add(radius=sp["r"], depth=hgt, location=(lob.x + sp["x"], lob.y + sp["z"], hgt / 2), vertices=16)
-    bpy.context.active_object.data.materials.append(GM[g])
-RAMP = mat_color('Ramp', srgb2lin((0.66, 0.45, 0.30)))
-jp = W["jump"]; bp = W["bump"]
-bpy.ops.mesh.primitive_cube_add(size=1, location=(lob.x + jp[0], lob.y + jp[2], 0.6), rotation=(math.radians(15), 0, 0))
-o_ = bpy.context.active_object; o_.scale = (6, 6.2, 0.5); o_.data.materials.append(RAMP)
-box('Bump', Vector((lob.x + bp[0], lob.y + bp[2], -0.75)), (7, 7, 2.4), RAMP, math.radians(45))
-st = W["stable"]
-box('Stable', Vector((lob.x + st[0], lob.y + st[2], 3)), (14, 5.6, 6), mat_color('Stable', srgb2lin((0.45, 0.28, 0.16))), 0)
-# 奥の見えない壁（半透明の赤い線）
-box('BackWall', Vector((lob.x, lob.y + W["townBackZ"], 1.5)), (FR[2] - FR[0], 0.3, 3), mat_color('BackWall', srgb2lin((0.9, 0.1, 0.1)), emit=0.3), 0)
-
-FENCE = mat_color("Fence", srgb2lin((0.45, 0.29, 0.18)))
-for a_, b_ in W.get("fence", []):
-    A_ = Vector((lob.x + a_[0], lob.y + a_[2], 0)); B_ = Vector((lob.x + b_[0], lob.y + b_[2], 0))
-    mid = (A_ + B_) / 2; d = B_ - A_
-    box("FencePiece", mid + Vector((0, 0, 0.8)), (d.length, 0.12, 1.57), FENCE, math.atan2(d.y, d.x))
+# art-r3-12：ロビーは LobbyBuilder と同じ本物の素材で描く（world.json の lobbyProps：柵・受付・スタート台・大時計・柵の馬・厩舎・たまり場・練習場）。
+# 遊びに使う物の目印（LobbyLayout.FunctionalSpots の位置・半径の円柱）は DEBUG_SPOTS=1 のときだけ
+if os.environ.get("DEBUG_SPOTS") == "1":
+    GROUPS = {"plaza": ((0.9, 0.15, 0.1), ("Spawn", "Ledger", "Wanted", "StartBell", "HudLever")),
+              "mounts": ((0.15, 0.35, 0.95), ("Parking", "Picker", "CorralFence")),
+              "hangout": ((1.0, 0.55, 0.1), ("Campfire", "NoticeBoard", "LastRace", "TownCrier")),
+              "practice": ((0.2, 0.85, 0.25), ("Practice",)),
+              "spare": ((0.2, 0.9, 0.9), ("SpareRelic",))}
+    GM = {k: mat_color("Spot_" + k, srgb2lin(c), emit=0.6) for k, (c, _) in GROUPS.items()}
+    for sp in W.get("spots", []):
+        g = next((k for k, (_, pre) in GROUPS.items() if any(sp["n"].startswith(x) for x in pre)), "plaza")
+        if sp["n"] in ("PracticeJump", "PracticeBump"): continue
+        hgt = 3.0 if sp["n"].startswith("NoticeBoard") or sp["n"].startswith("Wanted") else (2.2 if sp["r"] < 2 else 0.8)
+        if sp["n"] == "Spawn": hgt = 0.1
+        bpy.ops.mesh.primitive_cylinder_add(radius=sp["r"], depth=hgt, location=(lob.x + sp["x"], lob.y + sp["z"], hgt / 2), vertices=16)
+        bpy.context.active_object.data.materials.append(GM[g])
 LOBO = (LC[0], 0, LC[2])
 print("PLACED belt", place(W.get("belt", []), LOBO))
 print("PLACED crown", place(W.get("crown", []), LOBO))
 print("PLACED lobby", place(W["lobby"], LOBO))
+print("PLACED lobbyProps", place(W.get("lobbyProps", []), LOBO))
 print("PLACED backdrop", place(W["backdrop"], (0, 0, 0)))
 print("PLACED vista", place(W.get("vista", []), LOBO, ground=None))
 # 外の地面（TerrainBuilder.BuildFiller と同じ考え方の高さ：filler.bin）
@@ -417,7 +402,7 @@ fv = [(FX0 + (FX1 - FX0) * i / (FN - 1), FZ0 + (FZ1 - FZ0) * j / (FN - 1), float
 ff = [(j * FN + i, j * FN + i + 1, (j + 1) * FN + i + 1, (j + 1) * FN + i) for j in range(FN - 1) for i in range(FN - 1)]
 fme = bpy.data.meshes.new("OuterGround"); fme.from_pydata(fv, [], ff)
 fo = bpy.data.objects.new("OuterGround", fme); sc.collection.objects.link(fo)
-fo.data.materials.append(mat_color("Filler", srgb2lin((0.86, 0.72, 0.52))))
+fo.data.materials.append(mat_color("Filler", srgb2lin(W.get("fillerDirt", (0.86, 0.72, 0.52)))))   # art-r3-10：外の地面はステージの土の色
 for p_ in fme.polygons: p_.use_smooth = True
 
 # 空と光
@@ -575,9 +560,10 @@ def eye_shot(name, rel_eye, rel_tgt, lens=24):
     shot(name, tuple(e), tuple(tg), lens)
 sp = W["spawn"]; syaw = math.radians(W["spawnYaw"])
 eye_shot("9_lobby_eye_N", (sp[0], sp[2], 1.7), (sp[0] + math.sin(syaw) * 200, sp[2] + math.cos(syaw) * 200, 3))   # スポーン → 町の大通り
-eye_shot("9_lobby_eye_E", (-30, 100, 1.7), (400, 100, 3))
-eye_shot("9_lobby_eye_W", (30, 80, 1.7), (-400, 80, 3))
-eye_shot("9_lobby_eye_S", (0, 170, 1.7), (0, -400, 3))
+# art-r3-12：東・西・南もスポーンから（スポーンの向き ±90°・180°。前の固定の座標は LOBBY_CENTER が動く前のもので、建物の中から撮っていた）
+for nm, da in (("E", 90.0), ("W", -90.0), ("S", 180.0)):
+    a_ = syaw + math.radians(da)
+    eye_shot(f"9_lobby_eye_{nm}", (sp[0], sp[2], 1.7), (sp[0] + math.sin(a_) * 200, sp[2] + math.cos(a_) * 200, 3))
 for gi, gaz in enumerate(W.get("vistaGaps", [])):   # 広場 → 南・南東の見晴らしの切れ目
     a_ = math.radians(gaz)
     shot(f"9_lobby_vista_{gi + 1}", tuple(lob + _V((sp[0], sp[2], 1.7))), tuple(lob + _V((sp[0] + math.sin(a_) * 400, sp[2] + math.cos(a_) * 400, 8))), 24)

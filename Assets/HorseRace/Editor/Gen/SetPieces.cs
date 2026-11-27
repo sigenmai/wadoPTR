@@ -53,6 +53,14 @@ namespace HorseRace.EditorTools
         public const float PASS_ROAD_HALF = 13f;       // ここまで（道 ±12m ＋余白）は下げる
         public const float PASS_WALL_RISE = 22f;       // 両脇（道から 22〜40m）の盛り上げ
         public const float PASS_WALL_FROM = 22f, PASS_WALL_TO = 40f, PASS_WALL_FADE = 30f;
+        // ---- art-r3-08：切り通しの手前の背（こぶ）をなくし、上の開きを 50m・壁を 2 段のベンチに ----
+        public const float PASS_TAPER_M = 80f;         // 深さいっぱいの区間の前後 80m でまっすぐ下げる（道の高さはその間で単調）
+        public const float PASS_PROFILE_BEFORE = 120f, PASS_PROFILE_AFTER = 100f;  // 道の高さを弦より上に出さない範囲（切り通しの中心から）
+        public const float PASS_BENCH1_FROM = 16f, PASS_BENCH1_H = 11f;            // 1 段目の壁（道の縁 13m の外 16〜20m で 11m 上る）
+        public const float PASS_BENCH2_FROM = 25f, PASS_BENCH2_H = 11f;            // 2 段目（25〜29m でさらに 11m：上の開きは 50m）
+        public const float PASS_BENCH_RISE_M = 4f;
+        public const float PASS_CREST_FROM = 29f;      // 尾根（2 段目の上）の始まり：メサの門と焚き火はここから外
+        public const float PASS_ROAD_BLEND = 4f;       // 道の帯（PASS_ROAD_HALF）の外 4m で下げ幅を 0 へ
 
         // 砂漠の踏切（course-r2-04）：序盤の道に沿って線路（WesternTown_049_Track、長さ 95.6m）を 2 本つなぎ、幅 3m の路盤だけ固い（道の上は深い砂）
         public const float RAIL_LENGTH = 95.6f;
@@ -198,7 +206,9 @@ namespace HorseRace.EditorTools
                 CarveKicker(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, jump), WorldLayout.TangentAtArc(local, jump));
             float pass = PassArc(def, goalArc);
             if (pass >= 0f)
-                CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, pass), WorldLayout.TangentAtArc(local, pass));
+                CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, local, pass);
+            if (def.kind == HeightmapGen.KIND_DUNES)
+                FlattenStart(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, local);   // art-r3-11
             foreach (var run in RailRuns(def, local, goalArc))
                 FlattenBed(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, run[0], run[1]);
             {
@@ -347,35 +357,136 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>
-        /// 切り通しの高さの変化（m、地形に足す）。道（|lat| ≤ PASS_ROAD_HALF）は PASS_DEPTH 下げ（前後 PASS_RAMP でなめらかに）、
-        /// 両脇（PASS_WALL_FROM〜PASS_WALL_TO）は PASS_WALL_RISE 盛り上げて、遠くから三角の切れ込みに見える壁にする。
+        /// 切り通しの壁の高さの変化（m、地形に足す、art-r3-08）：道の外に 2 段のベンチ（PASS_BENCH1/2、上の開きは 2 × PASS_CREST_FROM − 8 ≈ 50m）、
+        /// その外の尾根を PASS_WALL_TO から PASS_WALL_FADE かけて元へ。前後は切り通しの中心から PASS_HALF_CUT + 10m の外 30m で 0。
+        /// 道の下げ（CarvePass）は道の高さの線（PassRoadDelta）で別に行う。
         /// </summary>
         public static float PassDelta(float along, float lat)
         {
             float al = Mathf.Abs(along), la = Mathf.Abs(lat);
-            float aw = 1f - Smooth01((al - PASS_HALF_CUT) / PASS_RAMP);
             float awWall = 1f - Smooth01((al - PASS_HALF_CUT - 10f) / 30f);
-            float lw = Smooth01((la - PASS_ROAD_HALF) / (PASS_WALL_FROM - PASS_ROAD_HALF));
+            float rise = PASS_BENCH1_H * Smooth01((la - PASS_BENCH1_FROM) / PASS_BENCH_RISE_M)
+                       + PASS_BENCH2_H * Smooth01((la - PASS_BENCH2_FROM) / PASS_BENCH_RISE_M);
             float outer = 1f - Smooth01((la - PASS_WALL_TO) / PASS_WALL_FADE);
-            return -PASS_DEPTH * aw * (1f - lw) + PASS_WALL_RISE * awWall * lw * outer;
+            return rise * awWall * outer;
         }
 
-        public static void CarvePass(float[,] h, float sizeM, float heightM, Vector3 center, Vector3 tangent)
+        /// <summary>切り通しの道の下げの割合（0〜1）：中心 ±PASS_HALF_CUT は 1、その前後 PASS_TAPER_M でまっすぐ 0 へ（art-r3-08）。</summary>
+        public static float PassTaper(float along)
+        {
+            float al = Mathf.Abs(along);
+            return 1f - Mathf.Clamp01((al - PASS_HALF_CUT) / PASS_TAPER_M);
+        }
+
+        /// <summary>
+        /// 切り通しの道の高さの線（art-r3-08）：元の道の高さ orig（弧長 a ごと、中心 pass から PASS_PROFILE_BEFORE 手前〜PASS_PROFILE_AFTER 先）から、
+        /// target = min(orig − PASS_DEPTH × PassTaper, 両端を結ぶ弦)。弦より上に出ない＝手前の背（こぶ）が消え、切り通しの中は PASS_DEPTH 以上低い。
+        /// 返すのは下げ幅（≤ 0、m）。
+        /// </summary>
+        public static float[] PassRoadDelta(float[] orig, float step, float startAlong)
+        {
+            int n = orig.Length;
+            var d = new float[n];
+            if (n < 2) return d;
+            float h0 = orig[0], h1 = orig[n - 1];
+            for (int i = 0; i < n; i++)
+            {
+                float along = startAlong + i * step;
+                float chord = h0 + (h1 - h0) * i / (n - 1f);
+                float target = Mathf.Min(orig[i] - PASS_DEPTH * PassTaper(along), chord);
+                d[i] = Mathf.Min(0f, target - orig[i]);
+            }
+            return d;
+        }
+
+        /// <summary>
+        /// 切り通しを掘る（art-r3-08）：コースに沿って道の高さの線（PassRoadDelta）だけ下げ（道の帯 PASS_ROAD_HALF、外 PASS_ROAD_BLEND でなめらかに）、
+        /// 両脇に 2 段のベンチの壁（PassDelta、横 = コースからの距離）を盛る。
+        /// </summary>
+        public static void CarvePass(float[,] h, float sizeM, float heightM, Vector3[] local, float passArc)
         {
             int n = h.GetLength(0);
             float cell = sizeM / (n - 1);
-            Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
-            Vector3 r = WorldLayout.RightOf(t);
-            float reach = PASS_HALF_CUT + 40f + PASS_WALL_TO + PASS_WALL_FADE;
-            int x0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.x + reach) / cell));
-            int z0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.z + reach) / cell));
+            const float STEP = 1f;
+            float a0 = passArc - PASS_PROFILE_BEFORE, a1 = passArc + PASS_PROFILE_AFTER;
+            int m = Mathf.RoundToInt((a1 - a0) / STEP) + 1;
+            var orig = new float[m];
+            for (int i = 0; i < m; i++)
+            {
+                Vector3 p = WorldLayout.PointAtArc(local, a0 + i * STEP);
+                orig[i] = WorldLayout.SampleHeight(h, sizeM, heightM, p.x, p.z);
+            }
+            float[] delta = PassRoadDelta(orig, STEP, -PASS_PROFILE_BEFORE);
+            var pts = new Vector3[m];
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            for (int i = 0; i < m; i++)
+            {
+                pts[i] = WorldLayout.PointAtArc(local, a0 + i * STEP);
+                minX = Mathf.Min(minX, pts[i].x); maxX = Mathf.Max(maxX, pts[i].x);
+                minZ = Mathf.Min(minZ, pts[i].z); maxZ = Mathf.Max(maxZ, pts[i].z);
+            }
+            // 各セル：切り通しの区間のコースで一番近い点（弧長 → 中心からの along、距離 → 横）。直線の座標ではなくコースに沿う（曲がっていても道に壁が乗らない）
+            float reach = PASS_WALL_TO + PASS_WALL_FADE;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((minX - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((maxX + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((minZ - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((maxZ + reach) / cell));
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
                 {
-                    float dx = x * cell - center.x, dz = z * cell - center.z;
-                    float d = PassDelta(dx * t.x + dz * t.z, dx * r.x + dz * r.z);
+                    float px = x * cell, pz = z * cell;
+                    float best = float.MaxValue; int bi = 0;
+                    for (int i = 0; i < m; i++)
+                    {
+                        float dx = pts[i].x - px, dz = pts[i].z - pz, d2 = dx * dx + dz * dz;
+                        if (d2 < best) { best = d2; bi = i; }
+                    }
+                    float lat = Mathf.Sqrt(best);
+                    if (lat > reach) continue;
+                    float along = a0 + bi * STEP - passArc;
+                    float roadW = 1f - Smooth01((lat - PASS_ROAD_HALF) / PASS_ROAD_BLEND);
+                    // 端の点が一番近いセル（区間の外へはみ出た側）は下げない
+                    if (bi == 0 || bi == m - 1) roadW = 0f;
+                    float d = delta[bi] * roadW + PassDelta(along, lat);
                     if (d != 0f) h[z, x] = Mathf.Clamp01(h[z, x] + d / heightM);
                 }
+        }
+
+        // ---- art-r3-11：砂漠のスタートの直線を平らに（最初の砂丘の背を 150m より先へ）----
+        public const float START_FLAT_M = 120f, START_FLAT_BLEND_M = 80f, START_FLAT_SIDE_M = 30f, START_FLAT_SIDE_BLEND_M = 25f;
+
+        /// <summary>
+        /// 道の最初の START_FLAT_M を、スタートの地面の高さにそろえる（その先 START_FLAT_BLEND_M でもとの高さへ、横は道の中心から 30m まで、外 25m でなめらかに）。
+        /// スタートの目の前の砂丘の背が先の景色と目印を隠さない（art-r3-11）。
+        /// </summary>
+        public static void FlattenStart(float[,] h, float sizeM, float heightM, Vector3[] local)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            float s0 = StageDefinitions.START_ARC_M;
+            Vector3 p0 = WorldLayout.PointAtArc(local, s0);
+            float target = WorldLayout.SampleHeight(h, sizeM, heightM, p0.x, p0.z) / heightM;
+            float end = s0 + START_FLAT_M + START_FLAT_BLEND_M;
+            var cum = new float[local.Length];
+            for (int i = 1; i < local.Length; i++) cum[i] = cum[i - 1] + WorldLayout.DistXZ(local[i - 1], local[i]);
+            float reach = START_FLAT_SIDE_M + START_FLAT_SIDE_BLEND_M;
+            int rr = Mathf.CeilToInt(reach / cell) + 1;
+            var wmax = new float[n, n];
+            for (float a = 0f; a <= end; a += 1f)
+            {
+                float along = a < s0 + START_FLAT_M ? 1f : 1f - Smooth01((a - s0 - START_FLAT_M) / START_FLAT_BLEND_M);
+                if (along <= 0f) continue;
+                Vector3 c = WorldLayout.PointAtArc(local, a);
+                int cx = Mathf.RoundToInt(c.x / cell), cz = Mathf.RoundToInt(c.z / cell);
+                for (int z = Mathf.Max(0, cz - rr); z <= Mathf.Min(n - 1, cz + rr); z++)
+                    for (int x = Mathf.Max(0, cx - rr); x <= Mathf.Min(n - 1, cx + rr); x++)
+                    {
+                        float d = Mathf.Sqrt((x * cell - c.x) * (x * cell - c.x) + (z * cell - c.z) * (z * cell - c.z));
+                        float wgt = along * (1f - Smooth01((d - START_FLAT_SIDE_M) / START_FLAT_SIDE_BLEND_M));
+                        if (wgt > wmax[z, x]) wmax[z, x] = wgt;
+                    }
+            }
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                    if (wmax[z, x] > 0f) h[z, x] = Mathf.Lerp(h[z, x], target, wmax[z, x]);
         }
 
         /// <summary>

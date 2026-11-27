@@ -532,7 +532,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>
-        /// 崖の板（Cliffs）は道（コースの中心線）から DressingPlan.CLIFF_MIN_ROAD_M 以上（足元の縁 = 外形の半径 × 0.67 まで）。
+        /// 崖の板（Cliffs）は道（コースの中心線）から DressingPlan.CLIFF_FAR_M（260m）以上（足元の縁 = 外形の半径 × 0.67 まで）、砂漠には置かない（art-r3-05）。
         /// 近くの Cliffs は平らな箱に見える（art-r2-08）。シーンの「Cliffs_NN」の部品をすべて調べる。
         /// </summary>
         static void CheckCliffDistance(List<string> warn, List<string> info)
@@ -558,14 +558,15 @@ namespace HorseRace.EditorTools
                     Vector3 p = t.position;
                     if (p.x < o.x || p.z < o.z || p.x > o.x + StageDefinitions.SIZE || p.z > o.z + StageDefinitions.SIZE) continue;
                     float d = WorldLayout.DistToPolylineXZ(p, courses[s]) - foot;
-                    if (d < DressingPlan.CLIFF_MIN_ROAD_M - 0.5f)
+                    bool dunes = StageDefinitions.All[s].kind == HeightmapGen.KIND_DUNES;
+                    if (d < DressingPlan.CLIFF_FAR_M - 0.5f || dunes)
                     {
                         near++;
-                        if (near <= 5) warn.Add("崖の板が道に近すぎます（" + t.name + "、道から " + d.ToString("F0") + "m、" + DressingPlan.CLIFF_MIN_ROAD_M + "m 以上）");
+                        if (near <= 5) warn.Add("崖の板が道に近すぎます（" + t.name + "、道から " + d.ToString("F0") + "m、" + DressingPlan.CLIFF_FAR_M + "m 以上・砂漠には置かない：art-r3-05）");
                     }
                 }
             }
-            if (near == 0) info.Add("見た目：崖の板 " + n + " 枚はどれも道から " + DressingPlan.CLIFF_MIN_ROAD_M + "m 以上");
+            if (near == 0) info.Add("見た目：崖の板 " + n + " 枚はどれも道から " + DressingPlan.CLIFF_FAR_M + "m 以上（砂漠には無し）");
         }
 
         /// <summary>テクスチャの平均の色（小さな RenderTexture に縮めて読む。読めない設定のテクスチャでもよい）。無ければ白。</summary>

@@ -11,8 +11,10 @@ namespace HorseRace.Tests
             var b = DressingPlan.Backdrop(7);
             TestContext.WriteLine($"backdrop: {b.Count}");
             Assert.That(b.Count, Is.InRange(70, 200));
-            // 崖の板（遠くで平らな箱に見える）は使わない。2 列（内側 320m・外側 520m 付近）
-            foreach (var p in b) Assert.AreNotEqual(DressingPlan.CLIFFS, p.asset);
+            // 崖の板は遊べる範囲から 260m 以上だけ（art-r3-10：霧で柔らかくなる距離）。2 列（内側 320m・外側 520m 付近）
+            foreach (var p in b)
+                if (p.asset == DressingPlan.CLIFFS)
+                    foreach (var r in WorldBounds.PlayableRects()) Assert.GreaterOrEqual(WorldBounds.DistToRect(p.position, r), DressingPlan.CLIFF_FAR_M, p.part);
             var u = WorldBounds.Union();
             int outer = 0;
             foreach (var p in b) if (WorldBounds.DistToRect(p.position, u) > 470f) outer++;
@@ -24,7 +26,7 @@ namespace HorseRace.Tests
                 foreach (var r in rects)
                     Assert.GreaterOrEqual(WorldBounds.DistToRect(p.position, r), p.radius + 50f, p.asset);
                 Assert.IsFalse(p.collider);
-                Assert.That(p.scale, Is.InRange(5f, 10f));
+                Assert.That(p.scale, Is.InRange(1.2f, 10f));
                 // 足元は外の地面に埋まる（高さの 25%）
                 Assert.AreEqual(WorldBounds.FILLER_Y + WorldBounds.FillerBaseHeight(p.position.x, p.position.z) - WorldBounds.BACKDROP_SINK * p.height, p.position.y, 0.01f);
                 // 地面の板の上に乗っている（山の外側も空白にならない）

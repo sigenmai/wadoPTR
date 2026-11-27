@@ -164,8 +164,8 @@ namespace HorseRace.EditorTools
             for (int i = 0; i < sb.relicSpots.Length; i++)
             {
                 var r = sb.relicSpots[i];
-                Vector3 p = sb.Ground(r.local.x, r.local.z) + Vector3.up * r.up;
-                ctx.courseRelics.Add(CourseBuilder.Relic(relicRoot, "Relic_" + (i + 1), p, sb.def.index, false));
+                Vector3 g = sb.Ground(r.local.x, r.local.z);
+                ctx.courseRelics.Add(CourseBuilder.Relic(relicRoot, "Relic_" + (i + 1), g + Vector3.up * r.up, sb.def.index, false, g));
             }
         }
 
@@ -276,9 +276,10 @@ namespace HorseRace.EditorTools
                 for (int e = -1; e <= 1; e += 2)
                 {
                     Vector3 sp = sb.GroundWorld(center + r * (s * (SetPieces.DETOUR_FROM + 2f)) + t * (e * (lipAlong + 3f)));
-                    DressingBuilder.SetStatic(GenUtil.Stake(cover, "DesertProps_05", sp, yaw, 1f));
+                    DressingBuilder.SetStatic(GenUtil.WoodPost(cover, sp, yaw, 2.6f, 0.22f));   // 立てた丸太の杭（art-r3-02）
                 }
             }
+            BridgeGate(sb, bridge.transform, center, t, r, yaw, lipAlong, st);
             // 溝の底の落とし穴：入った騎手を最後に通った CP へ戻す（背の下は地面の中なので触れない）
             var pit = GenUtil.Child(bridge.transform, "FallPit", new Vector3(0f, -SetPieces.TRENCH_DEPTH + 3f, 0f));
             var pitBox = pit.AddComponent<BoxCollider>();
@@ -289,6 +290,55 @@ namespace HorseRace.EditorTools
             DressingBuilder.SetStatic(bridge);
             sb.Exclude(center, SetPieces.DETOUR_TO + 6f);
             BridgeSignals(sb, bridge.transform, center, t, r);
+        }
+
+        public const float BRIDGE_TOWER_H = 8.5f;     // art-r3-14：橋の両端の岩の塔は背より 7〜9m 高い
+        public const float BRIDGE_LINTEL_H = 7.2f;    // 向こう端の横木の高さ（背から）
+
+        /// <summary>
+        /// 岩の橋の門（art-r3-14）：橋の両端の両脇に大岩（DesertRocks_01/02、縦 ×2.4）の塔を立て（背より 7〜9m 高い、150m 先から門に見える）、
+        /// 向こう端の塔の間に丸太（WoodLogs_01、長さだけ伸ばした細い横木）を渡して、手配書の紙の幕に「岩の橋」。
+        /// </summary>
+        static void BridgeGate(StageBuild sb, Transform bridge, Vector3 center, Vector3 t, Vector3 r, float yaw, float lipAlong, int st)
+        {
+            var g = GenUtil.Child(bridge, "BridgeGate", Vector3.zero).transform;
+            float along = lipAlong + 5f;
+            float lat = 0f;
+            for (int e = -1; e <= 1; e += 2)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    string part = (e + s) % 4 == 0 ? "DesertRocks_02" : "DesertRocks_01";
+                    float h0 = part == "DesertRocks_01" ? 12.8f : 12.4f, r0 = part == "DesertRocks_01" ? 16.7f : 11.7f;
+                    float sc = BRIDGE_TOWER_H / (h0 * 2.4f);
+                    lat = SetPieces.SPINE_HALF + 1.2f + r0 * sc * 0.8f;
+                    Vector3 w = sb.GroundWorld(center + t * (e * along) + r * (s * lat));
+                    var tower = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, g, w - Vector3.up * 0.8f, yaw + (s > 0 ? 0f : 180f) + e * 25f, sc,
+                        new Vector3(4f, BRIDGE_TOWER_H, 4f), Rock);
+                    tower.transform.localScale = new Vector3(sc, sc * 2.4f, sc);
+                    DressingBuilder.AddCollider(tower, false);
+                    GenUtil.SetLayerRecursive(tower, WorldLayers.Block);
+                    DressingBuilder.SetStatic(tower);
+                    GenUtil.Tag(tower, "S" + st + "/SetPieceDecor/tower#" + (decorIndex++));
+                }
+            // 向こう端（e = +1）の横木と幕
+            Vector3 l = sb.GroundWorld(center + t * along - r * lat), rr = sb.GroundWorld(center + t * along + r * lat);
+            float top = center.y + BRIDGE_LINTEL_H;
+            const int PIECES = 4;
+            float span = WorldLayout.DistXZ(l, rr), piece = span / PIECES;
+            Vector3 bsc = CourseMarks.PostScale(piece + 0.05f, 0.6f);
+            for (int k = 0; k < PIECES; k++)
+            {
+                Vector3 bp = Vector3.Lerp(l, rr, (k + 0.5f) / PIECES);
+                var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", g, new Vector3(bp.x, top, bp.z), yaw + k * 180f, 1f, new Vector3(1.5f, 0.3f, 0.3f), Wood);
+                beam.transform.rotation = Quaternion.Euler(0f, yaw + k * 180f, 0f);
+                beam.transform.localScale = bsc;
+                DressingBuilder.SetStatic(beam);
+            }
+            Vector3 mid = new Vector3((l.x + rr.x) * 0.5f, top - 1.3f, (l.z + rr.z) * 0.5f);
+            var sheet = GenUtil.World(g, "BridgeBanner", mid, yaw);
+            GenUtil.PaperSheet(sheet.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0f, -0.05f), null, 4.6f, 1.6f);
+            GenUtil.Text(sheet.transform, "Text", new Vector3(0f, 0.05f, -0.12f), Quaternion.identity, "<b>岩の橋</b>", 7f, UiStyle.InkFace,
+                new Vector2(4.2f, 1.3f), TextStyle.Ink, true);
         }
 
         /// <summary>岩の橋の合図：背の両端に街灯 2 本ずつと暖色の灯り、焚き火の煙（遠くから入口がわかる）。溝の底は赤い灯り（危険＝赤の色の決まり）。</summary>

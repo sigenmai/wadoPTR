@@ -432,6 +432,28 @@ namespace HorseRace.EditorTools
         /// 砂漠の大岩（DesertRocks_01〜03 ×2〜2.6、長い辺を柵に沿わせる）、北の 2 つの角はメサ B（×1.5〜2）。見晴らしの切れ目には置かない。
         /// y はロビー中心の高さ 0 からの地面の下限 − 高さの 25%（LobbyBuilder は実際の地形の高さで置き直す）。
         /// </summary>
+        public const float CROWN_SINK = 0.15f;      // art-r3-13：足元の 4 隅の一番低い地面から高さの 15% 埋める
+        public const float CROWN_FOOT = 0.7f;       // 4 隅 = 中心から外形の半径 × 0.7
+
+        /// <summary>
+        /// 尾根の岩を地面に下ろす（art-r3-13）：足元の 4 隅（±半径 × CROWN_FOOT）の一番低い地面から高さの CROWN_SINK だけ下げる
+        /// （前は中心の地面 − 25% で、斜面の下側で宙に浮いた岩が見えた）。ground(rel) = ロビー中心からの相対の地面の高さ。
+        /// </summary>
+        public static void GroundCrown(List<Placement> crown, System.Func<Vector3, float> ground)
+        {
+            foreach (var c in crown)
+            {
+                float r = c.radius * CROWN_FOOT;
+                float y = ground(c.position);
+                for (int i = 0; i < 4; i++)
+                {
+                    float a = (45f + i * 90f) * Mathf.Deg2Rad;
+                    y = Mathf.Min(y, ground(new Vector3(c.position.x + Mathf.Sin(a) * r, 0f, c.position.z + Mathf.Cos(a) * r)));
+                }
+                c.position = new Vector3(c.position.x, y - CROWN_SINK * c.height, c.position.z);
+            }
+        }
+
         public static List<Placement> RimCrown(Vector4 rect, int seed)
         {
             const float CROWN_OUT_M = 24f, CROWN_STEP_M = 22f;
@@ -460,10 +482,11 @@ namespace HorseRace.EditorTools
                 float h = sz.h * scale;
                 list.Add(new Placement
                 {
-                    group = "RimCrown", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - 0.25f * h, p.z),
+                    group = "RimCrown", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - CROWN_SINK * h, p.z),
                     yawDeg = yaw, scale = scale, radius = sz.r * scale, height = h, collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
                 });
             }
+            GroundCrown(list, q => GroundHeight(rect, q));
             return list;
         }
 

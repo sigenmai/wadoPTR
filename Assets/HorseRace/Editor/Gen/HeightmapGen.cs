@@ -94,25 +94,45 @@ namespace HorseRace.EditorTools
         }
 
         // ---- 道の踏み固めた土（course-r1-09）----
-        public const float TRAIL_FULL_INSET_M = 2f;   // 平らな道の縁の 2m 内側まで踏み固めた土
-        public const float TRAIL_FADE_OUT_M = 4f;     // 縁の 4m 外で 0
+        public const float TRAIL_FULL_INSET_M = 2f;   // （前の値）平らな道の縁の 2m 内側まで
+        public const float TRAIL_FADE_OUT_M = 4f;     // （前の値）縁の 4m 外で 0。マスクを計算する範囲に使う
+        /// <summary>道の縁の幅（art-r3-06）：平らな道の縁 ±0.6m（1.2m）の smoothstep で切る。前の 6m のぼかしは見えない物の影のように見えた。</summary>
+        public const float TRAIL_EDGE_M = 1.2f;
+        /// <summary>轍（わだち、art-r3-06）：道の中心から ±1.8m に幅 0.6m の 2 本の線（ToonTerrain が道の色 ×0.85 で描く）。</summary>
+        public const float RUT_OFFSET_M = 1.8f, RUT_WIDTH_M = 0.6f;
+        /// <summary>道の中心からの距離を道のマスクの G に入れるときの最大（m）：G = 距離 / TRAIL_DIST_MAX_M。</summary>
+        public const float TRAIL_DIST_MAX_M = 16f;
 
-        /// <summary>道の中心からの距離 d（m）、平らな道の半幅 hw での踏み固めた土の重み（0〜1）。</summary>
-        public static float TrailWeight(float d, float hw) => 1f - Smooth(hw - TRAIL_FULL_INSET_M, hw + TRAIL_FADE_OUT_M, d);
+        /// <summary>道の中心からの距離 d（m）、平らな道の半幅 hw での踏み固めた土の重み（0〜1）。縁は TRAIL_EDGE_M の smoothstep（art-r3-06）。</summary>
+        public static float TrailWeight(float d, float hw) => 1f - Smooth(hw - TRAIL_EDGE_M * 0.5f, hw + TRAIL_EDGE_M * 0.5f, d);
+
+        /// <summary>轍の重み（0〜1）：中心からの距離 d が ±RUT_OFFSET_M の幅 RUT_WIDTH_M の線の上で 1。</summary>
+        public static float RutWeight(float d)
+        {
+            float e = Mathf.Abs(d - RUT_OFFSET_M);
+            return 1f - Smooth(RUT_WIDTH_M * 0.35f, RUT_WIDTH_M * 0.65f, e);
+        }
 
         /// <summary>踏み固めた土の重み（[z,x]、resolution × resolution、Terrain 全体）。道幅は StageDef の幅の区間に従う。</summary>
         public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized)
         {
+            float[,] dist;
+            return TrailMask(resolution, def, coursePointsNormalized, out dist);
+        }
+
+        /// <summary>踏み固めた土の重みと、各点の道の中心からの距離（m、範囲の外は float.MaxValue）。距離は轍（RutWeight）に使う。</summary>
+        public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized, out float[,] dist)
+        {
             int n = resolution;
             var m = new float[n, n];
+            dist = new float[n, n];
+            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) dist[z, x] = float.MaxValue;
             if (coursePointsNormalized == null || coursePointsNormalized.Length < 2) return m;
             float cellM = TERRAIN_SIZE_M / (n - 1);
             float maxHw = RUNWAY_M;
             if (def != null && def.halfWidthM != null) foreach (float hw in def.halfWidthM) maxHw = Mathf.Max(maxHw, hw);
             float reach = maxHw + TRAIL_FADE_OUT_M + 1f;
-            var dist = new float[n, n];
             var arc = new float[n, n];
-            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) dist[z, x] = float.MaxValue;
             int radius = Mathf.CeilToInt(reach / cellM) + 1;
             float s0 = 0f;
             for (int i = 1; i < coursePointsNormalized.Length; i++)
@@ -209,6 +229,46 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>Sand coverage [0,1]. For CANYON, pass the generated heights to confine sand to the valley floor.</summary>
+        public const float MESA_SAND_RADIUS_M = 30f;    // まわり 60m（半径 30m）
+        public const float MESA_SAND_LOW_SHARE = 0.35f, MESA_SAND_MAX_SLOPE = 12f;
+
+        /// <summary>
+        /// 境目の砂（art-r3-07）：点 (u, v)（0〜1）の地面が、まわり半径 MESA_SAND_RADIUS_M の 16 点のうち何割より低いか（q）。
+        /// 低い方 35%（q ≥ 0.65）を smoothstep(0.45, 0.55, q − 0.15) で砂にし、斜面 12° 以上は砂にしない。
+        /// </summary>
+        public static float MesaBasinSand(float[,] h, float u, float v)
+        {
+            int n = h.GetLength(0);
+            float S = TERRAIN_SIZE_M;
+            float px = u * S, pz = v * S;
+            float h0 = SampleM(h, px, pz);
+            int higher = 0;
+            for (int i = 0; i < 16; i++)
+            {
+                float a = i * Mathf.PI / 8f, rr = (i % 2 == 0) ? MESA_SAND_RADIUS_M : MESA_SAND_RADIUS_M * 0.5f;
+                if (SampleM(h, px + Mathf.Sin(a) * rr, pz + Mathf.Cos(a) * rr) > h0 + 0.05f) higher++;
+            }
+            float q = higher / 16f;
+            float e = 4f;
+            float gx = (SampleM(h, px + e, pz) - SampleM(h, px - e, pz)) / (2f * e);
+            float gz = (SampleM(h, px, pz + e) - SampleM(h, px, pz - e)) / (2f * e);
+            float slope = Mathf.Atan(Mathf.Sqrt(gx * gx + gz * gz)) * Mathf.Rad2Deg;
+            return Smooth(0.45f, 0.55f, q - (1f - MESA_SAND_LOW_SHARE) + 0.5f) * (1f - Smooth(MESA_SAND_MAX_SLOPE - 2f, MESA_SAND_MAX_SLOPE + 2f, slope));
+        }
+
+        /// <summary>高さマップ（0〜1）の点 (x, z)（m）の高さ（m、双線形）。</summary>
+        static float SampleM(float[,] h, float x, float z)
+        {
+            int n = h.GetLength(0);
+            float cell = TERRAIN_SIZE_M / (n - 1);
+            float fx = Mathf.Clamp(x / cell, 0f, n - 1.001f), fz = Mathf.Clamp(z / cell, 0f, n - 1.001f);
+            int x0 = (int)fx, z0 = (int)fz;
+            float tx = fx - x0, tz = fz - z0;
+            float a = h[z0, x0] + (h[z0, x0 + 1] - h[z0, x0]) * tx;
+            float b = h[z0 + 1, x0] + (h[z0 + 1, x0 + 1] - h[z0 + 1, x0]) * tx;
+            return (a + (b - a) * tz) * HEIGHT_M;
+        }
+
         public static float[,] SandMask(int resolution, int kind, int seed, float[,] heights = null)
         {
             int n = resolution;
@@ -233,6 +293,11 @@ namespace HorseRace.EditorTools
                             int hx = Mathf.Clamp(Mathf.FloorToInt(u * (heights.GetLength(1) - 1) + 0.5f), 0, heights.GetLength(1) - 1);
                             val *= 1f - Smooth(FLOOR_H, WALL_H, heights[hz, hx]);
                         }
+                    }
+                    else if (heights != null)
+                    {
+                        // art-r3-07：色は地形に従う。まわり 60m の中で低い方 35%（くぼ地・谷底）で、斜面 12° 未満の所だけ砂
+                        val = MesaBasinSand(heights, u, v);
                     }
                     else
                     {

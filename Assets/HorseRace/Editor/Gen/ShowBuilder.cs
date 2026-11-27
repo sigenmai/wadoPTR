@@ -349,8 +349,8 @@ namespace HorseRace.EditorTools
                     new Vector2(1.32f, 0.44f), TextStyle.Ink, true);
                 plates[i].fontStyle = TMPro.FontStyles.Bold;
                 plateRoots[i] = plate;
-                // 名札を吊る杭（DesertProps_05）：段の後ろから立てる（宙に浮かせない）
-                GenUtil.Stake(plate.transform, "DesertProps_05", holder.transform.TransformPoint(new Vector3(x[i], baseTop + h[i], -0.66f)), 0f, 0.95f).name = "PlatePost";
+                // 名札を吊る杭（立てた丸太 WoodLogs_01、art-r3-02：骨の杭は使わない）：段の後ろから立てる（宙に浮かせない）
+                GenUtil.WoodPost(plate.transform, holder.transform.TransformPoint(new Vector3(x[i], baseTop + h[i], -0.66f)), 0f, 2.96f, 0.22f).name = "PlatePost";
             }
             // 「総合結果」の掲示板（表彰台の後ろ、観客側から読める）
             NoticeSignForPodium(holder.transform, pos, yawFacingAudience);

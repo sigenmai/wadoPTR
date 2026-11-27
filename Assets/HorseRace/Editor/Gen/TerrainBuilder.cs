@@ -23,12 +23,16 @@ namespace HorseRace.EditorTools
         public const int LAYER_STRATA = 3;
         const float ROCK_SLOPE_FROM = 28f, ROCK_SLOPE_TO = 40f;
         const float STRATA_SLOPE_FROM = 30f, STRATA_SLOPE_TO = 40f;
+        public const float MESA_STRATA_FROM = 22f, MESA_STRATA_BLEND = 8f;   // art-r3-07：境目の地層の縞は 22° から
+        public const float FILLER_STRATA_FROM = 18f;                          // art-r3-10：外の地面の斜面も地層の縞
         public const float LAYER_TILE_M = 45f;          // 12m だと斜面に細かい点の繰り返しが見えた（art-r1-14）
         public const float STRATA_BAND_M = 8f;
         public const string TERRAIN_SHADER = "HorseRace/ToonTerrain";
         public const string TERRAIN_MAT = GenUtil.GEN_MATERIALS + "/M_ToonTerrain.mat";
         /// <summary>地形のバリエーション：0〜2 = ステージ、LOBBY = ロビーと外の地面。</summary>
         public const int VARIANT_LOBBY = 3;
+        /// <summary>外の地面（art-r3-10）：3 ステージの土を混ぜた色（ArtPalette.DirtOuter）。</summary>
+        public const int VARIANT_OUTER = 4;
 
         public static StageBuild Build(StageDef def, Transform parent)
         {
@@ -43,9 +47,10 @@ namespace HorseRace.EditorTools
             HeightmapGen.ApplyRim(sb.heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, HeightmapGen.RIM_WIDTH_M,
                 HeightmapGen.RIM_MIN_M, HeightmapGen.RIM_MAX_M, def.seed, norm);
             sb.sand = HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES, def.kind, def.seed,
-                def.kind == HeightmapGen.KIND_CANYON ? sb.heights : null);
+                def.kind != HeightmapGen.KIND_DUNES ? sb.heights : null);   // 荒野は谷底だけ、境目はくぼ地（art-r3-07）
             // 道の踏み固めた土（course-r1-09）：道の上の砂は消す（道の外の砂 = 遅くなる危険）
-            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm);
+            float[,] trailDist;
+            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm, out trailDist);
             HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail);
             // 深い砂の区間（system-r2-01）：道の上も砂（ラクダの出番）。踏み跡は薄く残す
             HeightmapGen.ApplyDeepSand(sb.sand, sb.trail, def, sb.courseLocal, StageDefinitions.SIZE);
@@ -62,7 +67,7 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             sb.terrain = tgo.GetComponent<Terrain>();
             sb.terrain.heightmapPixelError = 4f;
-            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail), "Stage" + (def.index + 1), def.index);
+            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail, trailDist), "Stage" + (def.index + 1), def.index);
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -116,8 +121,8 @@ namespace HorseRace.EditorTools
         /// <summary>地形のレイヤー 4 枚（土はバリエーションごとの色、岩・砂・地層は共通）。</summary>
         public static TerrainLayer[] Layers(int variant = VARIANT_LOBBY)
         {
-            string dirtName = variant >= 0 && variant < VARIANT_LOBBY ? "TL_Dirt_S" + (variant + 1) : "TL_Dirt_Lobby";
-            Color dirt = ArtPalette.Dirt(variant);
+            string dirtName = variant >= 0 && variant < VARIANT_LOBBY ? "TL_Dirt_S" + (variant + 1) : (variant == VARIANT_OUTER ? "TL_Dirt_Outer" : "TL_Dirt_Lobby");
+            Color dirt = variant == VARIANT_OUTER ? ArtPalette.DirtOuter : ArtPalette.Dirt(variant);
             return new[]
             {
                 Layer(dirtName, NoiseTexture(dirt, 0.05f, 11 + variant), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
@@ -203,14 +208,22 @@ namespace HorseRace.EditorTools
         /// <summary>道の色はステージごと（art-r2-02：ArtPalette.Trail）。</summary>
         public static Color TrailColor(int stage) => ArtPalette.Trail(stage);
 
-        /// <summary>道の踏み固めた土の重み（R8 相当の RGBA、Terrain 全体の UV）を Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。</summary>
-        public static Texture2D TrailTexture(string name, float[,] trail)
+        /// <summary>
+        /// 道の踏み固めた土の重み（R、Terrain 全体の UV）と道の中心からの距離（G = 距離 / TRAIL_DIST_MAX_M、art-r3-06：ToonTerrain が ±1.8m の轍を描く）を
+        /// Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。距離は線形に補間されるので、1 マス 2m の解像度でも 0.6m の轍の線が描ける。
+        /// </summary>
+        public static Texture2D TrailTexture(string name, float[,] trail, float[,] dist = null)
         {
             int n = trail.GetLength(0), m = trail.GetLength(1);
             var tex = new Texture2D(m, n, TextureFormat.RGBA32, false);
             var px = new Color[n * m];
             for (int z = 0; z < n; z++)
-                for (int x = 0; x < m; x++) { float v = trail[z, x]; px[z * m + x] = new Color(v, v, v, 1f); }
+                for (int x = 0; x < m; x++)
+                {
+                    float v = trail[z, x];
+                    float g = dist != null ? Mathf.Clamp01(dist[z, x] / HeightmapGen.TRAIL_DIST_MAX_M) : 1f;
+                    px[z * m + x] = new Color(v, g, 0f, 1f);
+                }
             tex.SetPixels(px);
             tex.Apply();
             tex.wrapMode = TextureWrapMode.Clamp;
@@ -234,6 +247,9 @@ namespace HorseRace.EditorTools
             m.shader = baseMat.shader;
             m.SetTexture("_TrailTex", trail);
             m.SetColor("_TrailColor", TrailColor(stage));
+            m.SetFloat("_RutOffset", HeightmapGen.RUT_OFFSET_M / HeightmapGen.TRAIL_DIST_MAX_M);
+            m.SetFloat("_RutWidth", HeightmapGen.RUT_WIDTH_M / HeightmapGen.TRAIL_DIST_MAX_M);
+            m.SetFloat("_RutDarken", 1f - ArtPalette.RUT_SHADE);
             EditorUtility.SetDirty(m);
             t.materialTemplate = m;
         }
@@ -281,6 +297,7 @@ namespace HorseRace.EditorTools
             int hn = heights.GetLength(0);
             float cellM = td.size.x / (hn - 1);
             bool strata = variant == HeightmapGen.KIND_CANYON;
+            bool mesa = variant == HeightmapGen.KIND_MESA;   // art-r3-07/08：境目は 22° 以上の斜面（切り通しの壁を含む）を地層の縞に
             var a = new float[res, res, 4];
             for (int z = 0; z < res; z++)
                 for (int x = 0; x < res; x++)
@@ -293,7 +310,8 @@ namespace HorseRace.EditorTools
                     float s = sand != null ? Mathf.Clamp01(sand[Mathf.Min(z, sand.GetLength(0) - 1), Mathf.Min(x, sand.GetLength(1) - 1)]) : 0f;
                     float rock = Mathf.Clamp01((slope - ROCK_SLOPE_FROM) / (ROCK_SLOPE_TO - ROCK_SLOPE_FROM)) * (1f - s);
                     // 荒野の急な壁は地層の縞（岩の代わりに、30〜40° で移る）
-                    float st = strata ? Mathf.Clamp01((slope - STRATA_SLOPE_FROM) / (STRATA_SLOPE_TO - STRATA_SLOPE_FROM)) * (1f - s) : 0f;
+                    float st = strata ? Mathf.Clamp01((slope - STRATA_SLOPE_FROM) / (STRATA_SLOPE_TO - STRATA_SLOPE_FROM)) * (1f - s)
+                             : (mesa ? Mathf.Clamp01((slope - MESA_STRATA_FROM) / MESA_STRATA_BLEND) * (1f - s) : 0f);
                     rock *= 1f - st;
                     a[z, x, LAYER_SAND] = s;
                     a[z, x, LAYER_ROCK] = rock;
@@ -344,7 +362,8 @@ namespace HorseRace.EditorTools
                 for (int x = 0; x < n; x++)
                     h[z, x] = Mathf.Clamp01((world[z, x] - baseY) / FILLER_RANGE_M);
             var td = CreateTerrainData("OuterGround", h, sizeX, sizeZ, FILLER_RANGE_M);
-            td.terrainLayers = Layers(VARIANT_LOBBY);
+            // art-r3-10：外の地面はステージの土の色（3 ステージの土を混ぜた DirtOuter、クリーム色の砂の板にしない）＋斜面は地層の縞・岩
+            td.terrainLayers = Layers(VARIANT_OUTER);
             int res = 512;
             td.alphamapResolution = res;
             td.baseMapResolution = 256;
@@ -354,13 +373,15 @@ namespace HorseRace.EditorTools
                 {
                     int hz = Mathf.FloorToInt(z / (float)(res - 1) * (n - 1) + 0.5f), hx = Mathf.FloorToInt(x / (float)(res - 1) * (n - 1) + 0.5f);
                     float slope = SlopeDeg(h, hz, hx, FILLER_RANGE_M, cellX, cellZ);
-                    float high = Mathf.Clamp01((h[Mathf.Clamp(hz, 0, n - 1), Mathf.Clamp(hx, 0, n - 1)] * FILLER_RANGE_M + baseY - WorldBounds.FILLER_Y - 15f) / 25f);
-                    float rock = Mathf.Clamp01((slope - 22f) / 12f);
-                    float dirt = Mathf.Clamp01(Mathf.Max(high, (slope - 8f) / 10f)) * (1f - rock);
+                    float st = Mathf.Clamp01((slope - FILLER_STRATA_FROM) / 10f);
+                    float rock = Mathf.Clamp01((slope - 32f) / 10f) * (1f - st * 0.5f);
+                    // 低い平らな所だけ少し砂（谷底の色の変化）、ほかは土
+                    float low = 1f - Mathf.Clamp01((h[Mathf.Clamp(hz, 0, n - 1), Mathf.Clamp(hx, 0, n - 1)] * FILLER_RANGE_M + baseY - WorldBounds.FILLER_Y + 2f) / 6f);
+                    float sand = Mathf.Clamp01(low * 0.6f) * (1f - st) * (1f - rock);
+                    a[z, x, LAYER_STRATA] = st * (1f - rock);
                     a[z, x, LAYER_ROCK] = rock;
-                    a[z, x, LAYER_DIRT] = dirt;
-                    a[z, x, LAYER_SAND] = Mathf.Max(0f, 1f - rock - dirt);
-                    a[z, x, LAYER_STRATA] = 0f;
+                    a[z, x, LAYER_SAND] = sand;
+                    a[z, x, LAYER_DIRT] = Mathf.Max(0f, 1f - st * (1f - rock) - rock - sand);
                 }
             td.SetAlphamaps(0, 0, a);
             GameObject tgo = Terrain.CreateTerrainGameObject(td);

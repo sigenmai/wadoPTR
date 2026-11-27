@@ -361,6 +361,8 @@ namespace HorseRace.EditorTools
                     string key = (s != null ? s.name : "none") + "_" + (tex != null ? tex.name : "notex")
                         + "_" + ColorUtility.ToHtmlStringRGB(tint) + style.key + (dusk ? "_S3" : "");
                     dst[i] = SaveOrUpdate("Toon_" + key, tex, tint, style.flatten, style.flattenMip, shadow);
+                    // 遺物の宝石は明るく（art-r3-04：拾える物は一番鮮やかに。トゥーンの _Brightness）
+                    if (style.glow > 0f && dst[i] != null && dst[i].HasProperty("_Brightness")) dst[i].SetFloat("_Brightness", 1f + style.glow);
                 }
                 r.sharedMaterials = dst;
             }
@@ -534,6 +536,21 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>DesertProps の杭・柱（03 = 杭 3.4m、05 = 杭 3.1m、10 = 杭の列）を 1 本。</summary>
+        /// <summary>
+        /// 立てた丸太の杭（art-r3-02）：WoodLogs_01 を roll 90° で立て、高さ heightM・断面 thickM（CourseMarks.PostScale）。足元 = ground（ワールド）。
+        /// 骨の杭（DesertProps_03/05 は大きな大腿骨）の代わりに、杭・柱・札の柱に使う。
+        /// </summary>
+        public static GameObject WoodPost(Transform parent, Vector3 ground, float yaw, float heightM, float thickM)
+        {
+            var log = InstantiatePart(Pack("WoodLogs"), "WoodLogs_01", parent, ground + Vector3.up * (heightM * 0.5f), yaw, 1f,
+                new Vector3(thickM, thickM, heightM), new Color(0.30f, 0.20f, 0.12f));
+            log.transform.rotation = Quaternion.Euler(0f, yaw, 90f);
+            Vector3 sc = CourseMarks.PostScale(heightM, thickM);
+            Vector3 ps = parent != null ? parent.lossyScale : Vector3.one;
+            log.transform.localScale = new Vector3(sc.x / Mathf.Max(1e-4f, ps.x), sc.y / Mathf.Max(1e-4f, ps.y), sc.z / Mathf.Max(1e-4f, ps.z));
+            return log;
+        }
+
         public static GameObject Stake(Transform parent, string part, Vector3 worldPos, float yaw, float scale)
             => InstantiatePart(Pack("DesertProps"), part, parent, worldPos, yaw, scale, new Vector3(0.3f, 3f, 0.3f), new Color(0.45f, 0.30f, 0.18f));
 
