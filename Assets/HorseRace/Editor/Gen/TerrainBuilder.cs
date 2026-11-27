@@ -84,13 +84,17 @@ namespace HorseRace.EditorTools
 
         /// <summary>TerrainData を作って Generated/Terrain/&lt;name&gt;.asset に上書き保存する。</summary>
         public static TerrainData CreateTerrainData(string name, float[,] heights, float sizeM, float heightM)
+            => CreateTerrainData(name, heights, sizeM, sizeM, heightM);
+
+        /// <summary>長方形の Terrain（x = sizeXM、z = sizeZM）。高さマップは正方形の格子のまま、セルが長方形になる。</summary>
+        public static TerrainData CreateTerrainData(string name, float[,] heights, float sizeXM, float sizeZM, float heightM)
         {
             GenUtil.EnsureFolder(GenUtil.GEN_TERRAIN);
             string path = GenUtil.GEN_TERRAIN + "/" + name + ".asset";
             if (AssetDatabase.LoadAssetAtPath<TerrainData>(path) != null) AssetDatabase.DeleteAsset(path);
             var td = new TerrainData();
             td.heightmapResolution = heights.GetLength(0);
-            td.size = new Vector3(sizeM, heightM, sizeM);
+            td.size = new Vector3(sizeXM, heightM, sizeZM);
             td.SetHeights(0, 0, heights);
             AssetDatabase.CreateAsset(td, path);
             return td;

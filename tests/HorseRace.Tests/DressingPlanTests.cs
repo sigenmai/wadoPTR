@@ -182,7 +182,7 @@ namespace HorseRace.Tests
 
         static List<Placement> Lobby()
         {
-            var ex = new List<Vector4> { new Vector4(0, 0, -2, 22), new Vector4(120, 0, -40, 80), new Vector4(-50, 0, -10, 26) };
+            var ex = new List<Vector4> { new Vector4(0, 0, -2, 22), new Vector4(72, 0, -12, 32), new Vector4(-50, 0, -10, 26) };
             return DressingPlan.ForLobby(new Vector2(-41, 25), new Vector2(41, 189), ex, 5);
         }
 
@@ -196,6 +196,9 @@ namespace HorseRace.Tests
                 bool inside = p.position.x > -41 && p.position.x < 41 && p.position.z > 25 && p.position.z < 189;
                 Assert.IsFalse(inside);
                 Assert.Greater(WorldLayout.DistXZ(p.position, new Vector3(0, 0, -2)), 22f);
+                // 柵の中（3m 内側）
+                var f = LobbyLayout.FENCE_RECT;
+                Assert.That(p.position.x, Is.InRange(f.x + 3f, f.z - 3f)); Assert.That(p.position.z, Is.InRange(f.y + 3f, f.w - 3f));
             }
             var counts = DressingPlan.CountByAsset(l);
             foreach (string a in DressingPlan.LobbyThemeAssets) Assert.IsTrue(counts.ContainsKey(a), a);

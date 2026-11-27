@@ -177,6 +177,28 @@ namespace HorseRace.EditorTools
                 }
         }
 
+        /// <summary>
+        /// ApplyRim の長方形の Terrain 版（ロビー用。TerrainData.size の x = sizeXM、z = sizeZM、高さマップは n × n）。
+        /// 4 辺それぞれから rimWidthM m の帯を rimMinM〜rimMaxM 持ち上げる（コースの除外なし）。
+        /// </summary>
+        public static void ApplyRimRect(float[,] h, float sizeXM, float sizeZM, float heightM, float rimWidthM, float rimMinM, float rimMaxM, int seed)
+        {
+            int n = h.GetLength(0);
+            float cellX = sizeXM / (n - 1), cellZ = sizeZM / (n - 1);
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    float px = x * cellX, pz = z * cellZ;
+                    float d = Mathf.Min(Mathf.Min(px, pz), Mathf.Min(sizeXM - px, sizeZM - pz));
+                    if (d >= rimWidthM) continue;
+                    float w = Smooth(0f, 1f, 1f - d / rimWidthM);
+                    float big = Noise(px / 140f, pz / 140f, seed, 21);
+                    float fine = Noise(px / 35f, pz / 35f, seed, 22);
+                    float rise = rimMinM + (rimMaxM - rimMinM) * Mathf.Clamp01(0.8f * big + 0.2f * fine);
+                    h[z, x] = Mathf.Clamp01(h[z, x] + w * rise / heightM);
+                }
+        }
+
         // ---- internals ----
 
         static float Smooth(float a, float b, float v)

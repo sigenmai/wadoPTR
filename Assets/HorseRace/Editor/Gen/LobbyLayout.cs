@@ -5,15 +5,29 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ロビーの柵と外を隠す木の帯（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。座標はロビー中心からの相対（m）。
-    ///   柵：FENCE_RECT（町・広場・たまり場・掲示板・練習場をすべて含む長方形）を一周する木の柵（FarmProps_03 を高さ ×1.6、柱の間隔 ≤ 2.74m）。
+    ///   柵：FENCE_RECT（町・広場・たまり場・掲示板・練習場をすべて含む、町くらいの大きさの長方形）を一周する木の柵（FarmProps_03 を高さ ×1.6、柱の間隔 ≤ 2.74m）。
     ///       練習場も柵の中なので出入口（Gates）は無し＝外へ出る切れ目は無い（必要になったら Gates に足す）。
     ///   外：柵のすぐ外の地面は OUT_SLOPE で盛り上がり（OUT_RISE_MAX まで）、その先は外周の尾根。柵の外 3〜10m に木の帯（3 列・互い違い）。
     ///   → 柵の中の目の高さ（1.6〜3.2m）から水平〜少し下向きに見ると、見えるのは柵・木・盛り上がった地面（尾根）・空だけ（VisibilityRay でテスト）。
     /// </summary>
     public static class LobbyLayout
     {
-        public static readonly Vector4 FENCE_RECT = new Vector4(-172f, -112f, 172f, 232f);   // minX, minZ, maxX, maxZ
-        public static readonly Vector4 GROUND_RECT = new Vector4(-210f, -150f, 210f, 270f);   // ロビーの地面（Terrain）の範囲
+        /// <summary>
+        /// 柵の長方形（minX, minZ, maxX, maxZ）。ロビー全体を西部の町（WesternTown 約 82m × 164m、x ±41・z 25〜189）くらいの大きさに：
+        /// 西 = 町 −41 から 14m（柵の馬・厩舎）、北 = 町の北端 189 + 8m、南 = 広場・たまり場・待機場所の 9m 南、東 = 練習場の東端 + 8m。
+        /// 約 163m × 255m（約 4.2 万 m²）。実際の町が入らなければ FitFenceRect で広げる。
+        /// </summary>
+        public static readonly Vector4 FENCE_RECT = new Vector4(-55f, -58f, 108f, 197f);
+        /// <summary>柵から地面（Terrain）の端までの幅：柵の外の盛り上がり＋木の帯＋外周の尾根（RIM_WIDTH_M）が入る。</summary>
+        public const float GROUND_BORDER_M = 38f;
+        /// <summary>ロビーの地面（Terrain、長方形）の範囲 = 柵を GROUND_BORDER_M 広げたもの。</summary>
+        public static readonly Vector4 GROUND_RECT = new Vector4(FENCE_RECT.x - GROUND_BORDER_M, FENCE_RECT.y - GROUND_BORDER_M,
+            FENCE_RECT.z + GROUND_BORDER_M, FENCE_RECT.w + GROUND_BORDER_M);
+        /// <summary>想定の町の外形（ロビー中心からの相対）。実際の外形は LobbyBuilder が測り、柵が足りなければ広げる。</summary>
+        public static readonly Vector4 TOWN_NOMINAL_RECT = new Vector4(-41f, 25f, 41f, 189f);
+        /// <summary>練習場：町の東、広場・たまり場の隣（中心はロビー中心からの相対、半径 = トリガーの箱の内接円）。</summary>
+        public static readonly Vector3 PRACTICE_CENTER = new Vector3(72f, 0f, -12f);
+        public const float PRACTICE_RADIUS_M = 28f;
         public const float FENCE_PIECE_M = 2.74f;        // FarmProps_03 の長さ（両端に柱）
         public const float FENCE_SCALE_Y = 1.6f;         // 0.98m × 1.6 ≈ 1.57m
         public const float FENCE_HEIGHT_M = 0.98f * FENCE_SCALE_Y;
@@ -22,6 +36,16 @@ namespace HorseRace.EditorTools
         public const float BELT_FIRST_M = 3f, BELT_ROW_GAP_M = 3.5f, BELT_SPACING_M = 8f;
         public const int BELT_ROWS = 3;
         public const int MAX_BELT = 600;
+
+        /// <summary>柵の面積（m²）。</summary>
+        public static float Area(Vector4 r) => (r.z - r.x) * (r.w - r.y);
+
+        /// <summary>木の帯の最低本数の目安（3 列の外周 ÷ 間隔 の 9 割）。Validator が使う。</summary>
+        public static int MinBelt(Vector4 rect)
+        {
+            float perim = 2f * ((rect.z - rect.x) + (rect.w - rect.y));
+            return Mathf.FloorToInt(0.9f * BELT_ROWS * perim / BELT_SPACING_M);
+        }
 
         public struct Gate
         {
@@ -65,7 +89,8 @@ namespace HorseRace.EditorTools
         }
 
         public const float TOWN_MARGIN_M = 8f;
-        /// <summary>柵を広げてよい最大（ロビーの地面の端から 14m：木の帯 3 列が尾根の斜面に乗り、地面の端より内側に収まる）。</summary>
+        /// <summary>柵を広げてよい最大（ロビーの地面の端から 14m：木の帯 3 列が尾根の斜面に乗り、地面の端より内側に収まる）。
+        /// 地面は柵＋38m なので、町は各辺 24m までなら広げた柵に収まる。</summary>
         public const float FENCE_MAX_INSET_M = 14f;
         public static readonly Vector4 FENCE_MAX_RECT = new Vector4(GROUND_RECT.x + FENCE_MAX_INSET_M, GROUND_RECT.y + FENCE_MAX_INSET_M,
             GROUND_RECT.z - FENCE_MAX_INSET_M, GROUND_RECT.w - FENCE_MAX_INSET_M);

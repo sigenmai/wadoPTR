@@ -5,28 +5,30 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ロビー（spec 5.6 / 5.14、PLAYTEST Task 8〜10 のロビー側の配置をすべて自動化）。
-    ///   地面：平らな Terrain（420m 四方、地面の高さ y = 0）。町の足元だけ 1m 下げて通りの板と地面がちらつかないようにする。
+    ///   広さ：ロビー全体を町くらいに（柵 LobbyLayout.FENCE_RECT ≈ 163m × 255m、地面はその外 38m まで＝長方形の Terrain）。
+    ///   地面：平らな Terrain（LobbyLayout.GROUND_RECT、地面の高さ y = 0）。町の足元だけ 1m 下げて通りの板と地面がちらつかないようにする。
     ///   町：Packs/WesternTown を「通りの高さ」だけ沈めて置く（通りの高さはメッシュの上向きの面の面積ヒストグラムの最頻値、
     ///       取れなければ STREET_HEIGHT_FALLBACK = 13.75m。Blender で同じ方法で測った値）。町は広場の北側。
     ///   広場：受付カウンター（FarmProps の机＋台帳 EntryLedger）、手配書の壁（PosterCard ×6）、スタート台の鐘（StartBell）、
     ///         補助表示のレバー（MinimalHud）、スポーン位置。
     ///   柵の馬：MountPicker ×7（毛色 0〜5＋骨の馬 6）と柵、その奥に厩舎（背景専用・見えない壁）。
     ///   たまり場：焚き火・丸太のベンチ・前回レースの黒板（RankBoard showLastRace）・掲示板 3 枚と中継（ShowBuilder）。
-    ///   練習場：坂・崖下り・ジャンプ台・干し草・カカシ ×2・練習用の馬の杭 ×2・練習場の遺物、全体を覆うトリガー（PracticeArea）。
+    ///   練習場（町の東、広場の隣、半径 28m）：坂・崖下り・ジャンプ台・干し草・カカシ ×2・練習用の馬の杭 ×2・練習場の遺物、全体を覆うトリガー（PracticeArea）。
     ///   乗り物の待機場所 ×8、予備の遺物 ×4 の置き場、懐中時計、補助表示の紙。
     /// </summary>
     public static class LobbyBuilder
     {
         public static readonly Vector3 CENTER = WorldBounds.LOBBY_CENTER;
-        public const float GROUND_SIZE = WorldBounds.LOBBY_SIZE;
+        public static readonly Vector4 GROUND_RECT = LobbyLayout.GROUND_RECT;   // ロビー中心からの相対（長方形）
         public const float GROUND_HEIGHT_RANGE = 80f;   // 外周の尾根（〜25m）が入る高さ
         public const float RIM_WIDTH_M = LobbyLayout.RIM_WIDTH_M, RIM_MIN_M = LobbyLayout.RIM_MIN_M, RIM_MAX_M = LobbyLayout.RIM_MAX_M;   // ロビーの外周の尾根
-        public const float BORDER_INSET_M = 32f;       // 見えない壁：外周から 32m 内側（尾根の手前）
+        public const float BORDER_OUT_M = 6f;          // 見えない壁：柵の 6m 外（尾根の手前）
         public const float BERM_M = 8f, BERM_HEIGHT_M = 0.6f;   // 町の足元のまわりを少し盛って土台の縁を隠す
         public const float TOWN_ENTRANCE_HALF = 12f;   // 町の南側の入口（見えない壁・岩を置かない）
         public const float GROUND_LEVEL = 2f;            // 地形の高さ 2m（Terrain は y = -2 に置く）→ 地面 y = 0
         public const float STREET_HEIGHT_FALLBACK = 13.75f;
-        public static readonly Vector3 PRACTICE_OFFSET = new Vector3(120f, 0f, -40f);
+        public static readonly Vector3 PRACTICE_OFFSET = LobbyLayout.PRACTICE_CENTER;
+        public const float PRACTICE_R = LobbyLayout.PRACTICE_RADIUS_M;   // 練習場の半径（トリガーの箱の内接円）
 
         static readonly Color Wood = new Color(0.45f, 0.30f, 0.18f);
         static readonly Color DarkWood = new Color(0.30f, 0.20f, 0.12f);
@@ -72,8 +74,8 @@ namespace HorseRace.EditorTools
             return new List<Vector4>
             {
                 new Vector4(0f, 0f, -2f, 24f), new Vector4(-50f, 0f, -10f, 28f), new Vector4(30f, 0f, -30f, 20f),
-                new Vector4(-11f, 0f, -45f, 23f), new Vector4(PRACTICE_OFFSET.x, 0f, PRACTICE_OFFSET.z, 82f),
-                new Vector4(-150f, 0f, -100f, 10f), new Vector4(0f, 0f, 22f, 14f),
+                new Vector4(-11f, 0f, -45f, 23f), new Vector4(PRACTICE_OFFSET.x, 0f, PRACTICE_OFFSET.z, PRACTICE_R + 4f),
+                new Vector4(SPARE_POOL.x, 0f, SPARE_POOL.z, 8f), new Vector4(0f, 0f, 22f, 14f),
             };
         }
 
@@ -262,15 +264,17 @@ namespace HorseRace.EditorTools
 
         static void Ground(Transform root, GameObject town)
         {
+            // 長方形の Terrain（TerrainData.size の x と z が別）：高さマップは正方形の格子のまま、セルが長方形になる
             int res = 129;
-            float cell = GROUND_SIZE / (res - 1);
-            Vector3 origin = new Vector3(CENTER.x - GROUND_SIZE * 0.5f, CENTER.y - GROUND_LEVEL, CENTER.z - WorldBounds.LOBBY_SOUTH);
+            float sizeX = GROUND_RECT.z - GROUND_RECT.x, sizeZ = GROUND_RECT.w - GROUND_RECT.y;
+            float cellX = sizeX / (res - 1), cellZ = sizeZ / (res - 1);
+            Vector3 origin = new Vector3(CENTER.x + GROUND_RECT.x, CENTER.y - GROUND_LEVEL, CENTER.z + GROUND_RECT.y);
             Bounds tb = GenUtil.RendererBounds(town);
             var h = new float[res, res];
             for (int z = 0; z < res; z++)
                 for (int x = 0; x < res; x++)
                 {
-                    float wx = origin.x + x * cell, wz = origin.z + z * cell;
+                    float wx = origin.x + x * cellX, wz = origin.z + z * cellZ;
                     bool under = wx > tb.min.x + 1f && wx < tb.max.x - 1f && wz > tb.min.z + 1f && wz < tb.max.z - 1f;
                     float level = under ? GROUND_LEVEL - 1f : GROUND_LEVEL;
                     if (!under)
@@ -287,8 +291,8 @@ namespace HorseRace.EditorTools
                     if (dOut > 0f) level += LobbyLayout.OutsideRise(dOut);
                     h[z, x] = level / GROUND_HEIGHT_RANGE;
                 }
-            HeightmapGen.ApplyRim(h, GROUND_SIZE, GROUND_HEIGHT_RANGE, RIM_WIDTH_M, RIM_MIN_M, RIM_MAX_M, 99, null);
-            var td = TerrainBuilder.CreateTerrainData("Lobby", h, GROUND_SIZE, GROUND_HEIGHT_RANGE);
+            HeightmapGen.ApplyRimRect(h, sizeX, sizeZ, GROUND_HEIGHT_RANGE, RIM_WIDTH_M, RIM_MIN_M, RIM_MAX_M, 99);
+            var td = TerrainBuilder.CreateTerrainData("Lobby", h, sizeX, sizeZ, GROUND_HEIGHT_RANGE);
             td.terrainLayers = TerrainBuilder.Layers();
             var tgo = Terrain.CreateTerrainGameObject(td);
             tgo.name = "LobbyGround";
@@ -300,7 +304,7 @@ namespace HorseRace.EditorTools
             // 見えない壁は柵の 6m 外（柵が広がっても柵の外側。尾根の手前〜斜面）
             {
                 var bw = GenUtil.World(root, "LobbyBorder", CENTER).transform;
-                Vector4 r = new Vector4(fenceRect.x - 6f, fenceRect.y - 6f, fenceRect.z + 6f, fenceRect.w + 6f);
+                Vector4 r = new Vector4(fenceRect.x - BORDER_OUT_M, fenceRect.y - BORDER_OUT_M, fenceRect.z + BORDER_OUT_M, fenceRect.w + BORDER_OUT_M);
                 float cx = (r.x + r.z) * 0.5f, cz = (r.y + r.w) * 0.5f, w = r.z - r.x, d = r.w - r.y, hgt = TerrainBuilder.WALL_HEIGHT_M;
                 AddBox(bw, "N", new Vector3(cx, hgt * 0.5f - 20f, r.w), new Vector3(w + 2f, hgt, 2f), false);
                 AddBox(bw, "S", new Vector3(cx, hgt * 0.5f - 20f, r.y), new Vector3(w + 2f, hgt, 2f), false);
@@ -545,6 +549,8 @@ namespace HorseRace.EditorTools
         // 柵の馬と厩舎
         // ------------------------------------------------------------------
 
+        public const float STABLE_X = -50f;
+
         static void Corral(Transform root, WorldContext ctx)
         {
             var corral = GenUtil.World(root, "Corral", L(-40f, -10f)).transform;
@@ -571,7 +577,8 @@ namespace HorseRace.EditorTools
                     .transform.position = L(-41.5f, -26f + coat * 5.5f) + Vector3.up * 0.6f;
             }
             // 厩舎（背景専用：柵の奥、見えない壁で囲む）
-            var stable = GenUtil.PlaceModel(GenUtil.Prop("Stable"), corral, "Stable", L(-62f, -10f), 90f, 1f, new Vector3(14f, 6f, 6f), Wood);
+            // 柵（x = -55）の内側：厩舎の奥行き 6m（x -53〜-47）、柵の馬の柵（x = -42）との間 5m
+            var stable = GenUtil.PlaceModel(GenUtil.Prop("Stable"), corral, "Stable", L(STABLE_X, -10f), 90f, 1f, new Vector3(14f, 6f, 6f), Wood);
             DressingBuilder.AddCollider(stable, true);
             DressingBuilder.BackgroundWalls(stable, 4f);
         }
@@ -616,26 +623,28 @@ namespace HorseRace.EditorTools
             var pr = GenUtil.World(root, "PracticeArea", c).transform;
             var trig = pr.gameObject.AddComponent<BoxCollider>();
             trig.isTrigger = true;
-            trig.size = new Vector3(110f, 24f, 110f);
+            // 練習場は半径 PRACTICE_R（28m）：トリガーは 58m 四方（町の東端 x = 41 より東、柵の 7m 内側）
+            trig.size = new Vector3(PRACTICE_R * 2f + 2f, 24f, PRACTICE_R * 2f + 2f);
             trig.center = new Vector3(0f, 10f, 0f);
             pr.gameObject.layer = WorldLayers.TRIGGERS;
             var area = GenUtil.AddU<PracticeArea>(pr.gameObject);
-            area.releaseRadius = 85f;   // 外周（中心から最大 78m）より少し大きく
+            area.releaseRadius = 46f;   // トリガーの箱の角（中心から約 41m）より少し大きく
             ctx.practiceArea = area;
 
             var feats = GenUtil.Child(pr, "Features", Vector3.zero).transform;
             // 坂（12°、16m）→ 台（高さ 3.3m）→ 反対側は崖下り
-            Solid(feats, "Slope", new Vector3(-20f, 1.6f, 0f), new Vector3(8f, 0.6f, 16.4f), Quaternion.Euler(-11.7f, 0f, 0f));
-            Solid(feats, "CliffTop", new Vector3(-20f, 1.65f, 13f), new Vector3(8f, 3.3f, 10f), Quaternion.identity);
+            // （大きさは前のまま、配置だけ半径 28m に詰めた：坂・崖は西、ジャンプ台は東、丘は南、北は着地の空き）
+            Solid(feats, "Slope", new Vector3(-12f, 1.6f, -7f), new Vector3(8f, 0.6f, 16.4f), Quaternion.Euler(-11.7f, 0f, 0f));
+            Solid(feats, "CliffTop", new Vector3(-12f, 1.65f, 6f), new Vector3(8f, 3.3f, 10f), Quaternion.identity);
             // ジャンプ台（15°、6m）
-            Solid(feats, "JumpRamp", new Vector3(18f, 0.6f, 10f), new Vector3(6f, 0.5f, 6.2f), Quaternion.Euler(-15f, 0f, 0f));
+            Solid(feats, "JumpRamp", new Vector3(11f, 0.6f, 4f), new Vector3(6f, 0.5f, 6.2f), Quaternion.Euler(-15f, 0f, 0f));
             // 小さな丘
-            Solid(feats, "Bump", new Vector3(0f, -0.75f, -25f), new Vector3(12f, 2.4f, 12f), Quaternion.Euler(0f, 45f, 0f));
-            // 周回の目印の干し草
+            Solid(feats, "Bump", new Vector3(3f, -0.75f, -12f), new Vector3(12f, 2.4f, 12f), Quaternion.Euler(0f, 45f, 0f));
+            // 周回の目印の干し草（半径 24m の輪）
             for (int i = 0; i < 14; i++)
             {
                 float a = i / 14f * 360f;
-                Vector3 p = c + Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, 42f);
+                Vector3 p = c + Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, PRACTICE_R - 4f);
                 var hay = GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), i % 3 == 0 ? "HayBales_01" : "HayBales_0" + (2 + i % 5), feats, p, a, 1f,
                     new Vector3(1f, 0.6f, 0.7f), new Color(0.85f, 0.75f, 0.4f));
                 DressingBuilder.AddCollider(hay, false);
@@ -643,7 +652,7 @@ namespace HorseRace.EditorTools
             // カカシ
             for (int i = 0; i < 2; i++)
             {
-                var d = GenUtil.World(pr, "Scarecrow_" + (i + 1), c + new Vector3(10f + i * 12f, 0f, -8f - i * 10f), 180f);
+                var d = GenUtil.World(pr, "Scarecrow_" + (i + 1), c + new Vector3(6f + i * 8f, 0f, -2f - i * 7f), 180f);
                 var pivot = GenUtil.Child(d.transform, "Pivot", Vector3.zero).transform;
                 GenUtil.Prim(PrimitiveType.Cylinder, "Pole", pivot, new Vector3(0f, 1f, 0f), new Vector3(0.12f, 1f, 0.12f), DarkWood);
                 GenUtil.Prim(PrimitiveType.Cube, "Arms", pivot, new Vector3(0f, 1.5f, 0f), new Vector3(1.4f, 0.1f, 0.1f), DarkWood);
@@ -659,10 +668,10 @@ namespace HorseRace.EditorTools
                 dummy.hitSound = GenUtil.Audio(d, false);
                 ctx.dummies.Add(dummy);
             }
-            // 練習用の馬の杭（馬は SceneAssembler が作って mount をつなぐ）
+            // 練習用の馬の杭（馬は SceneAssembler が作って mount をつなぐ）：南西の角＝広場・たまり場から来て最初に着く所、干し草の輪の外
             for (int i = 0; i < 2; i++)
             {
-                Vector3 pp = c + new Vector3(-45f, 0f, -45f + i * 7f);
+                Vector3 pp = c + new Vector3(-24f, 0f, -26f + i * 6f);
                 var post = GenUtil.World(pr, "PracticePost_" + (i + 1), pp, 90f);
                 GenUtil.Prim(PrimitiveType.Cylinder, "Post", post.transform, new Vector3(0f, 0.65f, 0f), new Vector3(0.2f, 0.65f, 0.2f), DarkWood);
                 var col = post.AddComponent<BoxCollider>();
@@ -676,9 +685,9 @@ namespace HorseRace.EditorTools
                 ctx.practicePosts.Add(hp);
                 ctx.practiceHomes.Add(home);
             }
-            GenUtil.Text(pr, "Sign", c + new Vector3(-48f, 2.2f, -38f), Quaternion.Euler(0f, 90f, 0f), "練習場\n杭に触れると練習用の馬に乗れます", 3f, Paper, new Vector2(4f, 1.5f));
+            GenUtil.Text(pr, "Sign", c + new Vector3(-26f, 2.2f, -15f), Quaternion.Euler(0f, 90f, 0f), "練習場\n杭に触れると練習用の馬に乗れます", 3f, Paper, new Vector2(4f, 1.5f));
             // 練習場の遺物（拾われて 10 秒で戻る）
-            var relic = CourseBuilder.Relic(pr, "PracticeRelic", c + new Vector3(0f, 0f, 30f), 3, false);
+            var relic = CourseBuilder.Relic(pr, "PracticeRelic", c + new Vector3(0f, 0f, 17f), 3, false);
             relic.practiceRespawnSeconds = 10f;
             ctx.practiceRelics.Add(relic);
         }
@@ -702,11 +711,14 @@ namespace HorseRace.EditorTools
             Fence.Line(p, L(-33f, -49f), L(8f, -49f));
         }
 
+        /// <summary>予備の遺物の置き場（普段は出ていない）：柵の中の南西の隅。</summary>
+        public static readonly Vector3 SPARE_POOL = new Vector3(-44f, 0f, -53f);
+
         static void SpareRelics(Transform root, WorldContext ctx)
         {
-            var p = GenUtil.World(root, "SpareRelicPool", L(-150f, -100f)).transform;
+            var p = GenUtil.World(root, "SpareRelicPool", CENTER + SPARE_POOL).transform;
             for (int i = 0; i < 4; i++)
-                ctx.spareRelics.Add(CourseBuilder.Relic(p, "SpareRelic_" + (i + 1), L(-156f + i * 4f, -100f), i, true));
+                ctx.spareRelics.Add(CourseBuilder.Relic(p, "SpareRelic_" + (i + 1), CENTER + SPARE_POOL + new Vector3(-6f + i * 4f, 0f, 0f), i, true));
         }
 
         static void Watch(Transform root, WorldContext ctx)

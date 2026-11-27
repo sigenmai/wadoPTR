@@ -39,15 +39,20 @@ namespace HorseRace.Tests
         [Test] public void FenceClearOfLobbyFeatures()
         {
             var segs = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
-            var practice = new Vector3(120f, 0f, -40f);             // 練習場の中心、干し草の輪 42m
+            var practice = LobbyLayout.PRACTICE_CENTER;             // 練習場の中心、半径 28m
+            // 触れる物・人が立つ所（スポーン・台帳・手配書・鐘・掲示板・柵の馬・待機場所・新聞売り）は柵から 10m 以上
             var features = new[] { new Vector3(0, 0, -5), new Vector3(-8, 0, 12), new Vector3(8, 0, 14), new Vector3(0, 0, -18),
-                new Vector3(30, 0, -40), new Vector3(-38.5f, 0, -26), new Vector3(-62, 0, -10), new Vector3(-150, 0, -100), new Vector3(-30, 0, -45) };
+                new Vector3(30, 0, -40), new Vector3(-38.5f, 0, -26), new Vector3(-38.5f, 0, 7f), new Vector3(-30, 0, -45), new Vector3(42, 0, -36) };
+            // 背景・普段は出ていない物（厩舎 x -53〜-47、予備の遺物の置き場）は柵の内側に 2m 以上
+            var background = new[] { new Vector3(-53, 0, -17), new Vector3(-53, 0, -3), new Vector3(-50, 0, -53), new Vector3(-38, 0, -53) };
             foreach (var s in segs)
             {
                 Vector3 m = (s[0] + s[1]) * 0.5f;
-                Assert.Greater(WorldLayout.DistXZ(m, practice), 42f + 5f);
+                Assert.Greater(WorldLayout.DistXZ(m, practice), LobbyLayout.PRACTICE_RADIUS_M + 5f);
                 foreach (var f in features) Assert.Greater(WorldLayout.DistXZ(m, f), 10f);
             }
+            foreach (var b in background) Assert.Less(LobbyLayout.DistOutside(new Vector4(LobbyLayout.FENCE_RECT.x + 2f, LobbyLayout.FENCE_RECT.y + 2f,
+                LobbyLayout.FENCE_RECT.z - 2f, LobbyLayout.FENCE_RECT.w - 2f), b), 1e-4f, b.ToString());
         }
 
         /// <summary>柵の長方形を町に合わせて広げる：入っていれば変えない、はみ出す辺だけ 8m の余白まで広げる、最大を超えない。</summary>
@@ -56,9 +61,9 @@ namespace HorseRace.Tests
             var b = LobbyLayout.FENCE_RECT;
             var r = LobbyLayout.FitFenceRect(b, new Vector4(-41f, 25f, 41f, 189f), 8f, out bool grown, out bool fits);
             Assert.IsFalse(grown); Assert.IsTrue(fits); Assert.AreEqual(b, r);
-            r = LobbyLayout.FitFenceRect(b, new Vector4(-41f, 25f, 41f, 230f), 8f, out grown, out fits);
+            r = LobbyLayout.FitFenceRect(b, new Vector4(-41f, 25f, 41f, 205f), 8f, out grown, out fits);
             Assert.IsTrue(grown); Assert.IsTrue(fits);
-            Assert.AreEqual(238f, r.w, 1e-4); Assert.AreEqual(b.x, r.x); Assert.AreEqual(b.y, r.y); Assert.AreEqual(b.z, r.z);
+            Assert.AreEqual(213f, r.w, 1e-4); Assert.AreEqual(b.x, r.x); Assert.AreEqual(b.y, r.y); Assert.AreEqual(b.z, r.z);
             r = LobbyLayout.FitFenceRect(b, new Vector4(-41f, 25f, 41f, 400f), 8f, out grown, out fits);
             Assert.IsTrue(grown); Assert.IsFalse(fits);
             Assert.LessOrEqual(r.w, LobbyLayout.FENCE_MAX_RECT.w);
@@ -67,7 +72,7 @@ namespace HorseRace.Tests
 
         [Test] public void GrownFenceKeepsBeltOutsideAndOutsideHidden()
         {
-            var f = LobbyLayout.FitFenceRect(LobbyLayout.FENCE_RECT, new Vector4(-41f, 25f, 41f, 230f), 8f, out _, out _);
+            var f = LobbyLayout.FitFenceRect(LobbyLayout.FENCE_RECT, new Vector4(-41f, 25f, 41f, 205f), 8f, out _, out _);
             var belt = LobbyLayout.TreeBelt(f, 3);
             foreach (var t in belt) Assert.Greater(LobbyLayout.DistOutside(f, t.position), 2f);
             foreach (float az in new[] { 0f, 90f, 180f, 270f })
@@ -81,7 +86,8 @@ namespace HorseRace.Tests
         {
             var belt = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3);
             TestContext.WriteLine($"belt {belt.Count}");
-            Assert.That(belt.Count, Is.InRange(300, LobbyLayout.MAX_BELT));
+            Assert.That(belt.Count, Is.InRange(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), LobbyLayout.MAX_BELT));
+            Assert.GreaterOrEqual(LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT), 250);
             foreach (var t in belt)
             {
                 Assert.Greater(LobbyLayout.DistOutside(LobbyLayout.FENCE_RECT, t.position), 2f);
@@ -97,8 +103,8 @@ namespace HorseRace.Tests
             var f = LobbyLayout.FENCE_RECT;
             int rays = 0;
             var hits = new Dictionary<string, int>();
-            for (float x = f.x + 4f; x <= f.z - 4f; x += 56f)
-                for (float z = f.y + 4f; z <= f.w - 4f; z += 56f)
+            for (float x = f.x + 4f; x <= f.z - 4f; x += 38f)
+                for (float z = f.y + 4f; z <= f.w - 4f; z += 40f)
                     foreach (float eyeH in new[] { 1.6f, 2.4f, 3.2f })
                         for (int az = 0; az < 24; az++)
                             foreach (float dip in new[] { 0f, 2f, 5f, 10f })
@@ -115,6 +121,41 @@ namespace HorseRace.Tests
             int Hit(string k) => hits.TryGetValue(k, out int n) ? n : 0;
             Assert.Greater(Hit("canopy") + Hit("trunk"), 0);
             Assert.Greater(Hit("fence"), 0);
+        }
+    
+        /// <summary>ロビー全体は町くらい：柵の面積 ≤ 45,000 m²、町（想定の外形）が 8m の余白で入る、地面 = 柵 + 38m。</summary>
+        [Test] public void LobbyIsAboutTownSized()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            TestContext.WriteLine($"fence {f.z - f.x} x {f.w - f.y} = {LobbyLayout.Area(f)} m2");
+            Assert.LessOrEqual(LobbyLayout.Area(f), 45000f);
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            LobbyLayout.FitFenceRect(f, t, LobbyLayout.TOWN_MARGIN_M, out bool grown, out bool fits);
+            Assert.IsFalse(grown); Assert.IsTrue(fits);
+            var g = LobbyLayout.GROUND_RECT;
+            Assert.AreEqual(f.x - 38f, g.x, 1e-4); Assert.AreEqual(f.y - 38f, g.y, 1e-4);
+            Assert.AreEqual(f.z + 38f, g.z, 1e-4); Assert.AreEqual(f.w + 38f, g.w, 1e-4);
+            // ワールドの遊べる範囲（背景・地面の板の計算）もロビーの地面と同じ長方形
+            var lr = WorldBounds.LobbyRect();
+            Vector3 c = WorldBounds.LOBBY_CENTER;
+            Assert.AreEqual(c.x + g.x, lr.x, 1e-3); Assert.AreEqual(c.z + g.y, lr.y, 1e-3);
+            Assert.AreEqual(c.x + g.z, lr.z, 1e-3); Assert.AreEqual(c.z + g.w, lr.w, 1e-3);
+            // 柵を最大まで広げても木の帯（柵の外 10m ＋樹冠）は地面の内側
+            var m = LobbyLayout.FENCE_MAX_RECT;
+            Assert.LessOrEqual(g.x, m.x - 10f); Assert.GreaterOrEqual(g.w, m.w + 10f);
+        }
+
+        /// <summary>練習場の円（中心 PRACTICE_CENTER、半径 28m）は柵の中、町の箱と広場の外。</summary>
+        [Test] public void PracticeCircleInsideFenceOutsideTownAndPlaza()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            var c = LobbyLayout.PRACTICE_CENTER;
+            float r = LobbyLayout.PRACTICE_RADIUS_M;
+            Assert.GreaterOrEqual(c.x - r, f.x); Assert.LessOrEqual(c.x + r, f.z);
+            Assert.GreaterOrEqual(c.z - r, f.y); Assert.LessOrEqual(c.z + r, f.w);
+            Assert.Greater(LobbyLayout.DistOutside(LobbyLayout.TOWN_NOMINAL_RECT, c), r);
+            var plaza = new Vector4(-15f, -45f, 15f, 23f);   // 受付・手配書・鐘・レバー・待機場所
+            Assert.Greater(LobbyLayout.DistOutside(plaza, c), r);
         }
     }
 }

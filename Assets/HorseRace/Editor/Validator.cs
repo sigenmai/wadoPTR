@@ -119,7 +119,8 @@ namespace HorseRace.EditorTools
                 if (m < LobbyLayout.TOWN_MARGIN_M - 0.5f) warn.Add("町（WesternTown）と柵の余白が " + m.ToString("F1") + "m しかありません（8m 以上）");
                 else info.Add("ロビー：町と柵の余白 最小 " + m.ToString("F0") + "m");
             }
-            if (beltN < 300) warn.Add("ロビーの柵の外の木の帯が " + beltN + " 本しかありません（300 本以上）");
+            int minBelt = LobbyLayout.MinBelt(LobbyLayout.FENCE_RECT);
+            if (beltN < minBelt) warn.Add("ロビーの柵の外の木の帯が " + beltN + " 本しかありません（" + minBelt + " 本以上）");
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
             CheckWiring(root, warn, info);

@@ -33,7 +33,7 @@ namespace HorseRace.EditorTools
     {
         public const int MAX_PER_STAGE = 800;      // Task 11d：木を増やした（静的バッチング＋トゥーンの GPU インスタンシング前提）
         public const int MIN_PER_STAGE = 450;
-        public const int MAX_LOBBY = 450;          // 木の帯（LobbyLayout.TreeBelt）と柵は別に数える
+        public const int MAX_LOBBY = 300;          // 木の帯（LobbyLayout.TreeBelt）と柵は別に数える（ロビーを町くらいに縮めたので 450 → 300）
         public const float LARGE_MIN_H = 1.6f;     // 「大きな飾り」の高さ。これ未満は小物（まとまりの中だけ、1 ステージの 25% まで）
         public const float SMALL_SHARE_MAX = 0.25f;
         public const float BAND_WINDOW_M = 100f;   // 道沿いの帯：コース 100m ごとに
@@ -912,7 +912,9 @@ namespace HorseRace.EditorTools
             var w = new Work
             {
                 course = null, h = null, sizeM = 0f, budget = MAX_LOBBY,
-                minX = -169f, maxX = 169f, minZ = -109f, maxZ = 229f,   // ロビーの柵（LobbyLayout.FENCE_RECT）の 3m 内側
+                // ロビーの柵（LobbyLayout.FENCE_RECT）の 3m 内側
+                minX = LobbyLayout.FENCE_RECT.x + 3f, maxX = LobbyLayout.FENCE_RECT.z - 3f,
+                minZ = LobbyLayout.FENCE_RECT.y + 3f, maxZ = LobbyLayout.FENCE_RECT.w - 3f,
                 rng = new System.Random(seed), hasRect = true,
                 rectMin = new Vector2(townMin.x - 1f, townMin.y - 1f), rectMax = new Vector2(townMax.x + 1f, townMax.y + 1f),
             };
@@ -955,7 +957,7 @@ namespace HorseRace.EditorTools
                     w.Add(G, DPROPS, w.Pick(DpCacti), w.Around(p, 3f), w.Rand(0f, 360f), 1f, 0f, trunk: true);
                 }
             }
-            // 木の並木：町の外周の 13〜15m 外を 10m ごと、ロビーの東西の見えない壁の内側にも
+            // 木の並木：町の外周の 13〜15m 外を 10m ごと、ロビーの東西の柵の内側（柵の 12m 内側）にも
             for (int i = 0; i < Mathf.FloorToInt(perim / 10f); i++)
             {
                 Vector3 p; float yaw;
@@ -967,8 +969,17 @@ namespace HorseRace.EditorTools
                 for (int s2 = -1; s2 <= 1; s2 += 2)
                 {
                     bool ac = ((int)(z / 14f)) % 2 != 0;
-                    Tree(w, "TreeRows", ac ? ACACIA : TREES, ac ? null : TreePart(w), new Vector3(s2 * (w.maxX - 12f), 0f, z + w.Rand(-3f, 3f)), 0f);
+                    Tree(w, "TreeRows", ac ? ACACIA : TREES, ac ? null : TreePart(w), new Vector3(s2 < 0 ? w.minX + 9f : w.maxX - 9f, 0f, z + w.Rand(-3f, 3f)), 0f);
                 }
+            // 町の横の空き地（並木と柵ぎわの列の間が 30m 以上ある側だけ）：真ん中に 18m ごとの疎らな列（練習場・広場は除外の円で避ける）
+            for (int s2 = -1; s2 <= 1; s2 += 2)
+            {
+                float avenue = s2 < 0 ? townMin.x - 15f : townMax.x + 15f, wall = s2 < 0 ? w.minX + 9f : w.maxX - 9f;
+                if (Mathf.Abs(wall - avenue) < 30f) continue;
+                float x = (avenue + wall) * 0.5f;
+                for (float z = townMin.y; z < w.maxZ - 10f; z += 18f)
+                    Tree(w, "TreeRows", TREES, TreePart(w), new Vector3(x + w.Rand(-4f, 4f), 0f, z + w.Rand(-3f, 3f)), 0f);
+            }
             return w.list;
         }
 
@@ -1058,8 +1069,12 @@ namespace HorseRace.EditorTools
     public static class WorldBounds
     {
         public static readonly Vector3 LOBBY_CENTER = new Vector3(0f, 0f, -820f);
-        public const float LOBBY_SIZE = 420f;
-        public const float LOBBY_SOUTH = 150f;             // ロビーの地面の南端 = 中心 − 150m
+        /// <summary>ロビーの地面（Terrain）のワールド座標の長方形 = LOBBY_CENTER + LobbyLayout.GROUND_RECT（柵 + 38m）。</summary>
+        public static Vector4 LobbyRect()
+        {
+            Vector4 g = LobbyLayout.GROUND_RECT;
+            return new Vector4(LOBBY_CENTER.x + g.x, LOBBY_CENTER.z + g.y, LOBBY_CENTER.x + g.z, LOBBY_CENTER.z + g.w);
+        }
         public const float BACKDROP_OFFSET_M = 320f;       // 遊べる範囲の外側、この距離から山並み
         public const float BACKDROP_SPACING_M = 170f;
         public const float BACKDROP_CLEAR_M = 80f;         // 山の足元と遊べる範囲の間はこれ以上空ける
@@ -1074,8 +1089,7 @@ namespace HorseRace.EditorTools
                 Vector3 o = s.Origin;
                 r.Add(new Vector4(o.x, o.z, o.x + StageDefinitions.SIZE, o.z + StageDefinitions.SIZE));
             }
-            float lz = LOBBY_CENTER.z - LOBBY_SOUTH;
-            r.Add(new Vector4(LOBBY_CENTER.x - LOBBY_SIZE * 0.5f, lz, LOBBY_CENTER.x + LOBBY_SIZE * 0.5f, lz + LOBBY_SIZE));
+            r.Add(LobbyRect());
             return r.ToArray();
         }
 
