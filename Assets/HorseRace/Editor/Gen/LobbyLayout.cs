@@ -153,6 +153,16 @@ namespace HorseRace.EditorTools
         public const float FENCE_PIECE_M = 2.74f;        // FarmProps_03 の長さ（両端に柱）
         public const float FENCE_SCALE_Y = 1.6f;         // 0.98m × 1.6 ≈ 1.57m
         public const float FENCE_HEIGHT_M = 0.98f * FENCE_SCALE_Y;
+        /// <summary>art-r4-09：見晴らしの切れ目の中の柵は低く（0.98m、景色を塞がない。当たりの見えない箱は 3m のまま）。</summary>
+        public const float FENCE_GAP_SCALE_Y = 1.0f;
+
+        /// <summary>柵の 1 区間（中点 mid、ロビー中心からの相対）の縦の拡大：見晴らしの切れ目の中は低い柵。</summary>
+        public static float FenceScaleYAt(Vector3 mid)
+        {
+            float az = WorldLayout.YawDeg(new Vector3(mid.x - SPAWN.x, 0f, mid.z - SPAWN.z).normalized);
+            foreach (var g in VistaGaps) if (Mathf.Abs(Mathf.DeltaAngle(az, g.x)) <= g.y + 2f) return FENCE_GAP_SCALE_Y;
+            return FENCE_SCALE_Y;
+        }
         // 柵の外の地面：ゆるい盛り上がり（20m で 6m）と低い尾根（4〜12m）。北の辺（町の奥の岩山の裏）は高いまま（12m・15〜30m）
         public const float OUT_SLOPE = 0.3f, OUT_RISE_MAX = 6f;
         public const float RIM_WIDTH_M = 30f, RIM_MIN_M = 4f, RIM_MAX_M = 12f;
@@ -275,11 +285,45 @@ namespace HorseRace.EditorTools
         /// <summary>外周の尾根の重み（地面の端で 1、内側 RIM_WIDTH_M で 0）。</summary>
         public static float RimWeight(Vector3 p)
         {
-            Vector4 g = GROUND_RECT;
-            float d = Mathf.Min(Mathf.Min(p.x - g.x, g.z - p.x), Mathf.Min(p.z - g.y, g.w - p.z));
+            float d = RimEdgeDistance(p);
             if (d >= RIM_WIDTH_M) return 0f;
             float t = Mathf.Clamp01(1f - d / RIM_WIDTH_M);
             return t * t * (3f - 2f * t);
+        }
+
+        // ---- art-r4-13：四角い穴にしない（縁の距離を揺らし、角を丸め、段を 1 つのなめらかな上りに） ----
+        public const float RIM_JITTER_M = 14f, RIM_JITTER_SCALE_M = 90f, RIM_CORNER_M = 45f, RIM_JITTER_FADE_M = 30f;
+
+        /// <summary>縁の距離の揺れ（m、±RIM_JITTER_M、周期 RIM_JITTER_SCALE_M の値ノイズ）。</summary>
+        public static float RimJitter(Vector3 p) => RIM_JITTER_M * (2f * HeightmapGen.Noise01(p.x / RIM_JITTER_SCALE_M + 31.7f, p.z / RIM_JITTER_SCALE_M - 12.3f, 99, 37) - 1f);
+
+        /// <summary>地面の端（GROUND_RECT、角を RIM_CORNER_M で丸めた）から内側への距離 + 揺れ（art-r4-13）。</summary>
+        public static float RimEdgeDistance(Vector3 p)
+        {
+            Vector4 g = GROUND_RECT;
+            float r = RIM_CORNER_M;
+            float cx = Mathf.Clamp(p.x, g.x + r, g.z - r), cz = Mathf.Clamp(p.z, g.y + r, g.w - r);
+            float dx = p.x - cx, dz = p.z - cz;
+            float d = r - Mathf.Sqrt(dx * dx + dz * dz);
+            return d + RimJitter(p);
+        }
+
+        /// <summary>柵の外の距離に揺れを足す（柵のすぐ外 RIM_JITTER_FADE_M は揺らさない：柵の足元は平らなまま）。</summary>
+        public static float JitteredOutside(Vector4 fence, Vector3 p)
+        {
+            float d = DistOutside(fence, p);
+            if (d <= 0f) return d;
+            float f = Mathf.Clamp01(d / RIM_JITTER_FADE_M);
+            return Mathf.Max(0f, d + RimJitter(p) * f * f * (3f - 2f * f));
+        }
+
+        /// <summary>なめらかに上限へ近づく上り（傾き slope で始まり max で止まる。折れ目の段を作らない：tanh）。</summary>
+        public static float SoftRise(float d, float slope, float max)
+        {
+            if (d <= 0f || max <= 0f) return 0f;
+            float x = slope * d / max;
+            float e = Mathf.Exp(-2f * x);
+            return max * (1f - e) / (1f + e);
         }
 
         /// <summary>外周の尾根の最低の高さ（ノイズの下限、南・東・西の低い値）。</summary>
@@ -291,10 +335,10 @@ namespace HorseRace.EditorTools
         /// </summary>
         public static float GroundHeight(Vector4 fence, Vector3 p, float rimNoise)
         {
-            float d = DistOutside(fence, p);
-            if (d <= 0f) return 0f;
+            if (DistOutside(fence, p) <= 0f) return 0f;
+            float d = JitteredOutside(fence, p);   // art-r4-13：揺らした距離、なめらかな上り（前は min(傾き × 距離, 上限) の折れ目が段に見えた）
             float nf = NorthFactor(fence, p);
-            float rise = Mathf.Lerp(Mathf.Min(OUT_RISE_MAX, OUT_SLOPE * d), Mathf.Min(OUT_RISE_MAX_N, OUT_SLOPE_N * d), nf);
+            float rise = Mathf.Lerp(SoftRise(d, OUT_SLOPE, OUT_RISE_MAX), SoftRise(d, OUT_SLOPE_N, OUT_RISE_MAX_N), nf);
             float rmin = Mathf.Lerp(RIM_MIN_M, RIM_MIN_N, nf), rmax = Mathf.Lerp(RIM_MAX_M, RIM_MAX_N, nf);
             float rim = RimWeight(p) * (rmin + (rmax - rmin) * Mathf.Clamp01(rimNoise));
             float keep = 1f - (1f - GAP_KEEP) * GapFactor(fence, p);
@@ -477,6 +521,9 @@ namespace HorseRace.EditorTools
             }
         }
 
+        /// <summary>町のいちばん高い 2 階建ての建物（SaloonFacade 10.9m）と、尾根の岩の高さ・拡大の上限（art-r4-13）。</summary>
+        public const float TALLEST_TOWN_BUILDING_M = 10.9f, RIM_ROCK_MAX_H = 2f * TALLEST_TOWN_BUILDING_M, RIM_ROCK_MAX_SCALE = 2.5f;
+
         public static List<Placement> RimCrown(Vector4 rect, int seed)
         {
             const float CROWN_OUT_M = 24f, CROWN_STEP_M = 22f;
@@ -498,10 +545,13 @@ namespace HorseRace.EditorTools
                 if (GapFactor(rect, p) > 0.01f) continue;
                 bool northCorner = p.z > rect.w + 10f && (p.x < rect.x + 10f || p.x > rect.z - 10f);
                 string asset, part = null; float scale, yaw;
-                if (northCorner) { asset = DressingPlan.MESAB; scale = 1.5f + (float)rng.NextDouble() * 0.5f; yaw = (float)rng.NextDouble() * 360f; }
-                else if (k % 3 == 0) { asset = DressingPlan.DROCKS; part = big[rng.Next(big.Length)]; scale = 2f + (float)rng.NextDouble() * 0.6f; yaw = sideYaw + (rng.Next(2) == 0 ? 0f : 180f); }
-                else { asset = DressingPlan.RSTYL; scale = 2.5f + (float)rng.NextDouble() * 0.5f; yaw = (float)rng.NextDouble() * 360f; }
+                if (northCorner) { asset = DressingPlan.MESAB; scale = 0.5f + (float)rng.NextDouble() * 0.15f; yaw = (float)rng.NextDouble() * 360f; }
+                else if (k % 3 == 0) { asset = DressingPlan.DROCKS; part = big[rng.Next(big.Length)]; scale = 1.2f + (float)rng.NextDouble() * 0.4f; yaw = sideYaw + (rng.Next(2) == 0 ? 0f : 180f); }
+                else { asset = DressingPlan.RSTYL; scale = 2.0f + (float)rng.NextDouble() * 0.5f; yaw = (float)rng.NextDouble() * 360f; }
                 var sz = DressingPlan.SizeOf(asset, part);
+                // art-r4-13：尾根の岩は町のいちばん高い建物の 2 倍まで（前は角の岩が 3〜4 階建てで 2 階建ての町を小さく見せた）
+                if (sz.h * scale > RIM_ROCK_MAX_H) scale = RIM_ROCK_MAX_H / sz.h;
+                scale = Mathf.Min(scale, RIM_ROCK_MAX_SCALE);
                 float h = sz.h * scale;
                 list.Add(new Placement
                 {
@@ -518,7 +568,8 @@ namespace HorseRace.EditorTools
         /// 線路（x ≈ 19.2〜21.9）と、線路の東の通り道（x ≥ 23.4 の建物・小物の箱の手前）の間に収まる小さな物だけ。
         /// </summary>
         // ---- 見晴らしの切れ目の目印（art-r2-15）----
-        public const float VISTA_HERO_DIST_M = 320f;     // 切れ目の真ん中の方位、スポーンから 250〜400m
+        public const float VISTA_HERO_DIST_M = 560f;     // art-r4-09：切れ目の真ん中の方位、スポーンから 450〜700m（前は 320m）
+        public const float VISTA_HERO_MESA_SCALE = 5f, VISTA_HERO_MESAB_SCALE = 3f, VISTA_TOWER_DIST_M = 250f;
         public const float VISTA_SCATTER_FROM = 40f, VISTA_SCATTER_TO = 200f, VISTA_SCATTER_STEP = 15f;
 
         /// <summary>
@@ -543,10 +594,12 @@ namespace HorseRace.EditorTools
             {
                 float a = g.x * Mathf.Deg2Rad;
                 Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), right = new Vector3(dir.z, 0f, -dir.x);
+                // art-r4-09：切れ目の真ん中の方位 450〜700m に 1 つの組んだ目印（メサ ×5 と両脇のメサ B ×3）、手前 250m に大きさの物差しの風車の塔
                 Vector3 hero = SPAWN + dir * VISTA_HERO_DIST_M;
-                Add("VistaHero", DressingPlan.MESA, null, hero - right * 45f + dir * 30f, 2.5f, (float)rng.NextDouble() * 360f);
-                Add("VistaHero", DressingPlan.MESA, null, hero + right * 50f + dir * 60f, 2.5f, (float)rng.NextDouble() * 360f);
-                Add("VistaHero", DressingPlan.RANCH, DressingPlan.RANCH_TOWER, hero, 1.2f, g.x + 180f);
+                Add("VistaHero", DressingPlan.MESA, null, hero, VISTA_HERO_MESA_SCALE, (float)rng.NextDouble() * 360f);
+                Add("VistaHero", DressingPlan.MESAB, null, hero - right * 150f - dir * 40f, VISTA_HERO_MESAB_SCALE, (float)rng.NextDouble() * 360f);
+                Add("VistaHero", DressingPlan.MESAB, null, hero + right * 160f + dir * 30f, VISTA_HERO_MESAB_SCALE * 0.9f, (float)rng.NextDouble() * 360f);
+                Add("VistaHero", DressingPlan.RANCH, DressingPlan.RANCH_TOWER, SPAWN + dir * VISTA_TOWER_DIST_M + right * 25f, 1.2f, g.x + 180f);
                 int k = 0;
                 for (float d = VISTA_SCATTER_FROM; d <= VISTA_SCATTER_TO; d += VISTA_SCATTER_STEP, k++)
                 {
@@ -555,14 +608,40 @@ namespace HorseRace.EditorTools
                     // 柵の外 d m（スポーンから柵までの距離 + d）
                     float toFence = DistToFenceAlong(FENCE_RECT, SPAWN, new Vector3(Mathf.Sin(aa), 0f, Mathf.Cos(aa)));
                     Vector3 p = SPAWN + new Vector3(Mathf.Sin(aa), 0f, Mathf.Cos(aa)) * (toFence + d);
+                    if (Mathf.Abs(p.x - SPAWN.x) < APPROACH_HALF_M + 3f && p.z < FENCE_RECT.y) continue;   // art-r4-13：近づく道の上は空ける
                     int kind = k % 3;
                     if (kind == 0) Add("VistaScatter", DressingPlan.RCOLL, "RockCollection_" + (8 * (1 + rng.Next(23))), p, 2.5f, (float)rng.NextDouble() * 360f);
                     else if (kind == 1) Add("VistaScatter", DressingPlan.DROCKS, small[rng.Next(small.Length)], p, 1.4f, (float)rng.NextDouble() * 360f);
                     else Add("VistaScatter", DressingPlan.CACTI, "Cacti_0" + (1 + rng.Next(9)), p, 1f, (float)rng.NextDouble() * 360f);
                 }
             }
+            // art-r4-13：南の見晴らしの切れ目を抜けて外へ続く近づく道の縁：15m ごとに左右交互の立てた丸太の杭、3 つに 1 つ壊れかけの柵（FarmProps_03）
+            int j = 0;
+            for (float z = FENCE_RECT.y - APPROACH_FROM_OUT_M; z > SPAWN.z - APPROACH_LEN_M; z -= APPROACH_POST_STEP_M, j++)
+            {
+                float sd = j % 2 == 0 ? 1f : -1f;
+                Vector3 p = new Vector3(SPAWN.x + sd * (APPROACH_HALF_M + 1.5f), 0f, z + (float)rng.NextDouble() * 2f);
+                Vector3 sc = CourseMarks.PostScale(DressingPlan.POST_H, DressingPlan.POST_THICK);
+                list.Add(new Placement
+                {
+                    group = "ApproachRoad", asset = DressingPlan.LOGS, part = DressingPlan.POST_PART, position = new Vector3(p.x, DressingPlan.POST_H * 0.5f - 0.15f, p.z),
+                    yawDeg = (float)rng.NextDouble() * 20f - 10f, rollDeg = 90f, scale = sc.x, scaleY = sc.y / sc.x, scaleZ = sc.z / sc.x, radius = 0.3f, height = DressingPlan.POST_H,
+                    collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
+                });
+                if (j % 3 == 1)
+                    Add("ApproachRoad", DressingPlan.FARM, "FarmProps_03", p + new Vector3(sd * 0.3f, 0f, -1.6f), 1f, 90f + (float)rng.NextDouble() * 16f - 8f);
+            }
             return list;
         }
+
+        /// <summary>art-r4-13：町へ近づく道（南の切れ目を抜けて外の地面へ 300m、道のマスクで轍を塗る）。半幅・柵の外から始める距離・長さ・杭の間隔。</summary>
+        public const float APPROACH_HALF_M = 4f, APPROACH_FROM_OUT_M = 40f, APPROACH_LEN_M = 330f, APPROACH_POST_STEP_M = 15f;
+
+        /// <summary>町の大通りと近づく道の中心線（ロビー中心からの相対）：通り（x = SPAWN.x、z 20〜150）と南へ 300m。</summary>
+        public static Vector3[] StreetAndApproach() => new[]
+        {
+            new Vector3(SPAWN.x, 0f, SPAWN.z - APPROACH_LEN_M), new Vector3(SPAWN.x, 0f, 20f), new Vector3(SPAWN.x, 0f, 150f),
+        };
 
         /// <summary>柵の中の点 from から向き dir に進んで柵（長方形）を出るまでの距離。</summary>
         static float DistToFenceAlong(Vector4 rect, Vector3 from, Vector3 dir)

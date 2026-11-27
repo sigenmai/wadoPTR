@@ -196,7 +196,18 @@ namespace HorseRace.EditorTools
             return sign;
         }
 
-        /// <summary>街灯 1 本（FarmProps_02）と灯り。</summary>
+        /// <summary>
+        /// 野の灯り（art-r4-14）：立てた丸太の柱（WoodLogs_01、3.2m）の上に点の灯り。L 字の柱に吊るした街灯（FarmProps_02）は野原に並ぶと絞首台に見えるので
+        /// 町・ゲートの外では使わない（急カーブの頂点・全力の合図・岩の橋の背・近道の入口・踏み切り・見物の直線・区間の門）。
+        /// </summary>
+        public static GameObject PostLamp(Transform parent, Vector3 ground, float yaw, Color light, float range)
+        {
+            var post = UprightLog(parent, "WoodLogs_01", ground, yaw, DressingPlan.LAMP_POST_H, 0.9f);
+            GenUtil.PointLight(parent, "PostLampLight", ground + Vector3.up * (DressingPlan.LAMP_POST_H + 0.2f), light, range, 1.6f);
+            return post;
+        }
+
+        /// <summary>街灯 1 本（FarmProps_02）と灯り。町・ゲートだけ（art-r4-14）。</summary>
         public static GameObject Lamp(Transform parent, Vector3 ground, float yaw, Color light, float range, float scale = 1f)
         {
             var lamp = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", parent, ground, yaw, scale, new Vector3(0.3f, 3f, 0.3f), Wood);
@@ -261,8 +272,10 @@ namespace HorseRace.EditorTools
                     // art-r2-08：崖の板（Cliffs）は近くで平らな箱に見えるので、形のある大岩（DesertRocks_01〜03）を縦に伸ばす
                     string part = "DesertRocks_0" + (1 + k % 3);
                     float sc = 0.32f + 0.04f * k;
-                    Vector3 w = sb.GroundWorld(center + r * (s * (SetPieces.SPINE_HALF + 3f)) + t * (e * 3.5f));
-                    var c = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, spine, w - Vector3.up * 1f, yaw + (s > 0 ? 0f : 180f) + k * 23f, sc, new Vector3(6f, 8f, 6f), Rock);
+                    // art-r4-12 / art-r4-08：溝の口の縁へ下ろす（足元の 5 点のいちばん低い所 − 高さの差 − 0.1m）。前は背の高さのまま溝の上に張り出していた
+                    Vector3 lp = center + r * (s * (SetPieces.SPINE_HALF + 3f)) + t * (e * 3.5f);
+                    Vector3 w = GroundedLow(sb, lp, 3.5f, out float span);
+                    var c = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, spine, w - Vector3.up * (span + 0.1f), yaw + (s > 0 ? 0f : 180f) + k * 23f, sc, new Vector3(6f, 8f, 6f), Rock);
                     c.transform.localScale = new Vector3(sc, sc * 1.5f, sc);
                     DressingBuilder.SetStatic(c);
                     GenUtil.Tag(c, "S" + st + "/SetPieceDecor/spine#" + (decorIndex++));
@@ -285,6 +298,7 @@ namespace HorseRace.EditorTools
                     DressingBuilder.SetStatic(GenUtil.WoodPost(cover, sp, yaw, 2.6f, 0.22f));   // 立てた丸太の杭（art-r3-02）
                 }
             }
+            SpineEdge(sb, bridge.transform, center, t, r, yaw, st);
             BridgeGate(sb, bridge.transform, center, t, r, yaw, lipAlong, st);
             // 溝の底の落とし穴：入った騎手を最後に通った CP へ戻す（背の下は地面の中なので触れない）
             var pit = GenUtil.Child(bridge.transform, "FallPit", new Vector3(0f, -SetPieces.TRENCH_DEPTH + 3f, 0f));
@@ -296,6 +310,84 @@ namespace HorseRace.EditorTools
             DressingBuilder.SetStatic(bridge);
             sb.Exclude(center, SetPieces.DETOUR_TO + 6f);
             BridgeSignals(sb, bridge.transform, center, t, r);
+        }
+
+        /// <summary>足元の中心と半径 rad の 4 点のいちばん低い地面（ワールド）と高さの差（art-r4-08）。p はワールド。</summary>
+        static Vector3 GroundedLow(StageBuild sb, Vector3 p, float rad, out float span)
+        {
+            Vector3 g = sb.GroundWorld(p);
+            float mn = g.y, mx = g.y;
+            for (int i = 0; i < 4; i++)
+            {
+                float a = (45f + i * 90f) * Mathf.Deg2Rad;
+                float y = sb.GroundWorld(p + new Vector3(Mathf.Sin(a) * rad, 0f, Mathf.Cos(a) * rad)).y;
+                mn = Mathf.Min(mn, y); mx = Mathf.Max(mx, y);
+            }
+            span = Mathf.Min(mx - mn, 4f);
+            return new Vector3(g.x, mn, g.z);
+        }
+
+        /// <summary>
+        /// 岩の橋の背の縁（art-r4-12）：両側の落ち際を平たい岩（DesertRocks_08 ×1.3、2.4m ごと、上の面が道 + 0.35m）で縁取り、内側に丸太の手すり
+        /// （3m ごとの立てた丸太の柱 1.1m と、長さだけ伸ばした丸太の横木 0.95m）。溝の底に骨の馬 3 頭と骨（落ちた者の跡）。当たりは今までどおり柵と溝の底の落とし穴。
+        /// </summary>
+        static void SpineEdge(StageBuild sb, Transform bridge, Vector3 center, Vector3 t, Vector3 r, float yaw, int st)
+        {
+            var g = GenUtil.Child(bridge, "SpineEdge", Vector3.zero).transform;
+            float half = SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND;
+            float road = center.y;
+            int k = 0;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                for (float a = -half; a <= half + 0.01f; a += SetPieces.SPINE_ROCK_STEP_M, k++)
+                {
+                    Vector3 p = center + t * a + r * (s * (SetPieces.SPINE_HALF + 0.6f));
+                    float h = 1.6f * SetPieces.SPINE_ROCK_SCALE;   // DesertRocks_08 の高さ × 拡大
+                    var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_08", g, new Vector3(p.x, road + SetPieces.SPINE_ROCK_TOP_M - h, p.z),
+                        yaw + 90f + k * 47f, SetPieces.SPINE_ROCK_SCALE, new Vector3(4.5f, h, 4.5f), Rock);
+                    DressingBuilder.SetStatic(rock);
+                    GenUtil.Tag(rock, "S" + st + "/SetPieceDecor/spineEdge#" + (decorIndex++));
+                }
+                // 手すり：柱と横木
+                float lat = SetPieces.SPINE_HALF - 0.4f;
+                Vector3 prev = Vector3.zero;
+                for (float a = -half; a <= half + 0.01f; a += SetPieces.SPINE_RAIL_POST_STEP_M)
+                {
+                    Vector3 gp = sb.GroundWorld(center + t * a + r * (s * lat));
+                    UprightLog(g, "WoodLogs_01", gp, yaw, 1.1f, 0.7f);
+                    if (a > -half + 0.01f)
+                    {
+                        Vector3 mid = (prev + gp) * 0.5f + Vector3.up * SetPieces.SPINE_RAIL_H;
+                        float len = Vector3.Distance(prev, gp);
+                        var rail = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", g, mid, yaw, 1f, new Vector3(1.5f, 0.3f, 0.3f), Wood);
+                        rail.transform.rotation = Quaternion.LookRotation(gp - prev, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+                        rail.transform.localScale = CourseMarks.PostScale(len + 0.1f, 0.22f);
+                        DressingBuilder.SetStatic(rail);
+                    }
+                    prev = gp;
+                }
+            }
+            // 溝の底の骨（危ない線の結果を見せる）
+            for (int i = 0; i < SetPieces.TRENCH_SKELETONS; i++)
+            {
+                float s = i % 2 == 0 ? 1f : -1f, lat = 13f + i * 6f, a = (i - 1) * 4f;
+                Vector3 p = center + t * a + r * (s * lat);
+                Vector3 gp = sb.GroundWorld(p);
+                var sk = GenUtil.InstantiateModel(GenUtil.MODELS + "/SkeletonHorse.fbx", g, "TrenchSkeleton_" + i);
+                if (sk != null)
+                {
+                    foreach (var an in sk.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(an);   // 動かない骨
+                    sk.transform.position = gp - Vector3.up * 0.15f;
+                    sk.transform.rotation = Quaternion.Euler(0f, yaw + i * 70f, 85f);
+                    DressingBuilder.SetStatic(sk);
+                }
+                for (int b = 0; b < 3; b++)
+                {
+                    string part = b == 0 ? "DesertProps_07" : (b == 1 ? "DesertProps_08" : "DesertProps_14");
+                    Vector3 bp = sb.GroundWorld(p + new Vector3(Mathf.Sin(b * 2.1f + i) * 2.5f, 0f, Mathf.Cos(b * 2.1f + i) * 2.5f));
+                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("DesertProps"), part, g, bp - Vector3.up * 0.05f, b * 80f + i * 30f, 1.1f, new Vector3(1.5f, 0.6f, 1.5f), Rock));
+                }
+            }
         }
 
         public const float BRIDGE_TOWER_H = 8.5f;     // art-r3-14：橋の両端の岩の塔は背より 7〜9m 高い
@@ -352,22 +444,23 @@ namespace HorseRace.EditorTools
         {
             var sig = GenUtil.Child(bridge, "Signals", Vector3.zero).transform;
             float len = (SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND) * 2f;
+            // art-r4-12：橋の両端（入口・出口）の両脇に焚き火と煙 2 つずつ（前の吊り下げの街灯は絞首台に見えた：art-r4-14）
             for (int e = -1; e <= 1; e += 2)
-            {
                 for (int s = -1; s <= 1; s += 2)
-                    Lamp(sig, sb.GroundWorld(center + t * (e * (len * 0.5f + 3f)) + r * (s * (SetPieces.SPINE_HALF + 1.5f))), WorldLayout.YawDeg(t) + (s > 0 ? -90f : 90f), LampWarm, 14f);
-                Vector3 fp = sb.GroundWorld(center + t * (e * (len * 0.5f + 8f)) + r * (-(SetPieces.SPINE_HALF + 8f)));
-                var fire = GenUtil.InstantiatePart(GenUtil.Pack("Campfire"), "Campfire_01", sig, fp, 0f, 1f, new Vector3(1.5f, 0.6f, 1.5f), Rock);
-                DressingBuilder.SetStatic(fire);
-                GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
-                GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, 18f, 1.6f);
-            }
+                {
+                    Vector3 fp = sb.GroundWorld(center + t * (e * (len * 0.5f + 6f)) + r * (s * (SetPieces.SPINE_HALF + 3f)));
+                    var fire = GenUtil.InstantiatePart(GenUtil.Pack("Campfire"), "Campfire_01", sig, fp, s * 40f, 1f, new Vector3(1.5f, 0.6f, 1.5f), Rock);
+                    DressingBuilder.SetStatic(fire);
+                    GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
+                    GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, 18f, 1.6f);
+                    GenUtil.PointLight(sig, "FireLight", fp + Vector3.up * 1.2f, LampWarm, 12f, 1.4f);
+                }
             for (int s = -1; s <= 1; s += 2)
-                GenUtil.PointLight(sig, "TrenchDanger", center + r * (s * 22f) + Vector3.up * (-SetPieces.TRENCH_DEPTH + 2f), DangerRed, 24f, 1.2f);
+                GenUtil.PointLight(sig, "TrenchDanger", center + r * (s * 22f) + Vector3.up * (-SetPieces.TRENCH_DEPTH + 2f), DangerRed, 30f, 2f);   // art-r4-12：範囲 30・強さ 2
             // course-r3-04：背の縁の街灯（危険 = 橙の灯り、片側 2 本）と、70m 手前の赤インクの札「落ちるな」（急カーブの札と同じ丸太の柱）
             float yaw = WorldLayout.YawDeg(t);
             foreach (var m in SetPieces.SpineEdgeLamps())
-                Lamp(sig, sb.GroundWorld(center + t * m.x + r * m.y), yaw + (m.y > 0f ? -90f : 90f), SignalOrange, 10f);
+                PostLamp(sig, sb.GroundWorld(center + t * m.x + r * m.y), yaw, SignalOrange, 10f);   // art-r4-14
             float wa = sb.bridgeArc - SetPieces.BRIDGE_WARN_BEFORE;
             Vector3 wt = WorldLayout.TangentAtArc(sb.courseWorld, wa);
             wt = new Vector3(wt.x, 0f, wt.z).normalized;
@@ -424,7 +517,7 @@ namespace HorseRace.EditorTools
             Vector3 entry = Vector3.Lerp(p.a, p.b, p.f0);
             Vector3 entryW = new Vector3(o0.x + entry.x, o0.y + SetPieces.ShortcutHeight(p, p.f0), o0.z + entry.z);
             for (int s = -1; s <= 1; s += 2)
-                Lamp(g, sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f))), yaw + (s > 0 ? -90f : 90f), SignalOrange, 8f);
+                PostLamp(g, sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f))), yaw, SignalOrange, 8f);   // art-r4-14
             Vector3 signW = sb.GroundWorld(entryW + rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f);
             SignPost(g, "ShortcutSign", signW, yaw, "<b>→ 近道</b>\n全力で " + p.gainSeconds.ToString("0.0") + " 秒速い", UiStyle.Teal,
                 new Color(0f, 0f, 0f, 0f), 0f);
@@ -508,8 +601,9 @@ namespace HorseRace.EditorTools
                 for (int s = -1; s <= 1; s += 2)
                 {
                     Vector3 lp = sb.GroundWorld(lip + t * a + r * (s * (SetPieces.KICKER_HALF_WIDTH + 1.5f)));
-                    if (li % 2 == 0) Lamp(g, lp, yaw + (s > 0 ? -90f : 90f), BoostTeal, 7f);
-                    else DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", g, lp, yaw + (s > 0 ? -90f : 90f), 1f, new Vector3(0.3f, 3f, 0.3f), Wood));
+                    // art-r4-14：吊り下げの街灯の列は絞首台に見えたので、立てた丸太の柱（灯りは 1 本おき）
+                    if (li % 2 == 0) PostLamp(g, lp, yaw, BoostTeal, 7f);
+                    else UprightLog(g, "WoodLogs_01", lp, yaw, DressingPlan.LAMP_POST_H, 0.9f);
                 }
             // 縁の両脇（道の縁の外）に青緑の文字の札「跳べ ↑」、坂の 10m 手前の右に「まん中で跳ぶと砂を越える」
             for (int s = -1; s <= 1; s += 2)

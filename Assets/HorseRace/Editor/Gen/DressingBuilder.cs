@@ -63,7 +63,7 @@ namespace HorseRace.EditorTools
                 // 手直し用の安定した id（名前の末尾）。見えない壁の名前にも付くよう、壁を作る前に付ける
                 GenUtil.Tag(go, LayoutOverrides.IdFor(scope, p, index));
                 // 骨の馬・ラクダは Animator を外して動かない置き物にする（スターターの馬と同じ）
-                if (p.asset == DressingPlan.SKELETON || p.asset == DressingPlan.CAMEL)
+                if (p.asset == DressingPlan.SKELETON || p.asset == DressingPlan.CAMEL || p.asset == DressingPlan.HORSE)   // art-r4-07：広場のつないだ馬
                     foreach (var a in go.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(a);
                 if (p.collider)
                 {

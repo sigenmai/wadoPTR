@@ -135,5 +135,237 @@ namespace HorseRace.Tests
             Assert.LessOrEqual(Mathf.Abs(Mathf.DeltaAngle(lightYaw, travel + 180f)), 10f);
             Assert.That(LightingPlan.ForStage(2).sunEuler.x, Is.InRange(5f, 25f), "低い夕日");
         }
+
+        // ---- art-r4-07：スポーンの手前（60° の扇、4〜20m）に 10 個以上の物、視線の 2.5m の通り道は空ける ----
+        [Test] public void LobbyForegroundFilled()
+        {
+            var t = LobbyLayout.TOWN_NOMINAL_RECT;
+            var plan = DressingPlan.ForLobby(new Vector2(t.x, t.y), new Vector2(t.z, t.w), LobbyLayout.LobbyDressingExclusions(), 4242);
+            Vector3 s = LobbyLayout.SPAWN;
+            float yaw = LobbyLayout.SPAWN_YAW;
+            int n = 0;
+            foreach (var p in plan)
+            {
+                Vector3 d = new Vector3(p.position.x - s.x, 0f, p.position.z - s.z);
+                float dist = d.magnitude;
+                if (dist < 4f || dist > 20f) continue;
+                float off = Mathf.DeltaAngle(yaw, WorldLayout.YawDeg(d.normalized));
+                if (Mathf.Abs(off) > 30f) continue;
+                float lateral = Mathf.Abs(dist * Mathf.Sin(off * Mathf.Deg2Rad));
+                Assert.GreaterOrEqual(lateral, DressingPlan.APRON_LANE_HALF_M - 0.01f, "視線の通り道に " + p.group + " " + p.asset + " " + p.part);
+                if (p.height >= 0.6f) n++;
+            }
+            TestContext.WriteLine($"props in the spawn cone: {n}");
+            Assert.GreaterOrEqual(n, 10);
+            Assert.GreaterOrEqual(plan.Count(p => p.group == "PlazaApron" && p.asset == DressingPlan.HORSE), 1, "つないだ馬");
+        }
+
+        // ---- art-r4-13：尾根の岩は町の建物の 2 倍まで・地面の段をなくす ----
+        [Test] public void RimRocksScaled()
+        {
+            var crown = LobbyLayout.RimCrown(LobbyLayout.FENCE_RECT, 11);
+            float max = crown.Max(p => p.height);
+            TestContext.WriteLine($"rim rocks {crown.Count}, tallest {max:F1} m (limit {LobbyLayout.RIM_ROCK_MAX_H:F1})");
+            Assert.LessOrEqual(max, 2f * LobbyLayout.TALLEST_TOWN_BUILDING_M + 0.01f);
+            Assert.IsTrue(crown.All(p => p.scale <= LobbyLayout.RIM_ROCK_MAX_SCALE + 1e-4f));
+            Assert.GreaterOrEqual(LobbyLayout.TALLEST_TOWN_BUILDING_M, DressingPlan.SizeOf(DressingPlan.TOWNBLOCK, null).h);
+        }
+
+        /// <summary>柵の外の上りは折れ目（傾きの急な変化）が無い：1m ごとの傾きの変化が小さい。</summary>
+        [Test] public void LobbyGroundHasNoTerraceStep()
+        {
+            var f = LobbyLayout.FENCE_RECT;
+            float worst = 0f;
+            for (float x = f.x + 10f; x < f.z - 10f; x += 23f)
+            {
+                float prevSlope = float.NaN;
+                for (float d = 1f; d < LobbyLayout.GROUND_BORDER_M - 2f; d += 1f)
+                {
+                    Vector3 pa = new Vector3(x, 0f, f.y - d), pb = new Vector3(x, 0f, f.y - d - 1f);
+                    if (LobbyLayout.GapFactor(f, pa) > 0f || LobbyLayout.GapFactor(f, pb) > 0f) { prevSlope = float.NaN; continue; }   // 見晴らしの切れ目の縁は別（わざと低く切る）
+                    float a = LobbyLayout.GroundHeight(f, pa, 0.5f), b = LobbyLayout.GroundHeight(f, pb, 0.5f);
+                    float slope = b - a;
+                    if (!float.IsNaN(prevSlope)) worst = Mathf.Max(worst, Mathf.Abs(slope - prevSlope));
+                    prevSlope = slope;
+                }
+            }
+            TestContext.WriteLine($"largest change of slope per metre south of the fence: {worst:F3}");
+            Assert.Less(worst, 0.12f, "段（傾きの折れ目）にしない");
+            Assert.AreEqual(0f, LobbyLayout.GroundHeight(f, new Vector3(0f, 0f, 60f), 1f), 1e-5f, "柵の中は平ら");
+        }
+
+        /// <summary>見晴らしの切れ目：遠くの組んだ目印（メサ ×5、両脇のメサ B ×3）、崖の板なし、切れ目の柵は低い。南へ外の地面に続く道の杭。</summary>
+        [Test] public void VistaGapsFrameAView()
+        {
+            var v = LobbyLayout.VistaHeroes(5);
+            foreach (var g in LobbyLayout.VistaGaps)
+            {
+                float a = g.x * Mathf.Deg2Rad;
+                Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+                var mesa = v.Where(p => p.group == "VistaHero" && p.asset == DressingPlan.MESA && Mathf.Abs(Mathf.DeltaAngle(g.x, WorldLayout.YawDeg((p.position - LobbyLayout.SPAWN).normalized))) < 20f).ToList();
+                Assert.AreEqual(1, mesa.Count);
+                float d = WorldLayout.DistXZ(mesa[0].position, LobbyLayout.SPAWN);
+                Assert.That(d, Is.InRange(450f, 700f));
+                Assert.AreEqual(LobbyLayout.VISTA_HERO_MESA_SCALE, mesa[0].scale, 1e-4f);
+                var fr = LobbyLayout.FENCE_RECT;
+                float tx = dir.x > 1e-4f ? (fr.z - LobbyLayout.SPAWN.x) / dir.x : (dir.x < -1e-4f ? (fr.x - LobbyLayout.SPAWN.x) / dir.x : float.MaxValue);
+                float tz = dir.z < -1e-4f ? (fr.y - LobbyLayout.SPAWN.z) / dir.z : (dir.z > 1e-4f ? (fr.w - LobbyLayout.SPAWN.z) / dir.z : float.MaxValue);
+                Vector3 fenceHit = LobbyLayout.SPAWN + dir * Mathf.Min(tx, tz);
+                Assert.AreEqual(LobbyLayout.FENCE_GAP_SCALE_Y, LobbyLayout.FenceScaleYAt(fenceHit), 1e-4f, "切れ目の柵は低い");
+            }
+            Assert.AreEqual(4, v.Count(p => p.group == "VistaHero" && p.asset == DressingPlan.MESAB));
+            Assert.IsFalse(v.Any(p => p.asset == DressingPlan.CLIFFS));
+            Assert.Greater(v.Count(p => p.group == "ApproachRoad"), 15);
+            Assert.AreEqual(LobbyLayout.FENCE_SCALE_Y, LobbyLayout.FenceScaleYAt(new Vector3(LobbyLayout.FENCE_RECT.x, 0f, 100f)), 1e-4f);
+        }
+
+        // ---- art-r4-02：路肩 ----
+        [TestCaseSource(nameof(Stages))]
+        public void ShoulderDensity(int i)
+        {
+            var b = Stage(i);
+            var cum = DressingPlan.CourseArcs(b.local);
+            var sh = b.plan.Where(p => p.group == "Shoulder").ToList();
+            int windows = Mathf.FloorToInt(b.goal / 100f), thin = 0;
+            var counts = new int[windows + 1];
+            foreach (var p in sh)
+            {
+                float a = DressingPlan.NearestArc(b.local, cum, p.position, out float d);
+                float hw = StageDefinitions.HalfWidthAt(b.def, a);
+                Assert.Greater(DressingPlan.RoadClearance(b.def, b.local, cum, p.position) - p.radius, HeightmapGen.RUNWAY_M - 0.01f, "道の半幅の中に置かない");
+                Assert.IsFalse(p.collider);
+                if (d <= hw + 6f) counts[Mathf.Clamp(Mathf.FloorToInt(a / 100f), 0, windows)]++;
+            }
+            int checkedW = 0;
+            for (int k = 1; k < windows - 1; k++)
+            {
+                float a0 = k * 100f;
+                // 見どころ（岩の橋・踏み切り）・スタートとゴールの門の窓は除く
+                bool skip = false;
+                float br = SetPieces.BridgeArc(b.def, b.goal), jp = SetPieces.JumpArc(b.def, b.goal);
+                if (br >= 0f && br > a0 - 30f && br < a0 + 130f) skip = true;
+                if (jp >= 0f && jp > a0 - 40f && jp < a0 + 140f) skip = true;
+                if (skip) continue;
+                checkedW++;
+                if (counts[k] < 15) thin++;
+            }
+            TestContext.WriteLine($"stage {i}: {sh.Count} shoulder props, {thin}/{checkedW} windows under 15");
+            Assert.LessOrEqual(thin, checkedW / 10, "100m ごとに 15 個以上（札・門の円のまわりだけ例外）");
+        }
+
+        // ---- art-r4-08：接地 ----
+        [TestCaseSource(nameof(Stages))]
+        public void AllPlacementsGrounded(int i)
+        {
+            var b = Stage(i);
+            int bad = 0;
+            foreach (var p in b.plan)
+            {
+                if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;   // 立てた丸太の杭は中心が柱の真ん中
+                if (p.group == "GiantSkeleton" || p.asset == DressingPlan.SKELETON) continue;   // 横倒しの骨は原点が腰
+                float fr = DressingPlan.FootprintRadius(p);
+                float g0 = b.Ground(p.position.x, p.position.z), mn = g0;
+                for (int k = 0; k < 4; k++)
+                {
+                    float a = (45f + k * 90f) * Mathf.Deg2Rad;
+                    mn = Mathf.Min(mn, b.Ground(p.position.x + Mathf.Sin(a) * fr * 0.7f, p.position.z + Mathf.Cos(a) * fr * 0.7f));
+                }
+                if (p.position.y > mn + 0.05f || p.position.y > g0 + 0.3f) { bad++; if (bad < 5) TestContext.WriteLine($"  floating {p.group} {p.asset} {p.part} y {p.position.y:F2} ground {mn:F2}"); }
+            }
+            TestContext.WriteLine($"stage {i}: floating {bad} of {b.plan.Count}");
+            Assert.AreEqual(0, bad);
+            foreach (var p in b.plan.Where(q => !q.background && !DressingPlan.SlopeEmbedded.Contains(q.group) && q.height < DressingPlan.GROUND_REJECT_MAX_H))
+            {
+                if (DressingPlan.LineGroups.Contains(p.group) || DressingPlan.ShareExempt.Contains(p.group) || p.group == "MinersCamp" || p.group == "Caravan" || p.group == "WaterStop") continue;
+                if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;
+                float fr = DressingPlan.FootprintRadius(p), mn = float.MaxValue, mx = float.MinValue;
+                for (int k = 0; k < 5; k++)
+                {
+                    float a = (45f + k * 90f) * Mathf.Deg2Rad;
+                    float x = k == 4 ? p.position.x : p.position.x + Mathf.Sin(a) * fr * 0.7f, z = k == 4 ? p.position.z : p.position.z + Mathf.Cos(a) * fr * 0.7f;
+                    float g = b.Ground(x, z); mn = Mathf.Min(mn, g); mx = Mathf.Max(mx, g);
+                }
+                Assert.LessOrEqual(mx - mn, DressingPlan.GROUND_REJECT_SPAN * p.height + 0.01f, "急な斜面の小物 " + p.group + " " + p.part);
+            }
+        }
+
+        [Test] public void LobbyRimRocksGrounded()
+        {
+            var crown = LobbyLayout.RimCrown(LobbyLayout.FENCE_RECT, 11);
+            foreach (var c in crown)
+            {
+                float mn = LobbyLayout.GroundHeight(LobbyLayout.FENCE_RECT, c.position);
+                for (int k = 0; k < 4; k++)
+                {
+                    float a = (45f + k * 90f) * Mathf.Deg2Rad, r = c.radius * LobbyLayout.CROWN_FOOT;
+                    mn = Mathf.Min(mn, LobbyLayout.GroundHeight(LobbyLayout.FENCE_RECT, new Vector3(c.position.x + Mathf.Sin(a) * r, 0f, c.position.z + Mathf.Cos(a) * r)));
+                }
+                Assert.LessOrEqual(c.position.y, mn + 0.05f);
+            }
+        }
+
+        // ---- art-r4-11：急カーブの干し草の壁は四角い干し草の続いた低い壁 ----
+        [TestCaseSource(nameof(Stages))]
+        public void CornerWallIsContinuousBlocks(int i)
+        {
+            var b = Stage(i);
+            foreach (var c in StageDefinitions.TightCorners(b.def, b.local))
+            {
+                var wall = CourseMarks.CornerWall(b.def, b.local, c);
+                Assert.IsTrue(wall.All(w => w.part == "HayBales_02" || w.part == "HayBales_03"), "四角い干し草");
+                Assert.That(wall.Count(w => w.cap), Is.InRange(wall.Count / 3 - 1, wall.Count / 3 + 1), "3 つに 1 つ丸い干し草");
+                foreach (var w in wall) Assert.That(w.scale * CourseMarks.HAY_BLOCK_LEN, Is.InRange(CourseMarks.CORNER_WALL_STEP_M * 0.94f, CourseMarks.CORNER_WALL_STEP_M * 1.06f), "端と端でつながる長さ");
+                var cum = DressingPlan.CourseArcs(b.local);
+                foreach (var w in wall)
+                {
+                    float a = DressingPlan.NearestArc(b.local, cum, w.position, out float _);
+                    Assert.That(a - c.apexArc, Is.InRange(-CourseMarks.CORNER_WALL_FROM_M - 3f, CourseMarks.CORNER_WALL_TO_M + 3f));
+                }
+                var ch = CourseMarks.CornerWallChevrons(b.def, b.local, c);
+                Assert.GreaterOrEqual(ch.Count, 3, "8m ごとの赤い矢印");
+            }
+        }
+
+        // ---- art-r4-12：岩の橋は 60m 先から読める ----
+        [Test] public void RockBridgeReads()
+        {
+            Assert.GreaterOrEqual(SetPieces.SpineFlankDeg, 65f);
+            Assert.AreEqual(14f, SetPieces.TRENCH_DEPTH, 1e-4f);
+            Assert.AreEqual(3, SetPieces.TRENCH_SKELETONS);
+            Assert.Greater(SetPieces.SPINE_LINE_W * 1.6f + (1f - SetPieces.SPINE_LINE_W), 1.25f, "背は道の色 × 1.3");
+        }
+
+        // ---- art-r4-14 / 15：野に吊り下げの街灯を並べない・目印は 1 ステージ 1 つ ----
+        [TestCaseSource(nameof(Stages))]
+        public void NoGallowsInOpenCountry(int i)
+        {
+            var b = Stage(i);
+            foreach (var p in b.plan.Where(q => q.part == "FarmProps_02"))
+                Assert.IsTrue(DressingPlan.FarmLampGroups.Contains(p.group), "野の吊り下げの街灯: " + p.group);
+            Assert.Greater(b.plan.Count(p => p.lamp), 3, "丸太の柱の灯り");
+            DressingPlan.GuideAsset(b.def.kind, out string asset, out string part, out float scale);
+            var guide = b.plan.Where(p => p.group == "GuideTower" && p.part == part).ToList();
+            Assert.LessOrEqual(guide.Count, 1);
+            Assert.LessOrEqual(b.plan.Count(p => p.part == DressingPlan.RANCH_TOWER), 1);
+        }
+
+        // ---- art-r4-18：砂漠の道の近くの暮らしの跡 ----
+        [Test] public void DunesNearRoadLife()
+        {
+            var b = Stage(1);
+            var cum = DressingPlan.CourseArcs(b.local);
+            var wrecks = b.plan.Where(p => p.group == "DuneWreck" && p.part == DressingPlan.TOWN_CART).ToList();
+            TestContext.WriteLine($"half-buried carts {wrecks.Count}");
+            Assert.GreaterOrEqual(wrecks.Count, (int)(b.goal / DressingPlan.DUNE_WRECK_STEP_M) - 3);
+            foreach (var w in wrecks)
+            {
+                float a = DressingPlan.NearestArc(b.local, cum, w.position, out float d);
+                Assert.That(d - StageDefinitions.HalfWidthAt(b.def, a), Is.InRange(DressingPlan.DUNE_WRECK_LAT_MIN - 1f, DressingPlan.DUNE_WRECK_LAT_MAX + 1f));
+                Assert.AreEqual(DressingPlan.DUNE_WRECK_TILT, Mathf.Abs(w.rollDeg), 1e-3f);
+            }
+            var camels = b.plan.Where(p => p.group == "Caravan" && p.asset == DressingPlan.CAMEL && WorldLayout.DistToPolylineXZ(p.position, b.local) <= DressingPlan.CARAVAN_ROAD_MAX_M).ToList();
+            Assert.GreaterOrEqual(camels.Count, 2, "道から 25m 以内のラクダの隊列");
+            Assert.AreEqual(1, b.plan.Count(p => p.group == "GiantSkeleton" && Mathf.Abs(p.scale - DressingPlan.GIANT_SKELETON_HERO_SCALE) < 1e-3f), "砂漠の主役の巨大な骨");
+        }
     }
 }

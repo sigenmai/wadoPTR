@@ -127,7 +127,13 @@ namespace HorseRace.EditorTools
             foreach (var cp in CourseMarks.FinishChute(sb.def, sb.courseLocal, sb.goalArc))
             {
                 Vector3 w = sb.Ground(cp.position.x, cp.position.z);
-                if (cp.kind == CourseMarks.CHUTE_LAMP) { SetPieceBuilder.Lamp(g, w, cp.yaw, SetPieceBuilder.LampWarm, 10f); continue; }
+                if (cp.kind == CourseMarks.CHUTE_LAMP)
+                {
+                    // art-r4-14：境目のゴールの町の中は町の街灯、荒野・砂漠の見物の直線は丸太の柱の灯り
+                    if (sb.def.kind == HeightmapGen.KIND_MESA) SetPieceBuilder.Lamp(g, w, cp.yaw, SetPieceBuilder.LampWarm, 10f);
+                    else SetPieceBuilder.PostLamp(g, w, cp.yaw, SetPieceBuilder.LampWarm, 10f);
+                    continue;
+                }
                 if (cp.kind == CourseMarks.CHUTE_SIGN)
                 {
                     SetPieceBuilder.SignPost(g, "Last100", w, cp.yaw, "<b>あと 100m</b>", UiStyle.Gold, new Color(0f, 0f, 0f, 0f), 0f, 1.4f);
@@ -175,19 +181,30 @@ namespace HorseRace.EditorTools
             foreach (var c in StageDefinitions.TightCorners(sb.def, sb.courseLocal))
             {
                 Vector3[] m = CourseMarks.CornerApexMarks(sb.def, sb.courseLocal, c, sb.goalArc);
-                Vector3 hay = sb.Ground(m[0].x, m[0].z), lamp = sb.Ground(m[1].x, m[1].z);
+                Vector3 lamp = sb.Ground(m[1].x, m[1].z);
                 float yaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(sb.courseLocal, c.apexArc));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay, yaw, 1f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay + Vector3.up * 1.55f, yaw + 35f, 0.9f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
-                SetPieceBuilder.Lamp(g, lamp, yaw + (c.side > 0 ? 90f : -90f), SetPieceBuilder.SignalOrange, 10f);
-                // course-r3-07：外側の干し草の壁（2 段、当たりは柵だけ）
-                const float S = CourseMarks.CORNER_WALL_SCALE;
+                // art-r4-11：頂点の内側の 2 段の干し草はやめた（外側の壁がある）。頂点の灯りは丸太の柱の上（art-r4-14：吊り下げの街灯は町だけ）
+                SetPieceBuilder.PostLamp(g, lamp, yaw, SetPieceBuilder.SignalOrange, 10f);
+                // course-r3-07 → art-r4-11：外側の干し草の壁（四角い干し草を端と端でつなぎ、3 つに 1 つ丸い干し草、当たりは柵だけ）
                 foreach (var wb in CourseMarks.CornerWall(sb.def, sb.courseLocal, c))
                 {
                     Vector3 hp = sb.Ground(wb.position.x, wb.position.z);
-                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), wb.part, g, hp - Vector3.up * 0.05f, wb.yaw, S, new Vector3(1.5f, 1.6f, 1.5f), Wood));
-                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), wb.part == "HayBales_01" ? "HayBales_02" : "HayBales_01", g, hp + Vector3.up * (1.5f * S),
-                        wb.yaw + 90f, S * 0.95f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), wb.part, g, hp - Vector3.up * 0.08f, wb.yaw, wb.scale, new Vector3(0.92f, 0.55f, 0.65f), Wood));
+                    if (wb.cap)
+                        DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hp + Vector3.up * (CourseMarks.HAY_BLOCK_H * wb.scale - 0.12f),
+                            wb.yaw + 37f, CourseMarks.CORNER_WALL_CAP_SCALE, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                }
+                // art-r4-11：壁の上の赤い矢印の札（8m ごと、短い丸太の柱と手配書の紙）
+                int ci = 0;
+                foreach (var ch in CourseMarks.CornerWallChevrons(sb.def, sb.courseLocal, c))
+                {
+                    Vector3 top = sb.Ground(ch.position.x, ch.position.z) + Vector3.up * (ch.position.y - 0.1f);
+                    var sign = GenUtil.World(g, "WallChevron_" + k + "_" + (ci++), top, ch.yaw);
+                    SetPieceBuilder.UprightLog(sign.transform, "WoodLogs_01", top, ch.yaw, 1.3f, 0.9f);
+                    GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_02", new Vector3(0f, 0.55f, -0.18f), null, 1.2f, 0.6f);
+                    GenUtil.Text(sign.transform, "Text", new Vector3(0f, 0.85f, -0.22f), Quaternion.identity, "<b><size=170%>" + CourseMarks.Chevrons(2, ch.side) + "</size></b>",
+                        1.3f, UiStyle.RedInk, new Vector2(1.1f, 0.5f), TextStyle.Sign, true);
+                    DressingBuilder.SetStatic(sign);
                 }
                 k++;
             }
@@ -225,7 +242,7 @@ namespace HorseRace.EditorTools
                     DressingBuilder.SetStatic(beam);
                 }
                 for (int sd = -1; sd <= 1; sd += 2)
-                    SetPieceBuilder.Lamp(gate, sb.GroundWorld((sd < 0 ? l : r) + rt * (sd * 1.6f) - t * 0.8f), yaw + (sd > 0 ? -90f : 90f), SetPieceBuilder.LampWarm, 12f);
+                    SetPieceBuilder.PostLamp(gate, sb.GroundWorld((sd < 0 ? l : r) + rt * (sd * 1.6f) - t * 0.8f), yaw, SetPieceBuilder.LampWarm, 12f);   // art-r4-14
                 // 残りの距離の紙（迫ってくる騎手のほうを向く）
                 Vector3 mid = new Vector3((l.x + r.x) * 0.5f, top - 1.9f, (l.z + r.z) * 0.5f);
                 var sheet = GenUtil.World(gate, "Remaining", mid, yaw);
@@ -248,7 +265,7 @@ namespace HorseRace.EditorTools
             float hw = StageDefinitions.HalfWidthAt(sb.def, dash), yaw = WorldLayout.YawDeg(t);
             var g = GenUtil.World(root, "DashPoint", sb.GroundWorld(c), yaw).transform;
             for (int s = -1; s <= 1; s += 2)
-                SetPieceBuilder.Lamp(g, sb.GroundWorld(c + rt * (s * (hw + CourseMarks.DASH_LAMP_OUT_M))), yaw + (s > 0 ? -90f : 90f), SetPieceBuilder.SignalOrange, 10f, 1.2f);
+                SetPieceBuilder.PostLamp(g, sb.GroundWorld(c + rt * (s * (hw + CourseMarks.DASH_LAMP_OUT_M))), yaw, SetPieceBuilder.SignalOrange, 10f);   // art-r4-14
             SetPieceBuilder.SignPost(g, "DashSign", sb.GroundWorld(c + rt * (hw + CourseMarks.DASH_SIGN_OUT_M) + t * 3f), yaw, "<b>ここから全力</b>\n" + CourseMarks.FinishLine(sb.def), UiStyle.Gold,
                 new Color(0f, 0f, 0f, 0f), 0f);
         }

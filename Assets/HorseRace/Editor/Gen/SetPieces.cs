@@ -22,10 +22,17 @@ namespace HorseRace.EditorTools
         public const float TRENCH_BLEND = 3f;          // 溝の縁の傾斜
         public const float TRENCH_HALF_LENGTH = 45f;   // コースを横切る方向の半分の長さ
         public const float TRENCH_END_TAPER = 12f;     // 溝の両端で浅くなる長さ
-        public const float TRENCH_DEPTH = 12f;
+        public const float TRENCH_DEPTH = 14f;           // art-r4-12：12 → 14m（背の脇が 60m 先から深い溝に見える）
         public const float BRIDGE_HALF_SPAN = 14f;     // 岩の背の勾配の検査から外す半分の長さ（溝の縁 12m より長い）
         public const float SPINE_HALF = 7f;            // 掘らずに残す地形の背（岩の橋）の半幅（絞り 14m）
-        public const float SPINE_EDGE = 2f;            // 背の縁の切り立った斜面
+        public const float SPINE_EDGE = 2f;            // 背の縁の切り立った斜面（art-r4-12：深さ 14m を 2m で落とす = 平均 82°、≥ 65°）
+        /// <summary>art-r4-12：背の縁の斜面の平均の角度（°）。</summary>
+        public static float SpineFlankDeg => Mathf.Atan(TRENCH_DEPTH / SPINE_EDGE) * Mathf.Rad2Deg;
+        // art-r4-12：背の縁を縁取る平たい岩（DesertRocks_08 ×1.3、2.4m ごと、上の面が道 + 0.35m）と、丸太の手すり（3m ごとの立てた丸太の柱）
+        public const float SPINE_ROCK_STEP_M = 2.4f, SPINE_ROCK_SCALE = 1.3f, SPINE_ROCK_TOP_M = 0.35f, SPINE_RAIL_POST_STEP_M = 3f, SPINE_RAIL_H = 0.95f;
+        /// <summary>art-r4-12：背の道の塗り（道のマスクの B の重み）。_LineBoost 1.6 で道の色 × 1.3 の明るさ（溝の底より明るい）。</summary>
+        public const float SPINE_LINE_W = 0.5f;
+        public const int TRENCH_SKELETONS = 3;
         public const float DETOUR_FROM = 38f;          // ここから外は掘らない（溝の両端を回る遠回り）
         public const float DETOUR_TO = 54f;            // 遠回りの外の縁（平らにならす範囲）
         public const float DETOUR_ALONG = 30f;         // 遠回りのならしのコース方向の半分の長さ
@@ -227,6 +234,12 @@ namespace HorseRace.EditorTools
                 FlattenStart(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, local);   // art-r3-11
             foreach (var run in RailRuns(def, local, goalArc))
                 FlattenBed(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, run[0], run[1]);
+            if (def.kind == HeightmapGen.KIND_MESA)
+            {
+                // art-r4-16：境目のスタートの町・ゴールの町の建物の敷地を道の高さにならす（建物が斜面に張り出さない）
+                FlattenTownPads(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, def, local, 30f, DressingPlan.START_TOWN_LEN_M + 20f);
+                FlattenTownPads(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, def, local, goalArc + DressingPlan.GOAL_STREET_FROM - 10f, goalArc + DressingPlan.GOAL_STREET_TO + 10f);
+            }
             {
                 // ゴールの先の尾根の切れ込み（course-r2-05：3 ステージとも。ゴールから外の世界が見える）
                 Vector3 g = WorldLayout.PointAtArc(local, goalArc);
@@ -568,6 +581,54 @@ namespace HorseRace.EditorTools
         public static float OpeningArc(StageDef def, float goalArc) => def.openingFraction < 0f ? -1f : def.openingFraction * goalArc;
 
         /// <summary>廃線の路盤：a〜b の両端の高さを結ぶ直線に、幅 ±RAIL_BED_HALF をならす（RAIL_BED_BLEND で元へ）。</summary>
+        // ---- art-r4-16：町の敷地 ----
+        public const float TOWN_PAD_FROM_EDGE_M = 2f, TOWN_PAD_TO_EDGE_M = 26f, TOWN_PAD_FADE_M = 8f, TOWN_PAD_END_FADE_M = 12f;
+
+        /// <summary>
+        /// 町の敷地（art-r4-16）：弧長 a0〜a1 の道の両脇、道の縁 + 2m〜+26m を道の高さへならす（外へ 8m・両端 12m でなめらかに元へ）。道の上（縁 + 2m の内側）は触らない。
+        /// </summary>
+        public static void FlattenTownPads(float[,] h, float sizeM, float heightM, StageDef def, Vector3[] local, float a0, float a1)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            var src = (float[,])h.Clone();
+            float total = CoursePath.Length(local);
+            a0 = Mathf.Max(0f, a0); a1 = Mathf.Min(total, a1);
+            if (a1 <= a0) return;
+            var bestD = new float[n, n]; var bestA = new float[n, n]; var bestY = new float[n, n];
+            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) bestD[z, x] = float.MaxValue;
+            float maxHw = 0f;
+            for (float a = a0 - TOWN_PAD_END_FADE_M; a <= a1 + TOWN_PAD_END_FADE_M; a += 2f) maxHw = Mathf.Max(maxHw, StageDefinitions.HalfWidthAt(def, Mathf.Clamp(a, 0f, total)));
+            float reach = maxHw + TOWN_PAD_TO_EDGE_M + TOWN_PAD_FADE_M;
+            int rad = Mathf.CeilToInt(reach / cell) + 1;
+            for (float a = Mathf.Max(0f, a0 - TOWN_PAD_END_FADE_M); a <= Mathf.Min(total, a1 + TOWN_PAD_END_FADE_M); a += 1.5f)
+            {
+                Vector3 c = WorldLayout.PointAtArc(local, a);
+                float y = WorldLayout.SampleHeight(src, sizeM, heightM, c.x, c.z);
+                int cx = Mathf.RoundToInt(c.x / cell), cz = Mathf.RoundToInt(c.z / cell);
+                for (int z = Mathf.Max(0, cz - rad); z <= Mathf.Min(n - 1, cz + rad); z++)
+                    for (int x = Mathf.Max(0, cx - rad); x <= Mathf.Min(n - 1, cx + rad); x++)
+                    {
+                        float dx = x * cell - c.x, dz = z * cell - c.z, d = dx * dx + dz * dz;
+                        if (d < bestD[z, x]) { bestD[z, x] = d; bestA[z, x] = a; bestY[z, x] = y; }
+                    }
+            }
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    if (bestD[z, x] == float.MaxValue) continue;
+                    float d = Mathf.Sqrt(bestD[z, x]), a = bestA[z, x];
+                    float hw = StageDefinitions.HalfWidthAt(def, a);
+                    float e = d - hw;
+                    if (e <= TOWN_PAD_FROM_EDGE_M - 1.5f || e >= TOWN_PAD_TO_EDGE_M + TOWN_PAD_FADE_M) continue;
+                    float wl = Smooth01((e - (TOWN_PAD_FROM_EDGE_M - 1.5f)) / 1.5f) * (1f - Smooth01((e - TOWN_PAD_TO_EDGE_M) / TOWN_PAD_FADE_M));
+                    float wa = (1f - Smooth01((a0 - a) / TOWN_PAD_END_FADE_M)) * (1f - Smooth01((a - a1) / TOWN_PAD_END_FADE_M));
+                    float w = Mathf.Clamp01(wl * wa);
+                    if (w <= 0f) continue;
+                    h[z, x] = Mathf.Clamp01(Mathf.Lerp(src[z, x], bestY[z, x] / heightM, w));
+                }
+        }
+
         public static void FlattenBed(float[,] h, float sizeM, float heightM, Vector3 a, Vector3 b)
         {
             int n = h.GetLength(0);

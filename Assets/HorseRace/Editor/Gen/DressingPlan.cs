@@ -85,7 +85,7 @@ namespace HorseRace.EditorTools
             MESA = "Props/MesaRock/MesaRock.fbx", STABLE = "Props/Stable/Stable.fbx", TENT = "Props/Tent/Tent.fbx",
             MESAB = "ThirdParty/MesaRockB/MesaRockB.fbx", RSTYL = "ThirdParty/RockSetStylized/RockSetStylized.fbx",
             TOWNBLOCK = "Buildings/TownBlock.fbx", SALOON = "Buildings/SaloonFacade.fbx", RANCH = "Buildings/RanchCompound.fbx",
-            SKELETON = "SkeletonHorse.fbx", TREES = "Packs/Trees/Trees.fbx", WTOWN = "Packs/WesternTown/WesternTown.fbx";
+            SKELETON = "SkeletonHorse.fbx", HORSE = "Horse.fbx", TREES = "Packs/Trees/Trees.fbx", WTOWN = "Packs/WesternTown/WesternTown.fbx";
         public const string RANCH_TOWER = "RanchCompound_11_Building", TOWN_TALL_A = "WesternTown_084_Building", TOWN_TALL_B = "WesternTown_082_Building",
             RAIL_TRACK = "WesternTown_049_Track";
         public static string RockGray(char c) => "ThirdParty/RockGray/RockGray" + c + ".fbx";
@@ -365,6 +365,7 @@ namespace HorseRace.EditorTools
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_057_Building"), new Size(6.5f, 13.0f) },
             // art-r2-05：町の小物・岩、牧場の建物、岩のセット、宝石の部品（parts.json の外形から）。ラクダは騎乗の模型と同じ大きさ
             { Key("Camel.fbx", null), new Size(1.4f, 2.3f) },
+            { Key("Horse.fbx", null), new Size(1.3f, 2.2f) },
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_003_Rock"), new Size(3.7f, 8.2f) },
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_004_Rock"), new Size(1.6f, 3.2f) },
             { Key("Packs/WesternTown/WesternTown.fbx", "WesternTown_005_Rock"), new Size(10.4f, 9.1f) },
@@ -1124,7 +1125,11 @@ namespace HorseRace.EditorTools
                     float r = SizeOf(asset, part).r;
                     Vector3 p = w.Side(a, sd * (START_TOWN_SIDE_M + w.Extra(a) + r * 0.8f));
                     float face = yaw + (sd < 0 ? 90f : -90f);
-                    w.Add(G, asset, part, p, face, 1f, asset == WTOWN ? 0.2f : 0.3f, ROAD_MIN, rOverlap: 0.5f);
+                    w.FootprintGround(p, r, out float _, out float span);
+                    if (span > TOWN_MAX_SPAN_M) p = w.Side(a, sd * (START_TOWN_SIDE_M + w.Extra(a) + r * 0.6f));   // art-r4-16：斜面なら道へ寄せて、それでも急なら建てない
+                    w.FootprintGround(p, r, out float _, out span);
+                    if (span > TOWN_MAX_SPAN_M) continue;
+                    w.Add(G, asset, part, p, FacadeYaw(asset, part, face), 1f, asset == WTOWN ? 0.2f : 0.3f, ROAD_MIN, rOverlap: 0.5f);
                 }
                 // course-r3-09：スタートの 200m は半幅 16m（道の縁の外に置く）
                 if (k % 2 == 1) w.Add(G, HAY, "HayBales_01", w.Side(a + 9f, (k % 4 == 1 ? 1f : -1f) * (StageDefinitions.HalfWidthAt(def, a + 9f) + 1.5f)), yaw, 1f, 0.05f, ROAD_MIN);
@@ -1245,16 +1250,19 @@ namespace HorseRace.EditorTools
             for (float a = 0f; a < goalArc; a += SHOULDER_STEP_M, k++)
             {
                 if (ShoulderSkip(def, goalArc, a)) continue;
-                float sd = k % 2 == 0 ? 1f : -1f;
                 float hw = StageDefinitions.HalfWidthAt(def, a);
+                bool ok = false;
+                for (int tries = 0; tries < 4 && !ok; tries++)   // 札・門の円や斜面に当たったら反対側・別の横の距離で
+                {
+                float sd = (k + tries) % 2 == 0 ? 1f : -1f;
                 float lat = hw + w.Rand(SHOULDER_LAT_MIN, SHOULDER_LAT_MAX);
                 Vector3 p = w.Side(a + w.Rand(-1.5f, 1.5f), sd * lat);
-                bool ok;
                 if (k % 3 != 2) ok = w.Add(G, RCOLL, w.Pick(ShoulderPebbles), p, w.Rand(0f, 360f), w.Rand(SHOULDER_PEBBLE_MIN, SHOULDER_PEBBLE_MAX), 0.05f,
                     HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
                 else if (def.kind == HeightmapGen.KIND_CANYON || k % 2 == 0)
                     ok = w.Add(G, DPROPS, w.Pick(ShoulderGrass), p, w.Rand(0f, 360f), 0.7f, 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
                 else ok = w.Add(G, CACTI, "Cacti_09", p, w.Rand(0f, 360f), 0.5f, 0.05f, HeightmapGen.RUNWAY_M + 0.3f, rOverlap: 0f);
+                }
                 if (ok) { var q = w.list[w.list.Count - 1]; q.collider = false; q.shape = SHAPE_NONE; }
             }
         }
@@ -2960,6 +2968,31 @@ namespace HorseRace.EditorTools
             }
             return placed;
         }
+        // ---- art-r4-16：町の建物の正面を道へ向ける・斜面に張り出さない ----
+        /// <summary>町の建物の足元（中心と 0.7 × 半径の 4 点）の高さの差の上限（m）。超える所には建てない（斜面に張り出して見える）。</summary>
+        public const float TOWN_MAX_SPAN_M = 1.2f;
+        /// <summary>
+        /// WesternTown の通りの建物の正面の向き（部品のローカル）：+1 = ローカル +X、−1 = ローカル −X（町の模型の通りの西側の建物は東 = +X を向く。
+        /// parts.json の重心の x の符号の逆）。Buildings/*.fbx（TownBlock・SaloonFacade）はローカル +Z（0）。
+        /// </summary>
+        public static int FacadeSide(string asset, string part)
+        {
+            if (asset != WTOWN || part == null) return 0;
+            switch (part)
+            {
+                case "WesternTown_029_Building": case "WesternTown_036_Building": case "WesternTown_047_Building": case "WesternTown_056_Building": case "WesternTown_070_Building": return 1;
+                case "WesternTown_030_Building": case "WesternTown_039_Building": case "WesternTown_048_Building": case "WesternTown_057_Building": case "WesternTown_067_Building": return -1;
+            }
+            return 0;
+        }
+
+        /// <summary>正面（FacadeSide）がワールドの向き faceDeg を向く yaw（art-r4-16：前は WesternTown の建物の横・裏の平らな壁が道を向いていた）。</summary>
+        public static float FacadeYaw(string asset, string part, float faceDeg)
+        {
+            int s = FacadeSide(asset, part);
+            return s > 0 ? faceDeg - 90f : (s < 0 ? faceDeg + 90f : faceDeg);
+        }
+
         static readonly string[] StreetBuildings =
         {
             "WesternTown_029_Building", "WesternTown_030_Building", "WesternTown_036_Building", "WesternTown_039_Building",
@@ -2991,9 +3024,13 @@ namespace HorseRace.EditorTools
                     if (Mathf.Abs(off) < 10f) continue;   // ゴールゲートの両脇は空ける
                     int v = (k * 2 + (sd > 0 ? 1 : 0)) % 6;
                     float face = yaw + (sd < 0 ? 90f : -90f);
+                    string sbp = StreetBuildings[(k + (sd > 0 ? 3 : 0)) % StreetBuildings.Length];
+                    // art-r4-16：足元の高さの差が 1.2m を超える所（斜面に張り出す）は建てない
+                    w.FootprintGround(p, br, out float _, out float span);
+                    if (span > TOWN_MAX_SPAN_M) continue;
                     if (v == 0) w.Add("GoalTown", TOWNBLOCK, null, p, face, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
                     else if (v == 3) w.Add("GoalTown", SALOON, null, p, face, 1f, 0.3f, ROAD_MIN, ignoreCircles: true);
-                    else w.Add("GoalTown", WTOWN, StreetBuildings[(k + (sd > 0 ? 3 : 0)) % StreetBuildings.Length], p, face, 1f, 0.2f, ROAD_MIN, ignoreCircles: true);
+                    else w.Add("GoalTown", WTOWN, sbp, p, FacadeYaw(WTOWN, sbp, face), 1f, 0.2f, ROAD_MIN, ignoreCircles: true);
                 }
                 // 干し草の山（見物人の柵）：2 つ積み＋小さな束、左右交互。ゴールの手前は見物の直線（CourseMarks.FinishChute）のレールと旗が受け持つ
                 if (off >= 12f)
@@ -3587,9 +3624,69 @@ namespace HorseRace.EditorTools
                 for (int s2 = -1; s2 <= 1; s2 += 2)
                     LobbyTree(w, new Vector3(s2 < 0 ? townMin.x - w.Rand(4f, 5f) : townMax.x + w.Rand(4f, 5f), 0f, z + w.Rand(-2f, 2f)), k + s2);
             Backlot(w);
+            PlazaApron(w, townMin, townMax);   // art-r4-07：スポーンの手前の両脇（先に置く：通りの飾りより優先）
             StreetDressing(w, townMin, townMax);
             PlateEdge(w, townMin, townMax);
             return w.list;
+        }
+
+        // ---- art-r4-07：広場の手前（スポーンの視線の両脇） ----
+        public const float APRON_LANE_HALF_M = 2.5f, APRON_X_MIN = 5f, APRON_X_MAX = 12f, APRON_Z_MIN = 32f, APRON_Z_MAX = 48f;
+
+        /// <summary>スポーンからの視線（向き SPAWN_YAW）の z での x（ロビー中心からの相対）。</summary>
+        public static float SpawnAxisX(float z) => LobbyLayout.SPAWN.x + Mathf.Tan(LobbyLayout.SPAWN_YAW * Mathf.Deg2Rad) * (z - LobbyLayout.SPAWN.z);
+
+        /// <summary>
+        /// 広場の手前（art-r4-07）：スポーンの視線の両脇 x = 視線 ±3.6〜8m（スポーンから見た 60° の扇の中）、z = 34〜49m に、丸太を板のように並べた板張りの縁（WoodLogs_01 を平らに）、
+        /// つなぎ柵（FarmProps_03 ×0.6 と立てた丸太の杭）とつないだ馬（Horse.fbx、アニメーターなし）、樽の山（WesternTown_117）、荷車（WesternTown_115）、木箱、
+        /// 街灯（FarmProps_02、暖色の灯り）。視線の 5m の通り道は空ける。遊びに使う物のまわりは空ける。
+        /// </summary>
+        static void PlazaApron(Work w, Vector2 townMin, Vector2 townMax)
+        {
+            const string G = "PlazaApron";
+            bool rect = w.hasRect;
+            w.hasRect = false;
+            // スポーンから見た 60° の扇（4〜20m）に入るよう、視線から 3〜8m（遠いほど広く）に置く
+            for (int sd = -1; sd <= 1; sd += 2)
+            {
+                float X(float off, float z) => SpawnAxisX(z) + sd * off;
+                // 板張りの縁：丸太の束を平らに 4 枚（2.9m × 2m × 0.26m）
+                for (int i = 0; i < 4; i++)
+                {
+                    float z = 37f + i * 2.9f;
+                    var p = new Vector3(X(7.5f, z), 0f, z);
+                    if (ClearOfSpots(p, 1.5f)) w.Add(G, LOGS, POST_PART, p, 90f, 2f, 0.02f, ROAD_CLEAR, ignoreCircles: true, scaleY: 0.4f, rOverlap: 0f);
+                }
+                // つなぎ柵と馬
+                {
+                    float z = 40f;
+                    var rp = new Vector3(X(5f, z), 0f, z);
+                    if (ClearOfSpots(rp, 1.5f))
+                    {
+                        w.Add(G, FARM, "FarmProps_03", rp, 90f, 0.6f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                        w.AddPost(G, rp + new Vector3(0f, 0f, -0.9f), 0f, 1.2f, 0.16f, ROAD_CLEAR, true);
+                        w.AddPost(G, rp + new Vector3(0f, 0f, 0.9f), 0f, 1.2f, 0.16f, ROAD_CLEAR, true);
+                        w.Add(G, HORSE, null, rp + new Vector3(sd * 1.6f, 0f, 0.3f), sd > 0 ? -90f : 90f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    }
+                }
+                // 樽の山・荷車（西）／木箱（東）・木箱と樽・街灯・干し草
+                var bp = new Vector3(X(6.5f, 46.5f), 0f, 46.5f);
+                if (ClearOfSpots(bp, 1.8f)) w.Add(G, WTOWN, TOWN_BARRELS, bp, sd * 30f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                var cp = new Vector3(X(5.5f, 34.5f), 0f, 34.5f);
+                if (ClearOfSpots(cp, 1.2f))
+                    w.Add(G, sd < 0 ? WTOWN : FARM, sd < 0 ? TOWN_CART : FarmCrates[0], cp, sd < 0 ? 20f : 15f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                var kp = new Vector3(X(4f, 43.5f), 0f, 43.5f);
+                if (ClearOfSpots(kp, 1f))
+                {
+                    w.Add(G, WTOWN, TownCrates[(sd + 1) % TownCrates.Length], kp, sd * 12f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                    w.Add(G, FARM, FarmBarrels[0], kp + new Vector3(sd * 1.2f, 0f, 1.1f), 0f, 1f, 0.05f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                }
+                var lp = new Vector3(X(3.6f, 48.5f), 0f, 48.5f);
+                if (ClearOfSpots(lp, 0.8f)) w.Add(G, FARM, FARM_LAMP, lp, sd > 0 ? -90f : 90f, 1f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+                var hp = new Vector3(X(8f, 48f), 0f, 48f);
+                if (ClearOfSpots(hp, 1f)) w.Add(G, HAY, "HayBales_02", hp, sd * 20f, 1.4f, 0.02f, ROAD_CLEAR, ignoreCircles: true, rOverlap: 0f);
+            }
+            w.hasRect = rect;
         }
 
         /// <summary>遊びに使う物（LobbyLayout.FunctionalSpots）・練習場から r + 0.6m 以上離れているか。</summary>
@@ -3643,7 +3740,8 @@ namespace HorseRace.EditorTools
             int k = 0;
             for (float z = LobbyLayout.SPAWN.z + 4f; z <= lines[0][1].z; z += 5f, k++)
             {
-                Vector3 p = new Vector3(cx + w.Rand(-3f, 3f), 0f, z + w.Rand(-1.5f, 1.5f));
+                // art-r4-07：スポーンからの視線（幅 5m の通り道）を空け、東寄りに置く（前は干し草・岩が通りの真ん中にあった）
+                Vector3 p = new Vector3(SpawnAxisX(z) + APRON_LANE_HALF_M + w.Rand(0.6f, 2f), 0f, z + w.Rand(-1.5f, 1.5f));
                 if (!ClearOfSpots(p, 0.8f)) continue;
                 if (k % 2 == 0) w.Add("StreetDressing", WTOWN, TownPebbles[k / 2 % TownPebbles.Length], p, w.Rand(0f, 360f), w.Rand(1f, 1.4f), 0.05f, ROAD_CLEAR, ignoreCircles: true);
                 else w.Add("StreetDressing", DPROPS, DpGrass[k % 2], p, w.Rand(0f, 360f), w.Rand(0.7f, 1f), 0.05f, ROAD_CLEAR, ignoreCircles: true);
@@ -4380,32 +4478,77 @@ namespace HorseRace.EditorTools
             return new[] { new Vector3(hay.x, 0f, hay.z), new Vector3(lamp.x, 0f, lamp.z) };
         }
 
-        /// <summary>外側の干し草の壁の 1 つ（下の段、Terrain ローカル y = 0）と向き。上の段は同じ場所に 1.55 × 拡大 m 上（CourseBuilder・tools/preview）。</summary>
+        /// <summary>
+        /// 外側の干し草の壁の 1 つ（art-r4-11）：四角い干し草（HayBales_02/03、長い辺 0.92m）を長い辺を道に沿わせて拡大 scale、足元は Terrain ローカル y = 0。
+        /// cap = 上に丸い干し草（HayBales_01 ×CORNER_WALL_CAP_SCALE）を載せる（3 つに 1 つ）。
+        /// </summary>
         public struct WallBale
         {
             public Vector3 position;
-            public float yaw;
+            public float yaw, scale;
             public string part;
+            public bool cap;
         }
 
+        // art-r4-11：四角い干し草を端と端でつなぐ低い壁（丸い干し草の格子は「蜂の巣の畑」に見えた）
+        public const float HAY_BLOCK_LEN = 0.92f, HAY_BLOCK_H = 0.55f;       // HayBales_02/03 の長い辺・高さ（Blender で測った外形）
+        public const float CORNER_WALL_BLOCK_SCALE = CORNER_WALL_STEP_M / HAY_BLOCK_LEN;   // 2.2m の干し草（高さ 1.3m）
+        public const float CORNER_WALL_YAW_JITTER = 6f, CORNER_WALL_SCALE_JITTER = 0.05f, CORNER_WALL_CAP_SCALE = 0.8f;
+        public const float CORNER_WALL_FROM_M = 15f, CORNER_WALL_TO_M = 25f;   // 頂点の 15m 手前〜25m 先
+        public const float CORNER_CHEVRON_STEP_M = 8f;
+
         /// <summary>
-        /// 急カーブの外側の干し草の壁（course-r3-07）：頂点の CORNER_WALL_BEFORE_M 手前から CORNER_WALL_AFTER_M 先まで、道の縁 + CORNER_WALL_EDGE_M（柵の手前）に
-        /// CORNER_WALL_STEP_M ごとの干し草（HayBales_01 と _02 を交互）。当たりは柵（見えない壁）だけ。「ここへ行くな」の柔らかい壁。
+        /// 急カーブの外側の干し草の壁（course-r3-07 → art-r4-11）：頂点の CORNER_WALL_FROM_M 手前から CORNER_WALL_TO_M 先まで、道の縁 + CORNER_WALL_EDGE_M に
+        /// 2.2m ごとの四角い干し草（HayBales_02/03 ×2.4 ±5%、長い辺を外側の線に沿わせ ±6° だけ振る）を端と端でつなぎ、3 つに 1 つ丸い干し草を載せる。
+        /// 当たりは柵（見えない壁）だけ。「ここへ行くな」の 1 本の続いた壁。
         /// </summary>
         public static List<WallBale> CornerWall(StageDef def, Vector3[] course, StageDefinitions.Corner c)
         {
             var r = new List<WallBale>();
             int k = 0;
             Vector3 last = Vector3.zero;
-            for (float a = c.apexArc - CORNER_WALL_BEFORE_M; a <= c.apexArc + CORNER_WALL_AFTER_M + 1e-3f; a += 0.25f)
+            for (float a = c.apexArc - CORNER_WALL_FROM_M; a <= c.apexArc + CORNER_WALL_TO_M + 1e-3f; a += 0.25f)
             {
                 Vector3 t = WorldLayout.TangentAtArc(course, a);
                 Vector3 p = WorldLayout.PointAtArc(course, a) + WorldLayout.RightOf(t) * (-c.side * (StageDefinitions.HalfWidthAt(def, a) + CORNER_WALL_EDGE_M));
                 p.y = 0f;
                 if (k > 0 && WorldLayout.DistXZ(p, last) < CORNER_WALL_STEP_M) continue;   // 外側の線の上で 2.2m ごと（カーブの外は弧長より長い）
-                r.Add(new WallBale { position = p, yaw = WorldLayout.YawDeg(t) + (k % 3) * 7f, part = k % 2 == 0 ? "HayBales_01" : "HayBales_02" });
+                // 決まった揺らぎ（乱数を使わない）：向き ±6°、拡大 ±5%
+                float jy = CORNER_WALL_YAW_JITTER * Mathf.Sin(k * 2.39f), js = 1f + CORNER_WALL_SCALE_JITTER * Mathf.Sin(k * 1.71f + 0.5f);
+                r.Add(new WallBale { position = p, yaw = WorldLayout.YawDeg(t) + 90f + jy, scale = CORNER_WALL_BLOCK_SCALE * js,
+                    part = k % 2 == 0 ? "HayBales_02" : "HayBales_03", cap = k % 3 == 1 });
                 last = p;
                 k++;
+            }
+            return r;
+        }
+
+        /// <summary>壁の上の赤い矢印の札 1 枚（art-r4-11）：足元 = 壁の上（Terrain ローカル、y = 壁の高さ）、向き（迫ってくる騎手が見る向き）。</summary>
+        public struct WallChevron
+        {
+            public Vector3 position;
+            public float yaw;
+            public int side;
+        }
+
+        /// <summary>
+        /// 干し草の壁の上の赤い矢印の札（art-r4-11）：CORNER_CHEVRON_STEP_M ごとに、壁の干し草の上（高さ = 干し草の高さ）に短い丸太の柱と手配書の紙の札
+        /// （急カーブの札と同じ赤インクの ›）。道の側へ 25° 振って騎手を向く。
+        /// </summary>
+        public static List<WallChevron> CornerWallChevrons(StageDef def, Vector3[] course, StageDefinitions.Corner c)
+        {
+            var r = new List<WallChevron>();
+            var wall = CornerWall(def, course, c);
+            float run = 0f;
+            for (int i = 0; i < wall.Count; i++)
+            {
+                if (i > 0) run += WorldLayout.DistXZ(wall[i].position, wall[i - 1].position);
+                if (i > 0 && run < CORNER_CHEVRON_STEP_M - 0.01f) continue;
+                if (wall[i].cap) continue;   // 丸い干し草の上には立てない
+                run = 0f;
+                Vector3 p = wall[i].position;
+                p.y = HAY_BLOCK_H * wall[i].scale;
+                r.Add(new WallChevron { position = p, yaw = wall[i].yaw - 90f - c.side * CORNER_BOARD_TURN_DEG, side = c.side });
             }
             return r;
         }

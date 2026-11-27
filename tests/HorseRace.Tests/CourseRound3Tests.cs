@@ -156,7 +156,7 @@ namespace HorseRace.Tests
             foreach (var c in StageDefinitions.TightCorners(b.def, b.local))
             {
                 var wall = CourseMarks.CornerWall(b.def, b.local, c);
-                Assert.GreaterOrEqual(wall.Count, (int)((CourseMarks.CORNER_WALL_BEFORE_M + CourseMarks.CORNER_WALL_AFTER_M) / CourseMarks.CORNER_WALL_STEP_M));
+                Assert.GreaterOrEqual(wall.Count, (int)((CourseMarks.CORNER_WALL_FROM_M + CourseMarks.CORNER_WALL_TO_M) / CourseMarks.CORNER_WALL_STEP_M));
                 for (int k = 1; k < wall.Count; k++) Assert.LessOrEqual(WorldLayout.DistXZ(wall[k].position, wall[k - 1].position), CourseMarks.CORNER_WALL_STEP_M + 0.5f, "途切れない壁");
                 foreach (var wb in wall)
                 {
@@ -259,10 +259,24 @@ namespace HorseRace.Tests
                 Assert.AreEqual(0f, W(c + r * (StageDefinitions.HalfWidthAt(b.def, a) + 4f)), 1e-4f, "道の外");
             }
             // 帯は道のマスク（踏み固めた土）の上だけ：2 本 × 道幅 × 約 3m より広くない
-            int on = 0;
-            foreach (float v in m) if (v > 0.05f) on++;
+            // （art-r4-12：岩の橋の背の明るい道 SPINE_LINE_W は別に数える）
+            int on = 0, spine = 0;
+            float bridge = SetPieces.BridgeArc(b.def, b.goal);
+            for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++)
+                {
+                    float v = m[z, x];
+                    if (v <= 0.05f) continue;
+                    if (bridge >= 0f && Mathf.Abs(v - SetPieces.SPINE_LINE_W) < 0.02f) { spine++; continue; }
+                    on++;
+                }
             float cell = StageDefinitions.SIZE / (res - 1);
             Assert.Less(on * cell * cell, 2f * 2f * StageDefinitions.START_HALF_M * (HeightmapGen.LINE_BAND_M + 2f * HeightmapGen.LINE_BAND_FADE_M + 2f * cell));
+            if (bridge >= 0f)
+            {
+                Assert.Greater(spine, 20, "岩の橋の背は明るい道");
+                Assert.AreEqual(SetPieces.SPINE_LINE_W, W(WorldLayout.PointAtArc(b.local, bridge)), 0.02f);
+            }
         }
     }
 }

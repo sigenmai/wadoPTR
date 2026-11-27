@@ -113,10 +113,11 @@ namespace HorseRace.EditorTools
                 float len = d.magnitude;
                 var piece = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), Fence.PART, fence, (a + b) * 0.5f, WorldLayout.YawDeg(d / len) - 90f, 1f,
                     new Vector3(Fence.PIECE, 1f, 0.15f), Wood);
-                piece.transform.localScale = new Vector3(len / Fence.PIECE, LobbyLayout.FENCE_SCALE_Y, 1f);
+                float sy = LobbyLayout.FenceScaleYAt((sg[0] + sg[1]) * 0.5f);   // art-r4-09：見晴らしの切れ目の中は低い柵
+                piece.transform.localScale = new Vector3(len / Fence.PIECE, sy, 1f);
                 var box = piece.AddComponent<BoxCollider>();
-                // 当たり判定は見た目より高い 3.0m（乗り物のジャンプで越えられない）。ローカルは縦 ×1.6 されるので割る
-                float colH = FENCE_COLLIDER_H / LobbyLayout.FENCE_SCALE_Y;
+                // 当たり判定は見た目より高い 3.0m（乗り物のジャンプで越えられない）。ローカルは縦の拡大で割る
+                float colH = FENCE_COLLIDER_H / sy;
                 box.size = new Vector3(Fence.PIECE, colH, 0.4f);
                 box.center = new Vector3(0f, colH * 0.5f, 0f);
                 GenUtil.SetLayerRecursive(piece, WorldLayers.Block);
@@ -156,7 +157,7 @@ namespace HorseRace.EditorTools
             DressingBuilder.Instantiate(plan, dr, CENTER, "Lobby");
             // 大通りの街灯の暖かい灯り（art-r3-09）
             foreach (var q in plan)
-                if (q.group == "StreetDressing" && q.part == "FarmProps_02")
+                if ((q.group == "StreetDressing" || q.group == "PlazaApron") && q.part == "FarmProps_02")
                     GenUtil.PointLight(dr, "StreetLampLight", CENTER + q.position + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 10f, 1.3f);
             DressingBuilder.SetStatic(town);
             int posters = WallPosters(dr, town, tb);

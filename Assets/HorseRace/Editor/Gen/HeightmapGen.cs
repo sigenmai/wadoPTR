@@ -206,6 +206,25 @@ namespace HorseRace.EditorTools
             if (local == null || local.Length < 2) return m;
             float cellM = TERRAIN_SIZE_M / (n - 1);
             float[] arcs = { StageDefinitions.START_ARC_M + 3f, goalArc };
+            // art-r4-12：岩の橋の背（溝の上の道）は明るい土（SPINE_LINE_W × _LineBoost）で、溝の底より明るく
+            float bridge = def != null ? SetPieces.BridgeArc(def, goalArc) : -1f;
+            if (bridge >= 0f)
+            {
+                Vector3 c = WorldLayout.PointAtArc(local, bridge), t = WorldLayout.TangentAtArc(local, bridge);
+                t = new Vector3(t.x, 0f, t.z).normalized;
+                Vector3 r = WorldLayout.RightOf(t);
+                float half = SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND + 2f, reach = half + SetPieces.SPINE_HALF + 2f;
+                int x0 = Mathf.Max(0, Mathf.FloorToInt((c.x - reach) / cellM)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((c.x + reach) / cellM));
+                int z0 = Mathf.Max(0, Mathf.FloorToInt((c.z - reach) / cellM)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((c.z + reach) / cellM));
+                for (int z = z0; z <= z1; z++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        float dx = x * cellM - c.x, dz = z * cellM - c.z;
+                        float along = Mathf.Abs(dx * t.x + dz * t.z), lat = Mathf.Abs(dx * r.x + dz * r.z);
+                        float w = SetPieces.SPINE_LINE_W * (1f - Smooth(half - 2f, half, along)) * (1f - Smooth(SetPieces.SPINE_HALF - 1f, SetPieces.SPINE_HALF, lat));
+                        if (w > m[z, x]) m[z, x] = w;
+                    }
+            }
             foreach (float a in arcs)
             {
                 Vector3 c = WorldLayout.PointAtArc(local, a), t = WorldLayout.TangentAtArc(local, a);

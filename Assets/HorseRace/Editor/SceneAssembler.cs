@@ -266,11 +266,19 @@ namespace HorseRace.EditorTools
             var plan = DressingPlan.Backdrop(7);
             Vector4 f = WorldBounds.FillerRect();
             Terrain filler = TerrainBuilder.BuildFiller(ctx, root);
-            // ステージのすぐ外の岩（art-r2-09）は外の地面（縁の高さへ寄せた後）の上に置き直す
+            // 継ぎ目の輪の岩（art-r2-09 → art-r4-01）は縁をまたぐので、足元 5 点のステージの地面・外の地面の高い方のいちばん低い所に置き、高さの 35% を埋める
             foreach (var p in plan)
                 if (p.group == "BackdropNear" && filler != null)
-                    p.position = new Vector3(p.position.x, filler.SampleHeight(new Vector3(p.position.x, 0f, p.position.z)) + filler.transform.position.y
-                        - WorldBounds.BACKDROP_SINK * p.height, p.position.z);
+                {
+                    float foot = p.radius * 0.6f, low = float.MaxValue;
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float a = (45f + i * 90f) * Mathf.Deg2Rad;
+                        Vector3 q = i == 4 ? p.position : p.position + new Vector3(Mathf.Sin(a) * foot, 0f, Mathf.Cos(a) * foot);
+                        low = Mathf.Min(low, WorldGround(ctx, filler, q));
+                    }
+                    p.position = new Vector3(p.position.x, low - DressingPlan.SEAM_SINK * p.height, p.position.z);
+                }
             DressingBuilder.Instantiate(plan, root, Vector3.zero, "Backdrop");
             // ロビーの見晴らしの切れ目の目印（art-r2-15）：外の地面の高さに合わせて置き、給水塔の上に煙の柱
             var vista = LobbyLayout.VistaHeroes(5);
@@ -288,6 +296,19 @@ namespace HorseRace.EditorTools
                 if (p.part == DressingPlan.RANCH_TOWER)
                     GenUtil.SmokeColumn(vroot, "VistaSmoke", lc + p.position + Vector3.up * (p.height + 1f), new Color(0.30f, 0.27f, 0.26f, 0.6f), 45f, 4f);
             Debug.Log("[HorseRace] 遠景の山並み " + plan.Count + " 個（2 列）、外の地面（Terrain）" + (f.z - f.x).ToString("F0") + "×" + (f.w - f.y).ToString("F0") + "m");
+        }
+
+        /// <summary>ワールドの (x, z) の地面の高さ：その点を含むステージ・ロビーの Terrain と外の地面の高い方（art-r4-01）。</summary>
+        static float WorldGround(WorldContext ctx, Terrain filler, Vector3 p)
+        {
+            float y = filler.SampleHeight(new Vector3(p.x, 0f, p.z)) + filler.transform.position.y;
+            foreach (var sb in ctx.stages)
+            {
+                Vector3 o = sb.def.Origin;
+                if (sb.terrain == null || p.x < o.x || p.z < o.z || p.x > o.x + StageDefinitions.SIZE || p.z > o.z + StageDefinitions.SIZE) continue;
+                y = Mathf.Max(y, sb.terrain.SampleHeight(new Vector3(p.x, 0f, p.z)) + sb.terrain.transform.position.y);
+            }
+            return y;
         }
 
         /// <summary>中継カメラの範囲：各ステージの見えない壁の少し内側。</summary>

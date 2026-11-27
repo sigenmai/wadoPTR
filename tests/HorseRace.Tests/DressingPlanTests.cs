@@ -413,7 +413,7 @@ namespace HorseRace.Tests
             var f = LobbyLayout.FENCE_RECT;
             foreach (var p in l)
             {
-                if (p.group == "StreetDressing" || p.group == "PlateEdge")
+                if (p.group == "StreetDressing" || p.group == "PlateEdge" || p.group == "PlazaApron")   // art-r4-07：広場の手前も町の中
                 {
                     // art-r3-09：大通りの飾りと地面の板の縁は町の中。遊びに使う物から離す
                     foreach (var kv in LobbyLayout.FunctionalSpots())
