@@ -23,6 +23,11 @@ namespace UnityEngine
     {
         public static Color gray => new Color(0.5f, 0.5f, 0.5f, 1f);
         public static Color red => new Color(1f, 0f, 0f, 1f);
+        // UnityEngine.Color の == / != （成分の近似比較。ここでは型だけ）
+        public static bool operator ==(Color lhs, Color rhs) => lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a;
+        public static bool operator !=(Color lhs, Color rhs) => !(lhs == rhs);
+        public override bool Equals(object other) => other is Color c && this == c;
+        public override int GetHashCode() => r.GetHashCode() ^ g.GetHashCode() ^ b.GetHashCode() ^ a.GetHashCode();
     }
 
     public static class ColorUtility
