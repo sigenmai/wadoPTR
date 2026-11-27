@@ -13,7 +13,7 @@ namespace HorseRace
         /// <summary>Render this far behind the sender (about 2.2 send intervals at 10 Hz).</summary>
         public const float DELAY = 0.22f;
         /// <summary>A new sample farther than this from the newest one is a teleport: snap.</summary>
-        public const float SNAP_DISTANCE = 10f;
+        public const float SNAP_DISTANCE = 15f;   // 18 m/s で 0.5 秒取りこぼしても 9m ＋ノックバック。テレポートだけスナップ
         /// <summary>Render clock jumps instead of easing when it is off by more than this.</summary>
         public const double CLOCK_SNAP = 0.5;
         /// <summary>How fast the render clock eases toward its target (per second).</summary>

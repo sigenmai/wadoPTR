@@ -7,7 +7,7 @@ namespace HorseRace
     /// 乗り物の見た目。syncMount / syncCoat で Horse / Camel / SkeletonHorse のモデルを切り替え、
     /// 馬は HorseMaterialBuilder の毛色マテリアル（coat 0..5）を貼る。coat 6 は骨の馬。
     /// Animator（全モデル共通の Mount.controller）に歩様 "Gait"、"Jump"/"Stagger" トリガー、"Stamp" を渡し、
-    /// speed = 実速度 / 歩様の基準速度。クロスフェード 0.2 秒はコントローラ側（MountAnimatorBuilder）。
+    /// speed = 実速度 / アニメの基準速度（MountMath.AnimRefSpeed）。クロスフェード 0.2 秒はコントローラ側（MountAnimatorBuilder）。
     /// スタミナは息づかい音（低スタミナで荒く）と耳を伏せる動きで見せる。
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -150,8 +150,8 @@ namespace HorseRace
                 float animSpeed = 1f;
                 if (gait > 0 && !air && !stun)
                 {
-                    float baseSpeed = MountMath.GaitSpeed(mount, gait - 1);
-                    animSpeed = Mathf.Clamp(speed / baseSpeed, 0.5f, 1.6f);
+                    float baseSpeed = MountMath.AnimRefSpeed(mount, gait - 1);
+                    animSpeed = Mathf.Clamp(speed / baseSpeed, 0.5f, 1.8f);
                 }
                 activeAnim.speed = animSpeed;
             }

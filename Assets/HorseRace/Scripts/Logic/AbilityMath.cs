@@ -16,12 +16,12 @@ namespace HorseRace
 
         // Secondary tuning values
         public const float DUST_SLOW_FACTOR = 0.8f;
-        public const float LASSO_SELF_BONUS_MPS = 4f;
+        public const float LASSO_SELF_BONUS_MPS = 5f;   // 最高速 18 m/s に合わせて 4 → 5（Lv2 6.5、Lv3 8）
         public const float LASSO_SELF_SECONDS = 2f;
         public const float LASSO_TARGET_FACTOR = 0.7f;
         public const float LASSO_TARGET_SECONDS = 1f;
         public const float WALL_WIDTH = 6f;
-        public const float WALL_AHEAD = 20f;
+        public const float WALL_AHEAD = 28f;   // 18 m/s で約 1.5 秒先（旧 20m ＝ 13 m/s で約 1.5 秒先）
         public const float WALL_SECONDS = 6f;
         public const float BALL_HIT_FACTOR = 0.6f;
         public const float BALL_HIT_SECONDS = 1.2f;
@@ -69,9 +69,9 @@ namespace HorseRace
         public static float LassoRange(int lv)
         {
             lv = Clamp(lv);
-            if (lv == 1) return 25f;
-            if (lv == 2) return 35f;
-            return 45f;
+            if (lv == 1) return 32f;
+            if (lv == 2) return 45f;
+            return 58f;
         }
 
         /// <summary>Lasso self pull bonus (m/s): 4/5/6. Lv1 equals LASSO_SELF_BONUS_MPS.</summary>
@@ -79,8 +79,8 @@ namespace HorseRace
         {
             lv = Clamp(lv);
             if (lv == 1) return LASSO_SELF_BONUS_MPS;
-            if (lv == 2) return 5f;
-            return 6f;
+            if (lv == 2) return 6.5f;
+            return 8f;
         }
 
         public static int WallCount(int lv) { return Clamp(lv); }

@@ -73,7 +73,7 @@ namespace HorseRace
         [Header("調整値（AbilityMath にない細部）")]
         public float dustHitSeconds = 1.5f;
         public float dustBehind = 4f;
-        public float ballSpeed = 18f;
+        public float ballSpeed = 26f;   // 最高速 18 m/s の馬が自分の鉄球に追いつかない
         public float ballLoft = 4f;
         public float ballSpreadDeg = 6f;
         [Tooltip("鉄球のよろけ秒数（Lv1..3）")]

@@ -5,7 +5,7 @@ namespace HorseRace
     {
         public const float MIN_SHOT = 5f;
         public const float MAX_SHOT = 15f;
-        public const float BATTLE_GAP = 8f;
+        public const float BATTLE_GAP = 11f;   // 18 m/s で約 0.6 秒差（旧 8m ＝ 13 m/s で約 0.6 秒差）
         public const float HIT_SHOW = 3f;
 
         /// <summary>order: slots leader first. gapToAhead[k] = metres between order[k] and order[k-1] (index 0 unused).</summary>

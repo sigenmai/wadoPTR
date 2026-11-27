@@ -84,7 +84,7 @@ namespace HorseRace.EditorTools
             var dir = GenUtil.AddU<SpectatorDirector>(dirGo);
             dir.broadcastCamera = cam;
             dir.renderTexture = ctx.broadcastRT;
-            dir.followDistance = 9f;
+            dir.followDistance = 11f;
             dir.followHeight = 4.5f;
             dir.lookHeight = 1.2f;
             ctx.director = dir;

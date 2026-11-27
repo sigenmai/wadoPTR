@@ -9,7 +9,7 @@ namespace HorseRace.EditorTools
     /// </summary>
     public static class CourseBuilder
     {
-        public const float CP_WIDTH = 36f, CP_HEIGHT = 10f, CP_DEPTH = 4f;
+        public const float CP_WIDTH = 36f, CP_HEIGHT = 10f, CP_DEPTH = 6f;   // 18 m/s・10fps でも 1 フレーム 1.8m（体 2.6m＋奥行 6m）で必ず重なる
         public const float BOARD_SIDE = 15f;     // 黒板はコース中心から右へ 15m（平らな道 ±12m の外）
         public const float GATE_HALF = CourseGeometry.GATE_HALF;
         public const float PEN_RADIUS = CourseGeometry.PEN_RADIUS;
@@ -167,7 +167,8 @@ namespace HorseRace.EditorTools
             col.radius = 1.5f;
             col.center = new Vector3(0f, 0.8f, 0f);
             go.layer = WorldLayers.TRIGGERS;
-            string part = "Gems_0" + (GenUtil.Mod(gemIndex, 4) + 1);
+            // Gems_0N は色ちがいの宝石 8 個の組（tools/blender/split_parts.py で 1 個ずつに分けた）。_01 がいちばん大きい結晶
+            string part = "Gems_0" + (GenUtil.Mod(gemIndex, 4) + 1) + "_01";
             var gem = GenUtil.InstantiatePart(GenUtil.Pack("Gems"), part, go.transform, pos, 0f, 1f,
                 new Vector3(0.4f, 0.6f, 0.4f), new Color(0.3f, 0.8f, 0.9f));
             gem.name = "Visual";

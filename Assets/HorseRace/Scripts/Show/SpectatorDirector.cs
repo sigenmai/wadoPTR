@@ -38,11 +38,11 @@ namespace HorseRace
         public RenderTexture renderTexture;
 
         [Header("追従（後方斜め上）")]
-        public float followDistance = 9f;
+        public float followDistance = 11f;   // 18 m/s でも後ろから全身が入る
         public float followHeight = 4.5f;
         public float lookHeight = 1.2f;
         [Tooltip("位置の追従の速さ（大きいほどきびきび）")]
-        public float positionSharpness = 3f;
+        public float positionSharpness = 4f;
         [Tooltip("向き（馬の進行方向）の追従の速さ")]
         public float yawSharpness = 2f;
 
