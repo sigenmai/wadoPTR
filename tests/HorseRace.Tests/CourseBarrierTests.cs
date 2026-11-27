@@ -27,7 +27,7 @@ namespace HorseRace.Tests
             {
                 var local = StageDefinitions.SampleLocal(s);
                 float goal = StageDefinitions.GoalArc(s, local);
-                var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+                var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
                 var sc = SetPieces.PlanFor(s, local, h, goal);
                 var plan = CourseBarrier.For(s, local, goal, sc);
                 r.Add(new Stage { def = s, local = local, goal = goal, shortcut = sc, plan = plan, segs = plan.Segments() });
@@ -76,17 +76,15 @@ namespace HorseRace.Tests
 
         [Test] public void WallPointsSitAtOffsetFromCorridor()
         {
-            float D = CourseBarrier.OFFSET_M;
+            // 柵は点ごとの柵の距離（道幅 + 16m、急カーブ + 10m、橋のまわり 58m）の等距離線の上
             foreach (var st in Stages())
                 foreach (var s in st.segs)
                 {
-                    float da = DistToCorridors(s[0], st.plan.corridors);
-                    Assert.AreEqual(D, da, 1.0f, st.def.label + " at " + s[0].x + "," + s[0].z);
-                    // 区間の途中も通り道から D−1 より近づかない（曲がりの内側の角で入り込まない）
+                    Assert.AreEqual(0f, st.plan.Field(s[0]), 1.0f, st.def.label + " at " + s[0].x + "," + s[0].z);
                     for (int k = 1; k < 5; k++)
                     {
                         Vector3 m = Vector3.Lerp(s[0], s[1], k / 5f);
-                        Assert.GreaterOrEqual(DistToCorridors(m, st.plan.corridors), D - 1f, st.def.label);
+                        Assert.GreaterOrEqual(st.plan.Field(m), -1f, st.def.label);
                     }
                 }
         }
@@ -131,8 +129,9 @@ namespace HorseRace.Tests
         {
             foreach (var st in Stages())
             {
-                var boxes = CourseBarrier.CheckpointBoxes(st.local, st.goal, st.shortcut);
-                Assert.AreEqual(WorldLayout.CheckpointArcs(st.goal, StageDefinitions.CP_SPACING_M).Length, boxes.Count);
+                var boxes = CourseBarrier.CheckpointBoxes(st.def, st.local, st.goal, st.shortcut);
+                int twins = st.shortcut != null ? st.shortcut.twinFractions.Length : 0;
+                Assert.AreEqual(WorldLayout.CheckpointArcs(st.goal, StageDefinitions.CP_SPACING_M).Length + twins, boxes.Count);
                 float min = float.MaxValue;
                 foreach (var b in boxes) min = Mathf.Min(min, CourseBarrier.DistToQuad(st.segs, b));
                 TestContext.WriteLine(st.def.label + ": min wall–CP box " + min.ToString("F1") + " m");
@@ -146,12 +145,7 @@ namespace HorseRace.Tests
             foreach (var st in Stages())
             {
                 var pts = new List<Vector3>();
-                for (int i = 0; i < st.def.relicFractions.Length; i++)
-                {
-                    float a = st.def.relicFractions[i] * st.goal;
-                    Vector3 t = WorldLayout.TangentAtArc(st.local, a);
-                    pts.Add(WorldLayout.PointAtArc(st.local, a) + WorldLayout.RightOf(t) * st.def.relicSide[i]);
-                }
+                foreach (var r in SetPieces.RelicSpots(st.def, st.local, st.goal, st.shortcut)) pts.Add(r.local);
                 Vector3 t0 = WorldLayout.TangentAtArc(st.local, StageDefinitions.START_ARC_M);
                 Vector3 p0 = WorldLayout.PointAtArc(st.local, StageDefinitions.START_ARC_M);
                 foreach (float o in WorldLayout.LaneOffsets(StageDefinitions.LANES, StageDefinitions.LANE_SPACING_M))
@@ -160,53 +154,46 @@ namespace HorseRace.Tests
                 pts.Add(WorldLayout.PointAtArc(st.local, total - CourseGeometry.PEN_BACK));
                 foreach (var p in pts)
                 {
-                    // 通ってよい側（通り道から D 未満）にあり、柵から 4m 以上離れている
-                    Assert.Less(DistToCorridors(p, st.plan.corridors), D - CourseBarrier.CP_CLEAR_M, st.def.label);
+                    // 通ってよい側にあり、柵から 4m 以上離れている
+                    Assert.Less(st.plan.Field(p), -CourseBarrier.CP_CLEAR_M, st.def.label);
                     Assert.GreaterOrEqual(CourseBarrier.DistToPoint(st.segs, p), CourseBarrier.CP_CLEAR_M, st.def.label);
                 }
                 // CP（ゴールを含む）は本コース上 = 通ってよい側
                 foreach (float a in WorldLayout.CheckpointArcs(st.goal, StageDefinitions.CP_SPACING_M))
-                    Assert.Greater(CourseBarrier.DistToPoint(st.segs, WorldLayout.PointAtArc(st.local, a)), D - 1f, st.def.label);
+                    Assert.Greater(CourseBarrier.DistToPoint(st.segs, WorldLayout.PointAtArc(st.local, a)), StageDefinitions.CHOKE_HALF_M + CourseBarrier.CORNER_SIDE_M - 1f, st.def.label);
             }
         }
 
-        [Test] public void GapOverTrenchAndAfterGoal()
+        [Test] public void DetoursAroundGorgeAreInsideAndGoalAreaOpen()
         {
             foreach (var st in Stages())
             {
-                float bridge = SetPieces.BridgeArc(st.def, st.goal);
-                var trench = CourseBarrier.TrenchGap(st.local, bridge);
-                Assert.AreEqual(bridge >= 0f, trench.HasValue);
                 var tail = CourseBarrier.GoalTail(st.local, st.goal);
                 foreach (var s in st.segs)
                     for (int k = 0; k <= 4; k++)
-                    {
-                        Vector3 m = Vector3.Lerp(s[0], s[1], k / 4f);
-                        if (trench.HasValue)
-                        {
-                            // 溝の中（縁の岩壁の線より内側を 1m 余らせて）には柵がない
-                            var inner = trench.Value;
-                            inner.halfAlong -= 1f; inner.halfLat -= 1f;
-                            Assert.IsFalse(inner.Contains(m), st.def.label + " wall over trench");
-                        }
-                        Assert.Greater(WorldLayout.DistToPolylineXZ(m, tail), CourseBarrier.OFFSET_M + 0.5f, st.def.label + " wall in goal area");
-                    }
-                if (trench.HasValue)
+                        Assert.Greater(WorldLayout.DistToPolylineXZ(Vector3.Lerp(s[0], s[1], k / 4f), tail), CourseBarrier.OFFSET_M + 0.5f, st.def.label + " wall in goal area");
+                float bridge = SetPieces.BridgeArc(st.def, st.goal);
+                if (bridge < 0f) continue;
+                // 溝の両端を回る遠回り（道から 38〜54m）は柵の内側（course-r1-07）
+                Vector3 c = WorldLayout.PointAtArc(st.local, bridge), r = WorldLayout.RightOf(WorldLayout.TangentAtArc(st.local, bridge));
+                for (int sd = -1; sd <= 1; sd += 2)
                 {
-                    // 切れ目の両側で柵は溝の縁の壁の線まで来ている（すき間から外へ出られない）
-                    int near = 0;
-                    var t = trench.Value;
-                    foreach (var p in st.plan.runs)
-                        foreach (var end in new[] { p[0], p[p.Length - 1] })
-                        {
-                            float dx = end.x - t.center.x, dz = end.z - t.center.z;
-                            float along = Mathf.Abs(dx * t.tangent.x + dz * t.tangent.z);
-                            float lat = Mathf.Abs(dx * t.tangent.z - dz * t.tangent.x);
-                            if (lat < t.halfLat && Mathf.Abs(along - t.halfAlong) < 2f) near++;
-                        }
-                    Assert.AreEqual(4, near, st.def.label + ": both sides of both trench lips");
+                    Vector3 detour = c + r * (sd * (SetPieces.DETOUR_FROM + SetPieces.DETOUR_TO) * 0.5f);
+                    Assert.Less(st.plan.Field(detour), -CourseBarrier.CP_CLEAR_M, st.def.label + " detour " + sd);
                 }
             }
+        }
+
+        [Test] public void ChokesAndCornersNarrowTheBarrier()
+        {
+            var st = Stages()[0];
+            float bridge = SetPieces.BridgeArc(st.def, st.goal);
+            var off = CourseBarrier.CourseOffsets(st.def, st.local, st.goal);
+            float min = float.MaxValue, max = 0f;
+            foreach (float o in off) { min = Mathf.Min(min, o); max = Mathf.Max(max, o); }
+            Assert.AreEqual(StageDefinitions.CHOKE_HALF_M + CourseBarrier.SIDE_M, min, 2.5f);
+            Assert.AreEqual(SetPieces.DETOUR_BARRIER_M, max, 0.01f);
+            Assert.Greater(bridge, 0f);
         }
 
         [Test] public void ShortcutStaysInsideAllowedArea()
@@ -221,10 +208,10 @@ namespace HorseRace.Tests
                 {
                     Vector3 p = Vector3.Lerp(st.shortcut.a, st.shortcut.b, k / 20f);
                     p.y = 0f;
-                    Assert.GreaterOrEqual(CourseBarrier.DistToPoint(st.segs, p), CourseBarrier.OFFSET_M - 1f, st.def.label);
+                    Assert.Less(st.plan.Field(p), -CourseBarrier.OFFSET_M + 1f, st.def.label);
                 }
             }
-            Assert.AreEqual(1, n, "the canyon has the cliff shortcut");
+            Assert.AreEqual(3, n, "every stage has a shortcut (course-r1-06)");
         }
 
         [Test] public void TightHairpinHasCleanInnerCorner()

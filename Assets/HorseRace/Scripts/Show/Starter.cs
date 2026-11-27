@@ -57,6 +57,8 @@ namespace HorseRace
         public TextMeshPro skyCountBack;
         [Tooltip("ステージごとの空の数字の位置（コースの中心線上、スタートラインの 30m 先・12m 上、騎手のほうを向く。index = stage）")]
         public Transform[] skySpots;
+        [Tooltip("ステージごとのスタートの門（柵、Block）。カウントダウンの間だけ出し、号砲で消す（course-r1-15）")]
+        public GameObject[] startGates;
 
         private bool running;
         private float beginTime;
@@ -106,6 +108,7 @@ namespace HorseRace
                     if (skyCountBack != null) skyCountBack.transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation * Quaternion.Euler(0f, 180f, 0f));
                 }
             }
+            SetGates(raceManager != null ? raceManager.stage : -1);
             titleShown = false;
             running = true;
             beginTime = Time.time;
@@ -127,6 +130,7 @@ namespace HorseRace
             {
                 // レースが打ち切られた（ロビーに戻った等）
                 running = false;
+                SetGates(-1);
                 SetSky("");
                 return;
             }
@@ -188,9 +192,18 @@ namespace HorseRace
             SetSky(n.ToString(), n == 1 ? new Color(1f, 0.6f, 0.2f) : new Color(0.96f, 0.90f, 0.76f), 1.6f);
         }
 
+        /// <summary>スタートの門：stage の門だけ出す（-1 = すべて消す）。各クライアントがローカルで同じ時に切り替える。</summary>
+        private void SetGates(int stage)
+        {
+            if (startGates == null) return;
+            for (int i = 0; i < startGates.Length; i++)
+                if (startGates[i] != null) startGates[i].SetActive(i == stage);
+        }
+
         private void FireGun()
         {
             gunTime = Time.time;
+            SetGates(-1);
             PlayClip(startClip != null ? startClip : blankClip);
             if (pistolSmoke != null) pistolSmoke.Play();
             if (startDust != null)

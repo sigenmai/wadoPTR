@@ -11,7 +11,7 @@ namespace HorseRace.Tests
             var s = StageDefinitions.All[i];
             var local = StageDefinitions.SampleLocal(s);
             norm = StageDefinitions.Normalize(local);
-            raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, norm);
+            raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, norm);
             var h = (float[,])raw.Clone();
             HeightmapGen.ApplyRim(h, 1000f, 200f, HeightmapGen.RIM_WIDTH_M, HeightmapGen.RIM_MIN_M, HeightmapGen.RIM_MAX_M, s.seed, norm);
             return h;

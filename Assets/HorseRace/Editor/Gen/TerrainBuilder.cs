@@ -6,6 +6,7 @@ namespace HorseRace.EditorTools
     /// <summary>
     /// ステージの Terrain（1000m 四方、高さ 200m、解像度 513）を作る。
     /// 外周 55m は HeightmapGen.ApplyRim で 25〜60m 盛り上げた尾根（端が見えない）。その内側 40m に見えない壁（BoundaryWalls）。
+    /// 道（course-r1-09）：HeightmapGen.TrailMask の踏み固めた土を ToonTerrain の _TrailTex で描く（TerrainLayer は 4 枚のまま）。道の上の砂は消す。
     /// TerrainLayer: 0 = 土（ステージの主色：ArtPalette.Dirt）、1 = 岩（急な斜面）、2 = 砂（HeightmapGen.SandMask。CANYON は高さを渡して谷底だけ）、
     ///   3 = 地層の縞（荒野の 30° 以上の斜面。ToonTerrain シェーダーがワールドの高さで横縞にする）。
     /// 地形のマテリアルは HorseRace/ToonTerrain（飾りと同じ 2 段のトゥーン・影色：地形の影と飾りの影が同じ色）。
@@ -17,7 +18,8 @@ namespace HorseRace.EditorTools
     {
         public const int LAYER_DIRT = 0, LAYER_ROCK = 1, LAYER_SAND = 2;
         public const int SAND_CELLS = 40;              // 1000m / 40 = 25m のマス
-        public const float SAND_THRESHOLD = 0.5f;      // MountController は terrainSandWeight > 0.5 を砂地とみなす
+        public const float SAND_THRESHOLD = 0.5f;
+        public const float SAND_ROAD_SKIP_M = 12f;      // MountController は terrainSandWeight > 0.5 を砂地とみなす
         public const int LAYER_STRATA = 3;
         const float ROCK_SLOPE_FROM = 28f, ROCK_SLOPE_TO = 40f;
         const float STRATA_SLOPE_FROM = 30f, STRATA_SLOPE_TO = 40f;
@@ -36,12 +38,15 @@ namespace HorseRace.EditorTools
             sb.courseLocal = StageDefinitions.SampleLocal(def);
             sb.goalArc = StageDefinitions.GoalArc(def, sb.courseLocal);
             Vector3[] norm = StageDefinitions.Normalize(sb.courseLocal);
-            sb.heights = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, norm);
+            sb.heights = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def, norm);
             // 外周を尾根にして地形の端を見せない（コースの近くは触らない）
             HeightmapGen.ApplyRim(sb.heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, HeightmapGen.RIM_WIDTH_M,
                 HeightmapGen.RIM_MIN_M, HeightmapGen.RIM_MAX_M, def.seed, norm);
             sb.sand = HeightmapGen.SandMask(StageDefinitions.ALPHAMAP_RES, def.kind, def.seed,
                 def.kind == HeightmapGen.KIND_CANYON ? sb.heights : null);
+            // 道の踏み固めた土（course-r1-09）：道の上の砂は消す（道の外の砂 = 遅くなる危険）
+            sb.trail = HeightmapGen.TrailMask(StageDefinitions.ALPHAMAP_RES, def, norm);
+            HeightmapGen.ClearSandOnTrail(sb.sand, sb.trail);
 
             sb.courseWorld = new Vector3[sb.courseLocal.Length];
             for (int i = 0; i < sb.courseLocal.Length; i++) sb.courseWorld[i] = sb.Ground(sb.courseLocal[i].x, sb.courseLocal[i].z);
@@ -55,7 +60,7 @@ namespace HorseRace.EditorTools
             GenUtil.SetLayerRecursive(tgo, WorldLayers.Ground);
             sb.terrain = tgo.GetComponent<Terrain>();
             sb.terrain.heightmapPixelError = 4f;
-            ApplyToonMaterial(sb.terrain);
+            ApplyToonMaterial(sb.terrain, TrailTexture("Stage" + (def.index + 1), sb.trail), "Stage" + (def.index + 1));
 
             BuildSandZones(sb);
             BoundaryWalls(sb.root, def.Origin, StageDefinitions.SIZE, WALL_INSET_M, "StageBoundary");
@@ -191,6 +196,43 @@ namespace HorseRace.EditorTools
             tex.Apply();
             tex.wrapMode = TextureWrapMode.Repeat;
             return tex;
+        }
+
+        public static readonly Color TrailColor = new Color(0.55f, 0.40f, 0.28f);
+
+        /// <summary>道の踏み固めた土の重み（R8 相当の RGBA、Terrain 全体の UV）を Generated/Terrain/&lt;name&gt;_Trail.asset に保存する。</summary>
+        public static Texture2D TrailTexture(string name, float[,] trail)
+        {
+            int n = trail.GetLength(0), m = trail.GetLength(1);
+            var tex = new Texture2D(m, n, TextureFormat.RGBA32, false);
+            var px = new Color[n * m];
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < m; x++) { float v = trail[z, x]; px[z * m + x] = new Color(v, v, v, 1f); }
+            tex.SetPixels(px);
+            tex.Apply();
+            tex.wrapMode = TextureWrapMode.Clamp;
+            GenUtil.EnsureFolder(GenUtil.GEN_TERRAIN);
+            string path = GenUtil.GEN_TERRAIN + "/" + name + "_Trail.asset";
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null) AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(tex, path);
+            return tex;
+        }
+
+        /// <summary>ステージの地形のマテリアル（M_ToonTerrain_&lt;name&gt;.mat）：共通の設定＋道の踏み固めた土（_TrailTex）。</summary>
+        public static void ApplyToonMaterial(Terrain t, Texture2D trail, string name)
+        {
+            ApplyToonMaterial(t);
+            var baseMat = t.materialTemplate;
+            if (baseMat == null || trail == null) return;
+            string path = GenUtil.GEN_MATERIALS + "/M_ToonTerrain_" + name + ".mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null) { m = new Material(baseMat); AssetDatabase.CreateAsset(m, path); }
+            m.CopyPropertiesFromMaterial(baseMat);
+            m.shader = baseMat.shader;
+            m.SetTexture("_TrailTex", trail);
+            m.SetColor("_TrailColor", TrailColor);
+            EditorUtility.SetDirty(m);
+            t.materialTemplate = m;
         }
 
         /// <summary>地形のトゥーンのマテリアル（Generated/Materials/M_ToonTerrain.mat）を作り、Terrain に付ける。見つからなければ既定の地形のまま。</summary>
@@ -351,8 +393,20 @@ namespace HorseRace.EditorTools
         {
             var parent = GenUtil.Child(sb.root, "SandZones", Vector3.zero).transform;
             parent.position = sb.def.Origin;
-            var runs = WorldLayout.SandRuns(sb.sand, SAND_CELLS, SAND_THRESHOLD);
             float cell = StageDefinitions.SIZE / SAND_CELLS;
+            // 道の上のマス（中心がコースから SAND_ROAD_SKIP_M 以内）は砂にしない（course-r1-09：遅くなるのは道の外だけ）
+            var mask = (float[,])sb.sand.Clone();
+            int mn = mask.GetLength(0);
+            for (int cz = 0; cz < SAND_CELLS; cz++)
+                for (int cx = 0; cx < SAND_CELLS; cx++)
+                {
+                    var c = new Vector3((cx + 0.5f) * cell, 0f, (cz + 0.5f) * cell);
+                    if (WorldLayout.DistToPolylineXZ(c, sb.courseLocal) >= SAND_ROAD_SKIP_M) continue;
+                    int p0 = Mathf.FloorToInt(cz * cell / StageDefinitions.SIZE * mn), p1 = Mathf.Min(mn, Mathf.CeilToInt((cz + 1) * cell / StageDefinitions.SIZE * mn));
+                    int q0 = Mathf.FloorToInt(cx * cell / StageDefinitions.SIZE * mn), q1 = Mathf.Min(mn, Mathf.CeilToInt((cx + 1) * cell / StageDefinitions.SIZE * mn));
+                    for (int z = p0; z < p1; z++) for (int x = q0; x < q1; x++) mask[z, x] = 0f;
+                }
+            var runs = WorldLayout.SandRuns(mask, SAND_CELLS, SAND_THRESHOLD);
             foreach (int[] r in runs)
             {
                 int cz = r[0], x0 = r[1], x1 = r[2];

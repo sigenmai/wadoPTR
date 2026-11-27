@@ -134,7 +134,7 @@ namespace HorseRace.Tests
             var s = StageDefinitions.All[1];
             var local = StageDefinitions.SampleLocal(s);
             float goal = StageDefinitions.GoalArc(s, local);
-            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var a = LayoutOverrides.IdsFor("S2", DressingPlan.For(s, local, h, goal, null));
             var b = LayoutOverrides.IdsFor("S2", DressingPlan.For(s, local, h, goal, null));
             CollectionAssert.AreEqual(a, b);

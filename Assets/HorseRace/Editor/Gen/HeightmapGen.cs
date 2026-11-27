@@ -14,9 +14,19 @@ namespace HorseRace.EditorTools
         public const float RUNWAY_M = 12f;     // fully flattened distance from the course
         public const float FLOOR_H = 0.28f;    // canyon height (0-1) at/below which sand may lie
         public const float WALL_H = 0.40f;     // canyon height at/above which sand is 0
-        public const float FALLOFF_M = 90f;    // blend back to raw terrain by this distance
+        public const float FALLOFF_M = 60f;    // blend back to raw terrain by this distance beyond RUNWAY_M（course-r1-03：砂丘を道の脇から見せる）
+        public const float FALLOFF_EXTRA_M = FALLOFF_M - RUNWAY_M;   // 道の縁からのぼかしの幅（道幅が変わっても同じ）
+        public const float CANYON_BENCH_M = 30f;      // 荒野：道の縁からここまでは谷底の段（ゆるい斜面）、その先で壁へ（course-r1-13）
+        public const float CANYON_BENCH_SLOPE = 0.25f; // 段の傾き（14°、≤ 20°）
 
         public static float[,] Generate(int resolution, int kind, int seed, Vector3[] coursePointsNormalized)
+            => Generate(resolution, kind, seed, coursePointsNormalized, null);
+
+        /// <summary>ステージの地形：道の高さの形（StageDef.elevArc/elevM）と道幅（StageDef.widthArc/halfWidthM）を使う。</summary>
+        public static float[,] Generate(int resolution, StageDef def, Vector3[] coursePointsNormalized)
+            => Generate(resolution, def.kind, def.seed, coursePointsNormalized, def);
+
+        static float[,] Generate(int resolution, int kind, int seed, Vector3[] coursePointsNormalized, StageDef def)
         {
             int n = resolution;
             var h = new float[n, n];
@@ -33,7 +43,10 @@ namespace HorseRace.EditorTools
             var arc = new float[n, n];
             for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) dist[z, x] = float.MaxValue;
 
-            int radius = Mathf.CeilToInt(FALLOFF_M / cellM) + 1;
+            float maxRunway = RUNWAY_M;
+            if (def != null && def.halfWidthM != null) foreach (float hw in def.halfWidthM) maxRunway = Mathf.Max(maxRunway, hw);
+            float reachM = maxRunway + FALLOFF_EXTRA_M;
+            int radius = Mathf.CeilToInt(reachM / cellM) + 1;
             float s0 = 0f;
             for (int i = 1; i < coursePointsNormalized.Length; i++)
             {
@@ -62,12 +75,81 @@ namespace HorseRace.EditorTools
                 for (int x = 0; x < n; x++)
                 {
                     float d = dist[z, x];
-                    if (d >= FALLOFF_M) continue;
-                    float w = 1f - Smooth(RUNWAY_M, FALLOFF_M, d);
-                    float target = PathHeight(kind, seed, arc[z, x], total);
+                    if (d >= reachM) continue;
+                    float runway = def != null ? StageDefinitions.HalfWidthAt(def, arc[z, x]) : RUNWAY_M;
+                    float target = def != null ? PathHeight(def, arc[z, x]) : PathHeight(kind, seed, arc[z, x], total);
+                    if (kind == KIND_CANYON && def != null)
+                    {
+                        // 谷底の段：道の縁から CANYON_BENCH_M までゆるく上がり（元の地形が低ければそれに従う）、その先で元の壁へ
+                        float bench = target + (Mathf.Clamp(d, runway, CANYON_BENCH_M) - runway) * CANYON_BENCH_SLOPE / HEIGHT_M;
+                        bench = Mathf.Min(bench, Mathf.Max(h[z, x], target));
+                        float wb = 1f - Smooth(CANYON_BENCH_M, CANYON_BENCH_M + FALLOFF_EXTRA_M, d);
+                        h[z, x] = Mathf.Clamp01(d <= runway ? target : Mathf.Lerp(h[z, x], bench, wb));
+                        continue;
+                    }
+                    float w = 1f - Smooth(runway, runway + FALLOFF_EXTRA_M, d);
                     h[z, x] = Mathf.Clamp01(Mathf.Lerp(h[z, x], target, w));
                 }
             return h;
+        }
+
+        // ---- 道の踏み固めた土（course-r1-09）----
+        public const float TRAIL_FULL_INSET_M = 2f;   // 平らな道の縁の 2m 内側まで踏み固めた土
+        public const float TRAIL_FADE_OUT_M = 4f;     // 縁の 4m 外で 0
+
+        /// <summary>道の中心からの距離 d（m）、平らな道の半幅 hw での踏み固めた土の重み（0〜1）。</summary>
+        public static float TrailWeight(float d, float hw) => 1f - Smooth(hw - TRAIL_FULL_INSET_M, hw + TRAIL_FADE_OUT_M, d);
+
+        /// <summary>踏み固めた土の重み（[z,x]、resolution × resolution、Terrain 全体）。道幅は StageDef の幅の区間に従う。</summary>
+        public static float[,] TrailMask(int resolution, StageDef def, Vector3[] coursePointsNormalized)
+        {
+            int n = resolution;
+            var m = new float[n, n];
+            if (coursePointsNormalized == null || coursePointsNormalized.Length < 2) return m;
+            float cellM = TERRAIN_SIZE_M / (n - 1);
+            float maxHw = RUNWAY_M;
+            if (def != null && def.halfWidthM != null) foreach (float hw in def.halfWidthM) maxHw = Mathf.Max(maxHw, hw);
+            float reach = maxHw + TRAIL_FADE_OUT_M + 1f;
+            var dist = new float[n, n];
+            var arc = new float[n, n];
+            for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) dist[z, x] = float.MaxValue;
+            int radius = Mathf.CeilToInt(reach / cellM) + 1;
+            float s0 = 0f;
+            for (int i = 1; i < coursePointsNormalized.Length; i++)
+            {
+                Vector3 a = coursePointsNormalized[i - 1] * TERRAIN_SIZE_M, b = coursePointsNormalized[i] * TERRAIN_SIZE_M;
+                float segLen = Mathf.Sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+                int steps = Mathf.Max(1, Mathf.CeilToInt(segLen / (cellM * 0.5f)));
+                for (int k = 0; k <= steps; k++)
+                {
+                    float t = k / (float)steps;
+                    float px = a.x + (b.x - a.x) * t, pz = a.z + (b.z - a.z) * t;
+                    int cx = Mathf.FloorToInt(px / cellM + 0.5f), cz = Mathf.FloorToInt(pz / cellM + 0.5f);
+                    for (int z = Mathf.Max(0, cz - radius); z <= Mathf.Min(n - 1, cz + radius); z++)
+                        for (int x = Mathf.Max(0, cx - radius); x <= Mathf.Min(n - 1, cx + radius); x++)
+                        {
+                            float dx = x * cellM - px, dz = z * cellM - pz;
+                            float d = Mathf.Sqrt(dx * dx + dz * dz);
+                            if (d < dist[z, x]) { dist[z, x] = d; arc[z, x] = s0 + segLen * t; }
+                        }
+                }
+                s0 += segLen;
+            }
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                    if (dist[z, x] < reach)
+                        m[z, x] = TrailWeight(dist[z, x], def != null ? StageDefinitions.HalfWidthAt(def, arc[z, x]) : RUNWAY_M);
+            return m;
+        }
+
+        /// <summary>道の上の砂を消す（踏み固めた土が 0.5 を超える所は 0、その外は 1 − 重み を掛ける）。sand と trail は同じ解像度。</summary>
+        public static void ClearSandOnTrail(float[,] sand, float[,] trail)
+        {
+            if (sand == null || trail == null) return;
+            int n = Mathf.Min(sand.GetLength(0), trail.GetLength(0)), m = Mathf.Min(sand.GetLength(1), trail.GetLength(1));
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < m; x++)
+                    sand[z, x] = trail[z, x] > 0.5f ? 0f : sand[z, x] * (1f - trail[z, x]);
         }
 
         public static float MaxSlopeDegAlong(float[,] h, float terrainSizeM, float heightM, Vector3[] coursePointsNormalized)
@@ -258,11 +340,12 @@ namespace HorseRace.EditorTools
             if (kind == KIND_CANYON)
             {
                 float n = Fbm(u, v, seed, 3f);
-                return 0.45f + 0.5f * n;               // high walls; path is carved down to the valley floor
+                return 0.30f + 0.25f * n;              // walls 60–110 m (course-r1-13: lower so the sky shows); path is carved down to the valley floor
             }
             if (kind == KIND_DUNES)
             {
-                float w = Mathf.Sin(u * 38f + Noise(u * 2f, v * 2f, seed, 1) * 6f) * 0.5f + 0.5f;
+                // 稜線はコースの行に対して斜め（course-r1-03）：コースは稜線を越えて走る
+                float w = Mathf.Sin((u * 0.6f + v * 0.8f) * 38f + Noise(u * 2f, v * 2f, seed, 1) * 6f) * 0.5f + 0.5f;
                 return 0.22f + 0.12f * w + 0.06f * Fbm(u, v, seed, 6f);
             }
             {
@@ -272,18 +355,15 @@ namespace HorseRace.EditorTools
             }
         }
 
-        // ---- 境目（KIND_MESA）の最後：ゴールの町へ下る長い直線（ゴールの手前 FINAL_DESCENT_FROM_END_M〜TO_END_M で FINAL_DROP_M 下る）----
-        public const float FINAL_DROP_M = 18f;
-        public const float FINAL_DESCENT_FROM_END_M = 560f, FINAL_DESCENT_TO_END_M = 140f;   // コースの終点（流しの端）からの距離
+        /// <summary>コースの弧長 s（m）での道の高さ（0〜1）：基準の高さ＋小さなうねり（プロファイル無しの地形用）。</summary>
+        public static float PathHeight(int kind, int seed, float s, float total) => PathHeight(kind, seed, s);
 
-        /// <summary>コースの弧長 s（m、全長 total）での道の高さ（0〜1）。</summary>
-        public static float PathHeight(int kind, int seed, float s, float total)
-        {
-            float h = PathHeight(kind, seed, s);
-            if (kind == KIND_MESA && total > 0f)
-                h -= FINAL_DROP_M / HEIGHT_M * Smooth(total - FINAL_DESCENT_FROM_END_M, total - FINAL_DESCENT_TO_END_M, s);
-            return h;
-        }
+        /// <summary>ステージの道の高さ（0〜1）：基準の高さ＋道の高さの形（StageDef.elevArc/elevM、m）＋小さなうねり。</summary>
+        public static float PathHeight(StageDef def, float s)
+            => PathHeight(def.kind, def.seed, s) + StageDefinitions.ElevationAt(def, s) / HEIGHT_M;
+
+        /// <summary>ステージの基準の高さ（0〜1）。荒野は 40m 下る分だけ低く（壁が空を隠しすぎない）。</summary>
+        public static float BaseHeight(int kind) => kind == KIND_CANYON ? 0.12f : (kind == KIND_DUNES ? 0.28f : 0.35f);
 
         /// <summary>決まった値ノイズ（0〜1）。外の地面（WorldBounds.FillerBaseHeight）など他の生成でも同じ値を使う。</summary>
         public static float Noise01(float x, float y, int seed, int salt) => Noise(x, y, seed, salt);
@@ -291,8 +371,7 @@ namespace HorseRace.EditorTools
         static float PathHeight(int kind, int seed, float s)
         {
             float p1 = seed * 0.37f, p2 = seed * 0.91f + 1.3f;
-            float baseH = kind == KIND_CANYON ? 0.18f : (kind == KIND_DUNES ? 0.28f : 0.35f);
-            float h = baseH + 0.03f * (0.6f * Mathf.Sin(s / 300f + p1) + 0.4f * Mathf.Sin(s / 130f + p2));
+            float h = BaseHeight(kind) + 0.015f * (0.6f * Mathf.Sin(s / 300f + p1) + 0.4f * Mathf.Sin(s / 130f + p2));
             if (kind == KIND_DUNES) h += 0.004f * Mathf.Sin(s / 25f + p1);
             return h;
         }

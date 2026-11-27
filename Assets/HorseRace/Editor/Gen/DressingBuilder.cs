@@ -106,7 +106,7 @@ namespace HorseRace.EditorTools
                     GenUtil.SmokeColumn(air, "CampSmoke", w + Vector3.up * 1f, SetPieceBuilder.SmokeGrey, 20f, 1.6f);
                     GenUtil.PointLight(air, "CampLight", w + Vector3.up * 1.2f, new Color(1f, 0.6f, 0.3f), 9f, 1.2f);
                 }
-                else if (q.group == "Landmark" || (q.group == "GoalTown" && q.part == DressingPlan.RANCH_TOWER))
+                else if (q.group == "Landmark" || q.part == DressingPlan.RANCH_TOWER || q.group == "FinishLandmark")
                 {
                     Vector3 top = w + Vector3.up * (q.height + 1f);
                     GenUtil.SmokeColumn(air, "LandmarkSmoke", top, new Color(0.22f, 0.20f, 0.20f, 0.6f), 40f, 4f);

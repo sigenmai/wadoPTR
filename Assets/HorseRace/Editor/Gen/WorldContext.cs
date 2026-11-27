@@ -11,12 +11,20 @@ namespace HorseRace.EditorTools
         public Terrain terrain;
         public float[,] heights;
         public float[,] sand;
+        /// <summary>道の踏み固めた土の重み（alphamap の解像度）。</summary>
+        public float[,] trail;
+        /// <summary>遺物の場所（SetPieces.RelicSpots、SetPieceBuilder が近道を決めた後に入る）。</summary>
+        public SetPieces.RelicSpot[] relicSpots;
         public Vector3[] courseLocal;    // Terrain ローカル（m、y は 0）
         public Vector3[] courseWorld;    // ワールド（y = 地面）
         public float goalArc;
         public Transform[] startPoints = new Transform[StageDefinitions.LANES];
         public Checkpoint firstCheckpoint;
         public readonly List<Checkpoint> checkpoints = new List<Checkpoint>();
+        /// <summary>近道の上の双子の CP（同じ番号。本コースの CP の連鎖には入らない）。</summary>
+        public readonly List<Checkpoint> twinCheckpoints = new List<Checkpoint>();
+        /// <summary>スタートの門（柵、Block）。号砲で消える（Starter）。</summary>
+        public GameObject startGate;
         public Transform finishPen;
         public Transform starterSpot;
         /// <summary>空のカウントの位置（スタートラインの 30m 先・12m 上の中心線上、騎手のほうを向く）。</summary>

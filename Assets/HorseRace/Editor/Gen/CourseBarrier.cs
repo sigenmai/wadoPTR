@@ -5,18 +5,23 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// コースの見えない柵（近づくと見える）の純粋な計画（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。
-    ///   通ってよい範囲 = 「通り道（本コース・崖下りの近道の弦）から OFFSET_M 以内」の和集合。柵はその境界線（等距離線）。
+    ///   通ってよい範囲 = 「通り道（本コース・崖下りの近道の弦）から柵の距離以内」の和集合。柵はその境界線（等距離線）。
+    ///   柵の距離はコースの点ごと（course-r1-10）：平らな道の半幅 + SIDE_M（16m）、急カーブでは半幅 + CORNER_SIDE_M（10m、内側を大きく切れない）、
+    ///   岩の橋のまわりは SetPieces.DETOUR_BARRIER_M（溝の両端の遠回りを囲む）。
     ///   距離場を GRID_M のマス目に作り、マーチングスクエアで等値線を取る → 2 回の角切りでならす → SEGMENT_M ごとに打ち直す。
     ///   和集合の境界なので、急な曲がりの内側でも線が交差・ループしない（内側の角は外向きにしか削れない）。
     ///   本コース・近道・スタート・遺物・CP は通り道から OFFSET_M 未満なので、柵が横切ることはない。
-    ///   切れ目：岩橋の溝の上（溝の縁の岩壁 TrenchWalls が代わりに止める。溝に落ちれば落とし穴で CP へ戻る）、
-    ///           ゴールの GOAL_GAP_BEFORE_M 手前から先（ゴールゲート・ゴール後の囲い・ゴールの町。走り終えた人しか通らない）、
+    ///   切れ目：ゴールの GOAL_GAP_BEFORE_M 手前から先（ゴールゲート・ゴール後の囲い・ゴールの町。走り終えた人しか通らない）、
     ///           外周の尾根の上（Terrain の端から EDGE_MARGIN_M 以内。実際のコースでは起きない）。
     /// 座標は Terrain ローカル（m、y = 0）。高さは BarrierBuilder が地形から取る。
     /// </summary>
     public static class CourseBarrier
     {
-        public const float OFFSET_M = 28f;            // 通り道の中心線から柵まで（平らな道 ±12m、飾りの帯 15〜60m の中）
+        public const float OFFSET_M = 28f;            // 通り道の中心線から柵まで（平らな道 ±12m のとき。近道の弦・ゴールの先も）
+        public const float SIDE_M = 16f;              // 平らな道の縁から柵まで
+        public const float CORNER_SIDE_M = 10f;       // 急カーブ（StageDefinitions.TIGHT_CORNER_MAX_R 未満）の前後 CORNER_PAD_M
+        public const float CORNER_PAD_M = 15f;
+        public const float CP_SIDE_CLEAR_M = 8f;      // CP の箱の端から柵まで（CP_CLEAR_M ＋カーブでの箱の角のふくらみ）
         public const float SEGMENT_M = 5f;            // 柵 1 区間の長さ（4〜6m）
         public const float GRID_M = 1f;               // 距離場のマス目
         public const float WALL_HEIGHT_M = 8f;        // 両端の地面の高い方から上へ
@@ -27,8 +32,8 @@ namespace HorseRace.EditorTools
         public const float EDGE_MARGIN_M = HeightmapGen.RIM_WIDTH_M;   // 外周の尾根の上には張らない
         public const float MIN_RUN_M = 2f;            // これより短い切れ端は捨てる
         public const float CHUNK_M = 200f;            // 見た目のメッシュ 1 つぶんの長さ（BarrierBuilder）
-        /// <summary>CP の箱の幅・奥行き（CourseBuilder.CP_WIDTH / CP_DEPTH と同じ。Validate が一致を確かめる）。</summary>
-        public const float CP_WIDTH = 36f, CP_DEPTH = 4f;
+        /// <summary>CP の箱の幅（道幅 12m のとき）・奥行き（CourseGeometry と同じ値。CourseBuilder も CourseGeometry を使う）。</summary>
+        public const float CP_WIDTH = CourseGeometry.CP_WIDTH, CP_DEPTH = CourseGeometry.CP_DEPTH;
 
         /// <summary>計画：柵の線（開いた線と閉じた輪）。点は Terrain ローカル（y = 0）。</summary>
         public sealed class Plan
@@ -37,6 +42,29 @@ namespace HorseRace.EditorTools
             public readonly List<bool> closed = new List<bool>();
             /// <summary>通り道（距離の基準）。[0] = 本コース、以降は近道など。</summary>
             public readonly List<Vector3[]> corridors = new List<Vector3[]>();
+            /// <summary>通り道ごとの点ごとの柵の距離（null = base）。</summary>
+            public readonly List<float[]> offsets = new List<float[]>();
+            public float baseOffset;
+
+            /// <summary>点 p の「通り道からの距離 − 柵の距離」の最小（柵の上で 0、通ってよい側で負）。</summary>
+            public float Field(Vector3 p)
+            {
+                float best = float.MaxValue;
+                for (int ci = 0; ci < corridors.Count; ci++)
+                {
+                    Vector3[] c = corridors[ci];
+                    float[] off = ci < offsets.Count ? offsets[ci] : null;
+                    int segs = c.Length == 1 ? 1 : c.Length - 1;
+                    for (int s = 0; s < segs; s++)
+                    {
+                        int s1 = Mathf.Min(s + 1, c.Length - 1);
+                        float od = off != null ? 0.5f * (off[s] + off[s1]) : baseOffset;
+                        float v = WorldLayout.DistToSegmentXZ(p, c[s], c[s1]) - od;
+                        if (v < best) best = v;
+                    }
+                }
+                return best;
+            }
 
             public int SegmentCount
             {
@@ -99,17 +127,37 @@ namespace HorseRace.EditorTools
             return r;
         }
 
-        /// <summary>岩橋の溝の上の切れ目（無ければ null）。溝の縁の岩壁（SetPieceBuilder の TrenchWalls）の線まで。</summary>
-        public static GapRect? TrenchGap(Vector3[] courseLocal, float bridgeArc)
+        /// <summary>コースの点ごとの柵の距離（m）。</summary>
+        public static float[] CourseOffsets(StageDef def, Vector3[] courseLocal, float goalArc)
         {
-            if (bridgeArc < 0f) return null;
-            return new GapRect
+            var r = new float[courseLocal.Length];
+            var corners = StageDefinitions.Corners(courseLocal, StageDefinitions.TIGHT_CORNER_MAX_R, goalArc);
+            float bridge = SetPieces.BridgeArc(def, goalArc);
+            float acc = 0f;
+            for (int i = 0; i < courseLocal.Length; i++)
             {
-                center = Flat(WorldLayout.PointAtArc(courseLocal, bridgeArc)),
-                tangent = WorldLayout.TangentAtArc(courseLocal, bridgeArc),
-                halfAlong = SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND + 0.6f,
-                halfLat = SetPieces.TRENCH_HALF_LENGTH + 4f,
-            };
+                if (i > 0) acc += WorldLayout.DistXZ(courseLocal[i - 1], courseLocal[i]);
+                r[i] = OffsetAt(def, corners, bridge, acc);
+            }
+            return r;
+        }
+
+        static float OffsetAt(StageDef def, List<StageDefinitions.Corner> corners, float bridge, float arc)
+        {
+            float hw = StageDefinitions.HalfWidthAt(def, arc);
+            if (bridge >= 0f && Mathf.Abs(arc - bridge) <= SetPieces.DETOUR_ALONG + 8f) return SetPieces.DETOUR_BARRIER_M;
+            foreach (var c in corners)
+                if (arc >= c.fromArc - CORNER_PAD_M && arc <= c.toArc + CORNER_PAD_M) return hw + CORNER_SIDE_M;
+            return hw + SIDE_M;
+        }
+
+        /// <summary>弧長 arc の CP の箱の半幅（m）：道幅 12m で CP_WIDTH/2、道幅に合わせて広げ・狭め、柵から CP_SIDE_CLEAR_M 内側まで。</summary>
+        public static float CpHalfWidth(StageDef def, Vector3[] courseLocal, float goalArc, float arc)
+        {
+            var corners = StageDefinitions.Corners(courseLocal, StageDefinitions.TIGHT_CORNER_MAX_R, goalArc);
+            float off = OffsetAt(def, corners, SetPieces.BridgeArc(def, goalArc), arc);
+            float hw = StageDefinitions.HalfWidthAt(def, arc);
+            return Mathf.Min(CP_WIDTH * 0.5f + (hw - HeightmapGen.RUNWAY_M), off - CP_SIDE_CLEAR_M);
         }
 
         /// <summary>ゴールの GOAL_GAP_BEFORE_M 手前から流しの終点までのコース（この通り道に属する柵は張らない）。</summary>
@@ -129,10 +177,8 @@ namespace HorseRace.EditorTools
         /// <summary>このステージの柵の計画。shortcut は崖下りの近道（無ければ null）。</summary>
         public static Plan For(StageDef def, Vector3[] courseLocal, float goalArc, SetPieces.ShortcutPlan shortcut)
         {
-            var gaps = new List<GapRect>();
-            GapRect? trench = TrenchGap(courseLocal, SetPieces.BridgeArc(def, goalArc));
-            if (trench.HasValue) gaps.Add(trench.Value);
-            return Make(Corridors(courseLocal, shortcut), OFFSET_M, gaps, GoalTail(courseLocal, goalArc), StageDefinitions.SIZE);
+            var offsets = new List<float[]> { CourseOffsets(def, courseLocal, goalArc) };
+            return Make(Corridors(courseLocal, shortcut), OFFSET_M, new List<GapRect>(), GoalTail(courseLocal, goalArc), StageDefinitions.SIZE, offsets);
         }
 
         // ------------------------------------------------------------------
@@ -140,27 +186,39 @@ namespace HorseRace.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>CP の箱の x/z の 4 隅（Terrain ローカル）。近道が横切る CP は近道まで広げた箱。</summary>
-        public static List<Vector3[]> CheckpointBoxes(Vector3[] courseLocal, float goalArc, SetPieces.ShortcutPlan shortcut)
+        public static List<Vector3[]> CheckpointBoxes(StageDef def, Vector3[] courseLocal, float goalArc, SetPieces.ShortcutPlan shortcut)
         {
             float[] arcs = WorldLayout.CheckpointArcs(goalArc, StageDefinitions.CP_SPACING_M);
             var r = new List<Vector3[]>();
             for (int k = 0; k < arcs.Length; k++)
             {
-                float lo = -CP_WIDTH * 0.5f, hi = CP_WIDTH * 0.5f;
-                if (shortcut != null)
-                    for (int j = 0; j < shortcut.crossCps.Length; j++)
-                        if (shortcut.crossCps[j] == k)
-                        {
-                            float o = shortcut.crossOffsets[j];
-                            lo = Mathf.Min(lo, o - 8f); hi = Mathf.Max(hi, o + 8f);
-                        }
+                float half = def != null ? CpHalfWidth(def, courseLocal, goalArc, arcs[k]) : CP_WIDTH * 0.5f;
                 Vector3 c = Flat(WorldLayout.PointAtArc(courseLocal, arcs[k]));
                 Vector3 t = WorldLayout.TangentAtArc(courseLocal, arcs[k]);
-                Vector3 rt = WorldLayout.RightOf(t);
-                float hd = CP_DEPTH * 0.5f;
-                r.Add(new[] { c + rt * lo - t * hd, c + rt * hi - t * hd, c + rt * hi + t * hd, c + rt * lo + t * hd });
+                r.Add(Box(c, t, half));
             }
+            if (shortcut != null)
+                foreach (var tw in TwinCheckpoints(shortcut)) r.Add(Box(Flat(tw[0]), tw[1], TWIN_HALF_WIDTH));
             return r;
+        }
+
+        public const float TWIN_HALF_WIDTH = 8f;   // 近道の双子の CP の箱の半幅（近道の通路 ±4m ＋余白）
+
+        /// <summary>近道の双子の CP：[位置（Terrain ローカル、y = 0）, 向き（弦の向き）] の組。CourseBuilder/SetPieceBuilder と同じ。</summary>
+        public static List<Vector3[]> TwinCheckpoints(SetPieces.ShortcutPlan p)
+        {
+            var r = new List<Vector3[]>();
+            if (p == null || p.twinFractions == null) return r;
+            Vector3 dir = new Vector3(p.b.x - p.a.x, 0f, p.b.z - p.a.z).normalized;
+            foreach (float f in p.twinFractions) r.Add(new[] { Flat(Vector3.Lerp(p.a, p.b, f)), dir });
+            return r;
+        }
+
+        static Vector3[] Box(Vector3 c, Vector3 t, float half)
+        {
+            Vector3 rt = WorldLayout.RightOf(t);
+            float hd = CP_DEPTH * 0.5f;
+            return new[] { c - rt * half - t * hd, c + rt * half - t * hd, c + rt * half + t * hd, c - rt * half + t * hd };
         }
 
         /// <summary>柵（区間の列）と凸四角形（4 隅）の x/z の最短距離。重なれば 0。</summary>
@@ -224,9 +282,17 @@ namespace HorseRace.EditorTools
         /// Terrain（0..sizeM）の端から EDGE_MARGIN_M 以内の点には張らない。
         /// </summary>
         public static Plan Make(List<Vector3[]> corridors, float d, List<GapRect> gaps, Vector3[] goalTail, float sizeM)
+            => Make(corridors, d, gaps, goalTail, sizeM, null);
+
+        /// <summary>offsets[c]（null 可）= 通り道 c の点ごとの柵の距離。無い通り道は d。</summary>
+        public static Plan Make(List<Vector3[]> corridors, float d, List<GapRect> gaps, Vector3[] goalTail, float sizeM, List<float[]> offsets)
         {
-            var plan = new Plan();
-            foreach (var c in corridors) plan.corridors.Add(c);
+            var plan = new Plan { baseOffset = d };
+            for (int ci = 0; ci < corridors.Count; ci++)
+            {
+                plan.corridors.Add(corridors[ci]);
+                plan.offsets.Add(offsets != null && ci < offsets.Count ? offsets[ci] : null);
+            }
             if (corridors.Count == 0) return plan;
 
             // ---- 距離場（通り道からの距離 − d。負 = 通ってよい側） ----
@@ -237,19 +303,24 @@ namespace HorseRace.EditorTools
                     minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
                     minZ = Mathf.Min(minZ, p.z); maxZ = Mathf.Max(maxZ, p.z);
                 }
-            float g = GRID_M, pad = d + 4f * g;
+            float maxOff = d;
+            if (offsets != null) foreach (var o in offsets) if (o != null) foreach (float v in o) maxOff = Mathf.Max(maxOff, v);
+            float g = GRID_M, pad = maxOff + 4f * g;
             float x0 = Mathf.Floor((minX - pad) / g) * g, z0 = Mathf.Floor((minZ - pad) / g) * g;
             int nx = Mathf.CeilToInt((maxX + pad - x0) / g) + 1, nz = Mathf.CeilToInt((maxZ + pad - z0) / g) + 1;
             var f = new float[nz, nx];
-            float far = d + 2f * g;
+            float far = 2f * g;
             for (int j = 0; j < nz; j++) for (int i = 0; i < nx; i++) f[j, i] = far;
-            float reach = d + 2f * g;
-            foreach (var c in corridors)
+            for (int ci = 0; ci < corridors.Count; ci++)
             {
+                Vector3[] c = corridors[ci];
+                float[] off = offsets != null && ci < offsets.Count ? offsets[ci] : null;
                 int segs = c.Length == 1 ? 1 : c.Length - 1;
                 for (int s = 0; s < segs; s++)
                 {
                     Vector3 a = c[s], b = c[Mathf.Min(s + 1, c.Length - 1)];
+                    float od = off != null ? 0.5f * (off[s] + off[Mathf.Min(s + 1, c.Length - 1)]) : d;
+                    float reach = od + 2f * g;
                     int i0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.x, b.x) - reach - x0) / g));
                     int i1 = Mathf.Min(nx - 1, Mathf.CeilToInt((Mathf.Max(a.x, b.x) + reach - x0) / g));
                     int j0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.z, b.z) - reach - z0) / g));
@@ -257,12 +328,11 @@ namespace HorseRace.EditorTools
                     for (int j = j0; j <= j1; j++)
                         for (int i = i0; i <= i1; i++)
                         {
-                            float dist = WorldLayout.DistToSegmentXZ(new Vector3(x0 + i * g, 0f, z0 + j * g), a, b);
+                            float dist = WorldLayout.DistToSegmentXZ(new Vector3(x0 + i * g, 0f, z0 + j * g), a, b) - od;
                             if (dist < f[j, i]) f[j, i] = dist;
                         }
                 }
             }
-            for (int j = 0; j < nz; j++) for (int i = 0; i < nx; i++) f[j, i] -= d;
 
             // ---- マーチングスクエア（辺の id で線をつなぐ） ----
             var adj = new Dictionary<long, List<long>>();

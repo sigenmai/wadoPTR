@@ -871,9 +871,9 @@ namespace HorseRace.EditorTools
 
             var feats = GenUtil.Child(pr, "Features", Vector3.zero).transform;
             Vector3 Loc(Vector3 rel) => rel - PRACTICE_OFFSET;
-            // ジャンプ台（15°、6m、北へ上る。着地は給水塔の手前まで 13m）
+            // ジャンプ台（13° = 砂漠の踏み切りと同じ角度：course-r1-08。6m、北へ上る。着地は給水塔の手前まで 13m）
             // 当たり判定は見えない板。見た目は板の面に丸太の束（WoodLogs_01 ×2）を 2 列 × 3 段に敷き、縁に丸太
-            var ramp = Solid(feats, "JumpRamp", Loc(LobbyLayout.PRACTICE_JUMP) + new Vector3(0f, 0.6f, 0f), new Vector3(6f, 0.5f, 6.2f), Quaternion.Euler(-15f, 0f, 0f));
+            var ramp = Solid(feats, "JumpRamp", Loc(LobbyLayout.PRACTICE_JUMP) + new Vector3(0f, 0.6f, 0f), new Vector3(6f, 0.5f, 6.2f), Quaternion.Euler(-SetPieces.JumpAngleDeg, 0f, 0f));
             GenUtil.HideRenderers(ramp);
             for (int i = 0; i < 3; i++)
                 for (int j = 0; j < 2; j++)

@@ -69,7 +69,7 @@ namespace HorseRace.EditorTools
         public static float PracticeReleaseRadius => 0.5f * Mathf.Sqrt((PRACTICE_RECT.z - PRACTICE_RECT.x) * (PRACTICE_RECT.z - PRACTICE_RECT.x)
             + (PRACTICE_RECT.w - PRACTICE_RECT.y) * (PRACTICE_RECT.w - PRACTICE_RECT.y)) + 3f;
         public static readonly Vector3 PRACTICE_POST_FIRST = new Vector3(23.5f, 0f, 90.5f);   // 杭 ×2（北へ 4.5m、馬はその 2.5m 東）
-        public static readonly Vector3 PRACTICE_JUMP = new Vector3(29f, 0f, 101f);           // ジャンプ台（6m × 6.2m、15°、北へ上る。着地は z 104〜117）
+        public static readonly Vector3 PRACTICE_JUMP = new Vector3(29f, 0f, 101f);           // ジャンプ台（6m × 6.2m、13°（砂漠の踏み切りと同じ）、北へ上る。着地は z 104〜117）
         public static readonly Vector3 PRACTICE_BUMP = new Vector3(25.5f, 0f, 132f);         // 小さな丘（7m 四方を 45° 回した低い台、上面 0.45m）
         public static readonly Vector3 PRACTICE_DUMMY_1 = new Vector3(23.5f, 0f, 111f);
         public static readonly Vector3 PRACTICE_DUMMY_2 = new Vector3(33f, 0f, 129f);

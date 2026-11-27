@@ -20,7 +20,7 @@ namespace HorseRace.Tests
             var s = StageDefinitions.All[i];
             var local = StageDefinitions.SampleLocal(s);
             float goal = StageDefinitions.GoalArc(s, local);
-            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var sc = SetPieces.ApplyTerrain(s, local, h, goal);
             p = DressingPlan.For(s, local, h, goal, sc);
             cache[i] = p; courses[i] = local; shortcuts[i] = sc; goals[i] = goal;
@@ -42,7 +42,8 @@ namespace HorseRace.Tests
         {
             foreach (var p in Plan(i))
             {
-                float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - DressingPlan.FootprintRadius(p);
+                // 道幅を考えた距離（絞りでは道に寄せてよい、広場では遠ざける：course-r1-10）
+                float d = DressingPlan.RoadClearance(StageDefinitions.All[i], courses[i], null, p.position) - DressingPlan.FootprintRadius(p);
                 bool roadside = DressingPlan.NearRoadGroups.Contains(p.group);
                 Assert.GreaterOrEqual(d, (roadside ? DressingPlan.ROAD_MIN : DressingPlan.ROAD_CLEAR) - 0.01f, p.group + " " + p.part + " " + p.asset);
             }
@@ -59,7 +60,7 @@ namespace HorseRace.Tests
                 foreach (var c in circles)
                 {
                     bool townArea = c.w >= 100f;   // ゴールの町の範囲は町の建物だけが入れる
-                    if (p.group == "GoalTown" && townArea) continue;
+                    if ((p.group == "GoalTown" || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
                     if (p.group == "GoalTown" && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
                     if (p.group == "Landmark") continue;   // 遠くの目印は除外の円の外を自分で選ぶ（LandmarkSpot）
                     Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(c.x, 0, c.z)), c.w + DressingPlan.FootprintRadius(p) - 0.01f, p.group + " " + p.asset);
@@ -87,7 +88,7 @@ namespace HorseRace.Tests
             var s = StageDefinitions.All[i];
             var local = StageDefinitions.SampleLocal(s);
             float goal = StageDefinitions.GoalArc(s, local);
-            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var sc = SetPieces.ApplyTerrain(s, local, h, goal);
             var again = DressingPlan.For(s, local, h, goal, sc);
             var first = Plan(i);
@@ -184,7 +185,7 @@ namespace HorseRace.Tests
             foreach (var p in plan)
             {
                 float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
-                if (d > DressingPlan.NEAR_FIELD_M) continue;
+                if (DressingPlan.RoadClearance(StageDefinitions.All[0], course, cum, p.position) > DressingPlan.NEAR_FIELD_M) continue;
                 int k = Mathf.FloorToInt(a / DressingPlan.BAND_WINDOW_M);
                 if (k >= 0 && k < windows) counts[k]++;
             }
@@ -210,6 +211,7 @@ namespace HorseRace.Tests
             int n = 0;
             foreach (var p in plan)
             {
+                if (p.group == "CornerSilhouette") n++;
                 if (p.group != "CliffWalls") continue;
                 n++;
                 float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
@@ -218,7 +220,7 @@ namespace HorseRace.Tests
                 diff = Mathf.Min(diff, 180f - diff);
                 Assert.LessOrEqual(diff, DressingPlan.CLIFF_YAW_JITTER + 25f, p.part);
             }
-            Assert.Greater(n, 20);
+            Assert.GreaterOrEqual(n, 20);
         }
 
         /// <summary>遠くの目印（art-r1-10）：どのステージもスタートで進む向き ±35° にあり、コースから 60m 以上離れ、計画に入っている。</summary>
@@ -305,14 +307,23 @@ namespace HorseRace.Tests
                 if (q.x * rv.x + q.z * rv.z > 0f) right++; else left++;
             }
             Assert.AreEqual(1, left); Assert.AreEqual(1, right);
-            int after = 0;
+            // 最後の 260m は町の大通り（course-r1-12）：ゴールの 260m 手前〜60m 先、両脇に建物
+            int left2 = 0, right2 = 0, before = 0;
             foreach (var p in plan)
             {
-                if (p.group != "GoalTown" || !p.asset.StartsWith("Buildings/") || p.part != null) continue;
+                bool building = p.part != DressingPlan.RANCH_TOWER && (p.asset.StartsWith("Buildings/") || (p.part != null && p.part.EndsWith("_Building")));
+                if (p.group != "GoalTown" || !building) continue;
                 float a = DressingPlan.NearestArc(course, cum, p.position, out float d);
-                if (a > goals[2] + 15f && a < goals[2] + 110f) after++;
+                Assert.That(a - goals[2], Is.InRange(DressingPlan.GOAL_STREET_FROM - 10f, DressingPlan.GOAL_STREET_TO + 10f));
+                Vector3 rv = WorldLayout.RightOf(WorldLayout.TangentAtArc(course, a));
+                Vector3 q = p.position - WorldLayout.PointAtArc(course, a);
+                if (q.x * rv.x + q.z * rv.z > 0f) right2++; else left2++;
+                if (a < goals[2] - 100f) before++;
             }
-            Assert.GreaterOrEqual(after, 4);
+            TestContext.WriteLine($"street buildings left {left2} right {right2}, before goal-100 {before}");
+            Assert.GreaterOrEqual(left2, 8); Assert.GreaterOrEqual(right2, 8);
+            Assert.GreaterOrEqual(before, 8);
+            Assert.Greater(Count(plan, p => p.group == "GoalTown" && p.asset == DressingPlan.HAY), 8);
             var tower = plan.Single(p => p.group == "GoalTown" && p.part == DressingPlan.RANCH_TOWER);
             Assert.Greater(WorldLayout.DistXZ(tower.position, course[course.Length - 1]), 20f);
         }

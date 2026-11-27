@@ -2,6 +2,8 @@
 // - HorseRace/Toon と同じ 2 段のトゥーンの陰影・影色（地形の影と飾りの影を同じ色にする：art-r1-01）
 // - TerrainLayer 4 枚まで（_Control の RGBA）。0 土・1 岩・2 砂は平面の UV、3 は「地層の縞」：
 //   ワールドの高さ（y / _StrataScale）を V にして横の縞を急な斜面に描く（峡谷の壁がメサの岩の模様と同じ縞になる）
+// - 道の踏み固めた土（course-r1-09）：_TrailTex（Terrain 全体の UV、R = 重み）で _TrailColor に置き換える（土の斑を少しだけ残す）。
+//   ステージごとのマテリアル（TerrainBuilder.ApplyToonMaterial）。_TrailTex が無い（黒）なら何もしない
 // - 霧・影受け。GPU インスタンシングの地形描画（drawInstanced）は使わない（TerrainBuilder が OFF にする）
 Shader "HorseRace/ToonTerrain"
 {
@@ -21,6 +23,8 @@ Shader "HorseRace/ToonTerrain"
         _ShadeSoftness ("Shade Softness", Range(0.001,0.3)) = 0.05
         _StrataScale ("Strata band height (m)", Float) = 8
         _StrataTile ("Strata horizontal tile (m)", Float) = 45
+        _TrailTex ("Trail mask (R)", 2D) = "black" {}
+        _TrailColor ("Trail Color", Color) = (0.55,0.40,0.28,1)
     }
 
     SubShader
@@ -40,6 +44,7 @@ Shader "HorseRace/ToonTerrain"
             #include "AutoLight.cginc"
 
             sampler2D _Control; float4 _Control_ST;
+            sampler2D _TrailTex; float4 _TrailColor;
             sampler2D _Splat0, _Splat1, _Splat2, _Splat3;
             float4 _Splat0_ST, _Splat1_ST, _Splat2_ST, _Splat3_ST;
             fixed4 _ShadowColor;
@@ -82,6 +87,11 @@ Shader "HorseRace/ToonTerrain"
                 float3 c3 = tex2D(_Splat3, suv).rgb;
                 float wsum = max(ctl.r + ctl.g + ctl.b + ctl.a, 1e-3);
                 float3 albedo = (c0 * ctl.r + c1 * ctl.g + c2 * ctl.b + c3 * ctl.a) / wsum;
+                // 道：踏み固めた土（土の斑の明るさを 30% だけ残す）
+                float trail = tex2D(_TrailTex, i.uv).r;
+                float mott = saturate(dot(c0, float3(0.333, 0.333, 0.333)) * 1.5);
+                float3 trailCol = _TrailColor.rgb * (0.92 + 0.16 * mott);
+                albedo = lerp(albedo, trailCol, saturate(trail));
 
                 float3 n = normalize(i.nrm);
                 float3 l = normalize(_WorldSpaceLightPos0.xyz);

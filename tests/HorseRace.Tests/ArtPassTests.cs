@@ -89,33 +89,39 @@ namespace HorseRace.Tests
 
         [Test] public void KickerProfile()
         {
-            float half = SetPieces.JUMP_LENGTH * 0.5f;
-            Assert.AreEqual(0f, SetPieces.KickerRise(-half, 0f), 1e-4);
-            Assert.AreEqual(SetPieces.JUMP_HEIGHT - SetPieces.KICKER_UNDER_M, SetPieces.KickerRise(half, 0f), 1e-4);
-            Assert.AreEqual(0f, SetPieces.KickerRise(half + SetPieces.KICKER_LIP_M + 0.1f, 0f), 1e-4);
-            Assert.AreEqual(0f, SetPieces.KickerRise(0f, SetPieces.JUMP_WIDTH * 0.5f + SetPieces.KICKER_SIDE_M + 0.1f), 1e-4);
-            // 坂も縁の後ろも 25° 以下
-            for (float a = -half; a < half + SetPieces.KICKER_LIP_M; a += 0.25f)
+            // 中央：22m で +5m（13°）、縁で 4m に 6m 落ちて −1m の窪み、窪みは縁の 20m 先まで、6m で道へ戻る（course-r1-08）
+            Assert.AreEqual(0f, SetPieces.KickerDelta(-SetPieces.JUMP_LENGTH, 0f), 1e-4);
+            Assert.AreEqual(SetPieces.JUMP_HEIGHT, SetPieces.KickerDelta(0f, 0f), 1e-4);
+            Assert.AreEqual(SetPieces.JUMP_HEIGHT - SetPieces.KICKER_DROP_M, SetPieces.KickerDelta(SetPieces.KICKER_LIP_M, 0f), 1e-4);
+            Assert.AreEqual(-1f, SetPieces.KickerDelta(12f, 0f), 1e-4);
+            Assert.AreEqual(0f, SetPieces.KickerDelta(SetPieces.KICKER_TROUGH_END + SetPieces.KICKER_TROUGH_EXIT + 0.1f, 0f), 1e-4);
+            Assert.That(SetPieces.JumpAngleDeg, Is.InRange(12f, 14f));
+            // 横（±7m の外）は低いゆるい坂：縁の後ろも 25° 以下で窪みへ転がれる
+            Assert.LessOrEqual(SetPieces.KickerDelta(0f, 14f), SetPieces.KICKER_SIDE_HEIGHT + 0.01f);
+            for (float a2 = -SetPieces.JUMP_LENGTH; a2 < SetPieces.KICKER_TROUGH_END + SetPieces.KICKER_TROUGH_EXIT; a2 += 0.25f)
             {
-                float g = Mathf.Abs(SetPieces.KickerRise(a + 0.25f, 0f) - SetPieces.KickerRise(a, 0f)) / 0.25f;
+                float g = Mathf.Abs(SetPieces.KickerDelta(a2 + 0.25f, 12.5f) - SetPieces.KickerDelta(a2, 12.5f)) / 0.25f;
                 Assert.LessOrEqual(Mathf.Atan(g) * Mathf.Rad2Deg, StageDefinitions.MAX_SLOPE_DEG);
             }
+            // 道の外は 0
+            Assert.AreEqual(0f, SetPieces.KickerDelta(0f, SetPieces.KICKER_HALF_WIDTH + SetPieces.KICKER_SHOULDER + 0.1f), 1e-4);
         }
 
-        [Test] public void DunesKickerRaisesTerrainUnderRamp()
+        [Test] public void DunesKickerRaisesTerrainAtLip()
         {
             var s = StageDefinitions.All[1];
             var local = StageDefinitions.SampleLocal(s);
             float goal = StageDefinitions.GoalArc(s, local);
-            var h0 = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+            var h0 = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var h = (float[,])h0.Clone();
             SetPieces.ApplyTerrain(s, local, h, goal);
             float jump = SetPieces.JumpArc(s, goal);
-            Vector3 lip = WorldLayout.PointAtArc(local, jump + SetPieces.JUMP_LENGTH * 0.5f - 0.5f);
-            float before = WorldLayout.SampleHeight(h0, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, lip.x, lip.z);
-            float after = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, lip.x, lip.z);
-            Assert.That(after - before, Is.InRange(0.8f, SetPieces.JUMP_HEIGHT));
-            float slope = HeightmapGen.MaxSlopeDegAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, StageDefinitions.Normalize(local));
+            Vector3 lip = WorldLayout.PointAtArc(local, jump - 0.5f), trough = WorldLayout.PointAtArc(local, jump + 12f);
+            float H(float[,] a, Vector3 p) => WorldLayout.SampleHeight(a, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z);
+            Assert.That(H(h, lip) - H(h0, lip), Is.InRange(3.5f, SetPieces.JUMP_HEIGHT + 0.5f));
+            Assert.That(H(h, trough) - H(h0, trough), Is.InRange(-1.5f, -0.5f));
+            var pts = SetPieces.ExcludeArcRange(local, jump - 2f, jump + 20f);
+            float slope = HeightmapGen.MaxSlopeDegAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, StageDefinitions.Normalize(pts));
             Assert.LessOrEqual(slope, StageDefinitions.MAX_SLOPE_DEG);
         }
 
@@ -127,9 +133,9 @@ namespace HorseRace.Tests
             float pass = SetPieces.PassArc(s, goal);
             float[] cps = WorldLayout.CheckpointArcs(goal, StageDefinitions.CP_SPACING_M);
             foreach (float c in cps) Assert.Greater(Mathf.Abs(c - pass), SetPieces.PASS_HALF_CUT + SetPieces.PASS_RAMP - 2f, "CP " + c);
-            foreach (float f in s.relicFractions) Assert.Greater(Mathf.Abs(f * goal - pass), 60f);
+            foreach (var rs in SetPieces.RelicSpots(s, local, goal, null)) Assert.Greater(Mathf.Abs(rs.arc - pass), 60f);
             Assert.Less(pass, goal - 300f);   // 切り通しを抜けてから最後の直線
-            var h0 = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
+            var h0 = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var h = (float[,])h0.Clone();
             SetPieces.ApplyTerrain(s, local, h, goal);
             Vector3 c0 = WorldLayout.PointAtArc(local, pass);
@@ -143,20 +149,20 @@ namespace HorseRace.Tests
             Assert.LessOrEqual(slope, StageDefinitions.MAX_SLOPE_DEG);
         }
 
-        [Test] public void BorderEndsWithStraightDownhill()
+        /// <summary>最後の下り（course-r1-04）：どのステージも、ゴールの 590〜350m 手前で 18〜25m 下り、その先ゴールまでほぼ平ら。</summary>
+        [Test] public void EveryStageEndsWithDownhillThenFlatSprint([Values(0, 1, 2)] int i)
         {
-            var s = StageDefinitions.All[2];
+            var s = StageDefinitions.All[i];
             var local = StageDefinitions.SampleLocal(s);
             float goal = StageDefinitions.GoalArc(s, local);
-            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, StageDefinitions.Normalize(local));
-            Vector3 a = WorldLayout.PointAtArc(local, goal - 300f), b = WorldLayout.PointAtArc(local, goal + 100f);
-            // 一直線：途中の点が弦から 2m 以内
-            for (float k = goal - 300f; k <= goal + 100f; k += 10f)
-                Assert.Less(WorldLayout.DistToSegmentXZ(WorldLayout.PointAtArc(local, k), a, b), 2f);
-            float ya = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, a.x, a.z);
-            float yg = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, goal).x, WorldLayout.PointAtArc(local, goal).z);
-            TestContext.WriteLine($"descent {ya - yg:F1} m");
-            Assert.Greater(ya - yg, HeightmapGen.FINAL_DROP_M * 0.5f);
+            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
+            float Y(float a) { var p = WorldLayout.PointAtArc(local, a); return WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z); }
+            float dash = StageDefinitions.DashArc(goal), end = goal - StageDefinitions.DASH_END_BEFORE_GOAL_M;
+            float drop = Y(dash) - Y(end);
+            TestContext.WriteLine($"stage {i}: descent {drop:F1} m from {dash:F0} to {end:F0}, sprint {Y(end) - Y(goal):F1}");
+            Assert.That(drop, Is.InRange(StageDefinitions.DASH_DROP_MIN_M - 3f, StageDefinitions.DASH_DROP_MAX_M + 3f));
+            Assert.Less(Mathf.Abs(Y(end) - Y(goal)), 4f);
+            Assert.That(StageDefinitions.ElevationAt(s, dash) - StageDefinitions.ElevationAt(s, end), Is.InRange(StageDefinitions.DASH_DROP_MIN_M, StageDefinitions.DASH_DROP_MAX_M));
         }
 
         [Test] public void RailRunsAreStraightAndClear()

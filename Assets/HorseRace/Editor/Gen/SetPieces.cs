@@ -4,12 +4,15 @@ namespace HorseRace.EditorTools
 {
     /// <summary>
     /// ステージの見どころ（spec 5.5）の純粋な幾何（UnityEditor に依存しない。tests/HorseRace.Tests で単体テストする）。
-    ///   岩橋：コースを横切る溝（長さ 90m）を高さマップに掘り、道幅いっぱい（BRIDGE_WIDTH 26m ≥ 平らな道 24m）の橋の板を渡す。
-    ///         溝の縁（道の外）には壁（SetPieceBuilder）、溝の底には落とし穴（ResetVolume → 最後の CP へ戻す）。
-    ///   崖下りの近道：CP SHORTCUT_SPAN（3）区間ぶんのコースの曲がりを弦で切る枝道。途中に高さ SHORTCUT_DROP（≤ 8m）の段（崖）があり、
-    ///                 落ちると着地の硬直（MountMath.LandingStun は 3m 以上で発生）。近道用の CP は増やさず、
-    ///                 弦が横切る途中の CP 2 つの箱を近道まで広げる（どちらの道でも CP を順番どおりに通る）。
-    ///   ジャンプ台：コース上の板の坂（JUMP_HEIGHT / JUMP_LENGTH、25° 以下）。
+    ///   岩の橋（荒野、course-r1-07）：コースを横切る溝（深さ 12m）を高さマップに掘るが、道の中心 ±SPINE_HALF（7m）は掘らずに残す
+    ///         ＝ 幅 14m の地形の背（岩の橋）。溝の両端（道から DETOUR_FROM 38m より外）も掘らず、平らにならした遠回り（約 40m 長い安全な道）にする。
+    ///         作った板・手すりは無い（すべて地形）。溝の底には落とし穴（ResetVolume → 最後の CP へ戻す）。
+    ///   近道（course-r1-06）：CP 2〜6 区間ぶんのコースの曲がりを弦で切る枝道。途中に高さ SHORTCUT_DROP の段（崖）があり、着地の硬直がある。
+    ///         得点 = 本コースの長さ − 弦 − 18·着地の硬直 − 坂の分（0.06·弦）。SHORTCUT_MIN_SAVED_M（30m）未満は使わない。床は砂（SandZone）。
+    ///         途中の CP には弦の上に「双子の CP」（同じ番号の Checkpoint）を置く：どちらの道でも CP を順番どおりに通る。
+    ///   踏み切り（砂漠、course-r1-08）：道幅いっぱいの砂の盛り上がり（22m で +5m、13°）、中央 ±7m だけ 4m で 6m 落ちる縁、
+    ///         その先 16m は砂の窪み（SandZone）。跳べば越えられ、横の浅い坂を転がる人は砂を通る。
+    ///   台地（境目、course-r1-05）：道の高さの形で 32m 登る区間の両脇 35m の帯も同じ高さへ持ち上げる（縁から 15m で元の地形へ落ちる崖）。
     /// 座標は Terrain ローカル（m）。高さマップは [z,x]、0..1（× heightM）。
     /// </summary>
     public static class SetPieces
@@ -20,14 +23,28 @@ namespace HorseRace.EditorTools
         public const float TRENCH_HALF_LENGTH = 45f;   // コースを横切る方向の半分の長さ
         public const float TRENCH_END_TAPER = 12f;     // 溝の両端で浅くなる長さ
         public const float TRENCH_DEPTH = 12f;
-        public const float BRIDGE_HALF_SPAN = 11f;     // 橋の板の半分の長さ（溝の縁 10m より長い）
-        public const float BRIDGE_WIDTH = 26f;          // 道幅（平らな道 ±12m）いっぱい＋余白
+        public const float BRIDGE_HALF_SPAN = 11f;     // 岩の背の勾配の検査から外す半分の長さ（溝の縁 10m より長い）
+        public const float SPINE_HALF = 7f;            // 掘らずに残す地形の背（岩の橋）の半幅（絞り 14m）
+        public const float SPINE_EDGE = 2f;            // 背の縁の切り立った斜面
+        public const float DETOUR_FROM = 38f;          // ここから外は掘らない（溝の両端を回る遠回り）
+        public const float DETOUR_TO = 54f;            // 遠回りの外の縁（平らにならす範囲）
+        public const float DETOUR_ALONG = 30f;         // 遠回りのならしのコース方向の半分の長さ
+        public const float DETOUR_BARRIER_M = 58f;     // 橋の周りの柵（遠回りを囲む）
 
-        // ジャンプ台（砂丘の盛り上がり：地形に坂を作り、見えない板の Collider で正確に跳ばせる）
-        public const float JUMP_LENGTH = 8f, JUMP_HEIGHT = 1.5f, JUMP_WIDTH = 16f;
-        public const float KICKER_LIP_M = 6f;          // 縁の後ろ（着地側）で元の高さへ戻る長さ
-        public const float KICKER_SIDE_M = 6f;         // 横の裾
-        public const float KICKER_UNDER_M = 0.15f;     // 地形は見えない板の上面よりこれだけ低く（板の上を走る）
+        // 踏み切り（地形だけ。course-r1-08）
+        public const float JUMP_LENGTH = 22f, JUMP_HEIGHT = 5f;   // 坂（13°）
+        public const float KICKER_DROP_M = 6f, KICKER_LIP_M = 4f; // 縁で 6m を 4m で落ちる（中央 ±KICKER_CORE_M）
+        public const float KICKER_CORE_M = 7f, KICKER_CORE_BLEND = 5f;
+        public const float KICKER_SIDE_HEIGHT = 1.5f, KICKER_SIDE_BACK_M = 14f;   // 横は低く、ゆるい坂で窪みへ
+        public const float KICKER_TROUGH_END = 20f, KICKER_TROUGH_EXIT = 6f;      // 縁から 4〜20m が砂の窪み、6m で道へ戻る
+        public const float KICKER_HALF_WIDTH = 13f, KICKER_SHOULDER = 6f;
+        public const float JUMP_WIDTH = KICKER_CORE_M * 2f;
+        public const float JUMP_RELIC_AHEAD = 14f, JUMP_RELIC_UP = 2.5f;
+
+        // 境目の台地（course-r1-05）
+        public const float MESA_BAND_HALF = 35f;       // 道の中心から 35m（帯 70m）は道と同じ高さ
+        public const float MESA_CLIFF_M = 15f;         // その外 15m で元の地形へ（崖）
+        public const float MESA_RAMP_M = 260f;
 
         // 境目のメサの切り通し
         public const float PASS_DEPTH = 6f;            // 道を下げる深さ
@@ -51,7 +68,12 @@ namespace HorseRace.EditorTools
         public const float SHORTCUT_RAMP_DEG = 12f;
         public const float RUNWAY_KEEP = 14f;          // 本コースの平らな道（±12m）＋余白は触らない
         public const float SHORTCUT_MIN_DEV = 24f;     // 弦がコースから最低これだけ離れる区間を選ぶ
-        public const float SHORTCUT_MAX_DEV = 50f;     // コース外リセット（60m）より十分内側
+        public const float SHORTCUT_MAX_DEV = 90f;     // 弦の真ん中が本コースからこれ以上離れない（柵は弦にも沿う）
+        public const float SHORTCUT_MAX_CP_DEV = 50f;  // コース外リセット（CP の線分から 60m）より十分内側
+        public const float SHORTCUT_MIN_SAVED_M = 30f; // 18 m/s で約 1.7 秒
+        public const float SHORTCUT_MIN_RATIO = 1.12f, SHORTCUT_MAX_RATIO = 1.25f;  // 本コースの長さ ÷ 弦：全力でだけ得をする（並足では負ける）
+        public const float SHORTCUT_SPEED = 18f, SHORTCUT_RAMP_COST = 0.06f;
+        public const int SHORTCUT_MIN_SPAN = 2, SHORTCUT_MAX_SPAN = 6;
         public const float LANDING_RUN = 12f;          // 段の下からコースに戻るまでの平らな長さ
         public const float END_INSET = 6f;             // CP から内側へ
 
@@ -84,14 +106,19 @@ namespace HorseRace.EditorTools
             return t * t * (3f - 2f * t);
         }
 
-        /// <summary>コースを横切る溝を掘る（h を書き換える）。center/tangent は橋の中心とコースの向き（x/z）。</summary>
+        /// <summary>
+        /// 岩の橋の地形（h を書き換える）。center/tangent は橋の中心とコースの向き（x/z）。
+        /// 1) 道の外 DETOUR_TO m まで・コース方向 ±DETOUR_ALONG m を道の高さにならす（溝の両端を回る遠回りの地面）。
+        /// 2) コース方向 ±(TRENCH_HALF_WIDTH + TRENCH_BLEND)、横 SPINE_HALF〜DETOUR_FROM m を TRENCH_DEPTH 掘る。中央の背と両端は掘らない。
+        /// </summary>
         public static void CarveTrench(float[,] h, float sizeM, float heightM, Vector3 center, Vector3 tangent)
         {
             int n = h.GetLength(0);
             float cell = sizeM / (n - 1);
             Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
             Vector3 r = WorldLayout.RightOf(t);
-            float reach = TRENCH_HALF_LENGTH + TRENCH_HALF_WIDTH + TRENCH_BLEND;
+            float road = WorldLayout.SampleHeight(h, sizeM, heightM, center.x, center.z) / heightM;
+            float reach = DETOUR_TO + DETOUR_ALONG + 8f;
             int x0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.x + reach) / cell));
             int z0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.z + reach) / cell));
             for (int z = z0; z <= z1; z++)
@@ -100,12 +127,23 @@ namespace HorseRace.EditorTools
                     float dx = x * cell - center.x, dz = z * cell - center.z;
                     float along = Mathf.Abs(dx * t.x + dz * t.z);
                     float lat = Mathf.Abs(dx * r.x + dz * r.z);
-                    float wa = 1f - Smooth01((along - TRENCH_HALF_WIDTH) / TRENCH_BLEND);
-                    float wl = 1f - Smooth01((lat - (TRENCH_HALF_LENGTH - TRENCH_END_TAPER)) / TRENCH_END_TAPER);
-                    float w = wa * wl;
-                    if (w <= 0f) continue;
-                    h[z, x] = Mathf.Max(0f, h[z, x] - TRENCH_DEPTH / heightM * w);
+                    // 1) ならす
+                    float fa = 1f - Smooth01((along - DETOUR_ALONG) / 8f);
+                    float fl = 1f - Smooth01((lat - DETOUR_TO) / 8f);
+                    float wf = fa * fl;
+                    if (wf > 0f) h[z, x] = Mathf.Lerp(h[z, x], road, wf);
+                    // 2) 掘る
+                    float delta = TrenchDepthAt(along, lat);
+                    if (delta > 0f) h[z, x] = Mathf.Max(0f, h[z, x] - delta / heightM);
                 }
+        }
+
+        /// <summary>溝の深さ（m）。along/lat は橋の中心からのコース方向・横の距離（絶対値）。背（|lat| &lt; SPINE_HALF）と両端（&gt; DETOUR_FROM）は 0。</summary>
+        public static float TrenchDepthAt(float along, float lat)
+        {
+            float wa = 1f - Smooth01((along - TRENCH_HALF_WIDTH) / TRENCH_BLEND);
+            float wl = Smooth01((lat - SPINE_HALF) / SPINE_EDGE) * (1f - Smooth01((lat - (DETOUR_FROM - TRENCH_END_TAPER * 0.5f)) / (TRENCH_END_TAPER * 0.5f)));
+            return TRENCH_DEPTH * wa * wl;
         }
 
         // ------------------------------------------------------------------
@@ -130,19 +168,22 @@ namespace HorseRace.EditorTools
             return r;
         }
 
-        /// <summary>このステージの近道の計画（無ければ null）。heights は HeightmapGen の生成直後（掘る前）の高さ。</summary>
+        /// <summary>このステージの近道の計画（無ければ null）。heights は HeightmapGen の生成直後（台地を持ち上げた後、掘る前）の高さ。</summary>
         public static ShortcutPlan PlanFor(StageDef def, Vector3[] local, float[,] heights, float goalArc)
         {
-            if (!def.cliffShortcut) return null;
-            float bridge = BridgeArc(def, goalArc);
+            if (!def.hasShortcut) return null;
+            float bridge = BridgeArc(def, goalArc), jump = JumpArc(def, goalArc);
             float[] cps = WorldLayout.CheckpointArcs(goalArc, StageDefinitions.CP_SPACING_M);
-            float avoid0 = bridge < 0f ? -1f : bridge - 80f, avoid1 = bridge < 0f ? -2f : bridge + 80f;
-            return PlanShortcut(WithHeights(local, heights), cps, avoid0, avoid1);
+            var avoid = new System.Collections.Generic.List<float>();
+            if (bridge >= 0f) { avoid.Add(bridge - 80f); avoid.Add(bridge + 80f); }
+            if (jump >= 0f) { avoid.Add(jump - 80f); avoid.Add(jump + 60f); }
+            return PlanShortcut(WithHeights(local, heights), cps, avoid.ToArray(), def.shortcutFrom * goalArc, def.shortcutTo * goalArc);
         }
 
-        /// <summary>見どころの地形の加工（溝・近道・ジャンプの盛り上がり・切り通し・廃線の路盤）を heights に適用する。</summary>
+        /// <summary>見どころの地形の加工（台地・溝・近道・踏み切り・切り通し・廃線の路盤）を heights に適用する。</summary>
         public static ShortcutPlan ApplyTerrain(StageDef def, Vector3[] local, float[,] heights, float goalArc)
         {
+            RaiseMesa(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, def, local, goalArc);
             ShortcutPlan plan = PlanFor(def, local, heights, goalArc);
             float bridge = BridgeArc(def, goalArc);
             if (bridge >= 0f)
@@ -150,7 +191,7 @@ namespace HorseRace.EditorTools
             if (plan != null) ApplyShortcut(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, plan, local);
             float jump = JumpArc(def, goalArc);
             if (jump >= 0f)
-                RaiseKicker(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, jump), WorldLayout.TangentAtArc(local, jump));
+                CarveKicker(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, jump), WorldLayout.TangentAtArc(local, jump));
             float pass = PassArc(def, goalArc);
             if (pass >= 0f)
                 CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, pass), WorldLayout.TangentAtArc(local, pass));
@@ -159,40 +200,101 @@ namespace HorseRace.EditorTools
             return plan;
         }
 
+        /// <summary>台地の区間（登りの坂の始まり〜台地の端の 1 段目の下りの終わり、弧長 m）。台地が無ければ false。</summary>
+        public static bool MesaRange(StageDef def, float goalArc, out float from, out float to)
+        {
+            from = to = -1f;
+            if (def.mesaClimbFraction < 0f || def.mesaTopEndFraction < 0f) return false;
+            from = def.mesaClimbFraction * goalArc - MESA_RAMP_M;
+            to = def.mesaTopEndFraction * goalArc + 110f;
+            return true;
+        }
+
+        /// <summary>
+        /// 台地（course-r1-05）：MesaRange の区間で、道の中心から MESA_BAND_HALF m の帯を道の高さ（HeightmapGen.PathHeight）まで持ち上げ、
+        /// その外 MESA_CLIFF_M m で元の地形へ落とす（下げはしない）。区間の両端（坂の下）は道の高さが元の高さに戻るので自然につながる。
+        /// </summary>
+        public static void RaiseMesa(float[,] h, float sizeM, float heightM, StageDef def, Vector3[] local, float goalArc)
+        {
+            float from, to;
+            if (!MesaRange(def, goalArc, out from, out to)) return;
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            var pts = new System.Collections.Generic.List<Vector3>();
+            var arcs = new System.Collections.Generic.List<float>();
+            float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
+            // 区間の外の点も探す（区間の端の先の道の上を持ち上げない）。持ち上げるのは一番近い点が区間の中のときだけ
+            for (float a = Mathf.Max(0f, from - 80f); a <= to + 80f; a += 3f)
+            {
+                Vector3 p = WorldLayout.PointAtArc(local, a);
+                pts.Add(p); arcs.Add(a);
+                minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x); minZ = Mathf.Min(minZ, p.z); maxZ = Mathf.Max(maxZ, p.z);
+            }
+            float reach = MESA_BAND_HALF + MESA_CLIFF_M;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((minX - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((maxX + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((minZ - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((maxZ + reach) / cell));
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float px = x * cell, pz = z * cell, best = float.MaxValue, arc = 0f;
+                    for (int i = 0; i < pts.Count; i++)
+                    {
+                        float dx = pts[i].x - px, dz = pts[i].z - pz, dd = dx * dx + dz * dz;
+                        if (dd < best) { best = dd; arc = arcs[i]; }
+                    }
+                    float d = Mathf.Sqrt(best);
+                    if (d >= reach || arc < from || arc > to) continue;
+                    float target = HeightmapGen.PathHeight(def, arc);
+                    float w = 1f - Smooth01((d - MESA_BAND_HALF) / MESA_CLIFF_M);
+                    float v = Mathf.Lerp(h[z, x], target, w);
+                    if (v > h[z, x]) h[z, x] = Mathf.Clamp01(v);
+                }
+        }
+
         // ------------------------------------------------------------------
         // ジャンプの盛り上がり・切り通し・廃線
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// ジャンプの盛り上がり（地形の高さに足す m）。along = コース方向の位置（中心 0、+ が進む向き）、lat = 横の距離。
-        /// 坂（JUMP_LENGTH）で JUMP_HEIGHT − KICKER_UNDER_M まで上がり、縁の後ろ KICKER_LIP_M で元へ戻る。横は JUMP_WIDTH/2 から KICKER_SIDE_M で裾。
+        /// 踏み切りの高さの変化（m、地形に足す）。along = 縁からのコース方向の位置（+ が進む向き、縁 = 0）、lat = 横の距離。
+        /// 坂：−JUMP_LENGTH〜0 で 0 → 縁の高さ（中央 JUMP_HEIGHT、横は KICKER_SIDE_HEIGHT）。縁の後ろ：中央は KICKER_LIP_M で −1m まで落ち、
+        /// 横は KICKER_SIDE_BACK_M のゆるい坂。窪み（−1m）は KICKER_TROUGH_END まで、KICKER_TROUGH_EXIT で 0 へ。道の外は KICKER_SHOULDER で 0。
         /// </summary>
-        public static float KickerRise(float along, float lat)
+        public static float KickerDelta(float along, float lat)
         {
-            float half = JUMP_LENGTH * 0.5f, top = JUMP_HEIGHT - KICKER_UNDER_M;
-            float a;
-            if (along < -half || along > half + KICKER_LIP_M) return 0f;
-            if (along <= half) a = top * (along + half) / JUMP_LENGTH;
-            else a = top * (1f - Smooth01((along - half) / KICKER_LIP_M));
-            float w = 1f - Smooth01((Mathf.Abs(lat) - JUMP_WIDTH * 0.5f) / KICKER_SIDE_M);
-            return a * w;
+            float la = Mathf.Abs(lat);
+            float lf = 1f - Smooth01((la - KICKER_HALF_WIDTH) / KICKER_SHOULDER);
+            if (lf <= 0f) return 0f;
+            float core = 1f - Smooth01((la - KICKER_CORE_M) / KICKER_CORE_BLEND);
+            float crest = Mathf.Lerp(KICKER_SIDE_HEIGHT, JUMP_HEIGHT, core);
+            float low = JUMP_HEIGHT - KICKER_DROP_M;   // −1m
+            float back = Mathf.Lerp(KICKER_SIDE_BACK_M, KICKER_LIP_M, core);
+            float d;
+            if (along < -JUMP_LENGTH) d = 0f;
+            else if (along <= 0f) d = crest * (along + JUMP_LENGTH) / JUMP_LENGTH;
+            else if (along <= back) d = Mathf.Lerp(crest, low, along / back);
+            else if (along <= KICKER_TROUGH_END) d = low;
+            else if (along <= KICKER_TROUGH_END + KICKER_TROUGH_EXIT) d = Mathf.Lerp(low, 0f, (along - KICKER_TROUGH_END) / KICKER_TROUGH_EXIT);
+            else d = 0f;
+            return d * lf;
         }
 
-        public static void RaiseKicker(float[,] h, float sizeM, float heightM, Vector3 center, Vector3 tangent)
+        /// <summary>踏み切りを地形に作る（h を書き換える）。lip/tangent は縁の位置とコースの向き。</summary>
+        public static void CarveKicker(float[,] h, float sizeM, float heightM, Vector3 lip, Vector3 tangent)
         {
             int n = h.GetLength(0);
             float cell = sizeM / (n - 1);
             Vector3 t = new Vector3(tangent.x, 0f, tangent.z).normalized;
             Vector3 r = WorldLayout.RightOf(t);
-            float reach = JUMP_LENGTH + KICKER_LIP_M + JUMP_WIDTH * 0.5f + KICKER_SIDE_M;
-            int x0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.x + reach) / cell));
-            int z0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((center.z + reach) / cell));
+            float reach = JUMP_LENGTH + KICKER_TROUGH_END + KICKER_TROUGH_EXIT + KICKER_HALF_WIDTH + KICKER_SHOULDER;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((lip.x - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((lip.x + reach) / cell));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((lip.z - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((lip.z + reach) / cell));
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
                 {
-                    float dx = x * cell - center.x, dz = z * cell - center.z;
-                    float rise = KickerRise(dx * t.x + dz * t.z, dx * r.x + dz * r.z);
-                    if (rise > 0f) h[z, x] = Mathf.Clamp01(h[z, x] + rise / heightM);
+                    float dx = x * cell - lip.x, dz = z * cell - lip.z;
+                    float d = KickerDelta(dx * t.x + dz * t.z, dx * r.x + dz * r.z);
+                    if (d != 0f) h[z, x] = Mathf.Clamp01(h[z, x] + d / heightM);
                 }
         }
 
@@ -304,13 +406,13 @@ namespace HorseRace.EditorTools
         // 崖下りの近道
         // ------------------------------------------------------------------
 
-        public const int SHORTCUT_SPAN = 3;            // 近道が渡る CP 区間の数（途中の CP 2 つの箱を近道まで広げる）
 
         public sealed class ShortcutPlan
         {
-            public int cpInterval;      // CP[cpInterval] → CP[cpInterval+SPAN]（0 始まりの配列添字）
-            public int[] crossCps;      // 途中で横切る CP の配列添字。その CP の箱を近道まで広げる（近道用の CP は増やさない）
-            public float[] crossOffsets;// 各 CP の位置での近道の横オフセット（m、+ = 進行方向右）
+            public int cpInterval;      // CP[cpInterval] → CP[cpInterval+span]（0 始まりの配列添字）
+            public int span;            // 渡る CP 区間の数
+            public int[] crossCps;      // 途中の CP の配列添字。それぞれ弦の上に同じ番号の双子の CP を置く
+            public float[] twinFractions;// 双子の CP の弦の上の位置（0..1、順番どおり）
             public float startArc, endArc;
             public Vector3 a, b;        // 弦の両端（Terrain ローカル、y = 地面の高さ m）
             public float length;
@@ -320,75 +422,82 @@ namespace HorseRace.EditorTools
             public float drop;          // 段の高さ（m）
             public float maxDevFromCourse;
             public float maxDevFromCpChord;   // MountController のコース外判定（直前の CP → 次の CP の線分）からの最大距離
+            public float saved;         // 得点（m）= 本コースの長さ − 弦 − 18·着地の硬直 − 0.06·弦
+            public float ratio;         // 本コースの長さ ÷ 弦
         }
+
+        /// <summary>近道の得点（m）：本コースの長さ courseLen と弦 L、段の高さ drop から。</summary>
+        public static float ShortcutScore(float courseLen, float L, float drop)
+            => courseLen - L - SHORTCUT_SPEED * MountMath.LandingStun(drop) - SHORTCUT_RAMP_COST * L;
 
         /// <summary>
         /// 近道の計画。courseH は Terrain ローカルの点列（y = コースの高さ m）、cpArcs は CP の弧長。
-        /// CP SHORTCUT_SPAN 区間ごとに弦（両端から END_INSET 内側）を引き、コースから一番離れる候補を選ぶ。
-        /// 弦は途中の CP の横の線を crossOffsets で横切るので、その CP の箱を近道まで広げれば順番どおりに進める。
-        /// [avoid0, avoid1] と重なる区間（橋など）とゴールの区間は使わない。無ければ null。
+        /// CP SHORTCUT_MIN_SPAN〜MAX_SPAN 区間ごとに弦（両端から END_INSET 内側）を引き、得点（ShortcutScore）が一番高い候補を選ぶ。
+        /// 得点 SHORTCUT_MIN_SAVED_M 未満・長さの比が SHORTCUT_MIN_RATIO〜MAX_RATIO の外・CP の線分から SHORTCUT_MAX_CP_DEV より離れるものは使わない。
+        /// avoid は使わない弧長の区間の組（[a0,a1, a2,a3, ...]：橋・踏み切りなど）。fromArc〜toArc の外とゴールの区間も使わない。無ければ null。
         /// </summary>
-        public static ShortcutPlan PlanShortcut(Vector3[] courseH, float[] cpArcs, float avoid0, float avoid1)
+        public static ShortcutPlan PlanShortcut(Vector3[] courseH, float[] cpArcs, float[] avoid, float fromArc = 0f, float toArc = float.MaxValue)
         {
-            const int N = SHORTCUT_SPAN;
-            if (courseH == null || cpArcs == null || cpArcs.Length < N + 2) return null;
+            if (courseH == null || cpArcs == null || cpArcs.Length < SHORTCUT_MIN_SPAN + 2) return null;
             ShortcutPlan best = null;
             float rampLen = SHORTCUT_DROP / Mathf.Tan(SHORTCUT_RAMP_DEG * Mathf.Deg2Rad);
-            for (int i = 0; i + N + 1 < cpArcs.Length; i++)
-            {
-                float s0 = cpArcs[i] + END_INSET, s1 = cpArcs[i + N] - END_INSET;
-                if (s1 >= avoid0 && s0 <= avoid1) continue;
-                Vector3 a = WorldLayout.PointAtArc(courseH, s0), b = WorldLayout.PointAtArc(courseH, s1);
-                float L = WorldLayout.DistXZ(a, b);
-                if (L < 40f) continue;
-                var cpPos = new Vector3[N + 1];
-                for (int k = 0; k <= N; k++) cpPos[k] = WorldLayout.PointAtArc(courseH, cpArcs[i + k]);
-                // 途中の CP の横の線（CP を通りコースに垂直）と弦の交点
-                var fc = new float[N + 1];
-                var offs = new float[N - 1];
-                bool ok = true;
-                fc[0] = 0f; fc[N] = 2f;
-                for (int k = 1; k < N && ok; k++)
+            for (int N = SHORTCUT_MIN_SPAN; N <= SHORTCUT_MAX_SPAN; N++)
+                for (int i = 0; i + N + 1 < cpArcs.Length; i++)
                 {
-                    Vector3 t = WorldLayout.TangentAtArc(courseH, cpArcs[i + k]);
-                    Vector3 r = WorldLayout.RightOf(t);
-                    Vector3 c = cpPos[k];
-                    float da = (a.x - c.x) * t.x + (a.z - c.z) * t.z, db = (b.x - c.x) * t.x + (b.z - c.z) * t.z;
-                    if (da * db > 0f) { ok = false; break; }
-                    fc[k] = da / (da - db);
-                    Vector3 q = Vector3.Lerp(a, b, fc[k]);
-                    offs[k - 1] = (q.x - c.x) * r.x + (q.z - c.z) * r.z;
-                    if (fc[k] < fc[k - 1]) ok = false;
+                    float s0 = cpArcs[i] + END_INSET, s1 = cpArcs[i + N] - END_INSET;
+                    if (s0 < fromArc || s1 > toArc) continue;
+                    bool hit = false;
+                    if (avoid != null)
+                        for (int k = 0; k + 1 < avoid.Length; k += 2)
+                            if (s1 >= avoid[k] && s0 <= avoid[k + 1]) hit = true;
+                    if (hit) continue;
+                    Vector3 a = WorldLayout.PointAtArc(courseH, s0), b = WorldLayout.PointAtArc(courseH, s1);
+                    float L = WorldLayout.DistXZ(a, b);
+                    if (L < 40f) continue;
+                    float ratio = (s1 - s0) / L;
+                    if (ratio < SHORTCUT_MIN_RATIO || ratio > SHORTCUT_MAX_RATIO) continue;
+                    float score = ShortcutScore(s1 - s0, L, SHORTCUT_DROP);
+                    if (score < SHORTCUT_MIN_SAVED_M || (best != null && score <= best.saved)) continue;
+                    // 双子の CP：弦の平らな道を出た所（f0）から段の手前まで等間隔
+                    int steps = Mathf.CeilToInt(L);
+                    float dev = 0f, f0 = -1f, f1 = -1f;
+                    for (int k = 0; k <= steps; k++)
+                    {
+                        float f = k / (float)steps;
+                        float d = WorldLayout.DistToPolylineXZ(Vector3.Lerp(a, b, f), courseH);
+                        if (d > dev) dev = d;
+                        if (d >= RUNWAY_KEEP + 2f) { if (f0 < 0f) f0 = f; f1 = f; }
+                    }
+                    if (dev < SHORTCUT_MIN_DEV || dev > SHORTCUT_MAX_DEV || f0 < 0f) continue;
+                    float fDrop = f1 - LANDING_RUN / L;
+                    float rampEnd = f0 + rampLen / L;
+                    if (fDrop - rampEnd < 4f / L) continue;
+                    var twins = new float[N - 1];
+                    for (int k = 1; k < N; k++) twins[k - 1] = Mathf.Lerp(f0, fDrop, k / (float)N);
+                    // コース外判定（直前の CP → 次の CP の線分）からの距離：CP[i] → 双子 1 → … → CP[i+N]
+                    var chain = new Vector3[N + 1];
+                    chain[0] = WorldLayout.PointAtArc(courseH, cpArcs[i]);
+                    for (int k = 1; k < N; k++) chain[k] = Vector3.Lerp(a, b, twins[k - 1]);
+                    chain[N] = WorldLayout.PointAtArc(courseH, cpArcs[i + N]);
+                    float devCp = 0f;
+                    int seg = 0;
+                    for (int k = 0; k <= steps; k++)
+                    {
+                        float f = k / (float)steps;
+                        while (seg < N - 1 && f > twins[seg]) seg++;
+                        float dc = WorldLayout.DistToSegmentXZ(Vector3.Lerp(a, b, f), chain[seg], chain[seg + 1]);
+                        if (dc > devCp) devCp = dc;
+                    }
+                    if (devCp > SHORTCUT_MAX_CP_DEV) continue;
+                    var cross = new int[N - 1];
+                    for (int k = 1; k < N; k++) cross[k - 1] = i + k;
+                    best = new ShortcutPlan
+                    {
+                        cpInterval = i, span = N, crossCps = cross, twinFractions = twins, startArc = s0, endArc = s1, a = a, b = b, length = L,
+                        f0 = f0, rampEnd = rampEnd, fDrop = fDrop, drop = SHORTCUT_DROP,
+                        maxDevFromCourse = dev, maxDevFromCpChord = devCp, saved = score, ratio = ratio,
+                    };
                 }
-                if (!ok) continue;
-                int steps = Mathf.CeilToInt(L);
-                float dev = 0f, devCp = 0f, f0 = -1f, f1 = -1f;
-                int seg = 0;
-                for (int k = 0; k <= steps; k++)
-                {
-                    float f = k / (float)steps;
-                    while (seg < N - 1 && f > fc[seg + 1]) seg++;
-                    Vector3 p = Vector3.Lerp(a, b, f);
-                    float d = WorldLayout.DistToPolylineXZ(p, courseH);
-                    if (d > dev) dev = d;
-                    float dc = WorldLayout.DistToSegmentXZ(p, cpPos[seg], cpPos[seg + 1]);
-                    if (dc > devCp) devCp = dc;
-                    if (d >= RUNWAY_KEEP + 2f) { if (f0 < 0f) f0 = f; f1 = f; }
-                }
-                if (dev < SHORTCUT_MIN_DEV || dev > SHORTCUT_MAX_DEV || f0 < 0f || devCp > SHORTCUT_MAX_DEV) continue;
-                float fDrop = f1 - LANDING_RUN / L;
-                float rampEnd = f0 + rampLen / L;
-                if (fDrop - rampEnd < 4f / L) continue;
-                if (best != null && dev <= best.maxDevFromCourse) continue;
-                var cross = new int[N - 1];
-                for (int k = 1; k < N; k++) cross[k - 1] = i + k;
-                best = new ShortcutPlan
-                {
-                    cpInterval = i, crossCps = cross, crossOffsets = offs, startArc = s0, endArc = s1, a = a, b = b, length = L,
-                    f0 = f0, rampEnd = rampEnd, fDrop = fDrop, drop = SHORTCUT_DROP,
-                    maxDevFromCourse = dev, maxDevFromCpChord = devCp,
-                };
-            }
             return best;
         }
 
@@ -433,6 +542,59 @@ namespace HorseRace.EditorTools
                     float target = ShortcutHeight(p, along / L) / heightM;
                     h[z, x] = Mathf.Clamp01(Mathf.Lerp(h[z, x], target, wl * wr));
                 }
+        }
+
+        // ------------------------------------------------------------------
+        // 遺物の場所（course-r1-11：危ない線・遠回りの線に置き、先頭がまっすぐ走るだけでは全部拾えない）
+        // ------------------------------------------------------------------
+
+        public const float RELIC_WIDE_SIDE = 10.5f;
+
+        public struct RelicSpot
+        {
+            public Vector3 local;   // Terrain ローカル（y = 0）
+            public float up;        // 地面からの高さ（m、踏み切りの先の遺物は跳んだ人だけが取れる高さ）
+            public float arc;       // 一番近いコースの弧長
+            public float side;      // コースの中心からの横（m、+ = 右。近道の上は弦までの距離）
+        }
+
+        /// <summary>
+        /// 遺物 4 つ：1) 最初の急カーブの外側（ふくらむ線、±10.5m）、2) 見どころの危ない線（荒野 = 岩の橋の背の上、砂漠 = 踏み切りの 14m 先の
+        /// 2.5m の空中、境目 = 近道の崖の下の床）、3) 近道の上、4) 最後の下りの入口の内側（−10.5m）。近道が無いときは代わりにコースの外側の線。
+        /// </summary>
+        public static RelicSpot[] RelicSpots(StageDef def, Vector3[] local, float goalArc, ShortcutPlan plan)
+        {
+            var r = new RelicSpot[StageDefinitions.RELICS_PER_STAGE];
+            var corners = StageDefinitions.TightCorners(def, local);
+            float a1 = corners.Count > 0 ? corners[0].apexArc : goalArc * 0.2f;
+            float s1 = corners.Count > 0 ? -corners[0].side * RELIC_WIDE_SIDE : RELIC_WIDE_SIDE;
+            r[0] = OnCourse(local, a1, s1, 0f);
+            float bridge = BridgeArc(def, goalArc), jump = JumpArc(def, goalArc);
+            if (bridge >= 0f) r[1] = OnCourse(local, bridge, 0f, 0f);
+            else if (jump >= 0f) r[1] = OnCourse(local, jump + JUMP_RELIC_AHEAD, 0f, JUMP_RELIC_UP);
+            else if (plan != null) r[1] = OnChord(local, plan, Mathf.Lerp(plan.fDrop, 1f, 0.35f));
+            else r[1] = OnCourse(local, goalArc * 0.45f, -RELIC_WIDE_SIDE, 0f);
+            r[2] = plan != null ? OnChord(local, plan, Mathf.Lerp(plan.f0, plan.fDrop, bridge < 0f && jump < 0f ? 0.4f : 0.5f))
+                : OnCourse(local, goalArc * 0.62f, RELIC_WIDE_SIDE, 0f);
+            r[3] = OnCourse(local, StageDefinitions.DashArc(goalArc), -RELIC_WIDE_SIDE, 0f);
+            return r;
+        }
+
+        static RelicSpot OnCourse(Vector3[] local, float arc, float side, float up)
+        {
+            Vector3 t = WorldLayout.TangentAtArc(local, arc);
+            Vector3 p = WorldLayout.PointAtArc(local, arc) + WorldLayout.RightOf(t) * side;
+            return new RelicSpot { local = new Vector3(p.x, 0f, p.z), up = up, arc = arc, side = side };
+        }
+
+        static RelicSpot OnChord(Vector3[] local, ShortcutPlan plan, float f)
+        {
+            Vector3 p = Vector3.Lerp(plan.a, plan.b, f);
+            p.y = 0f;
+            float[] cum = DressingPlan.CourseArcs(local);
+            float d;
+            float arc = DressingPlan.NearestArc(local, cum, p, out d);
+            return new RelicSpot { local = p, up = 0f, arc = arc, side = d };
         }
 
         /// <summary>弦に沿って高さマップを stepM ごとに読み、最大の下り段差（m、stepM 間の差）を返す。</summary>

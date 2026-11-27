@@ -106,7 +106,7 @@ namespace HorseRace.Tests
         }
     }
 
-    public class StageDefinitionsTests
+    public partial class StageDefinitionsTests
     {
         static IEnumerable<int> Stages() { yield return 0; yield return 1; yield return 2; }
 
@@ -152,9 +152,11 @@ namespace HorseRace.Tests
         public void FourRelicsOnCourse(int i)
         {
             var s = StageDefinitions.All[i];
-            Assert.AreEqual(StageDefinitions.RELICS_PER_STAGE, s.relicFractions.Length);
-            Assert.AreEqual(StageDefinitions.RELICS_PER_STAGE, s.relicSide.Length);
-            foreach (float f in s.relicFractions) Assert.That(f, Is.InRange(0.05f, 0.95f));
+            var local = StageDefinitions.SampleLocal(s);
+            float goal = StageDefinitions.GoalArc(s, local);
+            var spots = SetPieces.RelicSpots(s, local, goal, null);
+            Assert.AreEqual(StageDefinitions.RELICS_PER_STAGE, spots.Length);
+            foreach (var r in spots) Assert.That(r.arc / goal, Is.InRange(0.05f, 0.95f));
         }
 
         [TestCaseSource(nameof(Stages))]
@@ -173,7 +175,7 @@ namespace HorseRace.Tests
             var s = StageDefinitions.All[i];
             var pts = StageDefinitions.SampleLocal(s);
             var n = StageDefinitions.Normalize(pts);
-            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s.kind, s.seed, n);
+            var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, n);
             float slope = HeightmapGen.MaxSlopeDegAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, n);
             TestContext.WriteLine($"stage {i}: max slope {slope:F1} deg");
             Assert.LessOrEqual(slope, StageDefinitions.MAX_SLOPE_DEG);

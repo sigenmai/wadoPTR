@@ -170,10 +170,9 @@ namespace HorseRace.EditorTools
                     TerrainData td = terrain.terrainData;
                     int r = td.heightmapResolution;
                     float[,] h = td.GetHeights(0, 0, r, r);
-                    // 岩橋の上は板なので、その区間は地形の勾配から外す
-                    float bridge = SetPieces.BridgeArc(def, len);
-                    Vector3[] slopePts = bridge < 0f ? local
-                        : SetPieces.ExcludeArcRange(local, bridge - SetPieces.BRIDGE_HALF_SPAN, bridge + SetPieces.BRIDGE_HALF_SPAN);
+                    // 踏み切りの縁（6m の段）は地形の勾配から外す
+                    float jumpA = SetPieces.JumpArc(def, len);
+                    Vector3[] slopePts = jumpA < 0f ? local : SetPieces.ExcludeArcRange(local, jumpA - 2f, jumpA + 20f);
                     slope = HeightmapGen.MaxSlopeDegAlong(h, td.size.x, td.size.y, StageDefinitions.Normalize(slopePts));
                     CheckSetPieces(def, tag, stageRoot, local, len, h, allCps, warn, info);
                     CheckRim(tag, h, td.size.x, td.size.y, warn, info);
@@ -199,7 +198,7 @@ namespace HorseRace.EditorTools
                 // CP
                 float[] arcs = WorldLayout.CheckpointArcs(len, StageDefinitions.CP_SPACING_M);
                 var cps = new List<Checkpoint>();
-                foreach (var c in allCps) if (c.stageIndex == def.index) cps.Add(c);
+                foreach (var c in allCps) if (c.stageIndex == def.index && !IsTwin(c)) cps.Add(c);
                 cps.Sort((p, q) => p.index.CompareTo(q.index));
                 int goals = 0;
                 for (int i = 0; i < cps.Count; i++)
@@ -238,8 +237,7 @@ namespace HorseRace.EditorTools
         /// </summary>
         static void CheckBarrier(string tag, Transform stageRoot, List<Checkpoint> cps, RelicPickup[] allRelics, List<string> warn, List<string> info)
         {
-            if (Mathf.Abs(CourseBarrier.CP_WIDTH - CourseBuilder.CP_WIDTH) > 0.01f || Mathf.Abs(CourseBarrier.CP_DEPTH - CourseBuilder.CP_DEPTH) > 0.01f)
-                warn.Add("CourseBarrier の CP の箱の大きさが CourseBuilder と違います（柵と CP の距離の確認がずれます）");
+            // CP の箱の大きさは CourseGeometry の 1 か所で決まる（course-r1-14）。幅は道幅に合わせて CP ごとに変わる
             Transform root = GenUtil.FindDeep(stageRoot, BarrierBuilder.ROOT);
             Transform walls = root != null ? GenUtil.FindDeep(root, "Walls") : null;
             if (walls == null || walls.childCount == 0) { warn.Add(tag + "：コースの見えない柵（" + BarrierBuilder.ROOT + "）がありません"); return; }
@@ -257,7 +255,9 @@ namespace HorseRace.EditorTools
 
             float minCp = float.MaxValue;
             string worst = "";
-            foreach (var cp in cps)
+            var withTwins = new List<Checkpoint>(cps);
+            foreach (var tw in stageRoot.GetComponentsInChildren<Checkpoint>(true)) if (IsTwin(tw)) withTwins.Add(tw);
+            foreach (var cp in withTwins)
             {
                 var box = cp.GetComponent<BoxCollider>();
                 if (box == null) continue;
@@ -285,7 +285,7 @@ namespace HorseRace.EditorTools
                 if (d < CourseBarrier.CP_CLEAR_M) warn.Add(tag + "：コースの柵が" + kv.Key + "から " + d.ToString("F1") + "m しか離れていません（" + CourseBarrier.CP_CLEAR_M + "m 以上）");
             }
             if (minCp < CourseBarrier.CP_CLEAR_M) warn.Add(tag + "：コースの柵が " + worst + " の箱から " + minCp.ToString("F1") + "m しか離れていません（" + CourseBarrier.CP_CLEAR_M + "m 以上）");
-            info.Add(tag + "：コースの見えない柵 " + segs.Count + " 区間（中心から " + CourseBarrier.OFFSET_M + "m、近づくと見える）、CP の箱まで最小 "
+            info.Add(tag + "：コースの見えない柵 " + segs.Count + " 区間（道の縁から " + CourseBarrier.SIDE_M + "m・急カーブ " + CourseBarrier.CORNER_SIDE_M + "m、近づくと見える）、CP の箱まで最小 "
                 + (minCp < float.MaxValue ? minCp.ToString("F1") : "-") + "m、遺物・スタート・囲いまで最小 " + (minPt < float.MaxValue ? minPt.ToString("F1") : "-") + "m");
         }
 
@@ -297,32 +297,35 @@ namespace HorseRace.EditorTools
             float bridge = SetPieces.BridgeArc(def, len);
             if (bridge >= 0f)
             {
-                Transform deck = GenUtil.FindDeep(stageRoot, "RockBridge");
-                if (deck == null) warn.Add(tag + "：岩橋（RockBridge）がありません");
+                Transform rb = GenUtil.FindDeep(stageRoot, "RockBridge");
+                if (rb == null) warn.Add(tag + "：岩の橋（RockBridge）がありません");
                 else
                 {
-                    Transform plank = GenUtil.FindDeep(deck, "Deck");
-                    if (plank == null || plank.gameObject.layer != WorldLayers.Ground) warn.Add(tag + "：岩橋の板が Ground レイヤーではありません");
-                    Vector3 c = WorldLayout.PointAtArc(local, bridge);
-                    float floor = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, c.x, c.z) + def.Origin.y;
-                    float depth = deck.position.y - floor;
-                    if (depth < 8f) warn.Add(tag + "：岩橋の下の溝が浅すぎます（" + depth.ToString("F1") + "m）");
-                    Transform plankT = GenUtil.FindDeep(deck, "Deck");
-                    if (plankT != null && plankT.localScale.x < 24f) warn.Add(tag + "：岩橋の板の幅 " + plankT.localScale.x.ToString("F0") + "m が道幅 24m より狭い");
-                    Transform pit = GenUtil.FindDeep(deck, "FallPit");
+                    // 地形の背（中央）と溝の底（横 20m）の差（course-r1-07：作った板は無い）
+                    Vector3 c = WorldLayout.PointAtArc(local, bridge), r = WorldLayout.RightOf(WorldLayout.TangentAtArc(local, bridge));
+                    float H(Vector3 q) => WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, q.x, q.z);
+                    float depth = H(c) - Mathf.Max(H(c + r * 20f), H(c - r * 20f));
+                    if (depth < 8f) warn.Add(tag + "：岩の橋の両脇の溝が浅すぎます（" + depth.ToString("F1") + "m）");
+                    float detour = Mathf.Max(Mathf.Abs(H(c + r * 46f) - H(c)), Mathf.Abs(H(c - r * 46f) - H(c)));
+                    if (detour > 3f) warn.Add(tag + "：溝の両端の遠回りが道の高さと " + detour.ToString("F1") + "m ずれています");
+                    Transform pit = GenUtil.FindDeep(rb, "FallPit");
                     if (pit == null || pit.GetComponent<ResetVolume>() == null || pit.gameObject.layer != WorldLayers.TRIGGERS)
                         warn.Add(tag + "：溝の底の落とし穴（FallPit / ResetVolume、Ignore Raycast）がありません");
-                    Transform wings = GenUtil.FindDeep(deck, "TrenchWalls");
-                    if (wings == null || wings.childCount == 0) warn.Add(tag + "：溝の縁の壁（TrenchWalls）がありません");
-                    info.Add(tag + "：岩橋（溝の深さ " + depth.ToString("F1") + "m）");
+                    Transform guard = GenUtil.FindDeep(rb, "LipGuard");
+                    if (guard == null || guard.childCount == 0) warn.Add(tag + "：溝の縁の岩（LipGuard）がありません");
+                    foreach (var prim in rb.GetComponentsInChildren<MeshFilter>(true))
+                        if (prim.sharedMesh != null && (prim.sharedMesh.name == "Cube" || prim.sharedMesh.name == "Cylinder"))
+                            warn.Add(tag + "：岩の橋にプリミティブの見た目（" + prim.name + "）があります");
+                    info.Add(tag + "：岩の橋（背の両脇の溝 " + depth.ToString("F1") + "m、遠回りの高さの差 " + detour.ToString("F1") + "m）");
                 }
             }
-            if (def.cliffShortcut)
+            if (def.hasShortcut)
             {
-                // 掘る前の高さ（HeightmapGen は決定的）で Build World と同じ計画を作り、シーンの地形で段差を測る
-                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, StageDefinitions.Normalize(local));
+                // 生成直後の高さ（HeightmapGen は決定的）に台地を足して Build World と同じ計画を作り、シーンの地形で段差を測る
+                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def, StageDefinitions.Normalize(local));
+                SetPieces.RaiseMesa(raw, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, def, local, len);
                 SetPieces.ShortcutPlan p = SetPieces.PlanFor(def, local, raw, len);
-                if (p == null) warn.Add(tag + "：崖下りの近道を置ける区間がありません");
+                if (p == null) warn.Add(tag + "：近道を置ける区間がありません");
                 else
                 {
                     float drop = SetPieces.MaxDropAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.a, p.b, 4f);
@@ -331,51 +334,33 @@ namespace HorseRace.EditorTools
                     float rejoin = WorldLayout.DistToPolylineXZ(p.b, local);
                     if (rejoin > 60f) warn.Add(tag + "：近道の出口がコースから " + rejoin.ToString("F0") + "m 離れています");
                     if (p.maxDevFromCpChord > 60f) warn.Add(tag + "：近道が CP の線分から " + p.maxDevFromCpChord.ToString("F0") + "m 離れます（コース外リセット）");
-                    var cps = new List<Checkpoint>();
-                    foreach (var c in allCps) if (c.stageIndex == def.index) cps.Add(c);
-                    cps.Sort((x, y) => x.index.CompareTo(y.index));
-                    for (int k = 0; k < p.crossCps.Length; k++)
-                    {
-                        int idx = p.crossCps[k];
-                        if (idx >= cps.Count) { warn.Add(tag + "：近道が横切る CP がありません"); continue; }
-                        var box = cps[idx].GetComponent<BoxCollider>();
-                        float o = p.crossOffsets[k];
-                        if (box == null || o < box.center.x - box.size.x * 0.5f || o > box.center.x + box.size.x * 0.5f)
-                            warn.Add(tag + "：CP" + cps[idx].index + " の箱が近道（横 " + o.ToString("F0") + "m）まで届いていません");
-                        else
-                        {
-                            // 近道の床（その CP の位置）が、広げた箱の高さの範囲に入っているか（乗り物の体 0〜1.7m が箱に触れる）
-                            Transform ct = cps[idx].transform;
-                            Vector3 wp = ct.position + ct.right * o;
-                            float floorY = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, wp.x - def.Origin.x, wp.z - def.Origin.z) + def.Origin.y;
-                            float y0 = ct.position.y + box.center.y - box.size.y * 0.5f, y1 = ct.position.y + box.center.y + box.size.y * 0.5f;
-                            if (floorY < y0 || floorY + 1.7f > y1)
-                                warn.Add(tag + "：CP" + cps[idx].index + " の箱の高さ（" + y0.ToString("F1") + "〜" + y1.ToString("F1") + "m）が近道の床 "
-                                    + floorY.ToString("F1") + "m に合っていません");
-                        }
-                    }
-                    info.Add(tag + "：崖下りの近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + SetPieces.SHORTCUT_SPAN) + "、段 "
-                        + drop.ToString("F1") + "m、CP 線分から最大 " + p.maxDevFromCpChord.ToString("F0") + "m）");
+                    int twins = 0;
+                    foreach (var c in allCps) if (c.stageIndex == def.index && IsTwin(c)) twins++;
+                    if (twins != p.twinFractions.Length) warn.Add(tag + "：近道の双子の CP が " + twins + " 個（想定 " + p.twinFractions.Length + "）");
+                    info.Add(tag + "：近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + p.span) + "、" + p.saved.ToString("F0") + "m 得、長さの比 "
+                        + p.ratio.ToString("F2") + "、段 " + drop.ToString("F1") + "m、双子の CP " + twins + "）");
                 }
             }
-            if (SetPieces.JumpArc(def, len) >= 0f)
+            float jumpArc = SetPieces.JumpArc(def, len);
+            if (jumpArc >= 0f)
             {
                 Transform jump = GenUtil.FindDeep(stageRoot, "DuneJump");
-                if (jump == null) warn.Add(tag + "：ジャンプ台（DuneJump）がありません");
+                if (jump == null) warn.Add(tag + "：踏み切り（DuneJump）がありません");
                 else
                 {
-                    float ang = Mathf.Abs(Mathf.DeltaAngle(0f, jump.eulerAngles.x));
-                    if (ang > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：ジャンプ台の角度 " + ang.ToString("F1") + "° が 25° を超えています");
-                    Transform r = GenUtil.FindDeep(jump, "Ramp");
-                    if (r == null || r.gameObject.layer != WorldLayers.Ground) warn.Add(tag + "：ジャンプ台が Ground レイヤーではありません");
-                    info.Add(tag + "：ジャンプ台（" + ang.ToString("F1") + "°）");
+                    Vector3 lip = WorldLayout.PointAtArc(local, jumpArc - 0.5f), before = WorldLayout.PointAtArc(local, jumpArc - SetPieces.JUMP_LENGTH - 4f);
+                    float rise = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, lip.x, lip.z)
+                        - WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, before.x, before.z);
+                    if (rise < 2.5f) warn.Add(tag + "：踏み切りの縁が低すぎます（" + rise.ToString("F1") + "m）");
+                    if (GenUtil.FindDeep(jump, "TroughSand") == null) warn.Add(tag + "：踏み切りの先の砂の窪み（SandZone）がありません");
+                    info.Add(tag + "：踏み切り（地形、縁 +" + rise.ToString("F1") + "m・" + SetPieces.JumpAngleDeg.ToString("F1") + "°）");
                 }
             }
             float pass = SetPieces.PassArc(def, len);
             if (pass >= 0f)
             {
                 // 切り通し：掘る前の高さ（HeightmapGen は決定的）と比べて道が下がり、両脇が盛り上がっているか
-                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def.kind, def.seed, StageDefinitions.Normalize(local));
+                float[,] raw = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, def, StageDefinitions.Normalize(local));
                 Vector3 c = WorldLayout.PointAtArc(local, pass), r = WorldLayout.RightOf(WorldLayout.TangentAtArc(local, pass));
                 float H(float[,] a, Vector3 q) => WorldLayout.SampleHeight(a, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, q.x, q.z);
                 float cut = H(raw, c) - H(h, c), wall = Mathf.Min(H(h, c + r * 30f) - H(raw, c + r * 30f), H(h, c - r * 30f) - H(raw, c - r * 30f));
@@ -384,6 +369,8 @@ namespace HorseRace.EditorTools
                 else info.Add(tag + "：メサの切り通し（道 −" + cut.ToString("F1") + "m、両脇 +" + wall.ToString("F1") + "m）");
             }
         }
+
+        static bool IsTwin(Checkpoint c) => c != null && c.name.StartsWith("TwinCP");
 
         /// <summary>レイヤーとマスク：マスクが 0 でない、体の Collider が Mount、大きなトリガーが Ignore Raycast、地形が Ground。</summary>
         static void CheckLayers(GameObject root, List<string> warn)
