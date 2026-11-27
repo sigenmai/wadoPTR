@@ -196,7 +196,10 @@ namespace HorseRace.Tests
             var off = CourseBarrier.CourseOffsets(st.def, st.local, st.goal);
             float min = float.MaxValue, max = 0f;
             foreach (float o in off) { min = Mathf.Min(min, o); max = Mathf.Max(max, o); }
-            Assert.AreEqual(StageDefinitions.CHOKE_HALF_M + CourseBarrier.SIDE_M, min, 2.5f);
+            // course-r2-01：急カーブ（とヘアピン）は道の縁 + 4m まで。最小は絞りが急カーブの出口にかかる所
+            Assert.GreaterOrEqual(min, StageDefinitions.CHOKE_HALF_M + CourseBarrier.CORNER_SIDE_M - 0.01f);
+            foreach (var hp in StageDefinitions.Hairpins(st.def, st.local))
+                Assert.AreEqual(9f + CourseBarrier.CORNER_SIDE_M, CourseBarrier.OffsetAtArc(st.def, st.local, st.goal, hp.apexArc), 0.5f);
             Assert.AreEqual(SetPieces.DETOUR_BARRIER_M, max, 0.01f);
             Assert.Greater(bridge, 0f);
         }

@@ -340,7 +340,7 @@ namespace HorseRace.EditorTools
                     int twins = 0;
                     foreach (var c in allCps) if (c.stageIndex == def.index && IsTwin(c)) twins++;
                     if (twins != p.twinFractions.Length) warn.Add(tag + "：近道の双子の CP が " + twins + " 個（想定 " + p.twinFractions.Length + "）");
-                    info.Add(tag + "：近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + p.span) + "、" + p.saved.ToString("F0") + "m 得、長さの比 "
+                    info.Add(tag + "：近道（CP" + (p.cpInterval + 1) + "〜CP" + (p.cpInterval + 1 + p.span) + "、疾走で " + p.gainSeconds.ToString("F1") + " 秒得、長さの比 "
                         + p.ratio.ToString("F2") + "、段 " + drop.ToString("F1") + "m、双子の CP " + twins + "）");
                 }
             }

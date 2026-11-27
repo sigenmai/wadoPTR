@@ -19,7 +19,8 @@ namespace HorseRace.EditorTools
     {
         public const float OFFSET_M = 28f;            // 通り道の中心線から柵まで（平らな道 ±12m のとき。近道の弦・ゴールの先も）
         public const float SIDE_M = 16f;              // 平らな道の縁から柵まで
-        public const float CORNER_SIDE_M = 10f;       // 急カーブ（StageDefinitions.TIGHT_CORNER_MAX_R 未満）の前後 CORNER_PAD_M
+        public const float CORNER_SIDE_M = 4f;        // 急カーブ（StageDefinitions.TIGHT_CORNER_MAX_R 未満）の前後 CORNER_PAD_M（course-r2-01：内側も外側も大きく切れない。CP の箱 = 柵 − 2m ≥ 道 + 2m）
+        public const float LEG_GAP_M = 1f;            // ヘアピンの行きと帰りの道の間：柵は 2 本の真ん中から LEG_GAP_M ずつ離す（通り道がつながらない）
         public const float CORNER_PAD_M = 15f;
         public const float CP_SIDE_CLEAR_M = 2f;      // CP の箱の端から柵まで（system-r2-02：柵沿いの外の線でも箱を通る。トリガーなので柵と重なってもよい）
         public const float SEGMENT_M = 5f;            // 柵 1 区間の長さ（4〜6m）
@@ -133,13 +134,41 @@ namespace HorseRace.EditorTools
             var r = new float[courseLocal.Length];
             var corners = StageDefinitions.Corners(courseLocal, StageDefinitions.TIGHT_CORNER_MAX_R, goalArc);
             float bridge = SetPieces.BridgeArc(def, goalArc);
+            float[] cap = LegCaps(courseLocal);
             float acc = 0f;
             for (int i = 0; i < courseLocal.Length; i++)
             {
                 if (i > 0) acc += WorldLayout.DistXZ(courseLocal[i - 1], courseLocal[i]);
-                r[i] = OffsetAt(def, corners, bridge, acc);
+                r[i] = Mathf.Min(OffsetAt(def, corners, bridge, acc), Mathf.Max(cap[i], StageDefinitions.HalfWidthAt(def, acc) + CORNER_SIDE_M));
             }
             return r;
+        }
+
+        /// <summary>
+        /// 点ごとの柵の距離の上限（m）：コースの別の区間（弧長の差が 1.5·距離 + 20m より大きい点）までの距離の半分 − LEG_GAP_M。
+        /// ヘアピンの行きと帰り（36m 離れて並ぶ）の通り道がつながって、柵の無い近道にならないように（course-r2-01）。
+        /// </summary>
+        public static float[] LegCaps(Vector3[] course)
+        {
+            int n = course.Length;
+            var cap = new float[n];
+            var arcs = new float[n];
+            for (int i = 1; i < n; i++) arcs[i] = arcs[i - 1] + WorldLayout.DistXZ(course[i - 1], course[i]);
+            for (int i = 0; i < n; i++)
+            {
+                float best = float.MaxValue;
+                for (int j = 0; j < n; j += 2)
+                {
+                    float dx = course[i].x - course[j].x, dz = course[i].z - course[j].z;
+                    float dd = dx * dx + dz * dz;
+                    if (dd > 120f * 120f || dd >= best * best) continue;
+                    float d = Mathf.Sqrt(dd);
+                    if (Mathf.Abs(arcs[i] - arcs[j]) <= 1.5f * d + 20f) continue;
+                    best = d;
+                }
+                cap[i] = CapFromDistance(best);
+            }
+            return cap;
         }
 
         static float OffsetAt(StageDef def, List<StageDefinitions.Corner> corners, float bridge, float arc)
@@ -164,7 +193,30 @@ namespace HorseRace.EditorTools
         public static float OffsetAtArc(StageDef def, Vector3[] courseLocal, float goalArc, float arc)
         {
             var corners = StageDefinitions.Corners(courseLocal, StageDefinitions.TIGHT_CORNER_MAX_R, goalArc);
-            return OffsetAt(def, corners, SetPieces.BridgeArc(def, goalArc), arc);
+            float off = OffsetAt(def, corners, SetPieces.BridgeArc(def, goalArc), arc);
+            int i = Mathf.Clamp(Mathf.RoundToInt(arc / StageDefinitions.SAMPLE_SPACING_M), 0, courseLocal.Length - 1);
+            float cap = LegCapAt(courseLocal, i);
+            return Mathf.Min(off, Mathf.Max(cap, StageDefinitions.HalfWidthAt(def, arc) + CORNER_SIDE_M));
+        }
+
+        static float LegCapAt(Vector3[] course, int i)
+        {
+            float best = float.MaxValue, ai = i * StageDefinitions.SAMPLE_SPACING_M;
+            for (int j = 0; j < course.Length; j += 2)
+            {
+                float d = WorldLayout.DistXZ(course[i], course[j]);
+                if (d > 120f || d >= best) continue;
+                if (Mathf.Abs(ai - j * StageDefinitions.SAMPLE_SPACING_M) <= 1.5f * d + 20f) continue;
+                best = d;
+            }
+            return CapFromDistance(best);
+        }
+
+        /// <summary>別の区間まで d m のときの柵の距離の上限：半分 − LEG_GAP_M、ただし相手が普通の柵（OFFSET_M）なら d − OFFSET_M − 2·LEG_GAP_M まで広げてよい。</summary>
+        static float CapFromDistance(float d)
+        {
+            if (d == float.MaxValue) return float.MaxValue;
+            return Mathf.Max(d * 0.5f - LEG_GAP_M, d - OFFSET_M - 2f * LEG_GAP_M);
         }
 
         /// <summary>ゴールの GOAL_GAP_BEFORE_M 手前から流しの終点までのコース（この通り道に属する柵は張らない）。</summary>

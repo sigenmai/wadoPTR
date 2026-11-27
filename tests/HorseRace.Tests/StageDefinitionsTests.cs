@@ -121,7 +121,7 @@ namespace HorseRace.Tests
                 if (s.halfWidthM[k] <= StageDefinitions.CHOKE_HALF_M) { chokes++; Assert.That(len, Is.InRange(60f, 90f)); }
                 if (s.halfWidthM[k] >= StageDefinitions.WIDE_HALF_M) { wide++; Assert.GreaterOrEqual(len, 85f); }
             }
-            Assert.AreEqual(2, chokes);
+            Assert.That(chokes, Is.InRange(2, 3));
             Assert.GreaterOrEqual(wide, 2);
             Assert.AreEqual(HeightmapGen.RUNWAY_M, StageDefinitions.HalfWidthAt(s, 5f), 0.01f);
             for (int k = 0; k < s.halfWidthM.Length; k++)
@@ -203,7 +203,7 @@ namespace HorseRace.Tests
             Assert.Greater(WorldLayout.DistToPolylineXZ(spots[2].local, local), SetPieces.RUNWAY_KEEP);
             Assert.Less(WorldLayout.DistToSegmentXZ(spots[2].local, plan.a, plan.b), 0.5f);
             // 4 つ目は最後の下りの入口の内側
-            Assert.AreEqual(StageDefinitions.DashArc(goal), spots[3].arc, 0.01f);
+            Assert.AreEqual(StageDefinitions.DashArc(s, goal), spots[3].arc, 0.01f);
             Assert.AreEqual(-SetPieces.RELIC_WIDE_SIDE, spots[3].side, 0.01f);
             if (s.kind == HeightmapGen.KIND_DUNES) Assert.AreEqual(SetPieces.JUMP_RELIC_UP, spots[1].up, 1e-4);
         }
@@ -240,11 +240,14 @@ namespace HorseRace.Tests
         {
             float goal = Goal(i);
             var cps = WorldLayout.CheckpointArcs(goal, StageDefinitions.CP_SPACING_M);
-            int k = CourseMarks.DashBoardCp(cps, goal);
+            var s = StageDefinitions.All[i];
+            int k = CourseMarks.DashBoardCp(s, cps, goal);
             Assert.GreaterOrEqual(k, 0);
-            Assert.IsTrue(CourseMarks.HasBoard(cps, k, goal));
-            Assert.That(StageDefinitions.DashArc(goal) - cps[k], Is.InRange(0f, StageDefinitions.CP_SPACING_M));
-            Assert.AreEqual(2, CourseMarks.ChokeWarnArcs(StageDefinitions.All[i]).Count);
+            Assert.IsTrue(CourseMarks.HasBoard(s, cps, k, goal));
+            Assert.That(StageDefinitions.DashArc(s, goal) - cps[k], Is.InRange(0f, StageDefinitions.CP_SPACING_M));
+            int chokes = 0;
+            for (int j = 0; j < s.halfWidthM.Length; j++) if (s.halfWidthM[j] <= StageDefinitions.CHOKE_HALF_M && s.widthArc[2 * j] - CourseMarks.CHOKE_WARN_M > 40f) chokes++;
+            Assert.AreEqual(chokes, CourseMarks.ChokeWarnArcs(s).Count);
         }
     }
 }

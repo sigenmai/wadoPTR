@@ -5,7 +5,7 @@ namespace HorseRace.EditorTools
     /// <summary>
     /// ステージの見どころ（spec 5.5、course-r1）。CourseBuilder の後・DressingBuilder の前に呼ぶ。地形の加工は SetPieces（純粋・単体テスト済み）。
     ///   荒野：岩の橋（溝を掘って中央 14m の地形の背を残す＝作った板は無い。溝の縁は Collider 付きの岩で守り、溝の両端は平らな遠回り）
-    ///   近道（3 ステージとも）：弦の上に双子の CP、床は砂（SandZone）、入口に街灯 2 本（橙の灯り）と丸太の柱の手配書の札
+    ///   近道（3 ステージとも）：弦の上に双子の CP、段の下の着地 12m だけ砂（SandZone）、入口に街灯 2 本（橙の灯り）と丸太の柱の手配書の札
     ///   砂漠：地形の踏み切り（+5m・13°、中央 ±7m だけ 6m の縁、その先は砂の窪み＝SandZone）。縁の両脇に干し草、手前に杭の列
     ///   境目：台地（地形の加工だけ。縁の崖・鞍部は DressingPlan.MesaPlateau）、切り通し（DressingPlan.MesaGate）
     ///   遺物 4 つ（SetPieces.RelicSpots：危ない線・遠回りの線）
@@ -48,6 +48,8 @@ namespace HorseRace.EditorTools
             }
             if (sb.jumpArc >= 0f) Jump(sb, root);
             DeepSand(sb, root);
+            RailBed(sb, root);
+            Fork(sb, root);
             Relics(sb, ctx);
         }
 
@@ -93,6 +95,64 @@ namespace HorseRace.EditorTools
                         new Vector3(r.x * 2.2f, 0.2f, r.z * 2.2f), 9f);
                 }
             }
+        }
+
+        /// <summary>
+        /// 砂漠の踏切（course-r2-04）：深い砂の道の中の線路の路盤（幅 3m）は固い地面（FirmZone：SandZone の中でも砂にしない）。
+        /// 入口の右に札「線路の上は固い」。線路の模型は DressingPlan.Railway。
+        /// </summary>
+        static void RailBed(StageBuild sb, Transform root)
+        {
+            var runs = SetPieces.RailRuns(sb.def, sb.courseLocal, sb.goalArc);
+            if (runs.Count == 0) return;
+            var g = GenUtil.Child(root, "RailBed", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            for (int k = 0; k < runs.Count; k++)
+            {
+                Vector3 a = sb.Ground(runs[k][0].x, runs[k][0].z), b = sb.Ground(runs[k][1].x, runs[k][1].z);
+                Vector3 d = b - a; d.y = 0f;
+                var go = GenUtil.World(g, "FirmBed_" + k, (a + b) * 0.5f + Vector3.up * 1f, WorldLayout.YawDeg(d.normalized));
+                var box = go.AddComponent<BoxCollider>();
+                box.isTrigger = true;
+                box.size = new Vector3(SetPieces.RAIL_BED_HALF * 2f, 6f, d.magnitude);
+                go.layer = WorldLayers.TRIGGERS;
+                GenUtil.AddU<FirmZone>(go);
+            }
+            float a0 = SetPieces.OpeningArc(sb.def, sb.goalArc) - SetPieces.RAIL_LENGTH * SetPieces.RAIL_RUNS * 0.5f;
+            Vector3 c = WorldLayout.PointAtArc(sb.courseWorld, a0);
+            Vector3 t = WorldLayout.TangentAtArc(sb.courseWorld, a0);
+            t = new Vector3(t.x, 0f, t.z).normalized;
+            SignPost(g, "RailSign", sb.GroundWorld(c + WorldLayout.RightOf(t) * (StageDefinitions.HalfWidthAt(sb.def, a0) + 3f) - t * 10f), WorldLayout.YawDeg(t),
+                "<b>線路の上は固い</b>\n細いが速い", UiStyle.Teal, new Color(0f, 0f, 0f, 0f), 0f);
+        }
+
+        /// <summary>
+        /// 広場の二股（course-r2-13）：分かれ目の岩の列（DressingPlan.Fork）の右の広い線は砂（SandZone、後ろにつく・追い抜く所）、左の狭い線は固い。
+        /// 入口の両脇に札：左 = 青緑「‹ 狭い・速い」、右 = 金「広い・砂 ›」。CP は同じ 1 本の列（箱は柵から柵まで）なので MountController は変わらない。
+        /// </summary>
+        static void Fork(StageBuild sb, Transform root)
+        {
+            var div = DressingPlan.ForkDivider(sb.def, sb.goalArc);
+            if (div.Count == 0) return;
+            var g = GenUtil.Child(root, "Fork", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            for (int k = 0; k + 1 < div.Count; k += 2)
+            {
+                float a = div[k].x + DressingPlan.FORK_STEP_M;
+                Vector3 t = WorldLayout.TangentAtArc(sb.courseWorld, a);
+                t = new Vector3(t.x, 0f, t.z).normalized;
+                Vector3 lane = WorldLayout.PointAtArc(sb.courseWorld, a) + WorldLayout.RightOf(t) * DressingPlan.ForkWideLaneLateral(sb.def, a);
+                float width = StageDefinitions.HalfWidthAt(sb.def, a) - DressingPlan.FORK_LATERAL - DressingPlan.FORK_ROCK_R;
+                SandBox(sb, g, "WideLaneSand_" + k, sb.GroundWorld(lane) + Vector3.up * 1f, WorldLayout.YawDeg(t), new Vector3(width, 8f, DressingPlan.FORK_STEP_M * 2f));
+            }
+            float a0 = div[0].x;
+            Vector3 c = WorldLayout.PointAtArc(sb.courseWorld, a0);
+            Vector3 t0 = WorldLayout.TangentAtArc(sb.courseWorld, a0);
+            t0 = new Vector3(t0.x, 0f, t0.z).normalized;
+            Vector3 r0 = WorldLayout.RightOf(t0);
+            float hw = StageDefinitions.HalfWidthAt(sb.def, a0), yaw = WorldLayout.YawDeg(t0);
+            SignPost(g, "ForkSignNarrow", sb.GroundWorld(c - r0 * (hw + 2.5f) - t0 * 12f), yaw, "<b>‹ 狭い・速い</b>\n固い地面", UiStyle.Teal, new Color(0f, 0f, 0f, 0f), 0f);
+            SignPost(g, "ForkSignWide", sb.GroundWorld(c + r0 * (hw + 2.5f) - t0 * 12f), yaw, "<b>広い・砂 ›</b>\n追い抜くなら", UiStyle.Gold, new Color(0f, 0f, 0f, 0f), 0f);
         }
 
         /// <summary>遺物 4 つ（SetPieces.RelicSpots）。宝石は CourseBuilder.Relic。踏み切りの先の遺物は 2.5m の空中（跳んだ人だけ）。</summary>
@@ -143,7 +203,7 @@ namespace HorseRace.EditorTools
             return lamp;
         }
 
-        /// <summary>Is Trigger の箱に SandZone（乗り物を 0.85 倍に）。中心・向き・大きさはワールド。</summary>
+        /// <summary>Is Trigger の箱に SandZone（馬を MountMath.HORSE_SAND_FACTOR 倍に）。中心・向き・大きさはワールド。</summary>
         static void SandBox(StageBuild sb, Transform parent, string name, Vector3 center, float yaw, Vector3 size)
         {
             var go = GenUtil.World(parent, name, center, yaw);
@@ -286,15 +346,14 @@ namespace HorseRace.EditorTools
                 prevTwin = cp;
                 sb.twinCheckpoints.Add(cp);
             }
-            // 床の砂（全力でなければ本コースより遅い）
+            // 段の下の着地の砂（course-r2-02：着地の LANDING_RUN m だけ。全面を砂にすると疾走でも本コースより遅い罠だった）
             float L = p.length;
-            for (float f = p.f0; f < 1f; f += 25f / L)
             {
-                float f1 = Mathf.Min(1f, f + 25f / L);
-                Vector3 m = Vector3.Lerp(p.a, p.b, (f + f1) * 0.5f);
-                float hm = SetPieces.ShortcutHeight(p, (f + f1) * 0.5f);
-                SandBox(sb, g, "ShortcutSand", new Vector3(o0.x + m.x, o0.y + hm + 1f, o0.z + m.z), yaw,
-                    new Vector3((SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND) * 2f, SetPieces.SHORTCUT_DROP + 10f, (f1 - f) * L));
+                float fm = (p.fDrop + 1f) * 0.5f;
+                Vector3 m = Vector3.Lerp(p.a, p.b, fm);
+                float hm = SetPieces.ShortcutHeight(p, fm);
+                SandBox(sb, g, "LandingSand", new Vector3(o0.x + m.x, o0.y + hm + 1f, o0.z + m.z), yaw,
+                    new Vector3((SetPieces.SHORTCUT_HALF_WIDTH + SetPieces.SHORTCUT_BLEND) * 2f, 10f, (1f - p.fDrop) * L));
             }
             // 入口：街灯 2 本と札
             Vector3 entry = Vector3.Lerp(p.a, p.b, p.f0);
@@ -302,7 +361,7 @@ namespace HorseRace.EditorTools
             for (int s = -1; s <= 1; s += 2)
                 Lamp(g, sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f))), yaw + (s > 0 ? -90f : 90f), SignalOrange, 8f);
             Vector3 signW = sb.GroundWorld(entryW + rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 3.5f) - dir * 2f);
-            SignPost(g, "ShortcutSign", signW, yaw, "<b>→ 近道</b>\n全力なら速い", UiStyle.Teal,
+            SignPost(g, "ShortcutSign", signW, yaw, "<b>→ 近道</b>\n全力で " + p.gainSeconds.ToString("0.0") + " 秒速い", UiStyle.Teal,
                 new Color(0f, 0f, 0f, 0f), 0f);
             // 近道に入った合図（ui-r2-17）：札の横に青緑の火花。入口の双子の CP が出す（誰が入っても各自の画面で）
             var burstHolder = GenUtil.World(g, "ShortcutBurst", signW + Vector3.up * 2.5f);

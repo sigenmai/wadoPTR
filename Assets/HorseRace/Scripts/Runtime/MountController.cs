@@ -79,6 +79,8 @@ namespace HorseRace
         public float terrainSandWeight;
         /// <summary>SandZone が増減する。</summary>
         public int sandZoneCount;
+        /// <summary>固い地面の中にいる数（course-r2-04：深い砂の中の線路の路盤。FirmZone が数える）。1 以上なら砂でも速い。</summary>
+        public int firmZoneCount;
 
         [Header("References")]
         public VRC.SDK3.Components.VRCStation station;
@@ -144,6 +146,7 @@ namespace HorseRace
         private bool brakeWasHeld;
         private float brakeRepeatAt;
         private float yaw;
+        private float yawRateSmoothed;   // 度/秒（course-r2-01：曲がるときの速さの上限）
         private float vy;
         private float fallStartY;
         private float stunTimer;
@@ -773,7 +776,7 @@ namespace HorseRace
             }
 
             // ---- スタミナ・砂（system-r1-01）----
-            OnSand = sandZoneCount > 0 || terrainSandWeight > 0.5f;
+            OnSand = (sandZoneCount > 0 || terrainSandWeight > 0.5f) && firmZoneCount == 0;
             bool sprinting = sprintReq && !Exhausted && Speed > 0.5f && Grounded;
             // まだ 15 以上残して疾走をやめた＝いい手綱さばき：2 秒間 回復 ×1.25
             if (wasSprinting && !sprinting && MountMath.EarnsSecondWind(Stamina)) secondWindUntil = Time.time + MountMath.SECOND_WIND_SECONDS;
@@ -796,6 +799,8 @@ namespace HorseRace
                 if (sprintReq) gait = MountMath.GAIT_SPRINT;
                 float baseSpeed = MountMath.TargetSpeed(mount, gait, slopeDeg, Exhausted, OnSand) + MountMath.DRAFT_SPEED_BONUS * Draft;
                 target = baseSpeed * SpeedMod.Combined(modFactors, modRemaining);
+                // 曲がりながらでは横の加速度の上限まで（course-r2-01）：ヘアピンは疾走のままでは曲がれない
+                target = Mathf.Min(target, MountMath.CornerSpeedCap(yawRateSmoothed));
             }
             else if (stunned)
             {
@@ -807,6 +812,7 @@ namespace HorseRace
             // ---- 旋回 ----
             float turnDeg = steer * MountMath.TurnRateDeg(mount, Speed) * dt;
             yaw += turnDeg;
+            if (dt > 0f) yawRateSmoothed = MountMath.SmoothYawRate(yawRateSmoothed, turnDeg / dt, dt);
             UpdateCornerExit(sprinting, Mathf.Abs(steer), Mathf.Abs(turnDeg));
             fwd = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
 

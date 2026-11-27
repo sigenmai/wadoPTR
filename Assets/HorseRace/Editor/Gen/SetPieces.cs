@@ -8,7 +8,7 @@ namespace HorseRace.EditorTools
     ///         ＝ 幅 14m の地形の背（岩の橋）。溝の両端（道から DETOUR_FROM 38m より外）も掘らず、平らにならした遠回り（約 40m 長い安全な道）にする。
     ///         作った板・手すりは無い（すべて地形）。溝の底には落とし穴（ResetVolume → 最後の CP へ戻す）。
     ///   近道（course-r1-06）：CP 2〜6 区間ぶんのコースの曲がりを弦で切る枝道。途中に高さ SHORTCUT_DROP の段（崖）があり、着地の硬直がある。
-    ///         得点 = 本コースの長さ − 弦 − 18·着地の硬直 − 坂の分（0.06·弦）。SHORTCUT_MIN_SAVED_M（30m）未満は使わない。床は砂（SandZone）。
+    ///         損得は秒（course-r2-02、ShortcutGainSeconds）：疾走なら 1.5〜3.5 秒速く、駈歩では本コースの疾走より遅い。砂（SandZone）は段の下の着地の 12m だけ。
     ///         途中の CP には弦の上に「双子の CP」（同じ番号の Checkpoint）を置く：どちらの道でも CP を順番どおりに通る。
     ///   踏み切り（砂漠、course-r1-08）：道幅いっぱいの砂の盛り上がり（22m で +5m、13°）、中央 ±7m だけ 4m で 6m 落ちる縁、
     ///         その先 16m は砂の窪み（SandZone）。跳べば越えられ、横の浅い坂を転がる人は砂を通る。
@@ -54,15 +54,15 @@ namespace HorseRace.EditorTools
         public const float PASS_WALL_RISE = 22f;       // 両脇（道から 22〜40m）の盛り上げ
         public const float PASS_WALL_FROM = 22f, PASS_WALL_TO = 40f, PASS_WALL_FADE = 30f;
 
-        // 砂漠の廃線（WesternTown_049_Track、長さ 95.6m）
+        // 砂漠の踏切（course-r2-04）：序盤の道に沿って線路（WesternTown_049_Track、長さ 95.6m）を 2 本つなぎ、幅 3m の路盤だけ固い（道の上は深い砂）
         public const float RAIL_LENGTH = 95.6f;
-        public const float RAIL_LATERAL = 35f;         // コースから（30〜40m）
-        public const int RAIL_RUNS = 3;
-        public const float RAIL_BED_HALF = 3.5f, RAIL_BED_BLEND = 4f;
+        public const float RAIL_LATERAL = 7f;          // 道の中心から路盤の中心まで（道の右寄り、半幅 12m の内側）
+        public const int RAIL_RUNS = 2;
+        public const float RAIL_BED_HALF = 1.5f, RAIL_BED_BLEND = 2f;
 
         // 崖下りの近道
-        public const float SHORTCUT_DROP = 6f;
-        public const float MAX_DROP = 8f;
+        public const float SHORTCUT_DROP = 8f;         // course-r2-02：着地で 0.16 秒の硬直・速さ 0.89 倍（本当の危険）
+        public const float MAX_DROP = 10f;
         public const float SHORTCUT_HALF_WIDTH = 4f;
         public const float SHORTCUT_BLEND = 4f;
         public const float SHORTCUT_RAMP_DEG = 12f;
@@ -70,9 +70,11 @@ namespace HorseRace.EditorTools
         public const float SHORTCUT_MIN_DEV = 24f;     // 弦がコースから最低これだけ離れる区間を選ぶ
         public const float SHORTCUT_MAX_DEV = 90f;     // 弦の真ん中が本コースからこれ以上離れない（柵は弦にも沿う）
         public const float SHORTCUT_MAX_CP_DEV = 50f;  // コース外リセット（CP の線分から 60m）より十分内側
-        public const float SHORTCUT_MIN_SAVED_M = 30f; // 18 m/s で約 1.7 秒
-        public const float SHORTCUT_MIN_RATIO = 1.12f, SHORTCUT_MAX_RATIO = 1.25f;  // 本コースの長さ ÷ 弦：全力でだけ得をする（並足では負ける）
-        public const float SHORTCUT_SPEED = 18f, SHORTCUT_RAMP_COST = 0.06f;
+        // 近道の損得は秒で測る（course-r2-02）：本コースを疾走（18 m/s）で走るのと比べて、近道を疾走で 1.5 秒以上速く、駈歩（14 m/s）では遅い
+        public const float SHORTCUT_MIN_GAIN_S = 1.5f, SHORTCUT_MAX_GAIN_S = 3.5f;
+        public const float SHORTCUT_SPEED = MountMath.TOP_SPEED, SHORTCUT_CANTER_SPEED = 14f;
+        public const float SHORTCUT_UPHILL_PER_DEG = 0.015f;   // MountMath.TargetSpeed の馬の上り
+        public const float HAIRPIN_AVOID_M = 60f;      // ヘアピンの前後これだけは近道で切らない（曲がりの技を飛ばさない）
         public const int SHORTCUT_MIN_SPAN = 2, SHORTCUT_MAX_SPAN = 6;
         public const float LANDING_RUN = 12f;          // 段の下からコースに戻るまでの平らな長さ
         public const float END_INSET = 6f;             // CP から内側へ
@@ -177,6 +179,8 @@ namespace HorseRace.EditorTools
             var avoid = new System.Collections.Generic.List<float>();
             if (bridge >= 0f) { avoid.Add(bridge - 80f); avoid.Add(bridge + 80f); }
             if (jump >= 0f) { avoid.Add(jump - 80f); avoid.Add(jump + 60f); }
+            foreach (var hp in StageDefinitions.Hairpins(def, local)) { avoid.Add(hp.fromArc - HAIRPIN_AVOID_M); avoid.Add(hp.toArc + HAIRPIN_AVOID_M); }
+            avoid.Add(StageDefinitions.DashArc(def, goalArc) - 40f); avoid.Add(goalArc + 1000f);
             return PlanShortcut(WithHeights(local, heights), cps, avoid.ToArray(), def.shortcutFrom * goalArc, def.shortcutTo * goalArc);
         }
 
@@ -197,8 +201,8 @@ namespace HorseRace.EditorTools
                 CarvePass(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, WorldLayout.PointAtArc(local, pass), WorldLayout.TangentAtArc(local, pass));
             foreach (var run in RailRuns(def, local, goalArc))
                 FlattenBed(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, run[0], run[1]);
-            if (def.kind == HeightmapGen.KIND_CANYON)
             {
+                // ゴールの先の尾根の切れ込み（course-r2-05：3 ステージとも。ゴールから外の世界が見える）
                 Vector3 g = WorldLayout.PointAtArc(local, goalArc);
                 float gh = WorldLayout.SampleHeight(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g.x, g.z);
                 CarveGoalNotch(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g, WorldLayout.TangentAtArc(local, goalArc), gh);
@@ -206,27 +210,26 @@ namespace HorseRace.EditorTools
             return plan;
         }
 
-        // ---- ゴールの奥の尾根の切れ込み（art-r2-06、荒野）----
-        public const float NOTCH_FROM_M = 80f;        // ゴールの先 80m から（コースの終わり・囲いは触らない）
+        // ---- ゴールの先の尾根の切れ込み（art-r2-06 → course-r2-05：3 ステージとも）----
+        public const float NOTCH_FROM_M = 30f;        // ゴールの先 30m から（低くするだけなので道・囲いの高さは変わらない）
         public const float NOTCH_RAMP_M = 30f;        // 切り込みの入り口のなめらかさ
-        public const float NOTCH_HALF_M = 20f;        // 底の幅 40m
-        public const float NOTCH_FADE_M = 28f;        // 底の縁から壁へ戻る幅（切り通しと同じ、なめらかな V の壁）
-        public const float NOTCH_GRADE = 0.05f;       // 底はゴールの高さから 5% で上る
+        public const float NOTCH_HALF_M = 35f;        // 底の幅 70m（U 字）
+        public const float NOTCH_FLOOR_M = 4f;        // 底はゴールの地面 + 4m
+        public const float NOTCH_SIDE_SLOPE = 0.2f;   // 底の縁から外へ 1:5 で上る壁
+        public const float NOTCH_EYE_M = 2.5f;        // 馬の上の目の高さ（GoalViewOpen の基準）
+        public const float NOTCH_VIEW_M = 300f;       // ゴールからこの距離まで地形が目の高さ + 10m より低い
+
+        /// <summary>切り込みの入り口の重み（0〜1）。along = ゴールの向きの距離。</summary>
+        public static float NotchWeight(float along) => Smooth01((along - NOTCH_FROM_M) / NOTCH_RAMP_M);
+
+        /// <summary>切り込みの面の高さ（m、ゴールの地面からの相対）：底 70m は +4m、その外は 1:5 で上る。lat = 横の距離。</summary>
+        public static float NotchFloor(float lat) => NOTCH_FLOOR_M + Mathf.Max(0f, Mathf.Abs(lat) - NOTCH_HALF_M) * NOTCH_SIDE_SLOPE;
 
         /// <summary>
-        /// ゴールの奥の切れ込みの底の高さ（m、ゴールの地面からの相対）と重み（0〜1）。along = ゴールの向きの距離、lat = 横。
-        /// 峡谷の最後は高さ 60〜100m の壁に向かって走るので（7_rider_1_d_finish）、ゴールの門の奥で壁を底まで切り、空と出張所の給水塔を見せる。
-        /// 元の案は「壁を 25m 下げる」だったが、ここの壁はゴールより約 95m 高く、25m では空が見えないので、底（ゴール + 5% の坂）まで切る。
+        /// ゴールの先の尾根を U 字に切る（course-r2-05）：ゴールの向きに、底 70m・ゴール + 4m、両脇は 1:5 の壁。
+        /// 以前は最後の直線が外周の壁（60m の崖）に向かって終わり、一番大事な瞬間に地図の端を見ていた。
+        /// 切れ込みの向こうに次のステージの目印（DressingPlan.NextStageLandmark）が見える。
         /// </summary>
-        public static float NotchWeight(float along, float lat)
-        {
-            float aw = Smooth01((along - NOTCH_FROM_M) / NOTCH_RAMP_M);
-            float lw = 1f - Smooth01((Mathf.Abs(lat) - NOTCH_HALF_M) / NOTCH_FADE_M);
-            return aw * lw;
-        }
-
-        public static float NotchFloor(float along) => Mathf.Max(0f, along - NOTCH_FROM_M) * NOTCH_GRADE;
-
         public static void CarveGoalNotch(float[,] h, float sizeM, float heightM, Vector3 goal, Vector3 tangent, float goalH)
         {
             int n = h.GetLength(0);
@@ -239,9 +242,8 @@ namespace HorseRace.EditorTools
                     float dx = x * cell - goal.x, dz = z * cell - goal.z;
                     float along = dx * t.x + dz * t.z, lat = dx * r.x + dz * r.z;
                     if (along < NOTCH_FROM_M) continue;
-                    float w = NotchWeight(along, lat);
-                    if (w <= 0f) continue;
-                    float floor = (goalH + NotchFloor(along)) / heightM;
+                    float w = NotchWeight(along);
+                    float floor = (goalH + NotchFloor(lat)) / heightM;
                     if (h[z, x] > floor) h[z, x] = Mathf.Lerp(h[z, x], floor, w);
                 }
         }
@@ -377,48 +379,41 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>
-        /// 砂漠の廃線（コースと平行、横 RAIL_LATERAL m）：コースが RAIL_LENGTH m ほぼまっすぐな所を RAIL_RUNS か所（300m 以上離して）。
-        /// 各 [a, b]（Terrain ローカル、y = 0）。コースの全点から 30m 以上・Terrain の端から 80m 以上離れる。砂漠以外は空。
+        /// 砂漠の踏切（course-r2-04）：序盤の見どころ（StageDef.openingFraction）を中心に、道に沿って線路 RAIL_RUNS 本（各 RAIL_LENGTH m）を端と端でつなぐ。
+        /// 道の中心から右へ RAIL_LATERAL m（道の内側）。各 [a, b]（Terrain ローカル、y = 0）。砂漠以外・序盤の見どころが無いときは空。
+        /// 路盤（幅 2·RAIL_BED_HALF）は固い地面（深い砂の中の速い細い線）。
         /// </summary>
         public static System.Collections.Generic.List<Vector3[]> RailRuns(StageDef def, Vector3[] local, float goalArc)
         {
             var runs = new System.Collections.Generic.List<Vector3[]>();
-            if (def.kind != HeightmapGen.KIND_DUNES || local == null || local.Length < 2) return runs;
-            var used = new System.Collections.Generic.List<float>();
-            float half = RAIL_LENGTH * 0.5f;
-            int side = 1;
-            for (float a = 160f; a < goalArc - 160f && runs.Count < RAIL_RUNS; a += 10f)
+            if (def.kind != HeightmapGen.KIND_DUNES || def.openingFraction < 0f || local == null || local.Length < 2) return runs;
+            float mid = OpeningArc(def, goalArc);
+            float a = mid - RAIL_LENGTH * RAIL_RUNS * 0.5f;
+            for (int k = 0; k < RAIL_RUNS; k++, a += RAIL_LENGTH)
             {
-                bool far = true;
-                foreach (float u in used) if (Mathf.Abs(u - a) < 300f) far = false;
-                if (!far) continue;
-                Vector3 p0 = WorldLayout.PointAtArc(local, a - half), p1 = WorldLayout.PointAtArc(local, a + half);
-                // ほぼまっすぐ：途中の点が弦から 3m 以内
-                bool straight = true;
-                for (float k = a - half; k <= a + half && straight; k += 8f)
-                    if (WorldLayout.DistToSegmentXZ(WorldLayout.PointAtArc(local, k), p0, p1) > 3f) straight = false;
-                if (!straight) continue;
-                for (int tryS = 0; tryS < 2; tryS++, side = -side)
-                {
-                    Vector3 t = new Vector3(p1.x - p0.x, 0f, p1.z - p0.z).normalized;
-                    Vector3 r = WorldLayout.RightOf(t) * (side * RAIL_LATERAL);
-                    Vector3 a0 = p0 + r, b0 = p1 + r;
-                    bool ok = true;
-                    for (int k = 0; k <= 12 && ok; k++)
-                    {
-                        Vector3 q = Vector3.Lerp(a0, b0, k / 12f);
-                        if (q.x < 80f || q.z < 80f || q.x > StageDefinitions.SIZE - 80f || q.z > StageDefinitions.SIZE - 80f) ok = false;
-                        else if (WorldLayout.DistToPolylineXZ(q, local) < 30f) ok = false;
-                    }
-                    if (!ok) continue;
-                    runs.Add(new[] { new Vector3(a0.x, 0f, a0.z), new Vector3(b0.x, 0f, b0.z) });
-                    used.Add(a);
-                    side = -side;
-                    break;
-                }
+                Vector3 p0 = RailPoint(local, a), p1 = RailPoint(local, a + RAIL_LENGTH);
+                // 弦の長さを線路の長さに合わせる（道がわずかに曲がっていても線路は 95.6m）
+                Vector3 d = new Vector3(p1.x - p0.x, 0f, p1.z - p0.z).normalized;
+                runs.Add(new[] { p0, p0 + d * RAIL_LENGTH });
             }
             return runs;
         }
+
+        static Vector3 RailPoint(Vector3[] local, float arc)
+        {
+            Vector3 p = WorldLayout.PointAtArc(local, arc) + WorldLayout.RightOf(WorldLayout.TangentAtArc(local, arc)) * RAIL_LATERAL;
+            return new Vector3(p.x, 0f, p.z);
+        }
+
+        /// <summary>点 p が線路の路盤の上か（固い地面。深い砂の中でも馬が速い）。</summary>
+        public static bool OnRailBed(System.Collections.Generic.List<Vector3[]> runs, Vector3 p)
+        {
+            foreach (var r in runs) if (WorldLayout.DistToSegmentXZ(p, r[0], r[1]) <= RAIL_BED_HALF) return true;
+            return false;
+        }
+
+        /// <summary>序盤の見どころの中心の弧長（m）。無ければ −1。</summary>
+        public static float OpeningArc(StageDef def, float goalArc) => def.openingFraction < 0f ? -1f : def.openingFraction * goalArc;
 
         /// <summary>廃線の路盤：a〜b の両端の高さを結ぶ直線に、幅 ±RAIL_BED_HALF をならす（RAIL_BED_BLEND で元へ）。</summary>
         public static void FlattenBed(float[,] h, float sizeM, float heightM, Vector3 a, Vector3 b)
@@ -468,25 +463,47 @@ namespace HorseRace.EditorTools
             public float drop;          // 段の高さ（m）
             public float maxDevFromCourse;
             public float maxDevFromCpChord;   // MountController のコース外判定（直前の CP → 次の CP の線分）からの最大距離
-            public float saved;         // 得点（m）= 本コースの長さ − 弦 − 18·着地の硬直 − 0.06·弦
+            public float saved;         // 得（m）= gainSeconds × 18（疾走で何 m 前に出るか）
+            public float gainSeconds;   // 疾走で本コースより何秒速いか（ShortcutGainSeconds）
             public float ratio;         // 本コースの長さ ÷ 弦
         }
 
-        /// <summary>近道の得点（m）：本コースの長さ courseLen と弦 L、段の高さ drop から。</summary>
-        public static float ShortcutScore(float courseLen, float L, float drop)
-            => courseLen - L - SHORTCUT_SPEED * MountMath.LandingStun(drop) - SHORTCUT_RAMP_COST * L;
+        /// <summary>
+        /// 弦 L（m）を速さ speed で走る時間（秒）：平らな所＋上りの坂 rampLen（12°、×(1 − 12·0.015)）＋着地の後の砂 sandLen（×HORSE_SAND_FACTOR）＋着地の硬直。
+        /// </summary>
+        public static float ShortcutSeconds(float L, float rampLen, float drop, float sandLen, float speed)
+        {
+            float flat = Mathf.Max(0f, L - rampLen - sandLen);
+            float ramp = speed * (1f - SHORTCUT_RAMP_DEG * SHORTCUT_UPHILL_PER_DEG);
+            float sand = speed * MountMath.HORSE_SAND_FACTOR;
+            return flat / speed + rampLen / ramp + sandLen / sand + MountMath.LandingStun(drop);
+        }
+
+        /// <summary>
+        /// 近道の得（秒、course-r2-02）：本コース courseLen（m）を疾走で走る時間 − 近道を疾走で走る時間。
+        /// 以前の得点（m）は砂と坂を数えておらず、表示の「得 37m」は実際には損だった。
+        /// </summary>
+        public static float ShortcutGainSeconds(float courseLen, float L, float rampLen, float drop, float sandLen)
+            => courseLen / SHORTCUT_SPEED - ShortcutSeconds(L, rampLen, drop, sandLen, SHORTCUT_SPEED);
+
+        /// <summary>同じ近道を駈歩で走ると、本コースを疾走で走るより遅いか（全力を残している人だけが得をする）。</summary>
+        public static bool ShortcutLosesAtCanter(float courseLen, float L, float rampLen, float drop, float sandLen)
+            => ShortcutSeconds(L, rampLen, drop, sandLen, SHORTCUT_CANTER_SPEED) > courseLen / SHORTCUT_SPEED;
+
+        /// <summary>近道の上りの坂の長さ（m）。</summary>
+        public static float ShortcutRampLen(float drop) => drop / Mathf.Tan(SHORTCUT_RAMP_DEG * Mathf.Deg2Rad);
 
         /// <summary>
         /// 近道の計画。courseH は Terrain ローカルの点列（y = コースの高さ m）、cpArcs は CP の弧長。
-        /// CP SHORTCUT_MIN_SPAN〜MAX_SPAN 区間ごとに弦（両端から END_INSET 内側）を引き、得点（ShortcutScore）が一番高い候補を選ぶ。
-        /// 得点 SHORTCUT_MIN_SAVED_M 未満・長さの比が SHORTCUT_MIN_RATIO〜MAX_RATIO の外・CP の線分から SHORTCUT_MAX_CP_DEV より離れるものは使わない。
+        /// CP SHORTCUT_MIN_SPAN〜MAX_SPAN 区間ごとに弦（両端から END_INSET 内側）を引き、疾走での得（秒）が一番大きい候補を選ぶ。
+        /// 得が SHORTCUT_MIN_GAIN_S〜MAX_GAIN_S の外・駈歩でも得をする・CP の線分から SHORTCUT_MAX_CP_DEV より離れるものは使わない。
         /// avoid は使わない弧長の区間の組（[a0,a1, a2,a3, ...]：橋・踏み切りなど）。fromArc〜toArc の外とゴールの区間も使わない。無ければ null。
         /// </summary>
         public static ShortcutPlan PlanShortcut(Vector3[] courseH, float[] cpArcs, float[] avoid, float fromArc = 0f, float toArc = float.MaxValue)
         {
             if (courseH == null || cpArcs == null || cpArcs.Length < SHORTCUT_MIN_SPAN + 2) return null;
             ShortcutPlan best = null;
-            float rampLen = SHORTCUT_DROP / Mathf.Tan(SHORTCUT_RAMP_DEG * Mathf.Deg2Rad);
+            float rampLen = ShortcutRampLen(SHORTCUT_DROP);
             for (int N = SHORTCUT_MIN_SPAN; N <= SHORTCUT_MAX_SPAN; N++)
                 for (int i = 0; i + N + 1 < cpArcs.Length; i++)
                 {
@@ -501,9 +518,11 @@ namespace HorseRace.EditorTools
                     float L = WorldLayout.DistXZ(a, b);
                     if (L < 40f) continue;
                     float ratio = (s1 - s0) / L;
-                    if (ratio < SHORTCUT_MIN_RATIO || ratio > SHORTCUT_MAX_RATIO) continue;
-                    float score = ShortcutScore(s1 - s0, L, SHORTCUT_DROP);
-                    if (score < SHORTCUT_MIN_SAVED_M || (best != null && score <= best.saved)) continue;
+                    float gain = ShortcutGainSeconds(s1 - s0, L, rampLen, SHORTCUT_DROP, LANDING_RUN);
+                    if (gain < SHORTCUT_MIN_GAIN_S || gain > SHORTCUT_MAX_GAIN_S) continue;
+                    if (!ShortcutLosesAtCanter(s1 - s0, L, rampLen, SHORTCUT_DROP, LANDING_RUN)) continue;
+                    float score = gain * SHORTCUT_SPEED;
+                    if (best != null && score <= best.saved) continue;
                     // 双子の CP：弦の平らな道を出た所（f0）から段の手前まで等間隔
                     int steps = Mathf.CeilToInt(L);
                     float dev = 0f, f0 = -1f, f1 = -1f;
@@ -541,7 +560,7 @@ namespace HorseRace.EditorTools
                     {
                         cpInterval = i, span = N, crossCps = cross, twinFractions = twins, startArc = s0, endArc = s1, a = a, b = b, length = L,
                         f0 = f0, rampEnd = rampEnd, fDrop = fDrop, drop = SHORTCUT_DROP,
-                        maxDevFromCourse = dev, maxDevFromCpChord = devCp, saved = score, ratio = ratio,
+                        maxDevFromCourse = dev, maxDevFromCpChord = devCp, saved = score, gainSeconds = gain, ratio = ratio,
                     };
                 }
             return best;
@@ -604,26 +623,63 @@ namespace HorseRace.EditorTools
             public float side;      // コースの中心からの横（m、+ = 右。近道の上は弦までの距離）
         }
 
+        /// <summary>遺物どうしの弧長の最小の間隔（m、course-r2-09）。</summary>
+        public const float RELIC_MIN_GAP_M = 350f;
+        public const float PASS_RELIC_SIDE = 10.5f;   // 境目：切り通しの中の危ない脇の線（切り通しの壁の際）
+
         /// <summary>
-        /// 遺物 4 つ：1) 最初の急カーブの外側（ふくらむ線、±10.5m）、2) 見どころの危ない線（荒野 = 岩の橋の背の上、砂漠 = 踏み切りの 14m 先の
-        /// 2.5m の空中、境目 = 近道の崖の下の床）、3) 近道の上、4) 最後の下りの入口の内側（−10.5m）。近道が無いときは代わりにコースの外側の線。
+        /// 遺物 4 つ（course-r2-09：350m 以上離し、コースの 4 分の 1 ごとに 1 つ）：
+        /// 1) 序盤（弧長 300〜600m、最初の 4 分の 1）の最初のカーブの外側（ふくらむ線、±10.5m）。カーブが無ければ 450m の外側の線。
+        /// 2) 見どころの危ない線（荒野 = 岩の橋の背の上、砂漠 = 踏み切りの 14m 先の 2.5m の空中、境目 = 切り通しの壁際 ±10.5m）。
+        /// 3) 近道の上。4) 最後の下りの入口の内側（−10.5m）。近道が無いときは代わりにコースの外側の線。
+        /// 間隔が足りないときは 2) を前後へずらす（危ない線のまま）。
         /// </summary>
         public static RelicSpot[] RelicSpots(StageDef def, Vector3[] local, float goalArc, ShortcutPlan plan)
         {
             var r = new RelicSpot[StageDefinitions.RELICS_PER_STAGE];
-            var corners = StageDefinitions.TightCorners(def, local);
-            float a1 = corners.Count > 0 ? corners[0].apexArc : goalArc * 0.2f;
-            float s1 = corners.Count > 0 ? -corners[0].side * RELIC_WIDE_SIDE : RELIC_WIDE_SIDE;
+            // 1) 序盤のカーブの外側
+            float a1 = 450f, s1 = RELIC_WIDE_SIDE;
+            var corners = StageDefinitions.Corners(local, StageDefinitions.MEDIUM_CORNER_MAX_R, goalArc);
+            float early = Mathf.Min(600f, goalArc * 0.25f - 20f);
+            foreach (var c in corners)
+                if (c.apexArc >= 300f && c.apexArc <= early) { a1 = c.apexArc; s1 = -c.side * RELIC_WIDE_SIDE; break; }
             r[0] = OnCourse(local, a1, s1, 0f);
-            float bridge = BridgeArc(def, goalArc), jump = JumpArc(def, goalArc);
+            // 2) 見どころの危ない線
+            float bridge = BridgeArc(def, goalArc), jump = JumpArc(def, goalArc), pass = PassArc(def, goalArc);
             if (bridge >= 0f) r[1] = OnCourse(local, bridge, 0f, 0f);
             else if (jump >= 0f) r[1] = OnCourse(local, jump + JUMP_RELIC_AHEAD, 0f, JUMP_RELIC_UP);
-            else if (plan != null) r[1] = OnChord(local, plan, Mathf.Lerp(plan.fDrop, 1f, 0.35f));
+            else if (pass >= 0f) r[1] = OnCourse(local, pass, -PASS_RELIC_SIDE, 0f);
             else r[1] = OnCourse(local, goalArc * 0.45f, -RELIC_WIDE_SIDE, 0f);
-            r[2] = plan != null ? OnChord(local, plan, Mathf.Lerp(plan.f0, plan.fDrop, bridge < 0f && jump < 0f ? 0.4f : 0.5f))
-                : OnCourse(local, goalArc * 0.62f, RELIC_WIDE_SIDE, 0f);
-            r[3] = OnCourse(local, StageDefinitions.DashArc(goalArc), -RELIC_WIDE_SIDE, 0f);
+            // 4) 最後の下りの入口の内側
+            r[3] = OnCourse(local, StageDefinitions.DashArc(def, goalArc), -RELIC_WIDE_SIDE, 0f);
+            // 3) 近道の上（無ければ 62% の外側の線）。弦の上で前後の遺物から RELIC_MIN_GAP_M 離れる位置を選ぶ
+            if (plan != null)
+            {
+                float[] fs = { 0.5f, 0.65f, 0.35f, 0.8f, 0.2f, 0.95f, 0.05f };
+                RelicSpot best = OnChord(local, plan, Mathf.Lerp(plan.f0, plan.fDrop, fs[0]));
+                float bestGap = -1f;
+                foreach (float f in fs)
+                {
+                    var c = OnChord(local, plan, Mathf.Lerp(plan.f0, plan.fDrop, f));
+                    float gap = Mathf.Min(Mathf.Min(Mathf.Abs(c.arc - r[0].arc), Mathf.Abs(c.arc - r[1].arc)), Mathf.Abs(c.arc - r[3].arc));
+                    if (gap >= RELIC_MIN_GAP_M) { best = c; break; }
+                    if (gap > bestGap) { bestGap = gap; best = c; }
+                }
+                r[2] = best;
+            }
+            else r[2] = OnCourse(local, goalArc * 0.62f, RELIC_WIDE_SIDE, 0f);
             return r;
+        }
+
+        /// <summary>弧長の順に並べた遺物の間隔の最小（m）。</summary>
+        public static float MinRelicGap(RelicSpot[] spots)
+        {
+            var a = new float[spots.Length];
+            for (int i = 0; i < a.Length; i++) a[i] = spots[i].arc;
+            System.Array.Sort(a);
+            float best = float.MaxValue;
+            for (int i = 1; i < a.Length; i++) best = Mathf.Min(best, a[i] - a[i - 1]);
+            return best;
         }
 
         static RelicSpot OnCourse(Vector3[] local, float arc, float side, float up)

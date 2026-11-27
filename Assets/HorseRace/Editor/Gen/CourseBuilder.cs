@@ -83,7 +83,7 @@ namespace HorseRace.EditorTools
                 sb.checkpoints.Add(cp);
                 if (k == 0) sb.firstCheckpoint = cp;
                 // 黒板は 3 つ目ごとの CP・最後の下りの直前の CP・ゴールだけ（RankBoard の書き直しの負荷を抑える）
-                if (CourseMarks.HasBoard(arcs, k, sb.goalArc)) ctx.rankBoards.Add(ChalkBoard(go.transform, sb, p, t, arcs[k], "Board"));
+                if (CourseMarks.HasBoard(sb.def, arcs, k, sb.goalArc)) ctx.rankBoards.Add(ChalkBoard(go.transform, sb, p, t, arcs[k], "Board"));
                 if (goal) sb.goal = GoalGate(go.transform, sb, ctx);
             }
 
@@ -106,6 +106,79 @@ namespace HorseRace.EditorTools
                 ctx.rankBoards.Add(rb);
             }
             DashPoint(root, sb);
+            CornerBoards(root, sb);
+            SectorGates(root, sb);
+        }
+
+        /// <summary>
+        /// 急カーブの合図（course-r2-08）：頂点の 110・70・35m 手前の外側に札（丸太の柱に手配書の紙、赤い ››› ›› ›、曲がる向き）、
+        /// 頂点の内側に干し草の山（2 段）、外側に街灯（橙の灯り 10m）。出口の先の目印（塔）は DressingPlan.GuideTowers。位置は CourseMarks と同じ。
+        /// </summary>
+        static void CornerBoards(Transform root, StageBuild sb)
+        {
+            var g = GenUtil.Child(root, "CornerBoards", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            Vector3 o = sb.def.Origin;
+            int k = 0;
+            foreach (var b in CourseMarks.CornerBoards(sb.def, sb.courseLocal, sb.goalArc))
+            {
+                Vector3 w = sb.Ground(b.position.x, b.position.z);
+                SetPieceBuilder.SignPost(g, "CornerBoard_" + (k++), w, b.yaw, "<b><size=160%>" + CourseMarks.Chevrons(b.chevrons, b.side) + "</size></b>",
+                    UiStyle.RedInk, new Color(0f, 0f, 0f, 0f), 0f);   // 危険 = 赤（紙の上は赤インク）
+            }
+            k = 0;
+            foreach (var c in StageDefinitions.TightCorners(sb.def, sb.courseLocal))
+            {
+                Vector3[] m = CourseMarks.CornerApexMarks(sb.def, sb.courseLocal, c);
+                Vector3 hay = sb.Ground(m[0].x, m[0].z), lamp = sb.Ground(m[1].x, m[1].z);
+                float yaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(sb.courseLocal, c.apexArc));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay, yaw, 1f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay + Vector3.up * 1.55f, yaw + 35f, 0.9f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                SetPieceBuilder.Lamp(g, lamp, yaw + (c.side > 0 ? 90f : -90f), SetPieceBuilder.SignalOrange, 10f);
+                k++;
+            }
+        }
+
+        /// <summary>
+        /// 区間の門（course-r2-15）：ゴールまでの 25・50・75% に、道の両脇 ±(半幅 + 1.5m) の丸太の柱（WoodLogs_01、6m）、柱の上に同じ倍率の丸太 3 本の横木、
+        /// 柱の外に街灯 2 本、横木から手配書の紙（WantedPosters_02）に金の文字「残り 1.8 km」（60m 先から読める大きさ）。
+        /// </summary>
+        static void SectorGates(Transform root, StageBuild sb)
+        {
+            var g = GenUtil.Child(root, "SectorGates", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            var arcs = CourseMarks.SectorGateArcs(sb.goalArc);
+            var posts = CourseMarks.SectorGatePosts(sb.def, sb.courseLocal, sb.goalArc);
+            for (int k = 0; k < arcs.Count; k++)
+            {
+                Vector3 t = WorldLayout.TangentAtArc(sb.courseLocal, arcs[k]);
+                t = new Vector3(t.x, 0f, t.z).normalized;
+                Vector3 rt = WorldLayout.RightOf(t);
+                float yaw = WorldLayout.YawDeg(t);
+                Vector3 l = sb.Ground(posts[2 * k].x, posts[2 * k].z), r = sb.Ground(posts[2 * k + 1].x, posts[2 * k + 1].z);
+                var gate = GenUtil.World(g, "SectorGate_" + (k + 1), (l + r) * 0.5f, yaw).transform;
+                const float H = 6f;
+                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", l, yaw, H, 1.1f);
+                SetPieceBuilder.UprightLog(gate, "WoodLogs_01", r, yaw, H, 1.1f);
+                float top = Mathf.Max(l.y, r.y) + H - 0.4f;
+                float span = WorldLayout.DistXZ(l, r) + 1.1f, piece = span / CourseMarks.GATE_BEAM_PIECES, sc = piece / CourseMarks.WOODLOG_01_LEN;
+                for (int p = 0; p < CourseMarks.GATE_BEAM_PIECES; p++)
+                {
+                    Vector3 bp = Vector3.Lerp(l, r, (p + 0.5f) / CourseMarks.GATE_BEAM_PIECES);
+                    var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", gate, new Vector3(bp.x, top, bp.z), yaw + 90f + p * 180f, sc,
+                        new Vector3(1.5f, 0.3f, 0.3f), DarkWood);
+                    beam.transform.localScale = Vector3.one * sc;   // 同じ倍率（引き伸ばさない）
+                    DressingBuilder.SetStatic(beam);
+                }
+                for (int sd = -1; sd <= 1; sd += 2)
+                    SetPieceBuilder.Lamp(gate, sb.GroundWorld((sd < 0 ? l : r) + rt * (sd * 1.6f) - t * 0.8f), yaw + (sd > 0 ? -90f : 90f), SetPieceBuilder.LampWarm, 12f);
+                // 残りの距離の紙（迫ってくる騎手のほうを向く）
+                Vector3 mid = new Vector3((l.x + r.x) * 0.5f, top - 1.9f, (l.z + r.z) * 0.5f);
+                var sheet = GenUtil.World(gate, "Remaining", mid, yaw);
+                GenUtil.PaperSheet(sheet.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0f, -0.05f), null, 4.2f, 1.5f);
+                GenUtil.Text(sheet.transform, "Text", new Vector3(0f, 0.05f, -0.12f), Quaternion.identity, "<b>" + CourseMarks.RemainingText(sb.goalArc, arcs[k]) + "</b>",
+                    6f, UiStyle.Gold, new Vector2(4f, 1.3f), TextStyle.Sign, true);
+            }
         }
 
         /// <summary>
@@ -114,7 +187,7 @@ namespace HorseRace.EditorTools
         /// </summary>
         static void DashPoint(Transform root, StageBuild sb)
         {
-            float dash = StageDefinitions.DashArc(sb.goalArc);
+            float dash = StageDefinitions.DashArc(sb.def, sb.goalArc);
             Vector3 t = WorldLayout.TangentAtArc(sb.courseWorld, dash);
             t = new Vector3(t.x, 0f, t.z).normalized;
             Vector3 rt = WorldLayout.RightOf(t), c = WorldLayout.PointAtArc(sb.courseWorld, dash);
@@ -122,7 +195,7 @@ namespace HorseRace.EditorTools
             var g = GenUtil.World(root, "DashPoint", sb.GroundWorld(c), yaw).transform;
             for (int s = -1; s <= 1; s += 2)
                 SetPieceBuilder.Lamp(g, sb.GroundWorld(c + rt * (s * (hw + CourseMarks.DASH_LAMP_OUT_M))), yaw + (s > 0 ? -90f : 90f), SetPieceBuilder.SignalOrange, 10f, 1.2f);
-            SetPieceBuilder.SignPost(g, "DashSign", sb.GroundWorld(c + rt * (hw + CourseMarks.DASH_SIGN_OUT_M) + t * 3f), yaw, "<b>ここから全力</b>\nゴールまで下り 1 本", UiStyle.Gold,
+            SetPieceBuilder.SignPost(g, "DashSign", sb.GroundWorld(c + rt * (hw + CourseMarks.DASH_SIGN_OUT_M) + t * 3f), yaw, "<b>ここから全力</b>\n" + CourseMarks.FinishLine(sb.def), UiStyle.Gold,
                 new Color(0f, 0f, 0f, 0f), 0f);
         }
 
@@ -157,6 +230,9 @@ namespace HorseRace.EditorTools
             ctx.rankBoards.Add(rb);
 
             if (st + 1 >= StageDefinitions.All.Length) return;   // 最後のステージの後は乗り換えなし
+            // 次のステージへの立て札（course-r2-05）：囲いの先、ゴールの先の切れ込みの向こうに次のステージがある
+            SetPieceBuilder.SignPost(root, "NextStageSign", sb.GroundWorld(c + fwd * 12f + right * 4f), WorldLayout.YawDeg(fwd),
+                "<b>次は " + StageDefinitions.All[st + 1].label + " →</b>", UiStyle.Gold, SetPieceBuilder.LampWarm, 8f);
             Vector3 wp = sb.GroundWorld(c + fwd * 5f - right * 7.5f);
             Vector3 wdir = wp - c; wdir.y = 0f;
             string next = HudMath.StageHint(st + 1);

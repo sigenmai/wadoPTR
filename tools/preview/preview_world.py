@@ -6,7 +6,10 @@ import bpy, bmesh, sys, os, json, struct, math, random
 import numpy as np
 from mathutils import Vector
 
-ex, assets, out = sys.argv[sys.argv.index("--") + 1:][:3]
+_args = sys.argv[sys.argv.index("--") + 1:]
+ex, assets, out = [a for a in _args if not a.startswith("--")][:3]
+# --no-guide（course-r2-14）：コースの白い線（下見の目印）を描かない。騎手の目の絵が実際に見えるものだけになる
+NO_GUIDE = "--no-guide" in _args or os.environ.get("NO_GUIDE") == "1"
 os.makedirs(out, exist_ok=True)
 W = json.load(open(os.path.join(ex, "world.json")))
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -175,16 +178,17 @@ for st in W["stages"]:
     terrain(st)
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     pts = [U(p) + off + Vector((0, 0, 0.4)) for p in st["course"]]
-    polyline(f"Course{st['index']}", [q - Vector((0, 0, 0.3)) for q in pts], 0.5, ROAD)
-    for k, p in enumerate(st["cps"]):
-        q = U(p) + off
-        box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM)
+    if not NO_GUIDE:
+        polyline(f"Course{st['index']}", [q - Vector((0, 0, 0.3)) for q in pts], 0.5, ROAD)
+        for k, p in enumerate(st["cps"]):
+            q = U(p) + off
+            box(f"CP{k}", q + Vector((14, 0, 1.5)), (0.4, 0.4, 3), CPM)
     for k, p in enumerate(st["relics"]):
         q = U(p) + off
         bpy.ops.mesh.primitive_ico_sphere_add(radius=3, location=q + Vector((0, 0, 4)))
         bpy.context.active_object.data.materials.append(RELIC)
     # スタート・ゴール・岩橋・ジャンプは Build World と同じ素材で置く（world.json の extras、下の place）
-    if st["shortcut"]:
+    if st["shortcut"] and not NO_GUIDE:
         a, b = U(st["shortcut"]["a"]) + off, U(st["shortcut"]["b"]) + off
         polyline("Shortcut", [a + Vector((0, 0, 1)), b + Vector((0, 0, 1))], 4.0, SHORT)
 

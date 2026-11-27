@@ -133,7 +133,10 @@ namespace HorseRace.Tests
             float pass = SetPieces.PassArc(s, goal);
             float[] cps = WorldLayout.CheckpointArcs(goal, StageDefinitions.CP_SPACING_M);
             foreach (float c in cps) Assert.Greater(Mathf.Abs(c - pass), SetPieces.PASS_HALF_CUT + SetPieces.PASS_RAMP - 2f, "CP " + c);
-            foreach (var rs in SetPieces.RelicSpots(s, local, goal, null)) Assert.Greater(Mathf.Abs(rs.arc - pass), 60f);
+            // course-r2-09：2 つ目の遺物は切り通しの壁際の危ない線（他は離す）
+            var relics = SetPieces.RelicSpots(s, local, goal, null);
+            Assert.AreEqual(pass, relics[1].arc, 0.01f);
+            for (int k = 0; k < relics.Length; k++) if (k != 1) Assert.Greater(Mathf.Abs(relics[k].arc - pass), 60f);
             Assert.Less(pass, goal - 300f);   // 切り通しを抜けてから最後の直線
             var h0 = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var h = (float[,])h0.Clone();
@@ -149,7 +152,7 @@ namespace HorseRace.Tests
             Assert.LessOrEqual(slope, StageDefinitions.MAX_SLOPE_DEG);
         }
 
-        /// <summary>最後の下り（course-r1-04）：どのステージも、ゴールの 590〜350m 手前で 18〜25m 下り、その先ゴールまでほぼ平ら。</summary>
+        /// <summary>最後の下り（course-r1-04 → course-r2-07）：ステージごとの長さと高さで下り（StageDef.dashLenM/dashDropM）、その先ゴールまでほぼ平ら（砂漠は 8m の丘を越える）。</summary>
         [Test] public void EveryStageEndsWithDownhillThenFlatSprint([Values(0, 1, 2)] int i)
         {
             var s = StageDefinitions.All[i];
@@ -157,25 +160,41 @@ namespace HorseRace.Tests
             float goal = StageDefinitions.GoalArc(s, local);
             var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             float Y(float a) { var p = WorldLayout.PointAtArc(local, a); return WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z); }
-            float dash = StageDefinitions.DashArc(goal), end = goal - StageDefinitions.DASH_END_BEFORE_GOAL_M;
+            float dash = StageDefinitions.DashArc(s, goal), end = StageDefinitions.DashEndArc(s, goal);
             float drop = Y(dash) - Y(end);
             TestContext.WriteLine($"stage {i}: descent {drop:F1} m from {dash:F0} to {end:F0}, sprint {Y(end) - Y(goal):F1}");
-            Assert.That(drop, Is.InRange(StageDefinitions.DASH_DROP_MIN_M - 3f, StageDefinitions.DASH_DROP_MAX_M + 3f));
+            Assert.AreEqual(s.dashDropM, drop, 3.5f);
             Assert.Less(Mathf.Abs(Y(end) - Y(goal)), 4f);
-            Assert.That(StageDefinitions.ElevationAt(s, dash) - StageDefinitions.ElevationAt(s, end), Is.InRange(StageDefinitions.DASH_DROP_MIN_M, StageDefinitions.DASH_DROP_MAX_M));
+            Assert.AreEqual(s.dashDropM, StageDefinitions.ElevationAt(s, dash) - StageDefinitions.ElevationAt(s, end), 0.2f);
+            // 3 ステージの締めくくりはちがう（course-r2-07）
+            Assert.AreEqual(i, s.finishKind);
+            // 下りの速さの上乗せが体で分かる（9° で +18%、12m/100m で +14%）
+            float deg = Mathf.Atan(s.dashDropM / s.dashLenM) * Mathf.Rad2Deg;
+            Assert.Greater(MountMath.TargetSpeed(MountMath.MOUNT_HORSE, MountMath.GAIT_SPRINT, -deg, false, false), MountMath.TOP_SPEED * 1.1f);
         }
 
+        /// <summary>砂漠の踏切（course-r2-04）：序盤の道に沿って線路 2 本（190m）、路盤は道の内側、端と端がつながる、深い砂の区間の中。</summary>
         [Test] public void RailRunsAreStraightAndClear()
         {
             var s = StageDefinitions.All[1];
             var local = StageDefinitions.SampleLocal(s);
-            var runs = SetPieces.RailRuns(s, local, StageDefinitions.GoalArc(s, local));
+            float goal = StageDefinitions.GoalArc(s, local);
+            var runs = SetPieces.RailRuns(s, local, goal);
             Assert.AreEqual(SetPieces.RAIL_RUNS, runs.Count);
             foreach (var r in runs)
             {
                 Assert.AreEqual(SetPieces.RAIL_LENGTH, WorldLayout.DistXZ(r[0], r[1]), 0.5f);
-                for (int k = 0; k <= 10; k++) Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(Vector3.Lerp(r[0], r[1], k / 10f), local), 30f);
+                for (int k = 0; k <= 10; k++)
+                {
+                    float d = WorldLayout.DistToPolylineXZ(Vector3.Lerp(r[0], r[1], k / 10f), local);
+                    Assert.That(d, Is.InRange(SetPieces.RAIL_LATERAL - 2f, HeightmapGen.RUNWAY_M - SetPieces.RAIL_BED_HALF), "路盤は道の内側");
+                }
             }
+            Assert.Less(WorldLayout.DistXZ(runs[0][1], runs[1][0]), 2f, "線路がつながる");
+            float open = SetPieces.OpeningArc(s, goal);
+            Assert.That(open, Is.InRange(150f, 500f));
+            Assert.IsTrue(StageDefinitions.InDeepSand(s, open), "踏切の道は深い砂（路盤だけ固い）");
+            Assert.IsTrue(SetPieces.OnRailBed(runs, Vector3.Lerp(runs[0][0], runs[0][1], 0.5f)));
             Assert.AreEqual(0, SetPieces.RailRuns(StageDefinitions.All[0], StageDefinitions.SampleLocal(StageDefinitions.All[0]), 2000f).Count);
         }
     }

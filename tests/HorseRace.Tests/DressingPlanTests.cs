@@ -23,8 +23,48 @@ namespace HorseRace.Tests
             var h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
             var sc = SetPieces.ApplyTerrain(s, local, h, goal);
             p = DressingPlan.For(s, local, h, goal, sc);
-            cache[i] = p; courses[i] = local; shortcuts[i] = sc; goals[i] = goal;
+            cache[i] = p; courses[i] = local; shortcuts[i] = sc; goals[i] = goal; heights[i] = h;
             return p;
+        }
+
+        static readonly Dictionary<int, float[,]> heights = new Dictionary<int, float[,]>();
+        static readonly Dictionary<int, CourseBarrier.Plan> barriers = new Dictionary<int, CourseBarrier.Plan>();
+        static readonly Dictionary<int, List<Placement>> barrierLines = new Dictionary<int, List<Placement>>();
+
+        /// <summary>柵の線の目印（course-r2-06）：DressingPlan.BarrierLine（別の計画）。</summary>
+        static List<Placement> BarrierLine(int i)
+        {
+            if (barrierLines.TryGetValue(i, out var l)) return l;
+            Plan(i);
+            var s = StageDefinitions.All[i];
+            var bp = CourseBarrier.For(s, courses[i], goals[i], shortcuts[i]);
+            barriers[i] = bp;
+            l = DressingPlan.BarrierLine(s, courses[i], heights[i], goals[i], bp);
+            barrierLines[i] = l;
+            return l;
+        }
+
+        /// <summary>course-r2-06：中心線から 30m 以内の柵のどの区間にも、7m 以内に目印（柵・杭・岩）がある（見えない壁にぶつからない）。</summary>
+        [TestCaseSource(nameof(Stages))]
+        public void BarrierLineIsMarked(int i)
+        {
+            var line = BarrierLine(i);
+            var near = DressingPlan.NearBarrierSegments(courses[i], barriers[i]);
+            TestContext.WriteLine($"stage {i}: {line.Count} barrier marks, {near.Count} near segments of {barriers[i].SegmentCount}");
+            Assert.Greater(near.Count, 50);
+            int bare = 0;
+            float tail = goals[i] - CourseBarrier.GOAL_GAP_BEFORE_M;
+            foreach (var sg in near)
+            {
+                Vector3 m = (sg[0] + sg[1]) * 0.5f;
+                bool has = line.Any(p => WorldLayout.DistXZ(p.position, m) <= 7f);
+                if (!has) bare++;
+            }
+            TestContext.WriteLine($"  bare near segments: {bare}");
+            Assert.LessOrEqual(bare, near.Count / 50, "目印の無い柵（置かない円の中だけ許す）");
+            Assert.IsTrue(line.All(p => !p.collider), "当たりは柵の BoxCollider だけ");
+            Assert.IsFalse(line.Any(p => DressingPlan.IsBonePart(p.part)), "骨のあばらに見える部品は使わない");
+            Assert.Greater(line.Count(p => p.asset == DressingPlan.DROCKS), 5, "急カーブの外側は岩");
         }
 
         static IEnumerable<int> Stages() { yield return 0; yield return 1; yield return 2; }
@@ -42,6 +82,8 @@ namespace HorseRace.Tests
         {
             foreach (var p in Plan(i))
             {
+                if (p.part == DressingPlan.RAIL_TRACK && p.group == "Railway") continue;   // course-r2-04：踏切の線路は道の内側の固い路盤（当たり判定なし）
+                if (p.group == "RoadIsland" || p.group == "Fork") continue;   // course-r2-03/13：道の中の岩の島・二股の岩の列（線を分ける）
                 // 道幅を考えた距離（絞りでは道に寄せてよい、広場では遠ざける：course-r1-10）
                 float d = DressingPlan.RoadClearance(StageDefinitions.All[i], courses[i], null, p.position) - DressingPlan.FootprintRadius(p);
                 bool roadside = DressingPlan.NearRoadGroups.Contains(p.group);
@@ -63,6 +105,7 @@ namespace HorseRace.Tests
                     if ((p.group == "GoalTown" || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
                     if (p.group == "GoalTown" && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
                     if (p.group == "Landmark") continue;   // 遠くの目印は除外の円の外を自分で選ぶ（LandmarkSpot）
+                    if ((p.group == "RoadIsland" || p.group == "Fork") && c.w <= DressingPlan.ISLAND_ROCK_R + 4.01f) continue;   // 島・二股の円はそのため
                     Assert.GreaterOrEqual(WorldLayout.DistXZ(p.position, new Vector3(c.x, 0, c.z)), c.w + DressingPlan.FootprintRadius(p) - 0.01f, p.group + " " + p.asset);
                 }
                 var sc = shortcuts[i];
@@ -113,7 +156,7 @@ namespace HorseRace.Tests
                 if (d > DressingPlan.REACHABLE_M) Assert.IsFalse(p.collider, p.asset);
                 // メサは背景（見えない壁）。ただし道のすぐ脇の切り通しの門・谷の壁・カーブの外・台地の縁（art-r2-08）はメッシュの当たり判定、
                 // 水場の厩舎（art-r2-05）は外形の当たり判定
-                bool nearRock = p.group == "MesaGate" || p.group == "CanyonWalls" || p.group == "CornerSilhouette" || p.group == "MesaPlateau";
+                bool nearRock = p.group == "MesaGate" || p.group == "CanyonWalls" || p.group == "CornerSilhouette" || p.group == "MesaPlateau" || p.group == "RoadIsland" || p.group == "Fork";
                 if ((p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) && !nearRock && p.group != "WaterStop") Assert.IsTrue(p.background, p.group);
                 if (nearRock && p.collider && p.radius >= 6f) Assert.AreEqual(DressingPlan.SHAPE_MESH, p.shape, p.group);
                 if (p.height < DressingPlan.COLLIDER_MIN_H) Assert.IsFalse(p.collider, p.asset + " " + p.part);
@@ -180,7 +223,7 @@ namespace HorseRace.Tests
         /// <summary>峡谷の近景（art-r1-02）：コース 100m ごとに、道の中心から 30m 以内の飾りが 10 個以上（岩橋の溝の周りの区間は除く）。</summary>
         [Test] public void CanyonNearFieldDensity()
         {
-            var plan = Plan(0);
+            var plan = Plan(0).Concat(BarrierLine(0)).ToList();   // course-r2-06：柵の線の目印も近景
             var course = courses[0];
             var cum = DressingPlan.CourseArcs(course);
             float bridge = SetPieces.BridgeArc(StageDefinitions.All[0], goals[0]);
@@ -269,7 +312,7 @@ namespace HorseRace.Tests
             Assert.Greater(guides.Count(g => g.part == "DesertProps_05"), 5);   // 直線の標柱
         }
 
-        /// <summary>砂漠の廃線（art-r1-10）：線路 3 本、コースから 30m 以上、線路の上に他の飾りが無い。</summary>
+        /// <summary>砂漠の踏切（art-r1-10 → course-r2-04）：線路 2 本が道に沿う（道の内側の路盤）、線路の上に他の飾りが無い。</summary>
         [Test] public void DunesRailwayRuns()
         {
             var plan = Plan(1);
@@ -278,7 +321,7 @@ namespace HorseRace.Tests
             var runs = SetPieces.RailRuns(StageDefinitions.All[1], courses[1], goals[1]);
             foreach (var r in rails)
             {
-                Assert.GreaterOrEqual(WorldLayout.DistToPolylineXZ(r.position, courses[1]), 30f);
+                Assert.Less(WorldLayout.DistToPolylineXZ(r.position, courses[1]), HeightmapGen.RUNWAY_M);
                 Assert.IsFalse(r.collider);
             }
             foreach (var p in plan)

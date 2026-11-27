@@ -75,11 +75,35 @@ namespace HorseRace
             if (exhausted && gait > GAIT_TROT) gait = GAIT_TROT;
             float speed = GaitSpeed(mount, gait);
             float uphillPerDeg = mount == MOUNT_CAMEL ? 0.0195f : 0.015f;
-            float factor = slopeDeg >= 0f ? 1f - slopeDeg * uphillPerDeg : 1f - slopeDeg * 0.01f;
-            factor = Mathf.Clamp(factor, 0.5f, 1.25f);
+            float factor = slopeDeg >= 0f ? 1f - slopeDeg * uphillPerDeg : 1f - slopeDeg * DOWNHILL_PER_DEG;
+            factor = Mathf.Clamp(factor, 0.5f, DOWNHILL_MAX);
             speed *= factor;
             if (onSand && mount == MOUNT_HORSE) speed *= HORSE_SAND_FACTOR;
             return speed;
+        }
+
+        /// <summary>下りの速さの上乗せ（course-r2-07）：1° ごとに 2%、最大 ×1.2（9° の最後の下りで 18 → 21.6 m/s）。</summary>
+        public const float DOWNHILL_PER_DEG = 0.02f;
+        public const float DOWNHILL_MAX = 1.2f;
+
+        // ---- 曲がるときの速さの上限（course-r2-01）----
+        /// <summary>横の加速度の上限（m/s²）。速さ v で角速度 ω（rad/s）なら v·ω ≤ これ：半径 46m 以上なら 18 m/s、28m で駈歩 14 m/s。</summary>
+        public const float LAT_ACCEL_MAX = 7f;
+        /// <summary>角速度をならす時間（秒）。キーボードの短い操作では落とさず、曲がり続けたときだけ効く。</summary>
+        public const float YAW_RATE_SMOOTH_SECONDS = 0.35f;
+
+        /// <summary>今の向きの変わる速さ yawRateDeg（度/秒）で出せる速さの上限（m/s）= LAT_ACCEL_MAX / ω。</summary>
+        public static float CornerSpeedCap(float yawRateDeg)
+        {
+            float w = Mathf.Max(Mathf.Abs(yawRateDeg) * Mathf.Deg2Rad, 0.01f);
+            return LAT_ACCEL_MAX / w;
+        }
+
+        /// <summary>角速度（度/秒、絶対値）を YAW_RATE_SMOOTH_SECONDS でならす。</summary>
+        public static float SmoothYawRate(float smoothed, float instantDegPerSec, float dt)
+        {
+            float k = Mathf.Clamp01(dt / YAW_RATE_SMOOTH_SECONDS);
+            return smoothed + (Mathf.Abs(instantDegPerSec) - smoothed) * k;
         }
 
         public static float Approach(float current, float target, float dt)

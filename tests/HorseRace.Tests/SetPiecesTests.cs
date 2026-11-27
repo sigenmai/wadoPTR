@@ -75,17 +75,17 @@ namespace HorseRace.Tests
             h = HeightmapGen.Generate(StageDefinitions.HEIGHTMAP_RES, s, StageDefinitions.Normalize(local));
         }
 
-        /// <summary>近道（course-r1-06）：どのステージにも 1 つ、30m 以上得する、長さの比 1.12〜1.25、段 3〜8m、双子の CP は順番どおり。</summary>
+        /// <summary>近道（course-r1-06 → r2-02）：どのステージにも 1 つ、疾走で 1.5〜3.5 秒得、段 8m、双子の CP は順番どおり、ヘアピンは切らない。</summary>
         [Test] public void EveryStageShortcutSavesAtLeast30m([Values(0, 1, 2)] int i)
         {
             Stage(i, out var s, out var local, out var goal, out var h);
             SetPieces.RaiseMesa(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, s, local, goal);
             var p = SetPieces.PlanFor(s, local, h, goal);
             Assert.NotNull(p, "近道の区間が見つからない");
-            TestContext.WriteLine($"stage {i}: shortcut {p.startArc:F0}-{p.endArc:F0} span {p.span} len {p.length:F0} ratio {p.ratio:F2} saved {p.saved:F0} dev {p.maxDevFromCourse:F0} devCp {p.maxDevFromCpChord:F0}");
-            Assert.GreaterOrEqual(p.saved, SetPieces.SHORTCUT_MIN_SAVED_M);
-            Assert.AreEqual(SetPieces.ShortcutScore(p.endArc - p.startArc, p.length, p.drop), p.saved, 1e-3);
-            Assert.That(p.ratio, Is.InRange(SetPieces.SHORTCUT_MIN_RATIO, SetPieces.SHORTCUT_MAX_RATIO));
+            TestContext.WriteLine($"stage {i}: shortcut {p.startArc:F0}-{p.endArc:F0} span {p.span} len {p.length:F0} ratio {p.ratio:F2} gain {p.gainSeconds:F2}s dev {p.maxDevFromCourse:F0} devCp {p.maxDevFromCpChord:F0}");
+            Assert.That(p.gainSeconds, Is.InRange(SetPieces.SHORTCUT_MIN_GAIN_S, SetPieces.SHORTCUT_MAX_GAIN_S));
+            Assert.AreEqual(p.gainSeconds * SetPieces.SHORTCUT_SPEED, p.saved, 1e-3);
+            Assert.AreEqual(SetPieces.SHORTCUT_DROP, p.drop, 1e-4);
             Assert.That(p.drop, Is.InRange(3f, SetPieces.MAX_DROP));
             Assert.LessOrEqual(p.maxDevFromCpChord, SetPieces.SHORTCUT_MAX_CP_DEV);
             Assert.LessOrEqual(WorldLayout.DistToPolylineXZ(p.b, local), 1f);   // コースに戻る
@@ -95,13 +95,38 @@ namespace HorseRace.Tests
             Assert.That(p.endArc, Is.LessThanOrEqualTo(s.shortcutTo * goal + 1f));
             float bridge = SetPieces.BridgeArc(s, goal);
             if (bridge >= 0f) Assert.That(p.endArc < bridge - 80f || p.startArc > bridge + 80f);
+            foreach (var hp in StageDefinitions.Hairpins(s, local))
+                Assert.That(p.endArc < hp.fromArc - SetPieces.HAIRPIN_AVOID_M || p.startArc > hp.toArc + SetPieces.HAIRPIN_AVOID_M, "ヘアピンを切らない");
         }
 
-        [Test] public void ShortcutScorePenalisesLandingAndRamp()
+        /// <summary>ShortcutPaysOnlyAtSprint（course-r2-02）：3 ステージの近道は疾走なら 1.5 秒以上速く、駈歩なら本コースの疾走より遅い。着地は本当の危険。</summary>
+        [Test] public void ShortcutPaysOnlyAtSprint([Values(0, 1, 2)] int i)
         {
-            Assert.AreEqual(300f - 200f - 18f * MountMath.LandingStun(6f) - 12f, SetPieces.ShortcutScore(300f, 200f, 6f), 1e-3);
-            // 長さの比 1.1 の弦は得をしない
-            Assert.Less(SetPieces.ShortcutScore(220f, 200f, 6f), SetPieces.SHORTCUT_MIN_SAVED_M);
+            Stage(i, out var s, out var local, out var goal, out var h);
+            SetPieces.RaiseMesa(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, s, local, goal);
+            var p = SetPieces.PlanFor(s, local, h, goal);
+            float course = p.endArc - p.startArc, ramp = SetPieces.ShortcutRampLen(p.drop);
+            float main = course / MountMath.TOP_SPEED;
+            float sprint = SetPieces.ShortcutSeconds(p.length, ramp, p.drop, SetPieces.LANDING_RUN, MountMath.TOP_SPEED);
+            float canter = SetPieces.ShortcutSeconds(p.length, ramp, p.drop, SetPieces.LANDING_RUN, MountMath.GaitSpeed(MountMath.MOUNT_HORSE, MountMath.GAIT_CANTER));
+            TestContext.WriteLine($"stage {i}: main {main:F2}s, shortcut sprint {sprint:F2}s, canter {canter:F2}s");
+            Assert.GreaterOrEqual(main - sprint, SetPieces.SHORTCUT_MIN_GAIN_S);
+            Assert.Greater(canter, main);
+            Assert.Greater(MountMath.LandingStun(SetPieces.SHORTCUT_DROP), 0.1f);
+            Assert.Less(MountMath.LandingSpeedKeep(SetPieces.SHORTCUT_DROP), 0.95f);
+        }
+
+        [Test] public void ShortcutGainCountsSandRampAndLanding()
+        {
+            float ramp = SetPieces.ShortcutRampLen(8f);
+            Assert.AreEqual(8f / Mathf.Tan(12f * Mathf.Deg2Rad), ramp, 1e-3);
+            float t = SetPieces.ShortcutSeconds(200f, ramp, 8f, 12f, 18f);
+            float expect = (200f - ramp - 12f) / 18f + ramp / (18f * (1f - 12f * 0.015f)) + 12f / (18f * MountMath.HORSE_SAND_FACTOR) + MountMath.LandingStun(8f);
+            Assert.AreEqual(expect, t, 1e-4);
+            // 長さの比 1.1 の弦は損
+            Assert.Less(SetPieces.ShortcutGainSeconds(220f, 200f, ramp, 8f, 12f), 0.5f);
+            // 全面が砂だと比 1.25 でも損（以前の近道の罠）
+            Assert.Less(SetPieces.ShortcutGainSeconds(250f, 200f, ramp, 8f, 200f), 0f);
         }
 
         [Test] public void MesaClimbsOntoAPlateau()

@@ -37,7 +37,7 @@ namespace HorseRace.Tests
                 {
                     float a0 = s.sandTrailArcs[2 * k], a1 = s.sandTrailArcs[2 * k + 1];
                     Assert.Less(a0, a1);
-                    Assert.Less(a1, goal - StageDefinitions.DASH_END_BEFORE_GOAL_M, "深い砂は最後の直線の前で終わる");
+                    Assert.Less(a1, StageDefinitions.DashArc(s, goal), "深い砂は最後の下りの前で終わる");
                     Assert.IsTrue(StageDefinitions.InDeepSand(s, (a0 + a1) * 0.5f));
                 }
                 // 砂漠のほうが境目より深い砂が多い（乗り換えの理由になる）

@@ -314,19 +314,22 @@ namespace HorseRace.Tests
             var posts = parts.Where(p => p.part == "WoodLogs_01" && Mathf.Abs(p.euler.z - 90f) < 1e-3f).ToList();
             var beams = parts.Where(p => p.part == "WoodLogs_01" && p.euler.z == 0f).ToList();
             Assert.AreEqual(2, posts.Count);
-            Assert.AreEqual(2, beams.Count);
+            Assert.AreEqual(CourseMarks.GATE_BEAM_PIECES, beams.Count);
             foreach (var p in posts)
             {
                 Assert.AreEqual(CourseMarks.GATE_POST_H, p.scale.x * CourseMarks.WOODLOG_01_LEN, 1e-3f);
                 Assert.AreEqual(CourseMarks.GATE_POST_THICK, p.scale.y, 1e-3f);
             }
-            Assert.AreEqual(CourseMarks.GATE_BEAM_GAP, Mathf.Abs(beams[0].position.y - beams[1].position.y), 1e-3f);
+            // course-r2-05：横木は同じ倍率（引き伸ばさない）の丸太 3 本を端と端でつなぐ
+            float total = 0f;
             foreach (var b in beams)
             {
-                Assert.LessOrEqual(b.scale.y, 1f, "横木は丸太 1 本の太さ");
-                Assert.GreaterOrEqual(b.scale.x * CourseMarks.WOODLOG_01_LEN, CourseGeometry.GATE_HALF * 2f, "柱から柱まで");
+                Assert.AreEqual(b.scale.x, b.scale.y, 1e-4f, "引き伸ばさない");
+                Assert.AreEqual(b.scale.x, b.scale.z, 1e-4f, "引き伸ばさない");
+                total += b.scale.x * CourseMarks.WOODLOG_01_LEN;
                 Assert.Less(b.position.y, CourseMarks.GATE_POST_H, "横木は柱の上の端より下（柱に載る）");
             }
+            Assert.GreaterOrEqual(total, CourseGeometry.GATE_HALF * 2f, "柱から柱まで");
             Assert.Less(CourseMarks.GATE_BANNER_Y + 0.8f, beams.Min(b => b.position.y), "幕は下の横木から吊る");
             Assert.AreEqual(2, parts.Count(p => p.part == "DesertProps_03"));
             Assert.AreEqual(2, parts.Count(p => p.light));
@@ -345,16 +348,24 @@ namespace HorseRace.Tests
             Assert.AreEqual(0f, LobbyLayout.PlateSand(0f), 1e-5f);
         }
 
-        // ---- art-r2-06：荒野のゴールの奥の切れ込み ----
-        [Test] public void CanyonNotchOpensBehindGoal()
+        // ---- art-r2-06 → course-r2-05：ゴールの先の切れ込み（3 ステージとも）----
+        /// <summary>GoalViewOpen：ゴールの向きに 300m（Terrain の中）まで、地形が目の高さ + 10m より低い（外の世界が見える）。</summary>
+        [Test] public void GoalViewOpen([Values(0, 1, 2)] int i)
         {
-            var b = Stage(0);
+            var b = Stage(i);
             Vector3 g = WorldLayout.PointAtArc(b.local, b.goal), t = WorldLayout.TangentAtArc(b.local, b.goal);
-            float gh = b.Ground(g.x, g.z);
-            Vector3 q = g + t * 140f;
-            Assert.Less(b.Ground(q.x, q.z) - gh, 10f, "切れ込みの底");
-            Assert.AreEqual(0f, SetPieces.NotchWeight(SetPieces.NOTCH_FROM_M - 1f, 0f), 1e-5f);
-            Assert.AreEqual(0f, SetPieces.NotchWeight(200f, SetPieces.NOTCH_HALF_M + SetPieces.NOTCH_FADE_M + 1f), 1e-5f);
+            float gh = b.Ground(g.x, g.z), worst = -999f;
+            for (float a = 0f; a <= SetPieces.NOTCH_VIEW_M; a += 5f)
+            {
+                Vector3 q = g + t * a;
+                if (q.x < 0f || q.z < 0f || q.x > StageDefinitions.SIZE || q.z > StageDefinitions.SIZE) break;
+                worst = Mathf.Max(worst, b.Ground(q.x, q.z) - gh);
+            }
+            TestContext.WriteLine($"stage {i}: highest ground ahead of the goal {worst:F1} m");
+            Assert.Less(worst, SetPieces.NOTCH_EYE_M + 10f);
+            Assert.AreEqual(0f, SetPieces.NotchWeight(SetPieces.NOTCH_FROM_M - 1f), 1e-5f);
+            Assert.AreEqual(SetPieces.NOTCH_FLOOR_M, SetPieces.NotchFloor(0f), 1e-5f);
+            Assert.AreEqual(SetPieces.NOTCH_FLOOR_M + 10f, SetPieces.NotchFloor(SetPieces.NOTCH_HALF_M + 50f), 1e-4f);
         }
     }
 }

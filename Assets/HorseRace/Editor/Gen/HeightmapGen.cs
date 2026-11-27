@@ -245,6 +245,38 @@ namespace HorseRace.EditorTools
             return m;
         }
 
+        // ---- 柵の線の土手（course-r2-06）：見えない壁の足元を 1.2m 盛り上げる（壁がどこにあるか地面で分かる）----
+        public const float BERM_M = 1.2f, BERM_HALF_M = 1.5f, BERM_FADE_M = 2.5f;
+
+        /// <summary>土手の高さ（m）：柵の線からの距離 d。BERM_HALF_M までは BERM_M、その外 BERM_FADE_M でなめらかに 0。</summary>
+        public static float BermAt(float d) => BERM_M * (1f - Smooth(BERM_HALF_M, BERM_HALF_M + BERM_FADE_M, d));
+
+        /// <summary>柵の区間（Terrain ローカル、[a, b]）に沿って土手を盛る（h を書き換える。下げはしない）。</summary>
+        public static void RaiseBerm(float[,] h, float sizeM, float heightM, System.Collections.Generic.List<Vector3[]> segments)
+        {
+            int n = h.GetLength(0);
+            float cell = sizeM / (n - 1);
+            float reach = BERM_HALF_M + BERM_FADE_M;
+            var add = new float[n, n];
+            foreach (var sg in segments)
+            {
+                Vector3 a = sg[0], b = sg[1];
+                int x0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.x, b.x) - reach) / cell)), x1 = Mathf.Min(n - 1, Mathf.CeilToInt((Mathf.Max(a.x, b.x) + reach) / cell));
+                int z0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.z, b.z) - reach) / cell)), z1 = Mathf.Min(n - 1, Mathf.CeilToInt((Mathf.Max(a.z, b.z) + reach) / cell));
+                for (int z = z0; z <= z1; z++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        float d = WorldLayout.DistToSegmentXZ(new Vector3(x * cell, 0f, z * cell), a, b);
+                        if (d >= reach) continue;
+                        float v = BermAt(d);
+                        if (v > add[z, x]) add[z, x] = v;
+                    }
+            }
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                    if (add[z, x] > 0f) h[z, x] = Mathf.Clamp01(h[z, x] + add[z, x] / heightM);
+        }
+
         // ---- 外周の尾根（地形の端を見せない）----
         public const float RIM_WIDTH_M = 55f;        // 外周から内側へこの幅で盛り上げる（コースは端から 60m 以上内側）
         public const float RIM_MIN_M = 25f;          // 端での盛り上げの最小（m）

@@ -24,7 +24,7 @@ class P {
     {Vector3 t=WorldLayout.TangentAtArc(local,goal),c=GP(h,WorldLayout.PointAtArc(local,goal));
      foreach(var gp in CourseMarks.GoalGateParts(c,t,p=>GP(h,p))) l.Add(X(gp.asset,gp.part,gp.position,gp.euler.y,1f,gp.euler.z,gp.scale));}
     // 全力の合図（街灯 2 本と札の柱）
-    {float a=StageDefinitions.DashArc(goal); Vector3 t=WorldLayout.TangentAtArc(local,a),r=WorldLayout.RightOf(t),c=WorldLayout.PointAtArc(local,a); float yaw=WorldLayout.YawDeg(t), w=hw0(a);
+    {float a=StageDefinitions.DashArc(d,goal); Vector3 t=WorldLayout.TangentAtArc(local,a),r=WorldLayout.RightOf(t),c=WorldLayout.PointAtArc(local,a); float yaw=WorldLayout.YawDeg(t), w=hw0(a);
      for(int s=-1;s<=1;s+=2) l.Add(X(FP,"FarmProps_02",GP(h,c+r*(s*(w+CourseMarks.DASH_LAMP_OUT_M))),yaw,1.2f));
      l.Add(X(WL,"WoodLogs_01",GP(h,c+r*(w+CourseMarks.DASH_SIGN_OUT_M)+t*3f)+Vector3.up*1.3f,yaw,1f,90f,new Vector3(2.6f/1.5f,1.1f,1.1f)));}
     // 岩の橋（地形の背）：縁の岩・背の両脇の崖・街灯
@@ -44,6 +44,9 @@ class P {
     if(sc!=null){ Vector3 dir=new Vector3(sc.b.x-sc.a.x,0f,sc.b.z-sc.a.z).normalized,r=WorldLayout.RightOf(dir); Vector3 e0=Vector3.Lerp(sc.a,sc.b,sc.f0); float yaw=WorldLayout.YawDeg(dir);
       for(int s=-1;s<=1;s+=2) l.Add(X(FP,"FarmProps_02",GP(h,e0+r*(s*(SetPieces.SHORTCUT_HALF_WIDTH+1.5f))),yaw,1f));
       l.Add(X(WL,"WoodLogs_01",GP(h,e0+r*(SetPieces.SHORTCUT_HALF_WIDTH+3.5f)-dir*2f)+Vector3.up*1.3f,yaw,1f,90f,new Vector3(2.6f/1.5f,1.1f,1.1f))); }
+    // 急カーブの札（course-r2-08）・区間の門の柱（course-r2-15）：丸太の柱（立てた WoodLogs_01）
+    foreach(var cb in CourseMarks.CornerBoards(d,local,goal)) l.Add(X(WL,"WoodLogs_01",GP(h,cb.position)+Vector3.up*1.3f,cb.yaw,1f,90f,new Vector3(2.6f/1.5f,1.1f,1.1f)));
+    foreach(var gp in CourseMarks.SectorGatePosts(d,local,goal)) l.Add(X(WL,"WoodLogs_01",GP(h,gp)+Vector3.up*3f,0f,1f,90f,new Vector3(6f/1.5f,1.1f,1.1f)));
     return string.Join(",",l);
   }
   static readonly float[][,] HS=new float[3][,];
@@ -73,6 +76,7 @@ class P {
       string jump= jp<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,jp))+",\"t\":"+V(WorldLayout.TangentAtArc(local,jp))+"}";
       string sc= plan==null? "null" : "{\"a\":"+V(plan.a)+",\"b\":"+V(plan.b)+",\"drop\":"+F(plan.drop)+"}";
       var dp=DressingPlan.For(d,local,h,goal,plan);
+      dp.AddRange(DressingPlan.BarrierLine(d,local,h,goal,CourseBarrier.For(d,local,goal,plan)));   // 柵の線の目印（course-r2-06）
       var sbD=new StringBuilder(); foreach(var q in dp){ if(sbD.Length>0)sbD.Append(','); sbD.Append(Pl(q)); }
       if(d.index>0) js.Append(',');
       float ps=SetPieces.PassArc(d,goal);
