@@ -114,6 +114,58 @@ for name, front, left in (("FrontL", True, True), ("FrontR", True, False), ("Hin
     joints[0].y *= 0.6   # 付け根は胴の内側へ
     legs[name] = joints
 
+# ---- 骨格モデル用：関節の位置を「骨の部品そのもの」から読み取る
+#   上の長い骨（大腿骨／上腕骨）の上端 = 股関節／肩関節、下端 = 膝／肘
+#   中の長い骨（脛骨／前腕骨）の下端 = 飛節／腕節
+if RIGID:
+    import bmesh
+    _bm = bmesh.new(); _bm.from_mesh(mesh.data); _bm.verts.ensure_lookup_table()
+    _seen, ISL = set(), []
+    for _v in _bm.verts:
+        if _v.index in _seen:
+            continue
+        _st, _cur = [_v], []
+        _seen.add(_v.index)
+        while _st:
+            _a = _st.pop(); _cur.append(_a.co.copy())
+            for _e in _a.link_edges:
+                _b = _e.other_vert(_a)
+                if _b.index not in _seen:
+                    _seen.add(_b.index); _st.append(_b)
+        ISL.append(_cur)
+    _bm.free()
+
+    def end_centroid(pts, top, frac=0.12):
+        zs = sorted(p.z for p in pts)
+        lo, hi = zs[0], zs[-1]
+        cut = hi - (hi - lo) * frac if top else lo + (hi - lo) * frac
+        sel = [p for p in pts if (p.z >= cut if top else p.z <= cut)]
+        return centroid(sel)
+
+    for name, j in legs.items():
+        front = name.startswith("Front")
+        left = name.endswith("L")
+        foot_x = j[-1].x
+        cands = []
+        for pts in ISL:
+            c = centroid(pts)
+            if (c.y > 0) != left or abs(c.x - foot_x) > 0.45 or abs(c.y) < 0.03:
+                continue
+            zmin = min(p.z for p in pts); zmax = max(p.z for p in pts)
+            cands.append((len(pts), zmin, zmax, pts))
+        # 上の長い骨：縦に長く（25cm 以上）、胴の下面をまたぐ
+        upper = [c for c in cands if c[2] - c[1] > 0.25 and c[1] < BELLY + 0.05 and c[2] > BELLY - 0.05 and c[1] > 0.6]
+        # 中の長い骨：下端が 0.35〜0.7m、上端が膝／肘あたり
+        middle = [c for c in cands if 0.35 < c[1] < 0.7 and 0.75 < c[2] < BELLY + 0.15 and c[2] - c[1] > 0.2]
+        if upper:
+            u = max(upper, key=lambda c: c[0])[3]
+            j[0] = end_centroid(u, True)
+            j[1] = end_centroid(u, False)
+        if middle:
+            m_ = max(middle, key=lambda c: c[0])[3]
+            j[2] = end_centroid(m_, False)
+        print("JOINTS", name, "upper" if upper else "-", "middle" if middle else "-", [tuple(round(c, 2) for c in p) for p in j])
+
 # 背骨：後脚の付け根から前脚の付け根まで、胴の中くらいの高さ
 hip_x = (legs["HindL"][0].x + legs["HindR"][0].x) / 2
 sh_x = (legs["FrontL"][0].x + legs["FrontR"][0].x) / 2
@@ -240,23 +292,61 @@ if RIGID:
                  for b in arm.data.bones if b.name.startswith(("Front", "Hind"))]
     body_bones = [(b.name, arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local)
                   for b in arm.data.bones if not b.name.startswith(("Front", "Hind", "Root", "Ear"))]
+    # 骨の鎖（付け根 → 先端の順）
+    B = {b.name: (arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local) for b in arm.data.bones}
+    chains = {
+        "body": ["Spine_0", "Spine_1", "Spine_2", "Neck_0", "Neck_1", "Neck_2", "Head"],
+        "tail": ["Tail_0", "Tail_1", "Tail_2", "Tail_3"],
+        **{leg: [f"{leg}_{i}" for i in range(4)] for leg in ("FrontL", "FrontR", "HindL", "HindR")},
+    }
+    BLEND = 0.05   # 関節の前後この距離(m)で、上下の骨に半々ずつ追従させる
+
+    def chain_weights(p, names):
+        """点 p を鎖に投影し、一番近い骨と、関節近くなら隣の骨とのなめらかな重みを返す"""
+        best = None
+        for k, n in enumerate(names):
+            a, b = B[n]
+            ab = b - a
+            L = max(ab.length, 1e-6)
+            t = max(0.0, min(1.0, (p - a).dot(ab) / (L * L)))
+            d = (a + ab * t - p).length
+            if best is None or d < best[0]:
+                best = (d, k, t * L, L)
+        _, k, along, L = best
+        w = {names[k]: 1.0}
+        if along < BLEND and k > 0:                       # 付け根側の関節
+            f = 0.5 + 0.5 * along / BLEND
+            w = {names[k]: f, names[k - 1]: 1 - f}
+        elif L - along < BLEND and k < len(names) - 1:    # 先端側の関節
+            f = 0.5 + 0.5 * (L - along) / BLEND
+            w = {names[k]: f, names[k + 1]: 1 - f}
+        return w
+
     for g in list(mesh.vertex_groups):
         mesh.vertex_groups.remove(g)
-    groups = {}
-    counts = {"leg": 0, "body": 0}
+    vgs = {b.name: mesh.vertex_groups.new(name=b.name) for b in arm.data.bones}
+    legs_ = ("FrontL", "FrontR", "HindL", "HindR")
+
+    def chain_dist(p, names):
+        return min(seg_dist(p, *B[n]) for n in names)
+
+    # 部品ごとに、どの鎖に属するかを決め、その鎖で一番近い骨に固く付ける（骨は曲がらないので固定が自然）
+    counts = {}
     for isl in islands:
         pts = [mw @ mesh.data.vertices[i].co for i in isl]
         c = sum(pts, Vector()) / len(pts)
-        near_leg = min(leg_bones, key=lambda t: seg_dist(c, t[1], t[2]))
-        if seg_dist(c, near_leg[1], near_leg[2]) < 0.10 or c.z < BELLY - 0.05:
-            bn = near_leg[0]; counts["leg"] += 1
+        leg = min(legs_, key=lambda L: chain_dist(c, chains[L]))
+        # 体の中心線上の部品（胸骨など）は脚ではなく胴に付ける
+        if abs(c.x) > 0.05 and (chain_dist(c, chains[leg]) < 0.06 or c.z < BELLY - 0.05):
+            ch = leg
         else:
-            bn = min(body_bones, key=lambda t: seg_dist(c, t[1], t[2]))[0]; counts["body"] += 1
-        vg = groups.get(bn) or groups.setdefault(bn, mesh.vertex_groups.new(name=bn))
-        vg.add(isl, 1.0, 'REPLACE')
-    for b in arm.data.bones:
-        if b.name not in groups:
-            mesh.vertex_groups.new(name=b.name)
+            ch = "tail" if chain_dist(c, chains["tail"]) < chain_dist(c, chains["body"]) else "body"
+        cand = chains[ch]
+        if ch == "body" and c.z < spine_z - 0.15:
+            cand = [n for n in cand if n.startswith("Spine")]   # 胸の下側（胸骨・肋骨の先）は首ではなく背骨に
+        bn = min(cand, key=lambda n: seg_dist(c, *B[n]))
+        vgs[bn].add(isl, 1.0, 'REPLACE')
+        counts[bn] = counts.get(bn, 0) + 1
     print("RIGID islands", len(islands), counts)
 empty_groups = [g.name for g in mesh.vertex_groups
                 if not any(g.index in [x.group for x in v.groups] for v in list(mesh.data.vertices)[::7])]
