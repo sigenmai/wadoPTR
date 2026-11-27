@@ -523,8 +523,16 @@ namespace HorseRace.EditorTools
 
         static float PathHeight(int kind, int seed, float s)
         {
+            // course-r3-09：スタートの 200m はうねりをスタートの値にそろえる（広く平らなスタート、START_OPEN_M の先 250m でもとのうねりへ）
+            float u0 = Undulation(kind, seed, 0f);
+            float w = Mathf.Clamp01((s - StageDefinitions.START_OPEN_M * 0.5f) / 300f);
+            return BaseHeight(kind) + u0 + (Undulation(kind, seed, s) - u0) * w * w * (3f - 2f * w);
+        }
+
+        static float Undulation(int kind, int seed, float s)
+        {
             float p1 = seed * 0.37f, p2 = seed * 0.91f + 1.3f;
-            float h = BaseHeight(kind) + 0.015f * (0.6f * Mathf.Sin(s / 300f + p1) + 0.4f * Mathf.Sin(s / 130f + p2));
+            float h = 0.015f * (0.6f * Mathf.Sin(s / 300f + p1) + 0.4f * Mathf.Sin(s / 130f + p2));
             if (kind == KIND_DUNES) h += 0.004f * Mathf.Sin(s / 25f + p1);
             return h;
         }

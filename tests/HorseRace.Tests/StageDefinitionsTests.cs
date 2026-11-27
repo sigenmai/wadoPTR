@@ -123,7 +123,8 @@ namespace HorseRace.Tests
             }
             Assert.That(chokes, Is.InRange(2, 3));
             Assert.GreaterOrEqual(wide, 2);
-            Assert.AreEqual(HeightmapGen.RUNWAY_M, StageDefinitions.HalfWidthAt(s, 5f), 0.01f);
+            Assert.AreEqual(StageDefinitions.START_HALF_M, StageDefinitions.HalfWidthAt(s, 5f), 0.01f);   // course-r3-09：広いスタート
+            Assert.AreEqual(HeightmapGen.RUNWAY_M, StageDefinitions.HalfWidthAt(s, 215f), 0.01f);
             for (int k = 0; k < s.halfWidthM.Length; k++)
                 Assert.AreEqual(s.halfWidthM[k], StageDefinitions.HalfWidthAt(s, 0.5f * (s.widthArc[2 * k] + s.widthArc[2 * k + 1])), 0.01f);
         }

@@ -73,6 +73,8 @@ namespace HorseRace.EditorTools
         public const int RELICS_PER_STAGE = 4;
         // 道幅
         public const float CHOKE_HALF_M = 7f, WIDE_HALF_M = 18f, WIDTH_BLEND_M = 15f;
+        /// <summary>スタートの広い区間（course-r3-09）：弧長 0〜START_OPEN_M は半幅 START_HALF_M（8 頭 × 2.6m = 18.2m が余裕で広がる）、高さもほぼ平ら。</summary>
+        public const float START_HALF_M = 16f, START_OPEN_M = 200f, START_OPEN_MIN_HALF_M = 14f, START_OPEN_MAX_RISE_M = 2f;
         // ゴール前の締めくくり（course-r2-07、StageDef.finishKind）
         public const int FINISH_GORGE = 0, FINISH_CREST = 1, FINISH_TOWN = 2;
         // コースの外周からの距離（course-r2-10）：最後の 120m（ゴールの先の切れ込みへ向かう所）以外は 180m 以上内側
@@ -114,14 +116,14 @@ namespace HorseRace.EditorTools
                 // 3 段の下り（40m）：急カーブ 1 の手前、北の谷の後、最後の 2 段（全力の合図から 150m で 24m、9°）
                 elevArc = new[] { 0f, 250f, 380f, 900f, 960f, 1808f, 1868f, 1898f, 1958f },
                 elevM = new[] { 40f, 40f, 30f, 30f, 24f, 24f, 12f, 12f, 0f },
-                // 絞り：牧場の門（160〜230）・岩の橋（1360〜1440）・峡谷の出口（全力の合図から 70m）。ヘアピンの頂点 ±25m は半幅 9m。
-                // 広場：急カーブ 1 の後・最後の平地
-                widthArc = new[] { 160f, 230f, 1360f, 1440f, 1808f, 1878f, 1251f, 1301f, 610f, 710f, 1980f, 2150f },
-                halfWidthM = new[] { 7f, 7f, 7f, 9f, 18f, 18f },
+                // スタートの 200m は半幅 16m（course-r3-09：8 頭が横に広がる）。絞り：牧場の門（230〜300、S 字の入口）・岩の橋（1360〜1440）・峡谷の出口（全力の合図から 70m）。
+                // ヘアピンの頂点 ±25m は半幅 9m。広場：急カーブ 1 の後・最後の平地
+                widthArc = new[] { 0f, 200f, 230f, 300f, 1360f, 1440f, 1808f, 1878f, 1251f, 1301f, 610f, 710f, 1980f, 2150f },
+                halfWidthM = new[] { START_HALF_M, 7f, 7f, 7f, 9f, 18f, 18f },
                 bridgeFraction = 1400f / 2213f,
                 hasShortcut = true, shortcutFrom = 0.22f, shortcutTo = 0.5f,
                 dashLenM = 150f, dashDropM = 24f, dashEndBeforeGoalM = 255f, finishKind = FINISH_GORGE,
-                openingFraction = 200f / 2213f,
+                openingFraction = 265f / 2213f,   // 牧場の門（course-r3-09：スタートの広い 200m の先へ）
                 forkFraction = 660f / 2213f,     // 急カーブ 1 の後の広場
             },
             new StageDef
@@ -154,11 +156,12 @@ namespace HorseRace.EditorTools
                 },
                 runoutM = 70f,
                 // 稜線 6 つ（10〜13m、上り・下り 60〜80m）。U ターンは 12m の砂丘の上、全力の合図から 100m で下り、ゴールの 180m 手前に 8m の丘
-                elevArc = new[] { 0f, 60f, 140f, 220f, 600f, 660f, 720f, 780f, 840f, 900f, 960f, 1720f, 1800f, 1880f, 1900f, 1980f, 2040f, 2104f, 2258f, 2358f, 2365f, 2411f, 2471f },
+                // course-r3-09：最初の稜線はスタートの広い 200m の先（230〜390、2 つ目の稜線 600〜720 はそのまま：上りを 12° 以下に保つ）
+                elevArc = new[] { 0f, 230f, 310f, 390f, 600f, 660f, 720f, 780f, 840f, 900f, 960f, 1720f, 1800f, 1880f, 1900f, 1980f, 2040f, 2104f, 2258f, 2358f, 2365f, 2411f, 2471f },
                 elevM = new[] { 0f, 0f, 11f, 0f, 0f, 11f, 0f, 12f, 0f, 12f, 0f, 0f, 12f, 0f, 0f, 11f, 0f, 12f, 12f, 0f, 0f, 8f, 0f },
                 // 絞り：踏み切りの手前（1324〜1400）と U ターンの砂丘へ上る坂（2040〜2104）。ヘアピンの頂点 ±25m は半幅 9m。広場：シケイン・最後の下り
-                widthArc = new[] { 1324f, 1400f, 2040f, 2104f, 1627f, 1677f, 1150f, 1290f, 2258f, 2358f },
-                halfWidthM = new[] { 7f, 7f, 9f, 18f, 18f },
+                widthArc = new[] { 0f, 200f, 1324f, 1400f, 2040f, 2104f, 1627f, 1677f, 1150f, 1290f, 2258f, 2358f },
+                halfWidthM = new[] { START_HALF_M, 7f, 7f, 9f, 18f, 18f },
                 jumpFraction = 1400f / 2591f,
                 sandTrailArcs = new[] { 150f, 350f, 600f, 960f, 1700f, 1950f },   // 踏切の線（固いのは路盤だけ）、西の稜線越え、ヘアピンの後の南西へ下る線
                 hasShortcut = true, shortcutFrom = 0.27f, shortcutTo = 0.47f,
@@ -195,12 +198,13 @@ namespace HorseRace.EditorTools
                     P(156.4f, 133.1f),
                 },
                 runoutM = 110f,
-                // 登り 1420〜1680（32m、7°）、台地 〜1840、台地の縁の 1 段目（10m）、全力の合図から 200m で 22m 下りて町へ
-                elevArc = new[] { 0f, 1420f, 1680f, 1840f, 1900f, 1915f, 2115f },
-                elevM = new[] { 0f, 0f, 32f, 32f, 22f, 22f, 0f },
+                // course-r3-10：最初のカーブの後に 6m の段（250〜600）、切り通しが割る 8m の高み（760〜1240、切り通しは 1000）、
+                // 登り 1420〜1680（32m、7°）、台地 〜1840、台地の縁の 1 段目（10m）、全力の合図から 200m で 22m 下りて町へ。どの坂も 7° 以下
+                elevArc = new[] { 0f, 250f, 330f, 520f, 600f, 760f, 960f, 1040f, 1240f, 1420f, 1680f, 1840f, 1900f, 1915f, 2115f },
+                elevM = new[] { 0f, 0f, 6f, 6f, 0f, 0f, 8f, 8f, 0f, 0f, 32f, 32f, 22f, 22f, 0f },
                 // 絞り：台地の上の鞍部（1675〜1735）と台地の縁の門（1840〜1905）。ヘアピンの頂点 ±25m は半幅 9m。広場：シケイン・町の大通りの曲がり
-                widthArc = new[] { 1675f, 1735f, 1840f, 1905f, 1749f, 1799f, 640f, 760f, 2120f, 2230f },
-                halfWidthM = new[] { 7f, 7f, 9f, 18f, 18f },
+                widthArc = new[] { 0f, 200f, 1675f, 1735f, 1840f, 1905f, 1749f, 1799f, 640f, 760f, 2120f, 2230f },
+                halfWidthM = new[] { START_HALF_M, 7f, 7f, 9f, 18f, 18f },
                 passFraction = 1000f / 2360f,   // 台地へ登る手前のメサの門（切り通し）
                 mesaClimbFraction = 1680f / 2360f, mesaTopEndFraction = 1840f / 2360f,
                 sandTrailArcs = new[] { 740f, 950f },   // 北の線の吹きだまり（シケインの後〜切り通しの手前）

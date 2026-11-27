@@ -23,6 +23,7 @@ namespace HorseRace.EditorTools
             Instantiate(plan, root, sb.def.Origin, "S" + (sb.def.index + 1));
             GenUtil.StageVariant = -1;
             Atmosphere(sb, root, plan);
+            GuidePostSheets(sb, root, plan);
             if (sb.def.kind == HeightmapGen.KIND_MESA)
             {
                 Vector3 pp = DressingPlan.PodiumLocal(sb.courseLocal, sb.goalArc);
@@ -111,7 +112,7 @@ namespace HorseRace.EditorTools
                     if (q.group == "MesaGate") GenUtil.PointLight(air, "PassBeacon", w + Vector3.up * 3f, SetPieceBuilder.LampWarm, 18f, 2.2f);
                 }
                 else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"
-                    || q.group == "StreetDressing" || q.group == "RailHalt" || q.group == "GoalTown"))
+                    || q.group == "StreetDressing" || q.group == "RailHalt" || q.group == "GoalTown" || q.group == "PassLamp"))   // course-r3-02：切り通しの中の灯り
                     GenUtil.PointLight(air, "CampLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 12f, 1.5f);   // 見どころ・出張所の街灯（art-r2-05/06）
                 else if (q.group == "GiantSkeleton")
                 {
@@ -133,6 +134,29 @@ namespace HorseRace.EditorTools
                     GenUtil.SmokeColumn(air, "LandmarkSmoke", top, new Color(0.22f, 0.20f, 0.20f, 0.6f), 40f, 4f);
                     GenUtil.PointLight(air, "LandmarkLight", top - Vector3.up * 2f, SetPieceBuilder.LampWarm, 30f, 2f);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 直線の標柱の札（course-r3-06）：道の目印（GuideLine）の立てた丸太（高さ POST_H）に、手配書の紙 WantedPosters_02（0.8 × 1.0m）を
+        /// ステージの道の色（ArtPalette.Trail を明るく）に塗って打ち付ける。目印は「杭と札」の形で、骨（飾り）と見分けられる。
+        /// </summary>
+        static void GuidePostSheets(StageBuild sb, Transform root, List<Placement> plan)
+        {
+            var g = GenUtil.Child(root, "GuidePostSheets", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            Color tc = ArtPalette.Trail(sb.def.index);
+            var mat = GenUtil.ToonColor(new Color(tc.r + (1f - tc.r) * 0.35f, tc.g + (1f - tc.g) * 0.35f, tc.b + (1f - tc.b) * 0.35f));   // 道の色を明るく
+            Vector3 o = sb.def.Origin;
+            int k = 0;
+            foreach (var q in plan)
+            {
+                if (q.group != "GuideLine" || q.part != DressingPlan.POST_PART || Mathf.Abs(q.height - DressingPlan.POST_H) > 0.01f) continue;
+                Vector3 top = o + new Vector3(q.position.x, q.position.y + q.height * 0.5f - 1.15f, q.position.z);
+                var holder = GenUtil.World(g, "GuideSheet_" + (k++), top, q.yawDeg);
+                var sheet = GenUtil.PaperSheet(holder.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0f, -0.2f), null, 0.8f, 1.0f);
+                foreach (var r in sheet.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = mat;
+                SetStatic(holder);
             }
         }
 

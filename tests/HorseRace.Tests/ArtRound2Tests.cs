@@ -323,14 +323,12 @@ namespace HorseRace.Tests
                 Assert.AreEqual(CourseMarks.GATE_POST_H, p.scale.x * CourseMarks.WOODLOG_01_LEN, 1e-3f);
                 Assert.AreEqual(CourseMarks.GATE_POST_THICK, p.scale.y * CourseMarks.WOODLOG_01_H, 1e-3f);
             }
-            // art-r3-01：横木は長さだけ伸ばした丸太 6 本 × 2 段（断面 GATE_BEAM_THICK）、端と端でつなぐ
-            float total = 0f;
-            foreach (var b in beams)
-            {
-                if (b.position.y < CourseMarks.GATE_BEAM_Y - CourseMarks.GATE_BEAM_GAP * 0.5f - CourseMarks.GATE_BEAM_THICK) continue;   // 上の段だけ数える
-                total += b.scale.x * CourseMarks.WOODLOG_01_LEN;
-                Assert.Less(b.position.y, CourseMarks.GATE_POST_H, "横木は柱の上の端より下（柱に載る）");
-            }
+            // course-r3-01：横木は丸太の束 ×0.9 を重ねてつなぐ 2 段。1 段の外の端から外の端まで柱から柱
+            float top = beams.Max(b => b.position.y);
+            var upper = beams.Where(b => Mathf.Abs(b.position.y - top) < 0.05f).ToList();
+            float len = CourseMarks.WOODLOG_01_LEN * CourseMarks.GATE_BEAM_SCALE;
+            float total = upper.Max(b => b.position.x) - upper.Min(b => b.position.x) + len;
+            foreach (var b in beams) Assert.Less(b.position.y, CourseMarks.GATE_POST_H, "横木は柱の上の端より下（柱に載る）");
             Assert.GreaterOrEqual(total, CourseGeometry.GATE_HALF * 2f, "柱から柱まで");
             Assert.Less(CourseMarks.GATE_BANNER_Y + 0.8f, beams.Min(b => b.position.y + CourseMarks.GATE_BEAM_THICK * 0.5f), "幕は下の横木から吊る");
             Assert.AreEqual(0, parts.Count(p => DressingPlan.IsBonePart(p.part)), "骨の杭は使わない（art-r3-02）");

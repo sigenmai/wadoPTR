@@ -168,7 +168,8 @@ namespace HorseRace.Tests
             {
                 float d = WorldLayout.DistToPolylineXZ(b.position, local);
                 Assert.Greater(d, HeightmapGen.RUNWAY_M - 4f, "道の外");
-                Assert.Less(d, CourseBarrier.OFFSET_M, "柵の内側");
+                float arc = DressingPlan.NearestArc(local, DressingPlan.CourseArcs(local), b.position, out float _);
+                Assert.Less(d, CourseBarrier.OffsetAtArc(s, local, goal, arc) + 0.5f, "柵の内側（course-r3-07：70・35m は柵の線の上）");
             }
             Assert.AreEqual("›››", CourseMarks.Chevrons(3, 1));
             Assert.AreEqual("‹", CourseMarks.Chevrons(1, -1));

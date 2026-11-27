@@ -132,7 +132,9 @@ namespace HorseRace.Tests
             float goal = StageDefinitions.GoalArc(s, local);
             float pass = SetPieces.PassArc(s, goal);
             float[] cps = WorldLayout.CheckpointArcs(goal, StageDefinitions.CP_SPACING_M);
-            foreach (float c in cps) Assert.Greater(Mathf.Abs(c - pass), SetPieces.PASS_HALF_CUT + SetPieces.PASS_RAMP - 2f, "CP " + c);
+            // course-r3-02：切り通しの底（深さいっぱい ±PASS_HALF_CUT）に CP は無い。下げは PASS_TAPER_M（≥ PASS_RAMP）かけてゆるく
+            foreach (float c in cps) Assert.Greater(Mathf.Abs(c - pass), SetPieces.PASS_HALF_CUT + 5f, "CP " + c);
+            Assert.GreaterOrEqual(SetPieces.PASS_TAPER_M, SetPieces.PASS_RAMP);
             // course-r2-09：2 つ目の遺物は切り通しの壁際の危ない線（他は離す）
             var relics = SetPieces.RelicSpots(s, local, goal, null);
             Assert.AreEqual(pass, relics[1].arc, 0.01f);

@@ -18,18 +18,32 @@ namespace HorseRace.EditorTools
     public static class SetPieces
     {
         // 岩橋
-        public const float TRENCH_HALF_WIDTH = 7f;     // コース方向の溝の半幅（底が平らな部分）
+        public const float TRENCH_HALF_WIDTH = 9f;     // コース方向の溝の半幅（底が平らな部分。course-r3-04：7 → 9m、60m 手前から溝の口が読める）
         public const float TRENCH_BLEND = 3f;          // 溝の縁の傾斜
         public const float TRENCH_HALF_LENGTH = 45f;   // コースを横切る方向の半分の長さ
         public const float TRENCH_END_TAPER = 12f;     // 溝の両端で浅くなる長さ
         public const float TRENCH_DEPTH = 12f;
-        public const float BRIDGE_HALF_SPAN = 11f;     // 岩の背の勾配の検査から外す半分の長さ（溝の縁 10m より長い）
+        public const float BRIDGE_HALF_SPAN = 14f;     // 岩の背の勾配の検査から外す半分の長さ（溝の縁 12m より長い）
         public const float SPINE_HALF = 7f;            // 掘らずに残す地形の背（岩の橋）の半幅（絞り 14m）
         public const float SPINE_EDGE = 2f;            // 背の縁の切り立った斜面
         public const float DETOUR_FROM = 38f;          // ここから外は掘らない（溝の両端を回る遠回り）
         public const float DETOUR_TO = 54f;            // 遠回りの外の縁（平らにならす範囲）
         public const float DETOUR_ALONG = 30f;         // 遠回りのならしのコース方向の半分の長さ
         public const float DETOUR_BARRIER_M = 58f;     // 橋の周りの柵（遠回りを囲む）
+        // ---- course-r3-04：溝の口を手前から見せる・危ない線の合図 ----
+        public const float LIP_ROCK_STEP = 4.2f;       // 溝の縁の岩の間隔
+        public const float LIP_THIN_LAT = 20f;         // 背から 20m 以内の縁の岩は 1 つおき（溝の口が近づく前から見える）
+        public const float BRIDGE_WARN_BEFORE = 70f;   // 「落ちるな」の札（赤インク）は橋の 70m 手前
+
+        /// <summary>溝の縁の岩を置くか（course-r3-04）：横 lat の k 番目。背から LIP_THIN_LAT 以内は 1 つおき。</summary>
+        public static bool LipRockKept(float lat, int k) => lat >= LIP_THIN_LAT || k % 2 == 0;
+
+        /// <summary>背の縁の街灯（course-r3-04、橋の中心からの (コース方向, 横)）：片側 2 本、縁から 0.4m 内側。</summary>
+        public static Vector2[] SpineEdgeLamps()
+        {
+            float a = (TRENCH_HALF_WIDTH + TRENCH_BLEND) * 0.5f, lat = SPINE_HALF - 0.4f;
+            return new[] { new Vector2(-a, -lat), new Vector2(a, -lat), new Vector2(-a, lat), new Vector2(a, lat) };
+        }
 
         // 踏み切り（地形だけ。course-r1-08）
         public const float JUMP_LENGTH = 22f, JUMP_HEIGHT = 5f;   // 坂（13°）
@@ -48,14 +62,15 @@ namespace HorseRace.EditorTools
 
         // 境目のメサの切り通し
         public const float PASS_DEPTH = 6f;            // 道を下げる深さ
-        public const float PASS_HALF_CUT = 15f;        // 深さいっぱいの区間の半分（全長 30m）
-        public const float PASS_RAMP = 26f;            // 前後の下り・上り（6m / 26m、最大 20° 未満）
+        public const float PASS_HALF_CUT = 25f;        // 深さいっぱいの区間の半分（全長 50m。course-r3-02：15 → 25m）
+        public const float PASS_RAMP = 60f;            // 前後の下り・上りの最短（course-r3-02：6m / 60m ≈ 5.7°。実際は PASS_TAPER_M でまっすぐ下げる）
         public const float PASS_ROAD_HALF = 13f;       // ここまで（道 ±12m ＋余白）は下げる
         public const float PASS_WALL_RISE = 22f;       // 両脇（道から 22〜40m）の盛り上げ
         public const float PASS_WALL_FROM = 22f, PASS_WALL_TO = 40f, PASS_WALL_FADE = 30f;
         // ---- art-r3-08：切り通しの手前の背（こぶ）をなくし、上の開きを 50m・壁を 2 段のベンチに ----
         public const float PASS_TAPER_M = 80f;         // 深さいっぱいの区間の前後 80m でまっすぐ下げる（道の高さはその間で単調）
-        public const float PASS_PROFILE_BEFORE = 120f, PASS_PROFILE_AFTER = 100f;  // 道の高さを弦より上に出さない範囲（切り通しの中心から）
+        public const float PASS_PROFILE_BEFORE = 120f, PASS_PROFILE_AFTER = 120f;  // 道の高さを弦より上に出さない範囲（切り通しの中心から。下げ終わる 105m より外）
+        public const float PASS_CREST_CHECK_M = 80f, PASS_MAX_CREST_M = 1f;        // course-r3-02：切り通しの 80m 手前から、弦より 1m 以上の背（こぶ）を作らない
         public const float PASS_BENCH1_FROM = 16f, PASS_BENCH1_H = 11f;            // 1 段目の壁（道の縁 13m の外 16〜20m で 11m 上る）
         public const float PASS_BENCH2_FROM = 25f, PASS_BENCH2_H = 11f;            // 2 段目（25〜29m でさらに 11m：上の開きは 50m）
         public const float PASS_BENCH_RISE_M = 4f;
@@ -369,6 +384,31 @@ namespace HorseRace.EditorTools
                        + PASS_BENCH2_H * Smooth01((la - PASS_BENCH2_FROM) / PASS_BENCH_RISE_M);
             float outer = 1f - Smooth01((la - PASS_WALL_TO) / PASS_WALL_FADE);
             return rise * awWall * outer;
+        }
+
+        /// <summary>
+        /// 道の高さの列 h（等間隔）の「背」の高さ（m、course-r3-02）：両端を結ぶ弦より上に出る一番大きい高さ。0 以下 = 凹か平ら（手前から先が見える）。
+        /// </summary>
+        public static float MaxCrestAboveChord(float[] h)
+        {
+            int n = h.Length;
+            if (n < 3) return 0f;
+            float best = 0f;
+            for (int i = 1; i < n - 1; i++) best = Mathf.Max(best, h[i] - (h[0] + (h[n - 1] - h[0]) * i / (n - 1f)));
+            return best;
+        }
+
+        /// <summary>切り通しの手前 PASS_CREST_CHECK_M m の道の高さ（m、1m ごと、地形 h から）。</summary>
+        public static float[] PassApproachProfile(float[,] h, Vector3[] local, float passArc)
+        {
+            int n = Mathf.RoundToInt(PASS_CREST_CHECK_M) + 1;
+            var r = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 p = WorldLayout.PointAtArc(local, passArc - PASS_CREST_CHECK_M + i);
+                r[i] = WorldLayout.SampleHeight(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z);
+            }
+            return r;
         }
 
         /// <summary>切り通しの道の下げの割合（0〜1）：中心 ±PASS_HALF_CUT は 1、その前後 PASS_TAPER_M でまっすぐ 0 へ（art-r3-08）。</summary>
@@ -737,6 +777,17 @@ namespace HorseRace.EditorTools
         /// <summary>遺物どうしの弧長の最小の間隔（m、course-r2-09）。</summary>
         public const float RELIC_MIN_GAP_M = 350f;
         public const float PASS_RELIC_SIDE = 10.5f;   // 境目：切り通しの中の危ない脇の線（切り通しの壁の際）
+        /// <summary>荒野の岩の橋の遺物（course-r3-04）：背の縁（SPINE_EDGE の落ち際）から 1.2m 内側。真ん中ではなく危ない線の上。</summary>
+        public const float BRIDGE_RELIC_EDGE_IN = 1.2f;
+
+        /// <summary>岩の橋の遺物の横（+ = 右）：次のカーブの内側の背の縁（内側の線は短いが、落ちる縁の際）。カーブが無ければ左。</summary>
+        public static float BridgeRelicSide(Vector3[] local, float bridge, float goalArc)
+        {
+            int side = -1;
+            foreach (var c in StageDefinitions.Corners(local, StageDefinitions.MEDIUM_CORNER_MAX_R, goalArc))
+                if (c.fromArc > bridge) { side = c.side; break; }
+            return side * (SPINE_HALF - BRIDGE_RELIC_EDGE_IN);
+        }
 
         /// <summary>
         /// 遺物 4 つ（course-r2-09：350m 以上離し、コースの 4 分の 1 ごとに 1 つ）：
@@ -757,7 +808,7 @@ namespace HorseRace.EditorTools
             r[0] = OnCourse(local, a1, s1, 0f);
             // 2) 見どころの危ない線
             float bridge = BridgeArc(def, goalArc), jump = JumpArc(def, goalArc), pass = PassArc(def, goalArc);
-            if (bridge >= 0f) r[1] = OnCourse(local, bridge, 0f, 0f);
+            if (bridge >= 0f) r[1] = OnCourse(local, bridge, BridgeRelicSide(local, bridge, goalArc), 0f);   // course-r3-04：背の縁の際
             else if (jump >= 0f) r[1] = OnCourse(local, jump + JUMP_RELIC_AHEAD, 0f, JUMP_RELIC_UP);
             else if (pass >= 0f) r[1] = OnCourse(local, pass, -PASS_RELIC_SIDE, 0f);
             else r[1] = OnCourse(local, goalArc * 0.45f, -RELIC_WIDE_SIDE, 0f);

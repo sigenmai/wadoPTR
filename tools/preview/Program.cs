@@ -19,8 +19,8 @@ class P {
     const string CL="Packs/Cliffs/Cliffs.fbx",WP="Packs/WantedPosters/WantedPosters.fbx";
     float hw0(float a)=>StageDefinitions.HalfWidthAt(d,a);
     // スタートの門（柵 9 枚）と両端の街灯・干し草
-    {float a=StageDefinitions.START_ARC_M+3f; Vector3 t=WorldLayout.TangentAtArc(local,a),r=WorldLayout.RightOf(t),c=WorldLayout.PointAtArc(local,a); float yaw=WorldLayout.YawDeg(t); float half=9*2.74f*0.5f;
-     for(int i=0;i<9;i++) l.Add(X(FP,"FarmProps_03",GP(h,c+r*(-half+(i+0.5f)*2.74f)),yaw,1f));
+    {float a=StageDefinitions.START_ARC_M+3f; Vector3 t=WorldLayout.TangentAtArc(local,a),r=WorldLayout.RightOf(t),c=WorldLayout.PointAtArc(local,a); float yaw=WorldLayout.YawDeg(t); float half=CourseGeometry.START_GATE_PIECES*2.74f*0.5f;
+     for(int i=0;i<CourseGeometry.START_GATE_PIECES;i++) l.Add(X(FP,"FarmProps_03",GP(h,c+r*(-half+(i+0.5f)*2.74f)),yaw,1f));
      for(int s=-1;s<=1;s+=2){ l.Add(X(FP,"FarmProps_02",GP(h,c+r*(s*(half+1.2f))),yaw,1f)); l.Add(X(HB,"HayBales_01",GP(h,c+r*(s*(half+3f))-t*0.8f),yaw,1f)); }}
     // ゴールゲート（art-r2-07）：CourseBuilder.GoalGate と同じ CourseMarks.GoalGateParts の数字で置く
     {Vector3 t=WorldLayout.TangentAtArc(local,goal),c=GP(h,WorldLayout.PointAtArc(local,goal));

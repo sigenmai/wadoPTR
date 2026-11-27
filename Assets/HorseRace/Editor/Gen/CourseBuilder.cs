@@ -14,6 +14,7 @@ namespace HorseRace.EditorTools
         public const float CP_WIDTH = CourseGeometry.CP_WIDTH, CP_HEIGHT = CourseGeometry.CP_HEIGHT, CP_DEPTH = CourseGeometry.CP_DEPTH;   // 1 か所（CourseGeometry）で決める
         public const float BOARD_SIDE = CourseGeometry.BOARD_SIDE;     // 黒板はコース中心から右へ 15m（平らな道 ±12m の外）
         public const float GATE_HALF = CourseGeometry.GATE_HALF;
+        public const float START_SIDE = CourseGeometry.START_SIDE;
         public const float PEN_RADIUS = CourseGeometry.PEN_RADIUS;
         public const float PEN_BACK = CourseGeometry.PEN_BACK;   // 囲いの中心 = 流しの終点の 14m 手前
         public const int BOARD_EVERY = CourseGeometry.BOARD_EVERY;        // 黒板は CP3・CP6・…とゴール
@@ -48,7 +49,7 @@ namespace HorseRace.EditorTools
             var line = GenUtil.World(root, "StartLine", lineP, yaw0);
             StartGate(line.transform, sb, r0, t0, yaw0);
             // スターターはスタートラインの左脇（レーンの外）、コースのほうを向く
-            Vector3 spot = sb.GroundWorld(lineP - r0 * (GATE_HALF + 3f) + t0 * 2f);
+            Vector3 spot = sb.GroundWorld(lineP - r0 * START_SIDE + t0 * 2f);
             sb.starterSpot = GenUtil.World(root, "StarterSpot", spot, WorldLayout.YawDeg(r0)).transform;
             sb.Exclude(spot, 14f);    // スターターの周りに岩を置かない
             // 空のカウント（ui-r1-09）：コースの中心線上、スタートラインの 30m 先・12m 上。騎手のほう（コースの進む向きを見る人）に読める
@@ -110,6 +111,45 @@ namespace HorseRace.EditorTools
             DashPoint(root, sb);
             CornerBoards(root, sb);
             SectorGates(root, sb);
+            FinishChute(root, sb);
+        }
+
+        /// <summary>
+        /// ゴール前の見物の直線（course-r3-08）：CourseMarks.FinishChute の部品（tools/preview も同じ）。レール・干し草は静的、街灯は暖色の灯り 10m、
+        /// 旗は立てた丸太 4m の上に赤い手配書の紙（ゴールの幕と同じ赤のマテリアル、表と裏）、「あと 100m」の札。当たりは置かない（柵はゴールの 45m 手前で切れる）。
+        /// </summary>
+        static void FinishChute(Transform root, StageBuild sb)
+        {
+            var g = GenUtil.Child(root, "FinishChute", Vector3.zero).transform;
+            g.position = Vector3.zero;
+            var redMat = GenUtil.ToonColor(Red);
+            int k = 0;
+            foreach (var cp in CourseMarks.FinishChute(sb.def, sb.courseLocal, sb.goalArc))
+            {
+                Vector3 w = sb.Ground(cp.position.x, cp.position.z);
+                if (cp.kind == CourseMarks.CHUTE_LAMP) { SetPieceBuilder.Lamp(g, w, cp.yaw, SetPieceBuilder.LampWarm, 10f); continue; }
+                if (cp.kind == CourseMarks.CHUTE_SIGN)
+                {
+                    SetPieceBuilder.SignPost(g, "Last100", w, cp.yaw, "<b>あと 100m</b>", UiStyle.Gold, new Color(0f, 0f, 0f, 0f), 0f, 1.4f);
+                    continue;
+                }
+                if (cp.kind == CourseMarks.CHUTE_FLAG)
+                {
+                    var flag = GenUtil.World(g, "ChuteFlag_" + (k++), w, cp.yaw).transform;
+                    SetPieceBuilder.UprightLog(flag, "WoodLogs_01", w, cp.yaw, CourseMarks.CHUTE_POST_H, 1.1f);
+                    for (int side = 0; side < 2; side++)
+                    {
+                        var sheet = GenUtil.PaperSheet(flag, side == 0 ? "Flag" : "FlagBack", "WantedPosters_02", new Vector3(cp.side * -0.55f, CourseMarks.CHUTE_POST_H - 1.25f, side == 0 ? -0.08f : 0.08f), null, 0.9f, 1.1f);
+                        if (side == 1) sheet.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                        foreach (var rr in sheet.GetComponentsInChildren<Renderer>(true)) rr.sharedMaterial = redMat;
+                    }
+                    DressingBuilder.SetStatic(flag.gameObject);
+                    continue;
+                }
+                var go = GenUtil.InstantiatePart(GenUtil.MODELS + "/" + cp.asset, cp.part, g, w - Vector3.up * 0.03f, cp.yaw, 1f, new Vector3(2.7f, 1f, 0.3f), Wood);
+                go.transform.localScale = cp.scale;
+                DressingBuilder.SetStatic(go);
+            }
         }
 
         /// <summary>
@@ -129,17 +169,26 @@ namespace HorseRace.EditorTools
             {
                 Vector3 w = sb.Ground(b.position.x, b.position.z);
                 SetPieceBuilder.SignPost(g, "CornerBoard_" + (k++), w, b.yaw, "<b><size=160%>" + CourseMarks.Chevrons(b.chevrons, b.side) + "</size></b>",
-                    UiStyle.RedInk, new Color(0f, 0f, 0f, 0f), 0f);   // 危険 = 赤（紙の上は赤インク）
+                    UiStyle.RedInk, new Color(0f, 0f, 0f, 0f), 0f, b.scale);   // 危険 = 赤（紙の上は赤インク）。70・35m 手前は柵の線の上に 1.8 倍（course-r3-07）
             }
             k = 0;
             foreach (var c in StageDefinitions.TightCorners(sb.def, sb.courseLocal))
             {
-                Vector3[] m = CourseMarks.CornerApexMarks(sb.def, sb.courseLocal, c);
+                Vector3[] m = CourseMarks.CornerApexMarks(sb.def, sb.courseLocal, c, sb.goalArc);
                 Vector3 hay = sb.Ground(m[0].x, m[0].z), lamp = sb.Ground(m[1].x, m[1].z);
                 float yaw = WorldLayout.YawDeg(WorldLayout.TangentAtArc(sb.courseLocal, c.apexArc));
                 DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay, yaw, 1f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
                 DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hay + Vector3.up * 1.55f, yaw + 35f, 0.9f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
                 SetPieceBuilder.Lamp(g, lamp, yaw + (c.side > 0 ? 90f : -90f), SetPieceBuilder.SignalOrange, 10f);
+                // course-r3-07：外側の干し草の壁（2 段、当たりは柵だけ）
+                const float S = CourseMarks.CORNER_WALL_SCALE;
+                foreach (var wb in CourseMarks.CornerWall(sb.def, sb.courseLocal, c))
+                {
+                    Vector3 hp = sb.Ground(wb.position.x, wb.position.z);
+                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), wb.part, g, hp - Vector3.up * 0.05f, wb.yaw, S, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), wb.part == "HayBales_01" ? "HayBales_02" : "HayBales_01", g, hp + Vector3.up * (1.5f * S),
+                        wb.yaw + 90f, S * 0.95f, new Vector3(1.5f, 1.6f, 1.5f), Wood));
+                }
                 k++;
             }
         }
@@ -166,15 +215,13 @@ namespace HorseRace.EditorTools
                 SetPieceBuilder.UprightLog(gate, "WoodLogs_01", l, yaw, H, 1.1f);
                 SetPieceBuilder.UprightLog(gate, "WoodLogs_01", r, yaw, H, 1.1f);
                 float top = Mathf.Max(l.y, r.y) + H - 0.4f;
-                float span = WorldLayout.DistXZ(l, r) + 1.1f, piece = span / CourseMarks.GATE_BEAM_PIECES;
-                Vector3 bsc = CourseMarks.PostScale(piece + 0.05f, CourseMarks.GATE_BEAM_THICK * 0.8f);   // art-r3-01：長さだけ伸ばし、太さは柱と同じくらい
-                for (int p = 0; p < CourseMarks.GATE_BEAM_PIECES; p++)
+                // course-r3-01：横木は丸太の束 ×0.8 を引き伸ばさずにつなぐ（CourseMarks.BeamPieces、柱の外の端から外の端まで。tools/preview も同じ）
+                Vector3 half = rt * 0.55f;
+                foreach (var bp in CourseMarks.SectorBeamPieces(l - half, r + half, top))
                 {
-                    Vector3 bp = Vector3.Lerp(l, r, (p + 0.5f) / CourseMarks.GATE_BEAM_PIECES);
-                    var beam = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", gate, new Vector3(bp.x, top, bp.z), yaw + p * 180f, 1f,
-                        new Vector3(1.5f, 0.3f, 0.3f), DarkWood);
-                    beam.transform.rotation = Quaternion.Euler(0f, yaw + p * 180f, 0f);   // ローカル X（長さ）を道の横へ
-                    beam.transform.localScale = bsc;
+                    var beam = GenUtil.InstantiatePart(GenUtil.MODELS + "/" + bp.asset, bp.part, gate, bp.position, bp.euler.y, 1f, new Vector3(1.5f, 0.3f, 0.3f), DarkWood);
+                    beam.transform.rotation = Quaternion.Euler(bp.euler);
+                    beam.transform.localScale = bp.scale;
                     DressingBuilder.SetStatic(beam);
                 }
                 for (int sd = -1; sd <= 1; sd += 2)
@@ -265,7 +312,7 @@ namespace HorseRace.EditorTools
             return rb;
         }
 
-        public const int START_GATE_PIECES = 9;   // 柵 FarmProps_03（2.74m）× 9 ≈ 24.7m（道幅いっぱい）
+        public const int START_GATE_PIECES = CourseGeometry.START_GATE_PIECES;   // 柵 FarmProps_03（2.74m）× 12 ≈ 32.9m（広いスタートの道幅いっぱい、course-r3-09）
 
         /// <summary>
         /// スタートの門（course-r1-15）：スタートラインに柵 9 枚（FarmProps_03、Block の Collider）を道幅いっぱいに並べ、号砲で Starter が消す。

@@ -23,7 +23,7 @@ namespace HorseRace.Tests
                 float y = b.scale.y * CourseMarks.WOODLOG_01_H, z = b.scale.z * CourseMarks.WOODLOG_01_W, len = b.scale.x * CourseMarks.WOODLOG_01_LEN;
                 Assert.LessOrEqual(y, 1.0f, "縦の太さ");
                 Assert.LessOrEqual(z, 1.0f, "奥行き");
-                Assert.That(len, Is.InRange(3.5f, 5.5f), "1 本 ≈ 4.6m");
+                Assert.That(len, Is.InRange(1.0f, 1.6f), "course-r3-01：引き伸ばさない丸太の束");
                 Assert.GreaterOrEqual(b.position.y + y * 0.5f, CourseMarks.GATE_BEAM_MIN_Y, "高さ 5.5m 以上");
             }
             var tiers = beams.Select(b => Mathf.Round(b.position.y * 10f)).Distinct().Count();

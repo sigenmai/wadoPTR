@@ -184,13 +184,15 @@ namespace HorseRace.EditorTools
         /// 立て札（course-r1-04/06/15）：丸太の柱（WoodLogs_01、2.6m）に手配書の紙（WantedPosters_02）、看板の文字。読む人は yaw の方向を見ている。
         /// light ≠ clear なら柱の上に点の灯り。
         /// </summary>
-        public static GameObject SignPost(Transform parent, string name, Vector3 ground, float yaw, string text, Color textColor, Color light, float lightRange)
+        public static GameObject SignPost(Transform parent, string name, Vector3 ground, float yaw, string text, Color textColor, Color light, float lightRange, float scale = 1f)
         {
             var sign = GenUtil.World(parent, name, ground, yaw);
-            UprightLog(sign.transform, "WoodLogs_01", ground, yaw, 2.6f, 1.1f);
-            GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_02", new Vector3(0f, 1.55f, -0.18f), null, 1.7f, 0.7f);
-            GenUtil.Text(sign.transform, "Text", new Vector3(0f, 1.9f, -0.22f), Quaternion.identity, text, 1.6f, textColor, new Vector2(1.6f, 0.6f), TextStyle.Sign, true);
-            if (light.a > 0f) GenUtil.PointLight(sign.transform, "SignLight", ground + Vector3.up * 2.9f, light, lightRange, 1.4f);
+            // scale > 1（course-r3-07：急カーブの大きな札）：紙と文字を scale 倍、柱は紙の下の辺が 1.55m のまま上へ伸ばす
+            float postH = 2.6f + 0.7f * (scale - 1f);
+            UprightLog(sign.transform, "WoodLogs_01", ground, yaw, postH, 1.1f);
+            GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_02", new Vector3(0f, 1.55f, -0.18f), null, 1.7f * scale, 0.7f * scale);
+            GenUtil.Text(sign.transform, "Text", new Vector3(0f, 1.55f + 0.35f * scale, -0.22f), Quaternion.identity, text, 1.6f * scale, textColor, new Vector2(1.6f * scale, 0.6f * scale), TextStyle.Sign, true);
+            if (light.a > 0f) GenUtil.PointLight(sign.transform, "SignLight", ground + Vector3.up * (postH + 0.3f), light, lightRange, 1.4f);
             return sign;
         }
 
@@ -235,8 +237,11 @@ namespace HorseRace.EditorTools
             int gi = 0;
             for (int e = -1; e <= 1; e += 2)
                 for (int s = -1; s <= 1; s += 2)
-                    for (float lat = SetPieces.SPINE_HALF + 2.5f; lat < SetPieces.DETOUR_FROM - 2f; lat += 4.2f, gi++)
+                {
+                    int li = 0;
+                    for (float lat = SetPieces.SPINE_HALF + 2.5f; lat < SetPieces.DETOUR_FROM - 2f; lat += SetPieces.LIP_ROCK_STEP, gi++, li++)
                     {
+                        if (!SetPieces.LipRockKept(lat, li)) continue;   // course-r3-04：背の近くは 1 つおき（溝の口が手前から見える）
                         Vector3 w = sb.GroundWorld(center + t * (e * lipAlong) + r * (s * lat));
                         string part = "DesertRocks_0" + (4 + gi % 6);
                         var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, guard, w - Vector3.up * 0.3f, yaw + 90f + gi * 37f, 0.9f,
@@ -246,6 +251,7 @@ namespace HorseRace.EditorTools
                         DressingBuilder.SetStatic(rock);
                         GenUtil.Tag(rock, "S" + st + "/SetPieceDecor/lip#" + (decorIndex++));
                     }
+                }
             // 背の両脇（溝の中）の崖：広い面を溝へ
             var spine = GenUtil.Child(bridge.transform, "SpineCliffs", Vector3.zero).transform;
             for (int s = -1; s <= 1; s += 2)
@@ -358,6 +364,15 @@ namespace HorseRace.EditorTools
             }
             for (int s = -1; s <= 1; s += 2)
                 GenUtil.PointLight(sig, "TrenchDanger", center + r * (s * 22f) + Vector3.up * (-SetPieces.TRENCH_DEPTH + 2f), DangerRed, 24f, 1.2f);
+            // course-r3-04：背の縁の街灯（危険 = 橙の灯り、片側 2 本）と、70m 手前の赤インクの札「落ちるな」（急カーブの札と同じ丸太の柱）
+            float yaw = WorldLayout.YawDeg(t);
+            foreach (var m in SetPieces.SpineEdgeLamps())
+                Lamp(sig, sb.GroundWorld(center + t * m.x + r * m.y), yaw + (m.y > 0f ? -90f : 90f), SignalOrange, 10f);
+            float wa = sb.bridgeArc - SetPieces.BRIDGE_WARN_BEFORE;
+            Vector3 wt = WorldLayout.TangentAtArc(sb.courseWorld, wa);
+            wt = new Vector3(wt.x, 0f, wt.z).normalized;
+            Vector3 wp = WorldLayout.PointAtArc(sb.courseWorld, wa) + WorldLayout.RightOf(wt) * (StageDefinitions.HalfWidthAt(sb.def, wa) + CourseMarks.CORNER_BOARD_OUT_M);
+            SignPost(sig, "FallWarning", sb.GroundWorld(wp), WorldLayout.YawDeg(wt), "<b>落ちるな ⇣</b>\n岩の橋は真ん中が安全", UiStyle.RedInk, new Color(0f, 0f, 0f, 0f), 0f);
         }
 
         /// <summary>

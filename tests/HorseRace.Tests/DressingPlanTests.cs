@@ -101,9 +101,10 @@ namespace HorseRace.Tests
             {
                 foreach (var c in circles)
                 {
-                    bool townArea = c.w >= 100f;   // ゴールの町の範囲は町の建物だけが入れる
+                    bool townArea = c.w >= DressingPlan.GOAL_TOWN_CLEAR_M - 0.01f;   // ゴールの町の範囲は町の建物だけが入れる
                     bool town = p.group == "GoalTown" || (p.group == "StreetDressing" && i == 2);   // art-r3-15：ゴールの町の通りの飾りも町の一部
                     if ((town || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
+                    if (town && c.w <= 1.61f) continue;   // course-r3-08：見物の直線（レール・旗・街灯）は町の通りの建物の正面の手前
                     if (town && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
                     if (p.group == "Landmark") continue;   // 遠くの目印は除外の円の外を自分で選ぶ（LandmarkSpot）
                     if ((p.group == "RoadIsland" || p.group == "Fork") && c.w <= DressingPlan.ISLAND_ROCK_R + 4.01f) continue;   // 島・二股の円はそのため
@@ -157,7 +158,8 @@ namespace HorseRace.Tests
                 if (d > DressingPlan.REACHABLE_M) Assert.IsFalse(p.collider, p.asset);
                 // メサは背景（見えない壁）。ただし道のすぐ脇の切り通しの門・谷の壁・カーブの外・台地の縁（art-r2-08）はメッシュの当たり判定、
                 // 水場の厩舎（art-r2-05）は外形の当たり判定
-                bool nearRock = p.group == "MesaGate" || p.group == "CanyonWalls" || p.group == "CornerSilhouette" || p.group == "MesaPlateau" || p.group == "RoadIsland" || p.group == "Fork";
+                bool nearRock = p.group == "MesaGate" || p.group == "CanyonWalls" || p.group == "CornerSilhouette" || p.group == "MesaPlateau" || p.group == "RoadIsland" || p.group == "Fork"
+                    || p.group == "WallFace";   // course-r3-03：壁の面の岩（当たりは柵）
                 if ((p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB || p.asset == DressingPlan.STABLE) && !nearRock && p.group != "WaterStop") Assert.IsTrue(p.background, p.group);
                 if (nearRock && p.collider && p.radius >= 6f) Assert.AreEqual(DressingPlan.SHAPE_MESH, p.shape, p.group);
                 if (p.height < DressingPlan.COLLIDER_MIN_H) Assert.IsFalse(p.collider, p.asset + " " + p.part);
@@ -373,7 +375,7 @@ namespace HorseRace.Tests
             TestContext.WriteLine($"street buildings left {left2} right {right2}, before goal-100 {before}");
             Assert.GreaterOrEqual(left2, 8); Assert.GreaterOrEqual(right2, 8);
             Assert.GreaterOrEqual(before, 8);
-            Assert.Greater(Count(plan, p => p.group == "GoalTown" && p.asset == DressingPlan.HAY), 8);
+            Assert.Greater(Count(plan, p => p.group == "GoalTown" && p.asset == DressingPlan.HAY), 1);   // course-r3-08：ゴールの手前の見物人は見物の直線（FinishChute）のレールと旗
             var tower = plan.Single(p => p.group == "GoalTown" && p.part == DressingPlan.RANCH_TOWER);
             Assert.Greater(WorldLayout.DistXZ(tower.position, course[course.Length - 1]), 20f);
         }
