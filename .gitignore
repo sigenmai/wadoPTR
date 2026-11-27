@@ -2,3 +2,7 @@
 Assets/**/_*.blend
 Assets/**/_*.blend1
 .superpowers/
+
+# .NET test build output
+tests/**/bin/
+tests/**/obj/
