@@ -88,6 +88,7 @@ namespace HorseRace
         // ---- オーナー側の内部状態 ----
         private int cruiseLevel;          // 0 停止, 1 常歩, 2 速歩, 3 駆歩
         private float inputSteer;         // A/D・左スティック
+        public const float STICK_DEADZONE = 0.15f;
         private float inputVertical;
         private bool verticalArmed = true;
         private bool jumpQueued;
@@ -158,6 +159,9 @@ namespace HorseRace
             {
                 station.ExitStation(local);
             }
+            // Jump で降車させない（VRChat は disableStationExit=false だと Jump で駅から降ろす）。
+            // 乗り手がいる間はロビーでも常に true。降車はロビーの流れ／RaceManager が AssignRider(-1) で行う。
+            if (station != null) station.disableStationExit = playerId >= 0;
             if (!isLocal) return;
 
             Networking.SetOwner(local, gameObject);
@@ -377,7 +381,8 @@ namespace HorseRace
                 sprintReq = ReadSprint(local);
                 if (vr && vrInput != null)
                 {
-                    steer = Mathf.Clamp(steer + vrInput.steer, -1f, 1f);
+                    // スティックに入力があればスティック優先、無ければ手綱
+                    if (Mathf.Abs(inputSteer) <= STICK_DEADZONE) steer = vrInput.steer;
                     brakeHeld = vrInput.brake;
                 }
                 if (brakeHeld && (!brakeWasHeld || Time.time >= brakeRepeatAt))

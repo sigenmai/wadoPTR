@@ -9,7 +9,8 @@ namespace HorseRace.EditorTools
     /// メニュー「HorseRace/Build Mount Animator」で Assets/HorseRace/Animations/Mount.controller を作る。
     /// パラメータ: int "Gait"（0 Idle, 1 Walk, 2 Trot, 3 Canter, 4 Gallop）、trigger "Jump" / "Stagger"、bool "Stamp"。
     /// クリップは Horse.fbx から取る（Blender 出力の "Armature|Walk" 形式は '|' の後ろで照合）。
-    /// Camel / SkeletonHorse はボーン名・クリップ名が同じなので、同じコントローラを MountVisual の各 Animator に割り当てる。
+    /// Camel / SkeletonHorse 用に Mount_Camel / Mount_SkeletonHorse の AnimatorOverrideController も作り、
+    /// 同名クリップ（'|' の後ろで照合）をそれぞれの FBX のものに差し替える。MountVisual が模型ごとに割り当てる。
     /// 3 つの FBX のループ設定（歩様・Idle・Stamp をループ）もここで直す。
     /// </summary>
     public static class MountAnimatorBuilder
@@ -17,6 +18,10 @@ namespace HorseRace.EditorTools
         const string OutDir = "Assets/HorseRace/Animations";
         const string OutPath = OutDir + "/Mount.controller";
         const string HorseFbx = "Assets/HorseRace/Models/Horse.fbx";
+        const string CamelFbx = "Assets/HorseRace/Models/Camel.fbx";
+        const string SkeletonFbx = "Assets/HorseRace/Models/SkeletonHorse.fbx";
+        const string CamelOverridePath = OutDir + "/Mount_Camel.overrideController";
+        const string SkeletonOverridePath = OutDir + "/Mount_SkeletonHorse.overrideController";
         static readonly string[] AllFbx =
         {
             "Assets/HorseRace/Models/Horse.fbx",
@@ -118,6 +123,44 @@ namespace HorseRace.EditorTools
             EditorUtility.SetDirty(ctrl);
             AssetDatabase.SaveAssets();
             Debug.Log("[HorseRace] Mount.controller を作成しました: " + OutPath);
+
+            // ラクダ（中速は側対歩）・骨の馬は自分の FBX のクリップに差し替える
+            BuildOverride(ctrl, CamelFbx, CamelOverridePath);
+            BuildOverride(ctrl, SkeletonFbx, SkeletonOverridePath);
+            AssetDatabase.SaveAssets();
+        }
+
+        static void BuildOverride(AnimatorController baseCtrl, string fbxPath, string outPath)
+        {
+            Dictionary<string, AnimationClip> clips = LoadClips(fbxPath);
+            if (clips.Count == 0)
+            {
+                Debug.LogWarning("[HorseRace] " + fbxPath + " にクリップが無いため、オーバーライドは Horse のクリップのままです");
+            }
+            if (AssetDatabase.LoadAssetAtPath<AnimatorOverrideController>(outPath) != null)
+                AssetDatabase.DeleteAsset(outPath);
+
+            var ov = new AnimatorOverrideController(baseCtrl);
+            var pairs = new List<KeyValuePair<AnimationClip, AnimationClip>>(ov.overridesCount);
+            ov.GetOverrides(pairs);
+            int replaced = 0;
+            for (int i = 0; i < pairs.Count; i++)
+            {
+                AnimationClip original = pairs[i].Key;
+                AnimationClip replacement;
+                if (original != null && clips.TryGetValue(ShortName(original.name), out replacement))
+                {
+                    pairs[i] = new KeyValuePair<AnimationClip, AnimationClip>(original, replacement);
+                    replaced++;
+                }
+                else if (original != null)
+                {
+                    Debug.LogWarning("[HorseRace] " + fbxPath + " に '" + ShortName(original.name) + "' が無いため Horse のクリップを使います");
+                }
+            }
+            ov.ApplyOverrides(pairs);
+            AssetDatabase.CreateAsset(ov, outPath);
+            Debug.Log("[HorseRace] " + outPath + " を作成しました（" + replaced + " クリップ差し替え）");
         }
 
         static void Setup(AnimatorStateTransition t, bool exitTime)

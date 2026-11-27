@@ -228,7 +228,29 @@ namespace UnityEngine
         public Material[] sharedMaterials { get; set; }
     }
 
-    public class RuntimeAnimatorController : Object { }
+    public class RuntimeAnimatorController : Object
+    {
+        public AnimationClip[] animationClips => null;
+    }
+
+    public class Motion : Object { }
+
+    public class AnimationClip : Motion
+    {
+        public float length => 0f;
+    }
+
+    public class AnimatorOverrideController : RuntimeAnimatorController
+    {
+        public AnimatorOverrideController() { }
+        public AnimatorOverrideController(RuntimeAnimatorController controller) { }
+        public RuntimeAnimatorController runtimeAnimatorController { get; set; }
+        public AnimationClip this[string name] { get => null; set { } }
+        public AnimationClip this[AnimationClip clip] { get => null; set { } }
+        public int overridesCount => 0;
+        public void GetOverrides(System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<AnimationClip, AnimationClip>> overrides) { }
+        public void ApplyOverrides(System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<AnimationClip, AnimationClip>> overrides) { }
+    }
 
     public class Animator : Behaviour
     {

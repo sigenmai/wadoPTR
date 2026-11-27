@@ -22,6 +22,10 @@ namespace HorseRace
         public Animator horseAnimator;
         public Animator camelAnimator;
         public Animator skeletonAnimator;
+        /// <summary>Mount.controller / Mount_Camel.overrideController / Mount_SkeletonHorse.overrideController。</summary>
+        public RuntimeAnimatorController horseController;
+        public RuntimeAnimatorController camelController;
+        public RuntimeAnimatorController skeletonController;
         /// <summary>毛色を貼る馬モデルのレンダラー。</summary>
         public Renderer[] horseCoatRenderers;
         /// <summary>Horse_Bay, Horse_Chestnut, Horse_Black, Horse_Gray, Horse_Palomino, Horse_Dun の順（coat 0..5）。</summary>
@@ -40,6 +44,8 @@ namespace HorseRace
         public Transform earLeft;
         public Transform earRight;
         public Vector3 earsBackEuler = new Vector3(-50f, 0f, 0f);
+        /// <summary>耳のボーンがクリップでキーされている（毎フレーム Animator が上書きする）なら true。</summary>
+        public bool earsAnimated = true;
         public float tiredStamina = 40f;
 
         private int appliedMount = -1;
@@ -91,8 +97,14 @@ namespace HorseRace
             }
 
             activeAnim = camel ? camelAnimator : (skeleton ? skeletonAnimator : horseAnimator);
+            RuntimeAnimatorController ctrl = camel ? camelController : (skeleton ? skeletonController : horseController);
+            if (activeAnim != null && ctrl != null && activeAnim.runtimeAnimatorController != ctrl)
+            {
+                activeAnim.runtimeAnimatorController = ctrl;
+            }
             lastGait = -1;
             lastFlags = 0;
+            lastStamp = false;
 
             if (horse && coatMaterials != null && coat >= 0 && coat < coatMaterials.Length && coatMaterials[coat] != null
                 && horseCoatRenderers != null)
@@ -161,12 +173,17 @@ namespace HorseRace
                 if (!breathAudio.isPlaying && breathAudio.gameObject.activeInHierarchy) breathAudio.Play();
             }
 
-            if (!earsInit) return;
             float earTarget = (stamina >= 0f && stamina < tiredStamina) ? 1f : 0f;
             earBlend = Mathf.MoveTowards(earBlend, earTarget, Time.deltaTime * 3f);
-            Quaternion back = Quaternion.Euler(earsBackEuler);
-            if (earLeft != null) earLeft.localRotation = Quaternion.Slerp(earLRest, earLRest * back, earBlend);
-            if (earRight != null) earRight.localRotation = Quaternion.Slerp(earRRest, earRRest * back, earBlend);
+        }
+
+        /// <summary>Animator が耳を書いた後に上書きする（Update だと Animator に消される）。</summary>
+        private void LateUpdate()
+        {
+            if (!earsInit) return;
+            Quaternion offset = Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(earsBackEuler), earBlend);
+            if (earLeft != null) earLeft.localRotation = (earsAnimated ? earLeft.localRotation : earLRest) * offset;
+            if (earRight != null) earRight.localRotation = (earsAnimated ? earRight.localRotation : earRRest) * offset;
         }
     }
 }

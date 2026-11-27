@@ -20,6 +20,9 @@ namespace HorseRace
 
         [Header("Reins")]
         public float pullDeadzone = 0.05f;
+        /// <summary>左右の引き量の差がこれ（m）未満なら旋回しない。</summary>
+        public float steerDiffDeadzone = 0.1f;
+        public float steerDiffRange = 0.15f;
         public float pullRange = 0.2f;
         public float brakeThreshold = 0.5f;
         public float shakeSpeed = 1.2f;
@@ -81,7 +84,14 @@ namespace HorseRace
             }
             else
             {
-                steer = Mathf.Clamp(pullR - pullL, -1f, 1f);
+                // 右が多く引かれていれば右旋回。差が 10cm 未満は不感帯
+                float diff = (restR.z - r.z) - (restL.z - l.z);
+                float mag = Mathf.Abs(diff) - steerDiffDeadzone;
+                if (mag > 0f)
+                {
+                    float s = Mathf.Clamp01(mag / steerDiffRange);
+                    steer = diff > 0f ? s : -s;
+                }
             }
 
             float dt = Time.deltaTime;
