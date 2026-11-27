@@ -1,6 +1,7 @@
 // 荒野横断ホースレース用トゥーンシェーダー（Built-in Render Pipeline / VRChat ワールド用）
 // - リアル寄りのテクスチャを「平らに」して手描き風に寄せる（_Flatten）
 // - 2〜3段の陰影（セル）、影色、リムライト、アウトライン
+// - GPU インスタンシング対応（全パス multi_compile_instancing、Build World がマテリアルの enableInstancing を ON）
 // - 色相・彩度・明るさで毛色を変える（暗いたてがみ・蹄はあまり変わらない）
 Shader "HorseRace/Toon"
 {
@@ -90,6 +91,7 @@ Shader "HorseRace/Toon"
             #pragma fragment frag
             #pragma multi_compile_fwdbase
             #pragma multi_compile_fog
+            #pragma multi_compile_instancing
             #include "Lighting.cginc"
             #include "AutoLight.cginc"
 
@@ -104,11 +106,16 @@ Shader "HorseRace/Toon"
                 float3 wpos : TEXCOORD2;
                 SHADOW_COORDS(3)
                 UNITY_FOG_COORDS(4)
+                UNITY_VERTEX_OUTPUT_STEREO
             };
 
+            // appdata_base は UNITY_VERTEX_INPUT_INSTANCE_ID を含む（GPU インスタンシング）
             v2f vert(appdata_base v)
             {
                 v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_OUTPUT(v2f, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.texcoord, _MainTex);
                 o.nrm = UnityObjectToWorldNormal(v.normal);
@@ -159,12 +166,16 @@ Shader "HorseRace/Toon"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_fog
+            #pragma multi_compile_instancing
             fixed4 _OutlineColor;
             float _OutlineWidth;
-            struct v2f { float4 pos : SV_POSITION; UNITY_FOG_COORDS(0) };
+            struct v2f { float4 pos : SV_POSITION; UNITY_FOG_COORDS(0) UNITY_VERTEX_OUTPUT_STEREO };
             v2f vert(appdata_base v)
             {
                 v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_OUTPUT(v2f, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 float3 wn = UnityObjectToWorldNormal(v.normal);
                 // 遠くでも線が細くなりすぎないよう距離で少し太らせる（上限あり）
@@ -191,8 +202,17 @@ Shader "HorseRace/Toon"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_shadowcaster
-            struct v2f { V2F_SHADOW_CASTER; };
-            v2f vert(appdata_base v) { v2f o; TRANSFER_SHADOW_CASTER_NORMALOFFSET(o) return o; }
+            #pragma multi_compile_instancing
+            struct v2f { V2F_SHADOW_CASTER; UNITY_VERTEX_OUTPUT_STEREO };
+            v2f vert(appdata_base v)
+            {
+                v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_OUTPUT(v2f, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+                TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
+                return o;
+            }
             float4 frag(v2f i) : SV_Target { SHADOW_CASTER_FRAGMENT(i) }
             ENDCG
         }
