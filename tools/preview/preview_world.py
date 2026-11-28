@@ -435,7 +435,11 @@ def place(plan, origin, ground=None):
             o.location = pos
             from mathutils import Euler
             # Unity の pitch（ローカル X、負で前が上がる）→ Blender の X は符号が逆（art-r3-12：練習場のジャンプ台の丸太）
-            o.rotation_euler = (Euler((-math.radians(q.get("pitch", 0.0)), math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix() @ src.rotation_euler.to_matrix()).to_euler()
+            R_ = Euler((-math.radians(q.get("pitch", 0.0)), math.radians(q["roll"]), -math.radians(q["yaw"]))).to_matrix()
+            if q.get("u"):   # art-r7-01：斜面に沿わせた上向き（Unity の FromToRotation(up, u) × Euler(0, yaw, roll)。最小の回転は軸の入れ替えでも同じ）
+                u_ = q["u"]
+                R_ = Vector((0.0, 0.0, 1.0)).rotation_difference(Vector((u_[0], u_[2], u_[1])).normalized()).to_matrix() @ R_
+            o.rotation_euler = (R_ @ src.rotation_euler.to_matrix()).to_euler()
             s_ = q["s"]
             o.scale = (src.scale[0] * s_, src.scale[1] * s_, src.scale[2] * s_)
             if q.get("sv"):   # 引き伸ばし（Unity のローカル x, y, z）。取り込んだ部品のメッシュの軸は Unity と同じ（x, y = 上, z）で、

@@ -31,6 +31,7 @@ namespace UnityEngine
         public static int FloorToInt(float v) => (int)Math.Floor(v);
         public static int CeilToInt(float v) => (int)Math.Ceiling(v);
         public static float Atan(float v) => (float)Math.Atan(v);
+        public static float Acos(float v) => (float)Math.Acos(v);
         public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
 
         // Deterministic value noise (hash-based, bilinear smoothstep); output in [0,1].

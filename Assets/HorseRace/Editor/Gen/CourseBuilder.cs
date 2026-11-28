@@ -489,6 +489,10 @@ namespace HorseRace.EditorTools
         /// 足元（ground、宙の遺物は地面）に小石 5 個の輪（拾う判定の外）。灯りと粒は宝石（visual）の子なので、拾われると一緒に消える。
         /// </summary>
         public static RelicPickup Relic(Transform parent, string name, Vector3 pos, int gemIndex, bool spare, Vector3 ground)
+            => Relic(parent, name, pos, gemIndex, spare, ground, null);
+
+        /// <summary>groundAt = ワールドの地面（x, z → y）。あれば足元の小石の輪を 1 つずつ斜面に沿わせる（art-r7-01：前は宝石の足元の高さのまま斜面で浮いた）。</summary>
+        public static RelicPickup Relic(Transform parent, string name, Vector3 pos, int gemIndex, bool spare, Vector3 ground, GroundFit.Ground groundAt)
         {
             var go = GenUtil.World(parent, name, pos);
             var col = go.AddComponent<SphereCollider>();
@@ -523,8 +527,11 @@ namespace HorseRace.EditorTools
             {
                 float a = (i * 72f + 18f) * Mathf.Deg2Rad;
                 Vector3 pp = ground + new Vector3(Mathf.Sin(a) * 2.0f, -0.05f, Mathf.Cos(a) * 2.0f);
-                var peb = GenUtil.InstantiatePart(GenUtil.Pack("RockCollection"), "RockCollection_" + (8 * (1 + (GenUtil.Mod(gemIndex * 5 + i, 23)))).ToString("00"), go.transform, pp,
+                string pebPart = "RockCollection_" + (8 * (1 + (GenUtil.Mod(gemIndex * 5 + i, 23)))).ToString("00");
+                Placement fit = groundAt != null ? GroundFit.Part(DressingPlan.RCOLL, pebPart, pp, i * 71f, 2.2f, 0.05f, groundAt, "Relic") : null;
+                var peb = GenUtil.InstantiatePart(GenUtil.Pack("RockCollection"), pebPart, go.transform, fit != null ? fit.position : pp,
                     i * 71f, 2.2f, new Vector3(0.5f, 0.3f, 0.5f), new Color(0.55f, 0.42f, 0.32f));
+                if (fit != null) peb.transform.rotation = Quaternion.FromToRotation(Vector3.up, fit.up) * Quaternion.Euler(0f, i * 71f, 0f);
                 peb.name = "Pebble_" + i;
                 DressingBuilder.SetStatic(peb);
             }

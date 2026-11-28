@@ -165,7 +165,7 @@ namespace HorseRace.EditorTools
             {
                 var r = sb.relicSpots[i];
                 Vector3 g = sb.Ground(r.local.x, r.local.z);
-                ctx.courseRelics.Add(CourseBuilder.Relic(relicRoot, "Relic_" + (i + 1), g + Vector3.up * r.up, sb.def.index, false, g));
+                ctx.courseRelics.Add(CourseBuilder.Relic(relicRoot, "Relic_" + (i + 1), g + Vector3.up * r.up, sb.def.index, false, g, WorldGround(sb)));
             }
         }
 
@@ -259,9 +259,11 @@ namespace HorseRace.EditorTools
                     for (float lat = SetPieces.SPINE_HALF + 2.5f; lat < SetPieces.DETOUR_FROM - 2f; lat += SetPieces.LIP_ROCK_STEP, gi++, li++)
                     {
                         if (!SetPieces.LipRockKept(lat, li)) continue;   // course-r3-04：背の近くは 1 つおき（溝の口が手前から見える）
-                        Vector3 w = sb.GroundWorld(center + t * (e * lipAlong) + r * (s * lat));
                         string part = "DesertRocks_0" + (4 + gi % 6);
-                        var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, guard, w - Vector3.up * 0.3f, yaw + 90f + gi * 37f, 0.9f,
+                        // art-r7-01：溝の縁から張り出して宙に浮かないよう、溝から離れる向きへ底の面が地面に乗るまでずらす（SetPieces.LIP_ROCK_SETBACK_MAX_M まで）
+                        var lipFit = GroundFit.SlideOffEdge(DressingPlan.DROCKS, part, center + t * (e * lipAlong) + r * (s * lat), t * e, SetPieces.LIP_ROCK_SETBACK_MAX_M,
+                            yaw + 90f + gi * 37f, 0.9f, 0.3f, WorldGround(sb));
+                        var rock = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), part, guard, lipFit.position, yaw + 90f + gi * 37f, 0.9f,
                             new Vector3(4f, 1.6f, 2f), Rock);
                         DressingBuilder.AddCollider(rock, false);
                         GenUtil.SetLayerRecursive(rock, WorldLayers.Block);
@@ -324,6 +326,25 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>足元の中心と半径 rad の 4 点のいちばん低い地面（ワールド）と高さの差（art-r4-08）。p はワールド。</summary>
+        /// <summary>art-r7-01：ステージの地面（ワールドの x, z → y）。</summary>
+        static GroundFit.Ground WorldGround(StageBuild sb) => (x, z) => sb.GroundWorld(new Vector3(x, 0f, z)).y;
+
+        /// <summary>
+        /// art-r7-01：地面に置く部品を斜面に合わせて実体化する（GroundFit.Part：岩・骨・干し草・焚き火は地面の傾きへ沿わせ、
+        /// 底の面のいちばん地面に近い所で接して sink だけ沈める。街灯・杭はまっすぐ浮かないように）。world = 足元（x, z、y は無視）。
+        /// </summary>
+        static GameObject PartOnGround(StageBuild sb, Transform parent, string pack, string part, Vector3 world, float yaw, float scale, float sink, Vector3 fb, Color c)
+        {
+            var p = GroundFit.Part("Packs/" + pack + "/" + pack + ".fbx", part, world, yaw, scale, sink, WorldGround(sb));
+            var go = GenUtil.InstantiatePart(GenUtil.Pack(pack), part, parent, p.position, yaw, scale, fb, c);
+            go.transform.rotation = Quaternion.FromToRotation(Vector3.up, p.up) * Quaternion.Euler(0f, yaw, 0f);
+            return go;
+        }
+
+        /// <summary>art-r7-01：まっすぐ立てる部品の足元（底の面のどこも浮かない高さ）。</summary>
+        static Vector3 PartOnGroundSpot(StageBuild sb, string pack, string part, Vector3 world, float yaw, float scale, float sink)
+            => GroundFit.Part("Packs/" + pack + "/" + pack + ".fbx", part, world, yaw, scale, sink, WorldGround(sb)).position;
+
         static Vector3 GroundedLow(StageBuild sb, Vector3 p, float rad, out float span)
         {
             Vector3 g = sb.GroundWorld(p);
@@ -410,15 +431,17 @@ namespace HorseRace.EditorTools
                 if (sk != null)
                 {
                     foreach (var an in sk.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(an);   // 動かない骨
-                    sk.transform.position = gp - Vector3.up * 0.15f;
-                    sk.transform.rotation = Quaternion.Euler(0f, yaw + i * 70f, 85f);
+                    // art-r7-01：横倒しの骨の馬は溝の底の斜面に沿わせる（GroundFit.Part、roll 85°）
+                    var skFit = GroundFit.Part(DressingPlan.SKELETON, null, gp, yaw + i * 70f, 1f, 0.15f, WorldGround(sb), "SetPiece", 85f);
+                    sk.transform.position = skFit.position;
+                    sk.transform.rotation = Quaternion.FromToRotation(Vector3.up, skFit.up) * Quaternion.Euler(0f, yaw + i * 70f, 85f);
                     DressingBuilder.SetStatic(sk);
                 }
                 for (int b = 0; b < 3; b++)
                 {
                     string part = b == 0 ? "DesertProps_07" : (b == 1 ? "DesertProps_08" : "DesertProps_14");
-                    Vector3 bp = sb.GroundWorld(p + new Vector3(Mathf.Sin(b * 2.1f + i) * 2.5f, 0f, Mathf.Cos(b * 2.1f + i) * 2.5f));
-                    DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("DesertProps"), part, g, bp - Vector3.up * 0.05f, b * 80f + i * 30f, 1.1f, new Vector3(1.5f, 0.6f, 1.5f), Rock));
+                    Vector3 bp = p + new Vector3(Mathf.Sin(b * 2.1f + i) * 2.5f, 0f, Mathf.Cos(b * 2.1f + i) * 2.5f);
+                    DressingBuilder.SetStatic(PartOnGround(sb, g, "DesertProps", part, bp, b * 80f + i * 30f, 1.1f, 0.05f, new Vector3(1.5f, 0.6f, 1.5f), Rock));   // art-r7-01：溝の底の斜面に沿わせる
                 }
             }
         }
@@ -517,8 +540,9 @@ namespace HorseRace.EditorTools
             for (int e = -1; e <= 1; e += 2)
                 for (int s = -1; s <= 1; s += 2)
                 {
-                    Vector3 fp = sb.GroundWorld(center + t * (e * (len * 0.5f + 6f)) + r * (s * (SetPieces.SPINE_HALF + 3f)));
-                    var fire = GenUtil.InstantiatePart(GenUtil.Pack("Campfire"), "Campfire_01", sig, fp, s * 40f, 1f, new Vector3(1.5f, 0.6f, 1.5f), Rock);
+                    var fire = PartOnGround(sb, sig, "Campfire", "Campfire_01", center + t * (e * (len * 0.5f + 6f)) + r * (s * (SetPieces.SPINE_HALF + 3f)), s * 40f, 1f, 0.05f,
+                        new Vector3(1.5f, 0.6f, 1.5f), Rock);   // art-r7-01：斜面に沿わせる
+                    Vector3 fp = fire.transform.position;
                     DressingBuilder.SetStatic(fire);
                     GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
                     GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, 18f, 1.6f);
@@ -590,7 +614,8 @@ namespace HorseRace.EditorTools
             // art-r5-09：入口の両脇に町の街灯（FarmProps_02）と暖色の灯り、赤い紙の旗の柱、15m の煙の柱（150m 先から入口が分かる）
             for (int s = -1; s <= 1; s += 2)
             {
-                Vector3 lp = sb.GroundWorld(entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f)));
+                // art-r7-01：街灯はまっすぐ、斜面の下側で浮かないよう足元のいちばん低い所へ（GroundFit.Part）
+                Vector3 lp = PartOnGroundSpot(sb, "FarmProps", "FarmProps_02", entryW + rgt * (s * (SetPieces.SHORTCUT_HALF_WIDTH + 1.5f)), yaw + (s > 0 ? 180f : 0f), SetPieces.SHORTCUT_LAMP_SCALE, 0.05f);
                 DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), "FarmProps_02", g, lp, yaw + (s > 0 ? 180f : 0f), SetPieces.SHORTCUT_LAMP_SCALE,
                     new Vector3(0.6f, 3f, 0.6f), Wood));
                 GenUtil.PointLight(g, "EntryLampLight", lp + Vector3.up * (2.9f * SetPieces.SHORTCUT_LAMP_SCALE), LampWarm, 12f, 1.6f);
@@ -601,8 +626,7 @@ namespace HorseRace.EditorTools
                 var flag = GenUtil.World(g, "EntryFlag", fp + Vector3.up * (SetPieces.SHORTCUT_FLAG_POST_H - 1.0f) + rgt * 0.55f, yaw);
                 var sheet = GenUtil.PaperSheet(flag.transform, "Flag", "WantedPosters_02", new Vector3(0f, 0f, -0.15f), null, 1.0f, 1.2f);
                 GenUtil.RetintToon(sheet, SetPieces.ShortcutFlagRed, "EntryFlag");
-                Vector3 cf = sb.GroundWorld(entryW - rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 7f) - dir * 4f);
-                var fire = GenUtil.InstantiatePart(GenUtil.Pack("Campfire"), "Campfire_01", g, cf, 30f, 1.1f, new Vector3(1.5f, 0.6f, 1.5f), Rock);
+                var fire = PartOnGround(sb, g, "Campfire", "Campfire_01", entryW - rgt * (SetPieces.SHORTCUT_HALF_WIDTH + 7f) - dir * 4f, 30f, 1.1f, 0.05f, new Vector3(1.5f, 0.6f, 1.5f), Rock);   // art-r7-01
                 DressingBuilder.SetStatic(fire);
                 GenUtil.Particles(fire.transform, "Flames", new Vector3(0f, 0.4f, 0f), new Color(1f, 0.55f, 0.15f, 0.9f), 0.35f, 1.2f, 0.8f, true, 20f, 0.3f);
                 GenUtil.SmokeColumn(fire.transform, "Smoke", new Vector3(0f, 1f, 0f), SmokeGrey, SetPieces.SHORTCUT_SMOKE_M, 1.8f);
@@ -708,20 +732,22 @@ namespace HorseRace.EditorTools
             // 縁の両脇 ±9m に干し草の山（中央の跳ぶ線と横の転がる線の境目）
             for (int s = -1; s <= 1; s += 2)
             {
-                Vector3 hp = sb.GroundWorld(lip + r * (s * 9f) - t * 0.5f);
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hp, yaw, 1f, new Vector3(1.5f, 1.6f, 1.5f), SandRamp));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hp + Vector3.up * 1.55f + t * 0.2f, yaw + 40f, 0.9f,
-                    new Vector3(1.5f, 1.6f, 1.5f), SandRamp));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_0" + (2 + (s > 0 ? 1 : 0)), g, hp - t * 1.6f, yaw + 90f, 1f,
+                // art-r7-01：干し草は砂丘の斜面に沿わせる。上の 1 つは下の干し草の上面の真ん中（傾きごと）に載せる
+                var baseHay = PartOnGround(sb, g, "HayBales", "HayBales_01", lip + r * (s * 9f) - t * 0.5f, yaw, 1f, 0.05f, new Vector3(1.5f, 1.6f, 1.5f), SandRamp);
+                DressingBuilder.SetStatic(baseHay);
+                var topHay = GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, baseHay.transform.position + baseHay.transform.up * 1.55f + t * 0.2f, yaw + 40f, 0.9f,
+                    new Vector3(1.5f, 1.6f, 1.5f), SandRamp);
+                topHay.transform.rotation = Quaternion.FromToRotation(Vector3.up, baseHay.transform.up) * Quaternion.Euler(0f, yaw + 40f, 0f);
+                DressingBuilder.SetStatic(topHay);
+                DressingBuilder.SetStatic(PartOnGround(sb, g, "HayBales", "HayBales_0" + (2 + (s > 0 ? 1 : 0)), lip + r * (s * 9f) - t * 0.5f - t * 1.6f, yaw + 90f, 1f, 0.05f,
                     new Vector3(0.9f, 0.6f, 0.7f), SandRamp));
             }
             GenUtil.PointLight(g, "BoostLight", lip - t * 1.2f + Vector3.up * 0.6f, BoostTeal, 8f, 2.2f);
             // art-r5-09：手前の干し草の漏斗（跳ぶ線へ寄せる）・縁の青緑に光る旗の柱 2 本・縁の砂のしぶき
             foreach (var hv in SetPieces.JumpFunnel())
             {
-                Vector3 hp = sb.GroundWorld(lip + t * hv.x + r * hv.y);
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("HayBales"), "HayBales_01", g, hp - Vector3.up * 0.05f, yaw + hv.x * 13f, 0.85f,
-                    new Vector3(1.3f, 1.3f, 1.3f), SandRamp));
+                DressingBuilder.SetStatic(PartOnGround(sb, g, "HayBales", "HayBales_01", lip + t * hv.x + r * hv.y, yaw + hv.x * 13f, 0.85f, 0.05f,
+                    new Vector3(1.3f, 1.3f, 1.3f), SandRamp));   // art-r7-01：漏斗の干し草は斜面に沿わせる
             }
             for (int s = -1; s <= 1; s += 2)
             {
@@ -741,17 +767,17 @@ namespace HorseRace.EditorTools
             // 着地の砂煙と、着地の先の骨（走る線の外）
             Vector3 land = sb.GroundWorld(lip + t * 18f);
             GenUtil.DustBox(g, "LandingSand", land - g.position + Vector3.up * 0.5f, new Vector3(14f, 0.5f, 10f), SandDust, new Vector3(0.8f, 0.3f, 0.4f), 6f);
-            var skel = GenUtil.PlaceModel(GenUtil.SKELETON_FBX, g, "SkeletonHorse", sb.GroundWorld(lip + t * 22f + r * 18f) - Vector3.up * 0.15f, yaw + 30f, 1f,
+            var skFit2 = GroundFit.Part(DressingPlan.SKELETON, null, lip + t * 22f + r * 18f, yaw + 30f, 1f, 0.15f, WorldGround(sb), "SetPiece", 85f);   // art-r7-01
+            var skel = GenUtil.PlaceModel(GenUtil.SKELETON_FBX, g, "SkeletonHorse", skFit2.position, yaw + 30f, 1f,
                 new Vector3(2f, 1.2f, 2.6f), SandRamp);
             foreach (var a in skel.GetComponentsInChildren<Animator>(true)) Object.DestroyImmediate(a);
-            skel.transform.rotation = Quaternion.Euler(0f, yaw + 30f, 85f);
+            skel.transform.rotation = Quaternion.FromToRotation(Vector3.up, skFit2.up) * Quaternion.Euler(0f, yaw + 30f, 85f);
             DressingBuilder.SetStatic(skel);
             string[] bones = { "DesertProps_07", "DesertProps_08", "DesertProps_08" };
             for (int i = 0; i < bones.Length; i++)
             {
-                Vector3 bp = sb.GroundWorld(lip + t * (16f + i * 6f) + r * (-(16f + i)));
-                DressingBuilder.SetStatic(GenUtil.InstantiatePart(GenUtil.Pack("DesertProps"), bones[i], g, bp - Vector3.up * 0.05f, yaw + i * 70f, 1.1f,
-                    new Vector3(1.5f, 0.6f, 1.5f), Paper));
+                DressingBuilder.SetStatic(PartOnGround(sb, g, "DesertProps", bones[i], lip + t * (16f + i * 6f) + r * (-(16f + i)), yaw + i * 70f, 1.1f, 0.05f,
+                    new Vector3(1.5f, 0.6f, 1.5f), Paper));   // art-r7-01：骨は砂丘の斜面に沿わせる
             }
             // 砂丘の稜線から吹く砂（踏み切りの両脇の遠く）
             for (int s = -1; s <= 1; s += 2)

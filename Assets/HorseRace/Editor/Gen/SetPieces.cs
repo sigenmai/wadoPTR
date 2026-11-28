@@ -155,6 +155,8 @@ namespace HorseRace.EditorTools
         public const float PASS_ROAD_BLEND = 4f;       // 道の帯（PASS_ROAD_HALF）の外 4m で下げ幅を 0 へ
 
         // 砂漠の踏切（course-r2-04）：序盤の道に沿って線路（WesternTown_049_Track、長さ 95.6m）を 2 本つなぎ、幅 3m の路盤だけ固い（道の上は深い砂）
+        /// <summary>art-r7-01：溝の縁の岩を溝から離れる向きへずらす上限（底の面が縁から張り出して宙に浮かない所まで）。</summary>
+        public const float LIP_ROCK_SETBACK_MAX_M = 4f;
         public const float RAIL_LENGTH = 95.6f;
         public const float RAIL_LATERAL = 7f;          // 道の中心から路盤の中心まで（道の右寄り、半幅 12m の内側）
         public const int RAIL_RUNS = 2;

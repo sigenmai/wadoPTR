@@ -134,6 +134,7 @@ namespace HorseRace.EditorTools
             info.Add("ロビー：町のまわりの飾り " + lobbyN + " 個（上限 " + DressingPlan.MAX_LOBBY + "）、柵 " + fenceN + " 区間（出入口 " + LobbyLayout.Gates.Length
                 + "）、柵の外の木の帯 " + beltN + " 本（別枠、上限 " + LobbyLayout.MAX_BELT + "）");
             CheckLobbySeam(root, warn, info);
+            CheckLobbyGrounding(root, warn, info);   // art-r7-01
             CheckWiring(root, warn, info);
             CheckAudio(root, warn, info);
             CheckLook(warn, info);
@@ -408,6 +409,46 @@ namespace HorseRace.EditorTools
             }
             if (bad > 0) warn.Add(tag + "：浮いている飾り " + bad + " 個（最大 " + worst.ToString("F2") + "m：" + which + "、art-r5-03）");
             else info.Add(tag + "：飾り " + plan.Count + " 個はどれも地面に着いている");
+            ReportGroundAudit(tag, GroundFit.Audit(plan, GroundFit.ForHeights(h, sizeM)), warn, info);
+        }
+
+        /// <summary>
+        /// art-r7-01：斜面と接地の検査（GroundFit.Audit：メッシュの外形の底の面で、浮く・埋もれる・端が刺さる・地面に沿う物が急な斜面にまっすぐ）。
+        /// 浮く・急な斜面にまっすぐは 1 つでも警告、埋もれる・刺さるは STAGE_BURIED_WARN 個を超えたら警告（尾根をまたぐ柵の板などのわずかな残り）。
+        /// </summary>
+        const int STAGE_BURIED_WARN = 12;
+        static void ReportGroundAudit(string tag, GroundFit.Report r, List<string> warn, List<string> info)
+        {
+            string top = string.Join("、", r.Top(3).ToArray());
+            if (r.floating > 0 || r.plumbSteep > 0 || r.buried + r.poking > STAGE_BURIED_WARN)
+                warn.Add(tag + "：斜面と接地（art-r7-01）" + r.Summary("") + (top.Length > 0 ? "　多い順：" + top : ""));
+            else info.Add(tag + "：斜面と接地（art-r7-01）" + r.Summary(""));
+        }
+
+        /// <summary>
+        /// art-r7-01：ロビーの置き物（町のまわりの飾り・埋めた敷地・木の帯・尾根の岩）の接地。LobbyBuilder と同じ手順（LobbyLayout.SettleOnGround）で
+        /// 計画を作り直し、実際のロビーの地形（町の板の上は通り = 0）で調べる。
+        /// </summary>
+        static void CheckLobbyGrounding(GameObject root, List<string> warn, List<string> info)
+        {
+            Transform lt = GenUtil.FindDeep(root.transform, "LobbyGround");
+            Terrain lobby = lt != null ? lt.GetComponent<Terrain>() : null;
+            if (lobby == null) return;
+            Vector3 c = WorldBounds.LOBBY_CENTER;
+            System.Func<Vector3, float> ground = rel =>
+            {
+                Vector4 tb = LobbyLayout.TOWN_NOMINAL_RECT;
+                if (rel.x >= tb.x && rel.x <= tb.z && rel.z >= tb.y && rel.z <= tb.w) return 0f;   // 町の模型の地面の板
+                Vector3 w = c + rel;
+                return lobby.SampleHeight(w) + lobby.transform.position.y - c.y;
+            };
+            var tn = LobbyLayout.TOWN_NOMINAL_RECT;
+            var all = DressingPlan.ForLobby(new Vector2(tn.x, tn.y), new Vector2(tn.z, tn.w), LobbyLayout.LobbyDressingExclusions(), 4242);
+            LobbyLayout.SettleOnGround(all, ground);
+            var lots = LobbyLayout.LotFill(); LobbyLayout.SettleOnGround(lots, ground); all.AddRange(lots);
+            var belt = LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT, 3); LobbyLayout.SettleOnGround(belt, ground); all.AddRange(belt);
+            var crown = LobbyLayout.RimCrown(LobbyLayout.FENCE_RECT, 11); LobbyLayout.GroundCrown(crown, ground); LobbyLayout.FitToGround(crown, ground); all.AddRange(crown);
+            ReportGroundAudit("ロビー", GroundFit.Audit(all, (x, z) => ground(new Vector3(x, 0f, z))), warn, info);
         }
 
         /// <summary>

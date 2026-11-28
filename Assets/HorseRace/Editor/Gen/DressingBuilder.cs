@@ -59,6 +59,9 @@ namespace HorseRace.EditorTools
                     ? GenUtil.InstantiatePart(path, p.part, parent, w, p.yawDeg, p.scale, fb, Fallback)
                     : GenUtil.PlaceModel(path, parent, System.IO.Path.GetFileNameWithoutExtension(p.asset), w, p.yawDeg, p.scale, fb, Fallback);
                 if (p.rollDeg != 0f) go.transform.rotation = Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
+                // art-r7-01：斜面に沿わせた向き（GroundFit：地面に沿う物は地面の傾きへ、柵・丸太は長さに沿って）。回転 = FromToRotation(up, p.up) × Euler(0, yaw, roll)
+                if ((p.up - Vector3.up).sqrMagnitude > 1e-8f)
+                    go.transform.rotation = Quaternion.FromToRotation(Vector3.up, p.up) * Quaternion.Euler(0f, p.yawDeg, p.rollDeg);
                 if (p.scaleY != 1f || p.scaleZ != 1f) go.transform.localScale = new Vector3(s, s * p.scaleY, s * p.scaleZ);   // 縦に伸ばした岩（art-r2-08）・立てた丸太の杭（art-r3-02）
                 // art-r5-04：置き物ごとの色（切り通しの段の明暗）
                 if (p.tint != Color.white) GenUtil.RetintToon(go, p.tint, "Tier");

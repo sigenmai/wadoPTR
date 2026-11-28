@@ -193,7 +193,13 @@ namespace HorseRace.Tests
             // 門：メサ ×2.4 が 2 つ、尾根の焚き火 2 つ、底の道ばたは岩（杭なし）
             Assert.AreEqual(2, b.plan.Count(p => p.group == "MesaGate" && (p.asset == DressingPlan.MESA || p.asset == DressingPlan.MESAB) && Mathf.Abs(p.scale - DressingPlan.MESA_GATE_SCALE) < 1e-3f), "メサ ×2.4");
             Assert.AreEqual(2, b.plan.Count(p => p.group == "MesaGate" && p.asset == DressingPlan.CAMPFIRE), "尾根の焚き火: " + string.Join(",", b.plan.Where(p => p.group == "MesaGate").Select(p => p.asset)));
-            Assert.Greater(b.plan.Count(p => p.group == "PassFloor"), 10);
+            // art-r7-01：切り通しの底は狭く、道ばたの岩（PassFloor）は壁の裾で高さの 130〜400% 埋もれて見えなかった（数だけ数えていた）。
+            // 壁に貼り付く・埋もれる岩は外し、道の縁は灯りの列（PassLamp、art-r6-03）が縁取る
+            var gr = GroundFit.ForHeights(b.h, StageDefinitions.SIZE);
+            foreach (var p in b.plan.Where(q => q.group == "PassFloor"))
+                Assert.IsFalse(GroundFit.Buried(p, GroundFit.KindOf(p), gr) || GroundFit.OnWall(p, GroundFit.KindOf(p), gr), "見えない道ばたの岩");
+            var cum0 = DressingPlan.CourseArcs(b.local);
+            Assert.GreaterOrEqual(b.plan.Count(p => p.group == "PassLamp" && Mathf.Abs(DressingPlan.NearestArc(b.local, cum0, p.position, out float _) - pass) < DressingPlan.PASS_FLOOR_HALF_M), 10, "切り通しの道の縁の灯りの列");
             var cum = DressingPlan.CourseArcs(b.local);
             foreach (var p in b.plan.Where(q => q.part == DressingPlan.POST_PART && q.rollDeg == 90f && !q.lamp))   // art-r4-14：切り通しの灯りの柱は別
                 Assert.Greater(Mathf.Abs(DressingPlan.NearestArc(b.local, cum, p.position, out float _) - pass), SetPieces.PASS_HALF_CUT, "切り通しの中に杭");

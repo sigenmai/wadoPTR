@@ -8,6 +8,7 @@ namespace UnityEngine
         public static Vector3 up => new Vector3(0, 1, 0);
         public static Vector3 one => new Vector3(1, 1, 1);
         public static Vector3 forward => new Vector3(0, 0, 1);
+        public static Vector3 right => new Vector3(1, 0, 0);
         public static Vector3 back => new Vector3(0, 0, -1);
         public float magnitude => Mathf.Sqrt(x * x + y * y + z * z);
         public float sqrMagnitude => x * x + y * y + z * z;

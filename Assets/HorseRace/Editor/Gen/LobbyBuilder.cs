@@ -29,7 +29,7 @@ namespace HorseRace.EditorTools
         public const float GROUND_HEIGHT_RANGE = 80f;   // 外周の尾根（〜25m）が入る高さ
         public const float RIM_WIDTH_M = LobbyLayout.RIM_WIDTH_M, RIM_MIN_M = LobbyLayout.RIM_MIN_M, RIM_MAX_M = LobbyLayout.RIM_MAX_M;   // ロビーの外周の尾根
         public const float BORDER_OUT_M = 6f;          // 見えない壁：柵の 6m 外（尾根の手前）
-        public const float BERM_M = 8f, BERM_HEIGHT_M = 0.6f;   // 町の足元のまわりを少し盛って土台の縁を隠す
+        public const float BERM_M = LobbyLayout.BERM_M, BERM_HEIGHT_M = LobbyLayout.BERM_HEIGHT_M;   // 町の足元のまわりを少し盛って土台の縁を隠す（art-r7-01：LobbyLayout.ModelGround と同じ値）
         public const float GROUND_LEVEL = 2f;            // 地形の高さ 2m（Terrain は y = -2 に置く）→ 地面 y = 0
         public const float STREET_HEIGHT_FALLBACK = 13.75f;
         public static readonly Vector3 PRACTICE_OFFSET = LobbyLayout.PRACTICE_CENTER;
@@ -133,18 +133,28 @@ namespace HorseRace.EditorTools
             }
             var belt = GenUtil.World(root, "LobbyTreeBelt", CENTER).transform;
             var trees = LobbyLayout.TreeBelt(fenceRect, 3);
-            // 幹の足元を実際の地形の高さ − 0.2m に置き直す（尾根のノイズ・土手の分。根元が斜面から浮かない：art-r1-05）
-            foreach (var t in trees) t.position = new Vector3(t.position.x, TerrainY(t.position) - 0.2f, t.position.z);
+            // 幹の足元を実際の地形の高さ − 0.2m に置き直す（尾根のノイズ・土手の分。根元が斜面から浮かない：art-r1-05）。
+            // art-r7-01：帯の岩は斜面に沿わせ、木は幹の足元のいちばん低い所へ（LobbyLayout.SettleOnGround）
+            LobbyLayout.SettleOnGround(trees, TerrainY);
             DressingBuilder.Instantiate(trees, belt, CENTER, "Belt");
             // 尾根の上の岩の冠（切れ目あり、見晴らしの切れ目には置かない）。高さの 25% を地形に埋める
             var crownRoot = GenUtil.World(root, "LobbyRimCrown", CENTER).transform;
             var crown = LobbyLayout.RimCrown(fenceRect, 11);
             LobbyLayout.GroundCrown(crown, TerrainY);   // art-r3-13：足元の 4 隅の一番低い地面へ
+            LobbyLayout.FitToGround(crown, TerrainY);   // art-r7-01：尾根の斜面へ傾け、外形の底のどこも浮かないように
             DressingBuilder.Instantiate(crown, crownRoot, CENTER, "Crown");
             Debug.Log("[HorseRace] ロビーの柵 " + segs.Count + " 区間（切れ目 " + LobbyLayout.Gates.Length + "）、柵の外の木の帯 " + trees.Count + " 本、尾根の岩 " + crown.Count + " 個");
         }
 
         static Terrain lobbyTerrain;
+
+        /// <summary>art-r7-01：歩ける面の高さ：町の模型の地面の板の上（通り = 0）か、その外の地形（TerrainY）。</summary>
+        static float SurfaceY(Vector3 rel)
+        {
+            Vector3 w = CENTER + rel;
+            if (w.x >= plateBounds.min.x && w.x <= plateBounds.max.x && w.z >= plateBounds.min.z && w.z <= plateBounds.max.z) return 0f;
+            return TerrainY(rel);
+        }
 
         /// <summary>ロビー中心からの相対位置 rel の地形の高さ（ロビー中心からの相対 y）。地形が無ければ LobbyLayout の式。</summary>
         static float TerrainY(Vector3 rel)
@@ -161,10 +171,11 @@ namespace HorseRace.EditorTools
             Bounds tb = GenUtil.RendererBounds(town);
             var plan = DressingPlan.ForLobby(new Vector2(tb.min.x - CENTER.x, tb.min.z - CENTER.z), new Vector2(tb.max.x - CENTER.x, tb.max.z - CENTER.z),
                 LobbyExclusions(), 4242);
+            LobbyLayout.SettleOnGround(plan, SurfaceY);   // art-r7-01：前は y = 0 のまま（町の土手に 0.3m 埋もれ、柵の外の上りで浮いた）
             DressingBuilder.Instantiate(plan, dr, CENTER, "Lobby");
             // art-r5-11：空いた敷地（建物の区画・東の裏の暮らし・囲いの馬・線路の終わりの荷の台）。地形の高さへ置き直す
             var lots = LobbyLayout.LotFill();
-            foreach (var q in lots) q.position = new Vector3(q.position.x, TerrainY(q.position) - 0.05f, q.position.z);
+            LobbyLayout.SettleOnGround(lots, SurfaceY);   // art-r7-01：前は中心の地形 − 0.05（板の上の荷の台が 1m 下の地形に埋もれ、斜面の柵・薪が浮いた）
             DressingBuilder.Instantiate(lots, dr, CENTER, "Lots");
             foreach (var q in lots)
                 if (q.asset == DressingPlan.CAMPFIRE)

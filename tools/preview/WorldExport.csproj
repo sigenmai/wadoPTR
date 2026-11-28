@@ -8,6 +8,8 @@
     <Compile Include="../../Assets/HorseRace/Editor/Gen/WorldLayout.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/SetPieces.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/DressingPlan.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/GroundFit.cs" />
+    <Compile Include="../../Assets/HorseRace/Editor/Gen/PartBounds.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LobbyLayout.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/LightingPlan.cs" />
     <Compile Include="../../Assets/HorseRace/Editor/Gen/ArtPalette.cs" />

@@ -264,6 +264,14 @@ namespace HorseRace.Tests
                 if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;   // 立てた丸太の杭は中心が柱の真ん中
                 if (p.group == "GiantSkeleton" || p.asset == DressingPlan.SKELETON) continue;   // 横倒しの骨は原点が腰
                 if (p.group == "WallFace" && p.tint != Color.white) continue;   // art-r6-02：切り通しの段の岩は棚の上（中心の地面）に立てる。前の縁は下の段の岩が隠す
+                // art-r7-01：斜面に合わせた物（GroundFit）は回した外形の底の面（メッシュの外形）で調べる
+                int kind = GroundFit.KindOf(p);
+                if (kind != GroundFit.SKIP)
+                {
+                    float gap = GroundFit.ContactOffset(p, kind, GroundFit.ForHeights(b.h, StageDefinitions.SIZE));
+                    if (gap < -0.05f) { bad++; if (bad < 5) TestContext.WriteLine($"  floating {p.group} {p.asset} {p.part} gap {-gap:F2}"); }
+                    continue;
+                }
                 // art-r5-03：足元は 8 点・半径 fr（木・サボテンは幹の半径：Add が記録した GroundRadius）
                 DressingPlan.FootprintRange(b.h, StageDefinitions.SIZE, p.position, DressingPlan.GroundRadius(p), out float mn, out _, out float g0);
                 if (p.position.y > mn + 0.05f || p.position.y > g0 + 0.3f) { bad++; if (bad < 5) TestContext.WriteLine($"  floating {p.group} {p.asset} {p.part} y {p.position.y:F2} ground {mn:F2}"); }

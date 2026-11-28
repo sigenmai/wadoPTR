@@ -505,7 +505,7 @@ namespace HorseRace.EditorTools
                     {
                         group = "TreeBelt", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - 0.3f, p.z),
                         yawDeg = (float)rng.NextDouble() * 360f, scale = scale, radius = sz.r * scale, height = sz.h * scale,
-                        collider = false, shape = DressingPlan.SHAPE_NONE,
+                        collider = false, shape = DressingPlan.SHAPE_NONE, designSink = 0.2f,
                     });
                 }
             }
@@ -627,6 +627,57 @@ namespace HorseRace.EditorTools
         public const float CROWN_SINK = 0.15f;      // art-r3-13：足元の 4 隅の一番低い地面から高さの 15% 埋める
         public const float CROWN_FOOT = 0.7f;       // 4 隅 = 中心から外形の半径 × 0.7
 
+        // ---- art-r7-01：斜面と接地 ----
+        /// <summary>町の足元のまわりの土手（LobbyBuilder の地形と同じ：町の外形の外 BERM_M で BERM_HEIGHT_M → 0、南の入口の前は無し）。</summary>
+        public const float BERM_M = 8f, BERM_HEIGHT_M = 0.6f;
+
+        /// <summary>
+        /// ロビーの地面の高さ（ロビー中心からの相対、通り = 0）：LobbyBuilder の Terrain と同じ式を、町の外形・地面の板を TOWN_NOMINAL_RECT として計算する
+        /// （町の足元は −1m、土手、柵の外の盛り上がりと尾根のノイズ、板の縁、近づく道の通路、練習場の丘）。下見・テストの接地の基準。
+        /// </summary>
+        public static float ModelGround(Vector3 rel)
+        {
+            Vector4 tb = TOWN_NOMINAL_RECT;
+            bool under = rel.x > tb.x + 1f && rel.x < tb.z - 1f && rel.z > tb.y + 1f && rel.z < tb.w - 1f;
+            float level = under ? -1f : 0f;
+            float dx = Mathf.Max(0f, Mathf.Max(tb.x - rel.x, rel.x - tb.z)), dz = Mathf.Max(0f, Mathf.Max(tb.y - rel.z, rel.z - tb.w));
+            float dd = Mathf.Sqrt(dx * dx + dz * dz);
+            if (!under && dd < BERM_M && rel.z >= tb.y) level += BERM_HEIGHT_M * (1f - dd / BERM_M);
+            float lx = rel.x - TERRAIN_RECT.x, lz = rel.z - TERRAIN_RECT.y;
+            float noise = Mathf.Clamp01(0.8f * HeightmapGen.Noise01(lx / 140f, lz / 140f, 99, 21) + 0.2f * HeightmapGen.Noise01(lx / 35f, lz / 35f, 99, 22));
+            level += GroundHeight(FENCE_RECT, rel, noise);
+            level = PlateBlend(dd, level, 0f);
+            float cw = ApproachCorridorWeight(rel);
+            if (cw > 0f) level = Mathf.Lerp(level, 0f, cw);
+            float db = WorldLayout.DistXZ(rel, PRACTICE_BUMP);
+            if (db < 6f) level = Mathf.Max(level, 0.45f - 1.45f * Mathf.Clamp01((db - 1.5f) / 4.5f));
+            return level;
+        }
+
+        /// <summary>歩ける面の高さ：町の足元（地形は −1m）は町の模型の地面の板の上面（通り = 0）、ほかは ModelGround。</summary>
+        public static float SurfaceGround(Vector3 rel)
+        {
+            Vector4 tb = TOWN_NOMINAL_RECT;
+            bool onPlate = rel.x >= tb.x && rel.x <= tb.z && rel.z >= tb.y && rel.z <= tb.w;
+            return onPlate ? 0f : ModelGround(rel);
+        }
+
+        /// <summary>
+        /// art-r7-01：ロビーの置き物を地面（ground(rel) = ロビー中心からの相対の高さ）に下ろし（足元の中心 − designSink、杭は中心の高さ）、
+        /// 斜面に合わせる（GroundFit：地面に沿う物は傾け、柵の板は長さに沿って傾け、まっすぐな物は浮かないよう下げる）。
+        /// LobbyBuilder（実際の地形と町の板）・下見・テスト（SurfaceGround）が同じ手順。置き直しても埋もれる物（土手に刺さる 96m の線路）は外す。
+        /// </summary>
+        public static void SettleOnGround(List<Placement> list, System.Func<Vector3, float> ground)
+        {
+            GroundFit.Ground g = (x, z) => ground(new Vector3(x, 0f, z));
+            foreach (var q in list) GroundFit.Settle(q, g);
+            GroundFit.Fit(list, g, true);
+        }
+
+        /// <summary>art-r7-01：高さは決めたまま（GroundCrown の後など）斜面に合わせるだけ。</summary>
+        public static void FitToGround(List<Placement> list, System.Func<Vector3, float> ground)
+            => GroundFit.Fit(list, (x, z) => ground(new Vector3(x, 0f, z)), false);
+
         /// <summary>
         /// 尾根の岩を地面に下ろす（art-r3-13）：足元の 4 隅（±半径 × CROWN_FOOT）の一番低い地面から高さの CROWN_SINK だけ下げる
         /// （前は中心の地面 − 25% で、斜面の下側で宙に浮いた岩が見えた）。ground(rel) = ロビー中心からの相対の地面の高さ。
@@ -689,7 +740,7 @@ namespace HorseRace.EditorTools
                 list.Add(new Placement
                 {
                     group = "RimCrown", asset = asset, part = part, position = new Vector3(p.x, GroundHeight(rect, p) - CROWN_SINK * h, p.z),
-                    yawDeg = yaw, scale = scale, radius = sz.r * scale, height = h, collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
+                    yawDeg = yaw, scale = scale, radius = sz.r * scale, height = h, collider = false, shape = DressingPlan.SHAPE_NONE, background = true, designSink = CROWN_SINK * h,
                 });
             }
             GroundCrown(list, q => GroundHeight(rect, q));
@@ -841,6 +892,7 @@ namespace HorseRace.EditorTools
             {
                 group = group, asset = asset, part = part, position = new Vector3(p.x, -0.05f, p.z), yawDeg = yaw, scale = scale,
                 radius = sz.r * scale, height = sz.h * scale, collider = sz.h * scale >= DressingPlan.COLLIDER_MIN_H, shape = DressingPlan.SHAPE_BOX,
+                designSink = 0.05f,
             };
         }
 
@@ -907,6 +959,7 @@ namespace HorseRace.EditorTools
             {
                 var q = Lot(g, asset, part, p, yaw, scale);
                 q.position = new Vector3(q.position.x, -sinkH * q.height - 0.05f, q.position.z);
+                q.designSink = sinkH * q.height + 0.05f;   // art-r7-01：地形の高さへ置き直すときも半分沈めた丘のまま
                 q.collider = false; q.shape = DressingPlan.SHAPE_NONE;
                 l.Add(q);
             }

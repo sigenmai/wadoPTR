@@ -45,6 +45,7 @@ namespace UnityEngine
         public static Quaternion Euler(float x, float y, float z) => identity;
         public static Quaternion Euler(Vector3 euler) => identity;
         public static Quaternion AngleAxis(float angle, Vector3 axis) => identity;
+        public static Quaternion FromToRotation(Vector3 fromDirection, Vector3 toDirection) => identity;
         public static Quaternion LookRotation(Vector3 forward) => identity;
         public static Quaternion LookRotation(Vector3 forward, Vector3 upwards) => identity;
         public static Quaternion Slerp(Quaternion a, Quaternion b, float t) => a;
@@ -88,6 +89,7 @@ namespace UnityEngine
         public static float Sin(float v) => (float)Math.Sin(v);
         public static float Cos(float v) => (float)Math.Cos(v);
         public static float Atan(float v) => (float)Math.Atan(v);
+        public static float Acos(float v) => (float)Math.Acos(v);
         public static float Tan(float v) => (float)Math.Tan(v);
         public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
         public static float Sqrt(float v) => (float)Math.Sqrt(v);
