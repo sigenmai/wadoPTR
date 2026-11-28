@@ -226,6 +226,7 @@ class P {
       // art-r7-01：接地の検査（飾り・柵の線と、見どころの置き物）
       { var gr=GroundFit.ForHeights(h,StageDefinitions.SIZE); var ar=GroundFit.Audit(dp,gr); Console.WriteLine("GROUND dress  "+ar.Summary("stage "+d.index)); foreach(var t in ar.Top(10)) Console.WriteLine("    "+t);
         XP.RemoveAll(q=>q.group=="Bridge"||q.group=="Stacked"||q.rollDeg==0f&&(q.up-Vector3.up).sqrMagnitude<1e-8f&&q.position.y>gr(q.position.x,q.position.z)+0.6f||q.rollDeg==90f&&q.position.y-q.height*0.5f>gr(q.position.x,q.position.z)+0.6f);   // 溝の上の橋・積んだ物・梁（下に支えがある）は除く
+        var wb=DressingPlan.WallSeatProblems(dp,local,gr); int nw=0; foreach(var q in dp) if(DressingPlan.IsWallRock(q)) nw++; Console.WriteLine("WALLSEAT stage "+d.index+"：壁の岩 "+nw+" 個のうち座っていない "+wb.Count); foreach(var t in wb) Console.WriteLine("    "+t);   // art-r7-02
         var xr=GroundFit.Audit(XP,gr); Console.WriteLine("GROUND extras "+xr.Summary("stage "+d.index)); foreach(var t in xr.Top(40)) Console.WriteLine("    "+t); foreach(var t in xr.worst) Console.WriteLine("      "+t); }
       js.Append("{\"index\":"+d.index+",\"trail\":"+C(ArtPalette.Trail(d.index))+",\"dirt\":"+C(ArtPalette.Dirt(d.index))+",\"sand\":"+C(ArtPalette.Sand(d.index))+",\"strata\":["+C(ArtPalette.StrataLightFor(d.index))+","+C(ArtPalette.StrataDarkFor(d.index))+"]"+",\"sky\":"+C(LightingPlan.SkyTint(d.index))+",\"rutShade\":"+F(ArtPalette.RUT_SHADE)+",\"rutOffset\":"+F(HeightmapGen.RUT_OFFSET_M)+",\"rutWidth\":"+F(HeightmapGen.RUT_WIDTH_M)+",\"trailDistMax\":"+F(HeightmapGen.TRAIL_DIST_MAX_M)+",\"fog\":"+C(li.fogColor)+",\"sun\":"+V(li.sunEuler)+",\"sunColor\":"+C(li.sunColor)+",\"sunIntensity\":"+F(li.sunIntensity)+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"goalK\":"+goalK+",\"scEntryK\":"+scEntryK+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"pass\":"+pass+",\"landmark\":"+lm+",\"shortcut\":"+sc+",\"dress\":["+sbD+"],\"extras\":["+ex+"]}");
       Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, dress {dp.Count}");
@@ -272,6 +273,12 @@ class P {
     LobbyLayout.FitToGround(crown,LobbyLayout.SurfaceGround);   // art-r7-01：尾根の斜面へ傾ける
     var sbK=new StringBuilder(); foreach(var q in crown){ if(sbK.Length>0)sbK.Append(','); sbK.Append(Pl(q)); } js.Append(sbK);
     js.Append("],\"lobbyCenter\":"+V(WorldBounds.LOBBY_CENTER)+",\"spawnYaw\":"+F(LobbyLayout.SPAWN_YAW)+",\"spawn\":"+V(LobbyLayout.SPAWN)+",\"vistaGaps\":["+F(LobbyLayout.VistaGaps[0].x)+","+F(LobbyLayout.VistaGaps[1].x)+"]");
+    // art-r7-03：騎乗時の視点（SeatMath の鞍の点と座った目、首の札・能力の札、デスクトップの札・時計、ロビーの待機場所）
+    js.Append(",\"seat\":{\"horseY\":"+F(HorseRace.SeatMath.SADDLE_HORSE_Y)+",\"horseZ\":"+F(HorseRace.SeatMath.SADDLE_HORSE_Z)+",\"camelY\":"+F(HorseRace.SeatMath.SADDLE_CAMEL_Y)+",\"camelZ\":"+F(HorseRace.SeatMath.SADDLE_CAMEL_Z)
+      +",\"eyePer\":"+F(HorseRace.SeatMath.SEATED_EYE_PER_EYE)+",\"eyeFwd\":"+F(HorseRace.SeatMath.SEATED_EYE_FWD_PER_EYE)+",\"neckRise\":"+F(HorseRace.HudMath.NeckCardRise(1.65f))+",\"neckFwd\":"+F(HorseRace.HudMath.NECK_CARD_FWD_M)
+      +",\"neckPitch\":35,\"neckW\":"+F(UiStyle.NECK_CARD_W)+",\"neckH\":"+F(UiStyle.NECK_CARD_H)+",\"pouchX\":"+F(UiStyle.NECK_CARD_W*0.5f+UiStyle.POUCH_OFFSET_X*0.55f)+",\"pouchW\":"+F(UiStyle.POUCH_CARD_W)+",\"pouchH\":"+F(UiStyle.POUCH_CARD_H)
+      +",\"deskHud\":"+V(UiStyle.DesktopHudOffset)+",\"deskAbility\":"+V(UiStyle.DesktopAbilityOffset)+",\"deskWatch\":"+V(UiStyle.DesktopWatchOffset)+",\"deskScale\":"+F(UiStyle.DESKTOP_HUD_SCALE)+",\"deskWatchScale\":"+F(UiStyle.DESKTOP_WATCH_SCALE)
+      +",\"watchDial\":"+F(UiStyle.WATCH_DIAL_M)+",\"parkingFirst\":"+V(LobbyLayout.PARKING_FIRST)+",\"parkingStep\":"+F(LobbyLayout.PARKING_STEP)+"}");
     js.Append(",\"belt\":[");
     var belt=LobbyLayout.TreeBelt(LobbyLayout.FENCE_RECT,3);
     LobbyLayout.SettleOnGround(belt,LobbyLayout.SurfaceGround);   // art-r7-01：LobbyBuilder と同じ

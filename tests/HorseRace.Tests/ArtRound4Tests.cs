@@ -263,7 +263,7 @@ namespace HorseRace.Tests
             {
                 if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;   // 立てた丸太の杭は中心が柱の真ん中
                 if (p.group == "GiantSkeleton" || p.asset == DressingPlan.SKELETON) continue;   // 横倒しの骨は原点が腰
-                if (p.group == "WallFace" && p.tint != Color.white) continue;   // art-r6-02：切り通しの段の岩は棚の上（中心の地面）に立てる。前の縁は下の段の岩が隠す
+                if (p.group == "WallFace" && p.tint != Color.white) continue;   // art-r7-02：壁に座る段の岩は ArtRound7Tests.PassWallRocksAreSeatedAndStepBack（道側の底・張り出し）で調べる
                 // art-r7-01：斜面に合わせた物（GroundFit）は回した外形の底の面（メッシュの外形）で調べる
                 int kind = GroundFit.KindOf(p);
                 if (kind != GroundFit.SKIP)

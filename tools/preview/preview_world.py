@@ -627,7 +627,8 @@ def debug_mat(prefix):
             print("DBG  mat", m.name, m.blend_method, [(n.type, getattr(n, "image", None) and (n.image.name, tuple(n.image.size), n.image.has_data, n.image.filepath)) for n in m.node_tree.nodes])
             print("DBG  links", [(l.from_node.type, l.from_socket.name, l.to_node.type, l.to_socket.name) for l in m.node_tree.links])
         break
-def shot(name, loc, target, lens=35):
+def shot(name, loc, target, lens=35, vfov=None, clip=None):
+    """vfov（度）を渡すと縦の視野で撮る（art-r7-03：VRChat のデスクトップの既定は縦 60°）。clip = 手前の切り（VRChat の参照カメラは 0.05m）。"""
     if SHOTS and not any(name.startswith(x) for x in SHOTS):
         return
     if os.environ.get("DEBUG_MAT"): debug_mat(os.environ["DEBUG_MAT"])
@@ -643,6 +644,11 @@ def shot(name, loc, target, lens=35):
     cam.location = Vector(loc)
     cam.rotation_euler = (Vector(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
+    cam.data.sensor_fit = "AUTO"
+    if vfov:   # 縦の視野（16:9 のセンサーの縦 = 36 × 9/16 mm）
+        cam.data.lens = 36 * 900 / 1600 / (2 * math.tan(math.radians(vfov) / 2))
+    cam.data.clip_start = clip if clip else 0.1
+    lens = cam.data.lens
     # art-r5-14：空の 2 色のグラデーション（地平線 = 霧の色、天頂 = 空の色）
     _dv = Vector(target) - cam.location
     _pitch = math.degrees(math.atan2(_dv.z, max(1e-3, math.hypot(_dv.x, _dv.y))))
@@ -730,16 +736,23 @@ for st in W["stages"]:
         cam_pos = p0 - t * 40 + side * 45
         cam_pos.z = max(p0.z, ground_at(st, cam_pos.x, cam_pos.y)) + 22   # 斜面・壁の中に入らない
         shot(f"8_near_{st['index'] + 1}_{j + 1}", cam_pos, p1 + Vector((0, 0, 2)), 26)
-# 騎手の目の高さ（地面 + 2.6m）でコースを見る：スタート・途中の一番きついカーブ・見せ場・ゴール前
+# art-r7-03：騎手の目の高さは SeatMath の座った目（鞍の点 1.60m + 0.43 × 立った目の高さ 1.65m = 2.31m、前は 2.6m の目安）、視野は VRChat のデスクトップの縦 60°（前は 22mm = 縦 49°）
+SEAT = W.get("seat", {"horseY": 1.6, "horseZ": -0.05, "camelY": 2.7, "camelZ": -0.25, "eyePer": 0.43, "eyeFwd": 0.06, "neckRise": 0.25, "neckFwd": 0.55, "neckPitch": 35,
+                       "neckW": 0.2, "neckH": 0.13, "pouchX": 0.15, "pouchW": 0.07, "pouchH": 0.10, "deskHud": [-0.4, -0.19, 0.55], "deskAbility": [0.4, -0.19, 0.55],
+                       "deskWatch": [0.4, 0.15, 0.55], "deskScale": 0.55, "deskWatchScale": 0.6, "watchDial": 0.13, "parkingFirst": [-33.5, 0, 37], "parkingStep": 2.3})
+AVATAR_EYE = 1.65
+RIDER_EYE_H = SEAT["horseY"] + SEAT["eyePer"] * AVATAR_EYE
+POV_VFOV = 60.0
+# 騎手の目の高さでコースを見る：スタート・途中の一番きついカーブ・見せ場・ゴール前
 def rider_eye(st, k, ahead=10, name=""):
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     c = st["course"]
     k = max(0, min(k, len(c) - 2))
     p0 = U(c[k]) + off
     p1 = U(c[min(k + ahead, len(c) - 1)]) + off
-    p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
+    p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + RIDER_EYE_H
     p1.z = max(p1.z, ground_at(st, p1.x, p1.y)) + 2.0
-    shot(name, p0, p1, 22)
+    shot(name, p0, p1, vfov=POV_VFOV)
 def nearest_k(st, q):
     off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
     return min(range(len(st["course"])), key=lambda i: ((U(st["course"][i]) + off).xy - q.xy).length)
@@ -763,9 +776,9 @@ for st in W["stages"]:
         rider_eye(st, k - 6, 6, f"7_rider_{sid}_c_setpiece")
     elif st["shortcut"]:
         k = nearest_k(st, U(st["shortcut"]["a"]) + off)
-        p0 = U(c[max(k - 3, 0)]) + off; p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + 2.6
+        p0 = U(c[max(k - 3, 0)]) + off; p0.z = max(p0.z, ground_at(st, p0.x, p0.y)) + RIDER_EYE_H
         q = U(st["shortcut"]["b"]) + off
-        shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), 22)
+        shot(f"7_rider_{sid}_c_setpiece", p0, q + Vector((0, 0, 2)), vfov=POV_VFOV)
     # course-r3-11：ゴール前は書き出したゴールの添字から（200m・120m 手前、60m 手前）。前は最後の点（流しの中）から撮っていた
     gk = st.get("goalK", n - 9)
     rider_eye(st, gk - 20, 12, f"7_rider_{sid}_d_finish")
@@ -795,7 +808,7 @@ for nm, da in (("E", 90.0), ("W", -90.0), ("S", 180.0)):
 for gi, gaz in enumerate(W.get("vistaGaps", [])):   # 広場 → 南・南東の見晴らしの切れ目
     a_ = math.radians(gaz)
     shot(f"9_lobby_vista_{gi + 1}", tuple(lob + _V((sp[0], sp[2], 1.7))), tuple(lob + _V((sp[0] + math.sin(a_) * 400, sp[2] + math.cos(a_) * 400, 8))), 24)
-shot("9_lobby_practice_rider", tuple(lob + _V((27.5, 89, 2.6))), tuple(lob + _V((28, 130, 1.5))), 24)   # 練習場を騎手の目の高さで
+shot("9_lobby_practice_rider", tuple(lob + _V((27.5, 89, lobby_h(27.5, 89) + RIDER_EYE_H))), tuple(lob + _V((28, 130, 1.5))), vfov=POV_VFOV)   # 練習場を騎手の目の高さで（art-r7-03：座った目）
 shot("9_lobby_ride_SE", tuple(lob + _V((120, -60, lobby_h(120, -60) + 3.2))), tuple(lob + _V((300, -180, lobby_h(300, -180) + 4))), 24)   # art-r5-10：地面の高さ + 3.2m
 # 境目の切り通し（300m 手前から：三角の切れ込みが見えるか）
 pa = S[2].get("pass")
@@ -806,4 +819,157 @@ if pa:
     rider_eye(S[2], max(k - 26, 0), 26, "7_rider_3_c_pass_approach")   # コースの点は 10m ごと（260m 手前）
     rider_eye(S[2], max(k - 12, 0), 12, "7_rider_3_c_pass_120")         # course-r3-02/11：120m・250m 手前（切り通しの口が見えるか）
     rider_eye(S[2], max(k - 25, 0), 25, "7_rider_3_c_pass_250")
+    # art-r7-02：切り通しの空撮（壁の岩の段が壁に座っているか、斜め上から）
+    pp = U(pa["p"]) + off; tt = Vector((pa["t"][0], pa["t"][2], 0)).normalized(); rr = Vector((tt.y, -tt.x, 0))
+    shot("5_pass_aerial", pp - tt * 110 + rr * 35 + Vector((0, 0, 70)), pp + Vector((0, 0, 8)), 30)
+    shot("5_pass_wall_side", pp - tt * 20 + rr * 2 + Vector((0, 0, 4)), pp + tt * 25 - rr * 30 + Vector((0, 0, 12)), 24)
+
+# ---- art-r7-03：騎乗時の視点（10_pov_*）：MountBuilder と同じ Horse.fbx / Camel.fbx（拡大 1、頭を +Z）を道に沿って置き、SeatMath の座った目から撮る ----
+MOUNTS = {}
+def mount_model(kind):
+    """kind = "horse" / "camel"。Gallop の動きのうち頭がいちばん高いコマ（いちばん前を隠すコマ）で止める。戻り値 (親の空, コマ)。"""
+    if kind in MOUNTS: return MOUNTS[kind]
+    path = A("Models", "Horse.fbx" if kind == "horse" else "Camel.fbx")
+    before = set(bpy.data.objects); acts0 = set(bpy.data.actions)
+    bpy.ops.import_scene.fbx(filepath=path)
+    new = [o for o in bpy.data.objects if o not in before]
+    arm = next(o for o in new if o.type == "ARMATURE")
+    meshes = [o for o in new if o.type == "MESH"]
+    fix_images(meshes, path)
+    # 同じ FBX を前に取り込んでいる（ロビーの柵の馬）と動きの名前が重なるので、取り込んだ骨の名前の付いた Gallop を探す
+    cand = [a for a in bpy.data.actions if "|Gallop" in a.name and a not in acts0] or [a for a in bpy.data.actions if a.name.endswith("|Gallop") and ("Horse" if kind == "horse" else "Camel") in a.name]
+    act = cand[0] if cand else None
+    if arm.animation_data is None: arm.animation_data_create()
+    best = (1, -1e9)
+    if act is not None:
+        arm.animation_data.action = act
+        for f in range(int(act.frame_range[0]), int(act.frame_range[1]) + 1):
+            sc.frame_set(f)
+            hz = (arm.matrix_world @ arm.pose.bones["Head"].head).z
+            if hz > best[1]: best = (f, hz)
+    sc.frame_set(best[0])
+    # 頭（Head ボーン）を +Y（Unity の +Z）へ回す（MountBuilder.Model と同じ）
+    hd = arm.matrix_world @ arm.pose.bones["Head"].head
+    rig = bpy.data.objects.new("Mount_" + kind, None); sc.collection.objects.link(rig)
+    # 動き（Gallop）は骨組みのオブジェクトの回転も持つので、骨組みは回さず間の空で回す（前は frame_set のたびに後ろ向きへ戻っていた）
+    fix = bpy.data.objects.new("MountFix_" + kind, None); sc.collection.objects.link(fix)
+    fix.parent = rig
+    fix.rotation_euler = (0, 0, math.atan2(hd.x, hd.y))   # (x, y) の向き → +Y
+    arm.parent = fix
+    bpy.context.view_layer.update()
+    hl = rig.matrix_world.inverted() @ (arm.matrix_world @ arm.pose.bones["Head"].head)
+    print("MOUNT", kind, "head local", [round(x, 2) for x in hl])
+    for o in new: o.hide_render = True
+    MOUNTS[kind] = (rig, new, best[0])
+    print("MOUNT", kind, "gallop frame", best[0], "head z", round(best[1], 2))
+    return MOUNTS[kind]
+
+def paper_quad(name, w, h, color=(0.93, 0.86, 0.70)):
+    me = bpy.data.meshes.new(name); me.from_pydata([(-w / 2, -h / 2, 0), (w / 2, -h / 2, 0), (w / 2, h / 2, 0), (-w / 2, h / 2, 0)], [], [(0, 1, 2, 3)])
+    o = bpy.data.objects.new(name, me); sc.collection.objects.link(o)
+    o.data.materials.append(mat_color(name, srgb2lin(color), emit=0.6)); o.hide_render = True
+    return o
+
+HUD = []
+def hud_set(desktop, cards_world=None):
+    """デスクトップの札（頭に付く：首の札・能力の札・懐中時計）をカメラの子に、VR の首の札・能力の札を乗り物の子に。"""
+    for o in HUD: bpy.data.objects.remove(o, do_unlink=True)
+    HUD.clear()
+    if desktop:
+        k = SEAT["deskScale"]
+        for nm, off, w, h in (("HudNeck", SEAT["deskHud"], SEAT["neckW"] * k, SEAT["neckH"] * k), ("HudAbility", SEAT["deskAbility"], SEAT["pouchW"] * k, SEAT["pouchH"] * k),
+                              ("HudWatch", SEAT["deskWatch"], SEAT["watchDial"] * SEAT["deskWatchScale"], SEAT["watchDial"] * SEAT["deskWatchScale"])):
+            o = paper_quad(nm, w, h, (0.95, 0.80, 0.35) if nm == "HudWatch" else (0.93, 0.86, 0.70))
+            o.parent = cam; o.location = (off[0], off[1], -off[2]); o.hide_render = False; HUD.append(o)
+    if cards_world is not None:
+        rig, saddleY, saddleZ = cards_world
+        for nm, x, w, h in (("VrNeck", 0.0, SEAT["neckW"], SEAT["neckH"]), ("VrPouch", SEAT["pouchX"], SEAT["pouchW"], SEAT["pouchH"])):
+            o = paper_quad(nm, w, h)
+            o.parent = rig
+            o.location = (x, saddleZ + SEAT["neckFwd"], saddleY + SEAT["neckRise"])
+            # Unity：乗り物の向き × Euler(35, 0, 0)（文字は -Z 側 = 乗り手へ）。Blender の板（+Z が表）を乗り手へ向け、上を 35° 後ろへ倒す
+            o.rotation_euler = (math.radians(90 - SEAT.get("neckPitch", 35)), 0, 0)
+            o.hide_render = False; HUD.append(o)
+            # 持久力の印の列（札の下）
+            pip = paper_quad(nm + "Pips", w * 0.8, 0.025, (0.85, 0.65, 0.2)); pip.parent = o; pip.location = (0, -(h * 0.5 + 0.035), 0); pip.hide_render = False; HUD.append(pip)
+
+def pov_shot(name, root, yaw_deg, kind="horse", avatar_eye=AVATAR_EYE, pitch=-8.0, desktop=True, vr_cards=False, vfov=POV_VFOV, look_yaw=0.0):
+    """root = 乗り物の原点（Blender の座標、地面）、yaw_deg = Unity の向き（度）。目 = 鞍の点 + 0.43·E（上）・+0.06·E（前）。"""
+    if SHOTS and not any(name.startswith(x) for x in SHOTS):
+        return
+    rig, objs, frame = mount_model(kind)
+    sc.frame_set(frame)
+    rig.location = root; rig.rotation_euler = (0, 0, -math.radians(yaw_deg))
+    for o in objs: o.hide_render = o.type != "MESH"
+    sy = SEAT["horseY"] if kind == "horse" else SEAT["camelY"]; sz = SEAT["horseZ"] if kind == "horse" else SEAT["camelZ"]
+    eye_l = Vector((0, sz + SEAT["eyeFwd"] * avatar_eye, sy + SEAT["eyePer"] * avatar_eye))
+    R = rig.rotation_euler.to_matrix()
+    eye = root + R @ eye_l
+    a = math.radians(look_yaw)
+    fwd = R @ Vector((math.sin(a) * math.cos(math.radians(pitch)), math.cos(a) * math.cos(math.radians(pitch)), math.sin(math.radians(pitch))))
+    cam.location = eye   # hud_set の前に（札はカメラの子）
+    hud_set(desktop, (rig, sy, sz) if vr_cards else None)
+    if os.environ.get("POV_DEBUG"):
+        bpy.context.view_layer.update(); dg = bpy.context.evaluated_depsgraph_get()
+        for o in objs:
+            if o.type != "MESH": continue
+            e = o.evaluated_get(dg); bb = [e.matrix_world @ Vector(v) for v in e.bound_box]
+            print("POVDBG", o.name, o.hide_render, o.visible_get(), [c.name for c in o.users_collection], [round(min(v[i] for v in bb), 1) for i in range(3)], [round(max(v[i] for v in bb), 1) for i in range(3)], "eye", [round(x, 1) for x in eye])
+        arm_ = next(o for o in objs if o.type == "ARMATURE"); hw_ = arm_.matrix_world @ arm_.pose.bones["Head"].head
+        for nm_, d_ in (("head", (hw_ - eye).normalized()), ("down", Vector((0, 0, -1))), ("fwd", fwd)):
+            hit, loc_, nrm_, idx_, ob_, mt_ = sc.ray_cast(dg, eye, d_)
+            print("POVRAY", nm_, hit, ob_.name if hit else None, [round(x, 2) for x in loc_] if hit else None, "headW", [round(x, 2) for x in hw_])
+    shot(name, tuple(eye), tuple(eye + fwd * 20), vfov=vfov, clip=0.05)
+    print("POV", name, kind, "eye above root", round(eye_l.z, 2), "fwd", round(eye_l.y, 2))
+    for o in objs: o.hide_render = True
+    hud_set(False)
+
+def course_pose(st, k):
+    off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+    c = st["course"]; k = max(1, min(k, len(c) - 2))
+    p = U(c[k]) + off; p.z = max(p.z, ground_at(st, p.x, p.y))   # rider_eye と同じ（書き出したコースの高さ = 道の面）
+    t = U(c[k + 1]) - U(c[k - 1]); t.z = 0; t.normalize()
+    return p, math.degrees(math.atan2(t.x, t.y))
+
+def straight_k(st, lo=0.2, hi=0.45):
+    c = st["course"]; n = len(c); best, bk = 1e9, int(n * lo)
+    for i in range(int(n * lo) + 6, int(n * hi) - 6):
+        a = U(c[i]) - U(c[i - 6]); b = U(c[i + 6]) - U(c[i]); a.z = b.z = 0
+        if a.length > 0 and b.length > 0 and a.angle(b) < best: best, bk = a.angle(b), i
+    return bk
+
+for st in W["stages"]:
+    sid = st["index"] + 1
+    k = straight_k(st)
+    p, yw = course_pose(st, k)
+    pov_shot(f"10_pov_{sid}_straight", p, yw)
+    if sid == 1:
+        pov_shot("10_pov_1_straight_small", p, yw, avatar_eye=1.2)
+        pov_shot("10_pov_1_straight_tall", p, yw, avatar_eye=1.9)
+        pov_shot("10_pov_vr_1_neck", p, yw, desktop=False, vr_cards=True, vfov=90.0, pitch=-25.0)
+        # 一番きついカーブ（7_rider_1_b_corner と同じ探し方）の入口
+        c = st["course"]; n = len(c); best, bk = -1, n // 2
+        for i in range(int(n * 0.25), int(n * 0.75)):
+            a = U(c[i]) - U(c[i - 3]); b = U(c[i + 3]) - U(c[i]); a.z = b.z = 0
+            if a.length > 0 and b.length > 0:
+                ang = a.angle(b)
+                if ang > best: best, bk = ang, i
+        p2, yw2 = course_pose(st, bk - 2)
+        pov_shot("10_pov_1_corner", p2, yw2)
+        p0, yw0 = course_pose(st, 1)
+        pov_shot("10_pov_1_start", p0, yw0)
+    if sid == 2:
+        pov_shot("10_pov_2_camel", p, yw, kind="camel")
+        pov_shot("10_pov_vr_2_camel_neck", p, yw, kind="camel", desktop=False, vr_cards=True, vfov=90.0, pitch=-25.0)
+    if sid == 3 and st.get("pass"):
+        off = Vector((st["center"][0] - 500, st["center"][2] - 500, 0))
+        kp = nearest_k(st, U(st["pass"]["p"]) + off)
+        p3, yw3 = course_pose(st, kp - 3)
+        pov_shot("10_pov_3_pass", p3, yw3)
+# ロビー：台帳に署名した後の待機場所（MountParking の 4 番目、東を向く）。地面はロビーの地面（LobbyBuilder の P() と同じ）
+pf = SEAT["parkingFirst"]
+px, pz = pf[0], pf[2] + 3 * SEAT["parkingStep"]
+lp = lob + _V((px, pz, 0)); lp.z = lobby_h(px, pz)
+pov_shot("10_pov_lobby_parking", lp, 90.0)
+pov_shot("10_pov_vr_lobby_neck", lp, 90.0, desktop=False, vr_cards=True, vfov=90.0, pitch=-25.0)
 print("ENGINE", sc.render.engine)

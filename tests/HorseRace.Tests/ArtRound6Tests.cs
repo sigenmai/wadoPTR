@@ -19,14 +19,19 @@ namespace HorseRace.Tests
             return Mathf.Atan(Mathf.Sqrt(gx * gx + gz * gz)) * Mathf.Rad2Deg;
         }
 
-        // ---- art-r6-02：切り通しの段の岩は地形に埋まらない ----
+        // ---- art-r6-02 → art-r7-02：切り通しの段の岩は地形に埋まらない（前の面が見え、壁から薄いかけらだけが出ない）----
         [Test] public void PassTierRocksAreExposed()
         {
             var b = Stage(2);
             var tiers = b.plan.Where(p => p.group == "WallFace" && p.tint != Color.white).ToList();
             Assert.Greater(tiers.Count, 20, "段の岩");
+            GroundFit.Ground g = b.Ground;
             foreach (var p in tiers)
-                Assert.GreaterOrEqual(DressingPlan.ExposedFraction(p, b.h, StageDefinitions.SIZE), DressingPlan.WALL_TIER_MIN_EXPOSED, p.asset + " " + p.part + " " + p.position);
+            {
+                GroundFit.WallExposure(p, DressingPlan.TowardRoad(b.local, p.position), g, out float front, out float depth);
+                Assert.GreaterOrEqual(front, DressingPlan.WALL_SEAT_MIN_FRONT, p.asset + " " + p.part + " " + p.position);
+                Assert.GreaterOrEqual(depth, DressingPlan.WALL_SEAT_MIN_DEPTH_M, p.asset + " " + p.part + " " + p.position);
+            }
             Assert.AreEqual(7f, SetPieces.PASS_BENCH1_H, 1e-4f);
             Assert.AreEqual(7f, SetPieces.PASS_BENCH2_H, 1e-4f);
         }

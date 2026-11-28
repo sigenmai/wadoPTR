@@ -403,7 +403,7 @@ namespace HorseRace.EditorTools
         /// </summary>
         static CharmPouch BuildPouch(Transform t)
         {
-            var go = GenUtil.Child(t, "CharmPouch", new Vector3(0.15f, SeatMath.SADDLE_HORSE_Y + 0.25f, SeatMath.SADDLE_HORSE_Z + 0.55f));
+            var go = GenUtil.Child(t, "CharmPouch", new Vector3(0.15f, SeatMath.SADDLE_HORSE_Y + HudMath.NECK_CARD_MIN_RISE_M, SeatMath.SADDLE_HORSE_Z + HudMath.NECK_CARD_FWD_M));
             go.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
             var cardRoot = GenUtil.Child(go.transform, "Card", Vector3.zero);
             const float CW = UiStyle.POUCH_CARD_W, CH = UiStyle.POUCH_CARD_H;
@@ -450,7 +450,7 @@ namespace HorseRace.EditorTools
             cp.levelMarks = marks;
             cp.levelMarksUnlit = unlit;
             cp.readySound = GenUtil.Audio(go, false, false, SfxBuilder.Clip(SfxMath.CHIME));
-            cp.neckOffset = new Vector3(UiStyle.NECK_CARD_W * 0.5f + UiStyle.POUCH_OFFSET_X * 0.55f, 0.25f, 0.55f);
+            cp.neckOffset = new Vector3(UiStyle.NECK_CARD_W * 0.5f + UiStyle.POUCH_OFFSET_X * 0.55f, HudMath.NECK_CARD_MIN_RISE_M, HudMath.NECK_CARD_FWD_M);   // art-r7-03：たてがみの上
             // デスクトップ（ui-r3-04）：首の札（左下）の反対の右下に ×0.55
             cp.desktopOffset = UiStyle.DesktopAbilityOffset;
             cp.desktopScale = UiStyle.DESKTOP_HUD_SCALE;

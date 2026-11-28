@@ -12,6 +12,20 @@ namespace HorseRace
         public const int STAGE_NAME_COUNT = 3;
 
         public const int STAMINA_PIPS = 5;
+
+        // ---- 首の札の高さ（art-r7-03：騎乗時の視点）----
+        /// <summary>
+        /// 首の札（VR、MinimalHud）と能力の札（CharmPouch）の鞍の点からの高さ・前後（m）。前は 0.25m・0.55m で、Horse.fbx のたてがみ（前後 0.5m で高さ 1.87m）に
+        /// 札の下 7 割と持久力の印が埋まっていた。前後 0.45m・高さ 0.42m 以上（札の下の印もたてがみの 5cm 以上上）、目から NECK_CARD_DROP_M 下（背の高いアバター）。
+        /// </summary>
+        public const float NECK_CARD_FWD_M = 0.45f, NECK_CARD_MIN_RISE_M = 0.42f, NECK_CARD_MAX_RISE_M = 0.75f, NECK_CARD_DROP_M = 0.30f;
+
+        /// <summary>首の札の鞍の点からの高さ：座った目（SeatMath.SEATED_EYE_PER_EYE × 立った目の高さ）の NECK_CARD_DROP_M 下、MIN〜MAX に収める。</summary>
+        public static float NeckCardRise(float eyeHeight)
+        {
+            if (!(eyeHeight > 0f)) eyeHeight = SeatMath.DEFAULT_EYE_HEIGHT;
+            return Mathf.Clamp(eyeHeight * SeatMath.SEATED_EYE_PER_EYE - NECK_CARD_DROP_M, NECK_CARD_MIN_RISE_M, NECK_CARD_MAX_RISE_M);
+        }
         public const int PROGRESS_SEGMENTS = 10;
         public const int SHORT_NAME_MAX = 10;
         /// <summary>手首を顔に向けたと見なす内積（手の上向き・手から頭への向き）。</summary>

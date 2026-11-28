@@ -33,8 +33,8 @@ namespace HorseRace
         [Header("VR：首（鞍の前）")]
         [Tooltip("実行中に自分の乗り物（RaceManager.LocalMount）が入る")]
         public Transform neckAnchor;
-        [Tooltip("鞍の点からの札の位置（乗り物ローカル）")]
-        public Vector3 neckOffset = new Vector3(0f, 0.25f, 0.55f);
+        [Tooltip("鞍の点からの札の位置（乗り物ローカル）。y は最低の高さ（HudMath.NeckCardRise で背の高いアバターは上げる）")]
+        public Vector3 neckOffset = new Vector3(0f, HudMath.NECK_CARD_MIN_RISE_M, HudMath.NECK_CARD_FWD_M);
         public float neckPitch = 35f;
         public float neckFollow = 10f;
 
@@ -423,7 +423,9 @@ namespace HorseRace
             {
                 neckAnchor = lm.transform;
                 int type = lm.SeatType();
-                Vector3 lp = new Vector3(neckOffset.x, SeatMath.DefaultSaddleY(type) + neckOffset.y, SeatMath.DefaultSaddleZ(type) + neckOffset.z);
+                // art-r7-03：たてがみに埋まらない高さ（neckOffset.y 以上）、背の高いアバターは目の 0.3m 下まで上げる
+                float rise = Mathf.Max(neckOffset.y, HudMath.NeckCardRise(local.GetAvatarEyeHeightAsMeters()));
+                Vector3 lp = new Vector3(neckOffset.x, SeatMath.DefaultSaddleY(type) + rise, SeatMath.DefaultSaddleZ(type) + neckOffset.z);
                 Vector3 pos = neckAnchor.TransformPoint(lp);
                 Quaternion goal = neckAnchor.rotation * Quaternion.Euler(neckPitch, 0f, 0f);
                 if (!rotInit) { smoothRot = goal; rotInit = true; }

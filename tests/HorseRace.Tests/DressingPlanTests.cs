@@ -52,15 +52,18 @@ namespace HorseRace.Tests
             var near = DressingPlan.NearBarrierSegments(courses[i], barriers[i]);
             TestContext.WriteLine($"stage {i}: {line.Count} barrier marks, {near.Count} near segments of {barriers[i].SegmentCount}");
             Assert.Greater(near.Count, 50);
-            int bare = 0;
+            int bare = 0, wall = 0;
             float tail = goals[i] - CourseBarrier.GOAL_GAP_BEFORE_M;
+            var cum = DressingPlan.CourseArcs(courses[i]);
             foreach (var sg in near)
             {
                 Vector3 m = (sg[0] + sg[1]) * 0.5f;
+                // art-r7-02：切り通し・谷の 40° より急な壁の上（道 + 3m より上）は壁そのものが見える壁（柵の板・岩のかけらを貼り付けない）
+                if (DressingPlan.IsBarrierWall(heights[i], courses[i], DressingPlan.NearestArc(courses[i], cum, m, out _), m)) { wall++; continue; }
                 bool has = line.Any(p => WorldLayout.DistXZ(p.position, m) <= 7f);
                 if (!has) bare++;
             }
-            TestContext.WriteLine($"  bare near segments: {bare}");
+            TestContext.WriteLine($"  bare near segments: {bare}, on steep walls (no marks by design): {wall}");
             Assert.LessOrEqual(bare, near.Count / 50, "目印の無い柵（置かない円の中だけ許す）");
             Assert.IsTrue(line.All(p => !p.collider), "当たりは柵の BoxCollider だけ");
             Assert.IsFalse(line.Any(p => DressingPlan.IsBonePart(p.part)), "骨のあばらに見える部品は使わない");

@@ -116,7 +116,7 @@ namespace HorseRace.Tests
             var b = Stage(i);
             var bp = CourseBarrier.For(b.def, b.local, b.goal, b.sc);
             var line = DressingPlan.BarrierLine(b.def, b.local, b.h, b.goal, bp);
-            float gap = DressingPlan.NearFenceMaxGap(b.def, b.local, b.goal, bp, line);
+            float gap = DressingPlan.NearFenceMaxGap(b.def, b.local, b.goal, bp, line, b.h);
             int panels = line.Count(p => p.part == "FarmProps_03"), posts = line.Count(p => p.part == DressingPlan.POST_PART);
             TestContext.WriteLine($"stage {i}: {line.Count} marks, {panels} fence panels, {posts} posts, max gap {gap:F2} m at {DressingPlan.WorstGapAt} arc {DressingPlan.NearestArc(b.local, DressingPlan.CourseArcs(b.local), DressingPlan.WorstGapAt, out float dd):F0} d {dd:F1}");
             Assert.LessOrEqual(gap, DressingPlan.FENCE_MAX_GAP_M);
@@ -227,7 +227,7 @@ namespace HorseRace.Tests
             float ta = DressingPlan.NearestArc(b.local, DressingPlan.CourseArcs(b.local), tower.position, out dc);
             Vector3 ep = WorldLayout.PointAtArc(b.local, pass + SetPieces.PASS_HALF_CUT);
             Assert.That(WorldLayout.DistXZ(ep, tower.position), Is.InRange(DressingPlan.PASS_BEACON_FROM_M - 25f, DressingPlan.PASS_BEACON_TO_M + 25f));
-            Assert.GreaterOrEqual(b.plan.Count(p => p.group == "MesaGate" && p.asset == DressingPlan.DROCKS && p.scaleY > 1.5f), 2, "門の岩");
+            Assert.GreaterOrEqual(b.plan.Count(p => p.group == "MesaGate" && p.asset == DressingPlan.DROCKS && p.scaleY <= GroundFit.WALL_MAX_SCALE_Y && p.height >= 8f), 2, "門の岩（art-r7-02：縦に伸ばさない）");
         }
 
         // ---- course-r3-03：境目の壁と台地の縁に段の付いた岩（当たりは柵）----
@@ -239,7 +239,9 @@ namespace HorseRace.Tests
             Assert.That(wall.Count, Is.InRange(80, 320));   // art-r4-04：6m ごと
             Assert.IsTrue(wall.All(p => !p.collider), "当たりは柵");
             Assert.AreEqual(0, wall.Count(p => p.asset.StartsWith("ThirdParty/RockGray/")), "art-r4-04：浮いて見えた RockGray はやめた");
-            Assert.Greater(wall.Count(p => p.asset == DressingPlan.MESAB), 10);
+            // art-r7-02：段の付いたメサ B は壁に座らせると柱の先だけが突き出た（オーナーの指摘の「棚」）→ 大岩だけ。縞は地形の色の帯と段ごとの明暗
+            Assert.AreEqual(0, wall.Count(p => p.asset == DressingPlan.MESAB));
+            Assert.Greater(wall.Count(p => p.asset == DressingPlan.DROCKS), 60);
             Assert.Greater(wall.Count(p => p.asset == DressingPlan.RSTYL), 5, "がれき");
             Assert.IsFalse(wall.Any(p => p.asset == DressingPlan.CLIFFS), "崖の板は近くに置かない（art-r3-05）");
             Assert.LessOrEqual(b.plan.Count, DressingPlan.MAX_PER_STAGE);

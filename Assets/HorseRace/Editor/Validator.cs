@@ -188,13 +188,17 @@ namespace HorseRace.EditorTools
                     CheckSetPieces(def, tag, stageRoot, local, len, h, allCps, warn, info);
                     // course-r3-05：近い柵（中心線から 30m 以内）は途切れない柵の板で見える（すき間 0.6m 以下）
                     var bplan = CourseBarrier.For(def, local, len, SetPieces.PlanFor(def, local, h, len));
-                    float fenceGap = DressingPlan.NearFenceMaxGap(def, local, len, bplan, DressingPlan.BarrierLine(def, local, h, len, bplan));
+                    float fenceGap = DressingPlan.NearFenceMaxGap(def, local, len, bplan, DressingPlan.BarrierLine(def, local, h, len, bplan), h);
                     if (fenceGap > DressingPlan.FENCE_MAX_GAP_M) warn.Add(tag + "：近い柵の目印に " + fenceGap.ToString("F1") + "m のすき間（" + DressingPlan.FENCE_MAX_GAP_M + "m 以下：当たる壁は見える）");
                     else info.Add(tag + "：近い柵の目印のすき間 最大 " + fenceGap.ToString("F2") + "m");
                     CheckRim(tag, h, td.size.x, td.size.y, warn, info);
                     var splan = DressingPlan.For(def, local, h, len, SetPieces.PlanFor(def, local, h, len));
                     splan.AddRange(DressingPlan.BarrierLine(def, local, h, len, bplan));
                     CheckGrounding(tag, splan, h, td.size.x, warn, info);
+                    // art-r7-02：壁の岩は道側の底が地面に乗り、壁から道へ張り出さず、縦に伸ばさない
+                    var wallBad = DressingPlan.WallSeatProblems(splan, local, GroundFit.ForHeights(h, td.size.x));
+                    if (wallBad.Count > 0) warn.Add(tag + "：壁から張り出す・浮く・縦に伸ばした壁の岩 " + wallBad.Count + " 個（" + wallBad[0] + "、art-r7-02）");
+                    else info.Add(tag + "：壁の岩はどれも壁に座っている（art-r7-02）");
                     if (slope > StageDefinitions.MAX_SLOPE_DEG) warn.Add(tag + "：コース上の最大勾配 " + slope.ToString("F1") + "° が 25° を超えています");
                     int ar = td.alphamapResolution;
                     if (td.alphamapLayers > TerrainBuilder.LAYER_SAND)

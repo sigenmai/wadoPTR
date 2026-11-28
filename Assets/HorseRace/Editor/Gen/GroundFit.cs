@@ -325,7 +325,7 @@ namespace HorseRace.EditorTools
         }
 
         /// <summary>
-        /// 置き直さないまとまり：切り通しの壁の段の岩（art-r6-02/04：壁の面から引き出す量・沈め量を絵で合わせた。壁に埋めるのが目的）。
+        /// 置き直さないまとまり：切り通し・台地の縁の壁の段の岩（art-r7-02：DressingPlan.SeatOnWall が道側の底を地面に座らせる。WallSeated で調べる）。
         /// 検査はする（浮く・足元のどこも埋もれる）。
         /// </summary>
         public static readonly HashSet<string> FitExempt = new HashSet<string> { "WallFace" };
@@ -421,6 +421,115 @@ namespace HorseRace.EditorTools
             float depthMin = float.MaxValue;
             foreach (var q in Footprint(p, kind)) depthMin = Mathf.Min(depthMin, g(q.x, q.z) - q.y);
             return depthMin > BURIED_FRAC * hgt;
+        }
+
+        // ---- art-r7-02：壁に座る岩（オーナーの指摘「この写真　岩が変だとおもはないか？」）----
+        // 切り通しの壁の段の岩が、壁から道の上へ張り出した棚・板に見えた（底の道側の半分の下が空：60° の壁の途中に中心を置き、底を中心の地面の高さにしていた）。
+        // 壁の岩は「道側の底が地面か壁に乗る」「底の高さで壁の面より道へ張り出さない」こと。メッシュの外形（PartBounds）を向き・拡大込みで回した底の面で調べる。
+
+        /// <summary>道側の底の点の地面との隙間の許し（m）と、底の面の大きさ（外形に対する割合：DesertRocks・MesaRockB の底の 5% の断面は外形とほぼ同じ）。</summary>
+        public const float WALL_SUPPORT_TOL_M = 0.5f, WALL_SUPPORT_FOOT = 0.9f;
+        /// <summary>底の高さで壁の面（地面がその高さより下がる所）より道へ出てよい量（m）。</summary>
+        public const float WALL_OVERHANG_TOL_M = 0.5f;
+        /// <summary>壁の岩の縦の引き伸ばしの上限（ほぼ同じ縮尺：縦に伸ばした板に見えない）。</summary>
+        public const float WALL_MAX_SCALE_Y = 1.15f;
+
+        /// <summary>
+        /// 回した外形の底の面のうち道側（towardRoad の向き、中心から 0 以上）の点（ワールド）。shrink = 外形に対する割合。
+        /// 長い辺は 1m ごと（最低 3 × 3）。towardRoad は水平の単位ベクトル。
+        /// </summary>
+        public static List<Vector3> RoadSideBottom(Placement p, Vector3 towardRoad, float shrink)
+        {
+            var pts = new List<Vector3>();
+            Vector3 mn, mx;
+            LocalBox(p, out mn, out mx);
+            float hx = (mx.x - mn.x) * 0.5f * shrink, hz = (mx.z - mn.z) * 0.5f * shrink;
+            float cx = (mx.x + mn.x) * 0.5f, cz = (mx.z + mn.z) * 0.5f;
+            int nx = Mathf.Clamp(Mathf.CeilToInt(2f * hx) + 1, 3, 41), nz = Mathf.Clamp(Mathf.CeilToInt(2f * hz) + 1, 3, 41);
+            for (int i = 0; i < nx; i++)
+                for (int k = 0; k < nz; k++)
+                {
+                    Vector3 l = new Vector3(cx + hx * (2f * i / (nx - 1) - 1f), mn.y, cz + hz * (2f * k / (nz - 1) - 1f));
+                    Vector3 o = Rotate(p, l);
+                    Vector3 c = Rotate(p, new Vector3(cx, mn.y, cz));
+                    if ((o.x - c.x) * towardRoad.x + (o.z - c.z) * towardRoad.z < -1e-3f) continue;
+                    pts.Add(p.position + o);
+                }
+            return pts;
+        }
+
+        /// <summary>道側の底の点のうち、いちばん地面から浮いている量（m、+ = 下が空）。WALL_SUPPORT_TOL_M 以下なら乗っている。</summary>
+        public static float WallSupportGap(Placement p, Vector3 towardRoad, Ground g)
+        {
+            float worst = float.MinValue;
+            foreach (var q in RoadSideBottom(p, towardRoad, WALL_SUPPORT_FOOT)) worst = Mathf.Max(worst, q.y - g(q.x, q.z));
+            return worst;
+        }
+
+        /// <summary>
+        /// 底の高さでの壁の面からの張り出し（m、+ = 道の上へ出ている）：中心から towardRoad へ 0.25m ずつ進み、地面が底 − 許しより下がる所が壁の面。
+        /// 外形（WALL_SUPPORT_FOOT の割合、8 つの角）の道側のいちばん先との差。
+        /// </summary>
+        public static float WallOverhang(Placement p, Vector3 towardRoad, Ground g)
+        {
+            Vector3 mn, mx;
+            LocalBox(p, out mn, out mx);
+            Vector3 mid = (mn + mx) * 0.5f, half = (mx - mn) * 0.5f * WALL_SUPPORT_FOOT;
+            Vector3 c0 = Rotate(p, new Vector3(mid.x, mn.y, mid.z));
+            float front = 0f;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 l = new Vector3(mid.x + ((i & 1) != 0 ? half.x : -half.x), (i & 2) != 0 ? mx.y : mn.y, mid.z + ((i & 4) != 0 ? half.z : -half.z));
+                Vector3 o = Rotate(p, l) - c0;
+                front = Mathf.Max(front, o.x * towardRoad.x + o.z * towardRoad.z);
+            }
+            float baseY = p.position.y + c0.y;
+            Vector3 b = p.position + c0;
+            float face = front + 4f;
+            for (float d = 0f; d <= front + 4f; d += 0.25f)
+                if (g(b.x + towardRoad.x * d, b.z + towardRoad.z * d) < baseY - WALL_SUPPORT_TOL_M) { face = d; break; }
+            return front - face;
+        }
+
+        /// <summary>壁の岩が座っているか（道側の底が乗る・張り出さない・縦に伸ばしすぎない）。why = 理由（ok なら null）。</summary>
+        public static bool WallSeated(Placement p, Vector3 towardRoad, Ground g, out string why)
+        {
+            why = null;
+            if (p.scaleY > WALL_MAX_SCALE_Y) { why = "stretched ×" + p.scaleY.ToString("F2"); return false; }
+            float gap = WallSupportGap(p, towardRoad, g);
+            if (gap > WALL_SUPPORT_TOL_M) { why = "unsupported " + gap.ToString("F1") + "m"; return false; }
+            float oh = WallOverhang(p, towardRoad, g);
+            if (oh > WALL_OVERHANG_TOL_M) { why = "overhang " + oh.ToString("F1") + "m"; return false; }
+            return true;
+        }
+
+        /// <summary>
+        /// 壁の岩の見え方：front = 道側の底の縁（前の面）で地面より上に出ている高さの割合（平均）、depth = 前の面から、壁が岩の上の高さまで上がる所までの奥行き（m）。
+        /// 前の面がほとんど埋まる（front 小）・奥行きが薄い（depth 小）と壁から突き出た薄いかけらに見える。
+        /// </summary>
+        public static void WallExposure(Placement p, Vector3 towardRoad, Ground g, out float front, out float depth)
+        {
+            Vector3 mn, mx;
+            LocalBox(p, out mn, out mx);
+            float h = Mathf.Max(0.05f, mx.y - mn.y);
+            var pts = RoadSideBottom(p, towardRoad, WALL_SUPPORT_FOOT);
+            float fmax = float.MinValue;
+            foreach (var q in pts) fmax = Mathf.Max(fmax, (q.x - p.position.x) * towardRoad.x + (q.z - p.position.z) * towardRoad.z);
+            float sum = 0f; int n = 0;
+            float top = p.position.y + mx.y;
+            foreach (var q in pts)
+            {
+                if ((q.x - p.position.x) * towardRoad.x + (q.z - p.position.z) * towardRoad.z < fmax - 0.75f) continue;
+                sum += Mathf.Clamp01((top - Mathf.Max(q.y, g(q.x, q.z))) / h); n++;
+            }
+            front = n > 0 ? sum / n : 0f;
+            Vector3 f = p.position + towardRoad * fmax;
+            depth = 0f;
+            for (float d = 0f; d <= 40f; d += 0.25f)
+            {
+                if (g(f.x - towardRoad.x * d, f.z - towardRoad.z * d) >= top) break;
+                depth = d;
+            }
         }
 
         // ---- 見どころ・ゴール・スタートの手で置く部品（SetPieceBuilder・CourseBuilder・下見の Extras が同じ置き方）----

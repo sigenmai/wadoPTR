@@ -104,5 +104,38 @@ namespace HorseRace.Tests
             Assert.AreEqual("前後 -12cm", SeatMath.AxisLabel(SeatMath.AXIS_FORWARD, -0.12f));
             Assert.AreEqual("傾き ±0°", SeatMath.AxisLabel(SeatMath.AXIS_TILT, 0f));
         }
+        // ---- art-r7-03：騎乗時の視点（座った目の高さ）と首の札 ----
+        [Test] public void SeatedEye_FromSaddleAndAvatar()
+        {
+            // 馬：鞍の点 1.60m + 0.43 × 立った目（1.2 / 1.65 / 1.9m）
+            Assert.AreEqual(2.116f, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.2f, 0f), 0.01f);
+            Assert.AreEqual(2.31f, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.65f, 0f), 0.01f);
+            Assert.AreEqual(2.417f, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.9f, 0f), 0.01f);
+            Assert.AreEqual(3.41f, SeatMath.SeatedEyeY(SeatMath.SEAT_CAMEL, 1.65f, 0f), 0.01f);
+            Assert.AreEqual(2.31f, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 0f, 0f), 0.01f, "目の高さが取れない：1.65m");
+            Assert.AreEqual(2.41f, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.65f, 0.10f), 0.01f, "微調整の高さ");
+            Assert.AreEqual(0.049f, SeatMath.SeatedEyeZ(SeatMath.SEAT_HORSE, 1.65f, 0f), 0.01f);
+            // Horse.fbx（拡大 1）の耳の先 2.05m・前後 0.9〜1.0m：目は耳より上（頭と首は道の下に見える）、目と耳の間は 1m 以上（カメラが頭・たてがみの中に入らない）
+            const float EAR_TOP = 2.05f, EAR_FWD = 0.95f;
+            Assert.Greater(SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.65f, 0f), EAR_TOP + 0.15f);
+            float down = UnityEngine.Mathf.Atan2(SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.65f, 0f) - EAR_TOP, EAR_FWD - SeatMath.SeatedEyeZ(SeatMath.SEAT_HORSE, 1.65f, 0f)) * UnityEngine.Mathf.Rad2Deg;
+            Assert.That(down, Is.InRange(8f, 25f), "耳は水平から 8〜25° 下（縦 60° の視野の下半分、道の先は隠さない）");
+        }
+
+        [Test] public void NeckCard_ClearsTheMane()
+        {
+            // Horse.fbx のたてがみ：前後 0.4m で 1.80m、0.5m で 1.87m、0.6m で 1.93m（鞍の点 1.60m・前後 -0.05m から）
+            float y = SeatMath.SADDLE_HORSE_Y + HudMath.NeckCardRise(1.65f), z = SeatMath.SADDLE_HORSE_Z + HudMath.NECK_CARD_FWD_M;
+            float tilt = 35f * UnityEngine.Mathf.Deg2Rad;
+            // 札の下の持久力の印の列（札の中心から NECK_PIPS_BOTTOM 下、35° 後ろへ倒す）
+            float drop = -HorseRace.EditorTools.UiStyle.NECK_PIPS_BOTTOM;
+            float py = y - drop * UnityEngine.Mathf.Cos(tilt), pz = z + drop * UnityEngine.Mathf.Sin(tilt);
+            float mane = pz <= 0.4f ? 1.80f : (pz <= 0.5f ? 1.80f + (pz - 0.4f) * 0.7f : 1.87f + (pz - 0.5f) * 0.6f);
+            Assert.Greater(py, mane + 0.05f, "印の列はたてがみの 5cm 以上上");
+            Assert.Less(y, SeatMath.SeatedEyeY(SeatMath.SEAT_HORSE, 1.65f, 0f) - 0.2f, "札は目より 20cm 以上下");
+            Assert.AreEqual(HudMath.NECK_CARD_MIN_RISE_M, HudMath.NeckCardRise(1.2f), 1e-4f, "小さなアバターもたてがみの上");
+            Assert.Greater(HudMath.NeckCardRise(1.9f), HudMath.NeckCardRise(1.65f), "背の高いアバターは上げる");
+            Assert.LessOrEqual(HudMath.NeckCardRise(5f), HudMath.NECK_CARD_MAX_RISE_M);
+        }
     }
 }

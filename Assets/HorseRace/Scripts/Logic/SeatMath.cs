@@ -61,6 +61,29 @@ namespace HorseRace
         /// <summary>2 回目以降の測定は前の値とこの割合で混ぜる（一瞬のずれで跳ねない）。</summary>
         public const float CALIB_BLEND = 0.5f;
 
+        // ---- 乗った人の目（art-r7-03：騎乗時の視点の確認）----
+        // SeatFit が腰（Hips）を鞍の点に合わせるので、目は鞍の点から「腰から目まで」上。立った目の高さ E のヒューマノイドで
+        // 腰（Hips ボーン、股関節の高さ）≒ 身長 × 0.53、目 ≒ 身長 × 0.935 → 腰から目まで ≒ 0.433·E。騎乗ポーズ（RidePose：背中 0.15・胸 0.05）の前傾 ≈ 8° で
+        // 縦は ×0.99、前へ 0.43·E × sin 8° ≈ 0.06·E。例（馬、鞍の点 1.60m）：E 1.2m → 目 2.12m、E 1.65m → 2.31m、E 1.9m → 2.42m（乗り物の原点 = 地面から）。
+        public const float SEATED_EYE_PER_EYE = 0.43f;
+        public const float SEATED_EYE_FWD_PER_EYE = 0.06f;
+        /// <summary>目の高さが取れないときの立った目の高さ（VRChat の既定のアバター）。</summary>
+        public const float DEFAULT_EYE_HEIGHT = 1.65f;
+
+        /// <summary>乗り物ローカルの目の高さ（m、原点 = 地面）：鞍の点 + 0.43 × 立った目の高さ（微調整の高さを足す）。</summary>
+        public static float SeatedEyeY(int type, float eyeHeight, float userHeight)
+        {
+            if (!(eyeHeight > 0f)) eyeHeight = DEFAULT_EYE_HEIGHT;
+            return DefaultSaddleY(type) + eyeHeight * SEATED_EYE_PER_EYE + userHeight;
+        }
+
+        /// <summary>乗り物ローカルの目の前後（m、+ = 頭の向き）：鞍の点 + 0.06 × 立った目の高さ（微調整の前後を足す）。</summary>
+        public static float SeatedEyeZ(int type, float eyeHeight, float userForward)
+        {
+            if (!(eyeHeight > 0f)) eyeHeight = DEFAULT_EYE_HEIGHT;
+            return DefaultSaddleZ(type) + eyeHeight * SEATED_EYE_FWD_PER_EYE + userForward;
+        }
+
         public static int SeatType(int mount, int coat)
         {
             if (mount == MountMath.MOUNT_CAMEL) return SEAT_CAMEL;

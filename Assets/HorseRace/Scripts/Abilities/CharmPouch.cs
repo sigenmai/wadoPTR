@@ -48,7 +48,7 @@ namespace HorseRace
         [Tooltip("絵の無い能力の手配書の上の名前（HudMath.AbilityCardCaption）")]
         public TextMeshPro caption;
         [Tooltip("鞍の点からの位置（乗り物ローカル）。首の札（MinimalHud.neckOffset）の 0.09m 右")]
-        public Vector3 neckOffset = new Vector3(0.15f, 0.25f, 0.55f);
+        public Vector3 neckOffset = new Vector3(0.15f, HudMath.NECK_CARD_MIN_RISE_M, HudMath.NECK_CARD_FWD_M);
         public float neckPitch = 35f;
 
         [Header("デスクトップ：頭（ui-r3-04）")]
@@ -64,6 +64,7 @@ namespace HorseRace
         private Vector3 baseScale = Vector3.one;
         private bool baseScaleCaptured;
         private bool onHead;
+        private float shownEye = -1f;
         private int shownLevel = -1;
         private int shownAbility = -1;
         private int shownType = -1;
@@ -89,10 +90,15 @@ namespace HorseRace
         public void Show(bool ready, int level, float remaining, int ability, int seatType)
         {
             SetVisible(true);
-            if (seatType != shownType && !onHead)
+            VRCPlayerApi me = Networking.LocalPlayer;
+            float eye = me != null ? me.GetAvatarEyeHeightAsMeters() : SeatMath.DEFAULT_EYE_HEIGHT;
+            if ((seatType != shownType || Mathf.Abs(eye - shownEye) > 0.01f) && !onHead)
             {
                 shownType = seatType;
-                transform.localPosition = new Vector3(neckOffset.x, SeatMath.DefaultSaddleY(seatType) + neckOffset.y, SeatMath.DefaultSaddleZ(seatType) + neckOffset.z);
+                shownEye = eye;
+                // art-r7-03：首の札（MinimalHud）と同じ高さ（たてがみに埋まらない、背の高いアバターは上げる）
+                float rise = Mathf.Max(neckOffset.y, HudMath.NeckCardRise(eye));
+                transform.localPosition = new Vector3(neckOffset.x, SeatMath.DefaultSaddleY(seatType) + rise, SeatMath.DefaultSaddleZ(seatType) + neckOffset.z);
                 transform.localRotation = Quaternion.Euler(neckPitch, 0f, 0f);
             }
             int r = ready ? 1 : 0;

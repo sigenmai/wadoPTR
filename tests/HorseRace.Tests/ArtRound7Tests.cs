@@ -243,6 +243,79 @@ namespace HorseRace.Tests
             Assert.Less(east, LobbyLayout.BERM_HEIGHT_M + 0.05f);
         }
 
+        // ---- art-r7-02：切り通しの壁の岩は壁に座る（オーナーの指摘「この写真　岩が変だとおもはないか？」）----
+
+        /// <summary>道（x &lt; 10）の外、x = 10 から 1m ごとに 1.8m 上る 61° の壁（切り通しの実際の壁の形）。</summary>
+        static float SteepWall(float x, float z) => Mathf.Max(0f, (x - 10f) * 1.8f);
+
+        static Placement WallRock(float x, float y, float sy = 1.05f)
+            => new Placement { group = "WallFace", asset = DressingPlan.DROCKS, part = "DesertRocks_03", position = new Vector3(x, y, 0f), yawDeg = 0f, scale = 0.7f, scaleY = sy,
+                               radius = DressingPlan.SizeOf(DressingPlan.DROCKS, "DesertRocks_03").r * 0.7f, height = DressingPlan.SizeOf(DressingPlan.DROCKS, "DesertRocks_03").h * 0.7f * sy };
+
+        [Test] public void WallSeatCheckCatchesCantileveredSlabs()
+        {
+            GroundFit.Ground g = SteepWall;
+            Vector3 toRoad = new Vector3(-1f, 0f, 0f);
+            // 前の置き方：中心を壁の途中に置き、底を中心の地面の高さに → 道側の底の下が空（棚に見えた）
+            var slab = WallRock(18f, SteepWall(18f, 0f));
+            Assert.IsFalse(GroundFit.WallSeated(slab, toRoad, g, out string why), "宙に張り出した岩");
+            StringAssert.StartsWith("unsupported", why);
+            Assert.Greater(GroundFit.WallSupportGap(slab, toRoad, g), 5f);
+            Assert.Greater(GroundFit.WallOverhang(slab, toRoad, g), 3f);
+            // 座らせる：道側の底のいちばん低い地面 − 0.3m に底
+            var seated = WallRock(18f, 0f);
+            DressingPlan.SeatOnWall(seated, toRoad, g, DressingPlan.WALL_SEAT_SINK_M);
+            Assert.IsTrue(GroundFit.WallSeated(seated, toRoad, g, out why), why);
+            Assert.LessOrEqual(GroundFit.WallSupportGap(seated, toRoad, g), 0f);
+            Assert.LessOrEqual(GroundFit.WallOverhang(seated, toRoad, g), GroundFit.WALL_OVERHANG_TOL_M);
+            GroundFit.WallExposure(seated, toRoad, g, out float front, out float depth);
+            Assert.GreaterOrEqual(front, DressingPlan.WALL_SEAT_MIN_FRONT, "前の面が見える");
+            Assert.Greater(depth, 2f, "薄いかけらではない");
+            // 縦に伸ばした板は座っていても不可
+            var tall = WallRock(18f, 0f, 1.6f);
+            DressingPlan.SeatOnWall(tall, toRoad, g, DressingPlan.WALL_SEAT_SINK_M);
+            Assert.IsFalse(GroundFit.WallSeated(tall, toRoad, g, out why));
+            StringAssert.StartsWith("stretched", why);
+            // 平らな棚の縁から道の上へ張り出す（底は棚の高さ、前の半分が縁の外）
+            GroundFit.Ground ledge = (x, z) => x >= 20f ? 10f : 0f;
+            var lip = WallRock(20f, 10f);
+            Assert.Greater(GroundFit.WallOverhang(lip, toRoad, ledge), GroundFit.WALL_OVERHANG_TOL_M);
+            Assert.IsFalse(GroundFit.WallSeated(lip, toRoad, ledge, out why));
+        }
+
+        [Test] public void PassWallRocksAreSeatedAndStepBack()
+        {
+            var b = Stage(2);
+            GroundFit.Ground g = b.Ground;
+            var rocks = b.plan.Where(DressingPlan.IsWallRock).ToList();
+            float pass = SetPieces.PassArc(b.def, b.goal);
+            var cum = DressingPlan.CourseArcs(b.local);
+            int inCut = 0;
+            var bad = new List<string>();
+            foreach (var p in rocks)
+            {
+                Vector3 tr = DressingPlan.TowardRoad(b.local, p.position);
+                if (!GroundFit.WallSeated(p, tr, g, out string why)) bad.Add(p.group + " " + (p.part ?? "MesaB") + " @" + p.position + " " + why);
+                if (Mathf.Abs(DressingPlan.NearestArc(b.local, cum, p.position, out _) - pass) <= SetPieces.PASS_HALF_CUT + 25f) inCut++;
+            }
+            foreach (var m in bad.Take(10)) TestContext.WriteLine(m);
+            Assert.AreEqual(0, bad.Count, "道側の底が浮く・壁から張り出す・縦に伸ばした壁の岩");
+            Assert.Greater(inCut, 40, "切り通しの両側の壁の岩");
+            // 上の段ほど壁の奥（道から遠い）：底の高さが 8m 上がるごとに前の面は道から遠くなる
+            var cut = rocks.Where(p => p.group == "WallFace" && Mathf.Abs(DressingPlan.NearestArc(b.local, cum, p.position, out _) - pass) <= SetPieces.PASS_HALF_CUT + 25f).ToList();
+            float hi = 0f, lo = 0f; int nh = 0, nl = 0;
+            foreach (var p in cut)
+            {
+                float d;
+                float a = DressingPlan.NearestArc(b.local, cum, p.position, out d);
+                Vector3 c = WorldLayout.PointAtArc(b.local, a);
+                float rel = p.position.y - b.Ground(c.x, c.z);
+                if (rel > 12f) { hi += d; nh++; } else if (rel < 6f) { lo += d; nl++; }
+            }
+            Assert.Greater(nh, 5); Assert.Greater(nl, 5);
+            Assert.Greater(hi / nh, lo / nl + 4f, "上の段は壁の奥へ下がる（道へ張り出さない）");
+        }
+
         // ---- 部品の取り違え ----
 
         [TestCaseSource(nameof(Stages))]
