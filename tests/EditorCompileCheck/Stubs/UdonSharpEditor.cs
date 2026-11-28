@@ -10,6 +10,7 @@ namespace UdonSharp
     {
         public UnityEditor.MonoScript sourceCsScript;
         public static void CompileAllCsPrograms(bool forceCompile = false, bool editorBuild = true) { }
+        public static bool AnyUdonSharpScriptHasError() => false;
     }
 }
 

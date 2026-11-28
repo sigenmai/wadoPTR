@@ -126,6 +126,7 @@ namespace HorseRace.EditorTools
             // 3. UdonSharp のプログラムアセット。作ったときはコンパイル待ち
             if (!ProgramAssets.Ensure(false))
             {
+                if (ProgramAssets.LastError != null) { Fail(ProgramAssets.LastError); return; }
                 Debug.Log("[HorseRace] (3/4) UdonSharp のプログラムアセットを作りました。コンパイルが終わるのを待っています…");
                 Schedule();
                 return;

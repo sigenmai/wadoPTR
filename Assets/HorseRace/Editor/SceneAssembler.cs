@@ -520,6 +520,9 @@ namespace HorseRace.EditorTools
     public static class ProgramAssets
     {
         /// showDialog=false はワンボタンセットアップ用（ダイアログを出さず、コンパイルを待って自動で再開する）
+        /// <summary>コンパイルエラーで進めないときの理由（null なら待てば進める）。</summary>
+        public static string LastError;
+
         public static bool Ensure(bool showDialog = true)
         {
             var have = new HashSet<MonoScript>();
@@ -541,7 +544,22 @@ namespace HorseRace.EditorTools
                 AssetDatabase.CreateAsset(asset, path.Substring(0, path.Length - 3) + ".asset");
                 created++;
             }
-            if (created == 0) return true;
+            LastError = null;
+            if (created == 0)
+            {
+                // スクリプトを更新したあと、U# のプログラムがまだ古いまま Build World が走ると
+                // 「outdated behaviour version」「Field for System.Boolean does not exist」で途中で止まる（オーナーの Console、2026-11-28）。
+                // CompileAllCsPrograms は U# 1.x では CompileSync（同期）なので、ここで必ず最新にしてから進む。
+                UdonSharpProgramAsset.CompileAllCsPrograms(false);
+                if (UdonSharpProgramAsset.AnyUdonSharpScriptHasError())
+                {
+                    LastError = "UdonSharp のコンパイルエラーがあります。Console の UdonSharp の赤い行を Claude に送ってください。";
+                    Debug.LogError("[HorseRace] " + LastError);
+                    if (showDialog) EditorUtility.DisplayDialog("HorseRace/Build World", LastError, "OK");
+                    return false;
+                }
+                return true;
+            }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             // UdonSharp 1.x の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める。
