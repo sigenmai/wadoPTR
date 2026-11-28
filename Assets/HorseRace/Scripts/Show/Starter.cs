@@ -104,8 +104,8 @@ namespace HorseRace
                 int st = raceManager.stage;
                 if (st >= 0 && st < skySpots.Length && skySpots[st] != null)
                 {
-                    if (skyCountText != null) skyCountText.transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation);
-                    if (skyCountBack != null) skyCountBack.transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation * Quaternion.Euler(0f, 180f, 0f));
+                    if (skyCountText != null) ((Component)skyCountText).transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation);
+                    if (skyCountBack != null) ((Component)skyCountBack).transform.SetPositionAndRotation(skySpots[st].position, skySpots[st].rotation * Quaternion.Euler(0f, 180f, 0f));
                 }
             }
             SetGates(raceManager != null ? raceManager.stage : -1);
@@ -259,7 +259,7 @@ namespace HorseRace
         {
             if (skyCountText != null)
             {
-                if (!skyScaleCaptured) { skyScale = skyCountText.transform.localScale; skyScaleCaptured = true; }
+                if (!skyScaleCaptured) { skyScale = ((Component)skyCountText).transform.localScale; skyScaleCaptured = true; }
                 skyCountText.text = s;
                 skyCountText.color = c;
             }
@@ -283,8 +283,8 @@ namespace HorseRace
         {
             if (!skyScaleCaptured) return;
             float k = HudMath.PunchScale(Time.time - skyPunchAt, skyPunchFrom);
-            if (skyCountText != null) skyCountText.transform.localScale = skyScale * k;
-            if (skyCountBack != null) skyCountBack.transform.localScale = skyScale * k;
+            if (skyCountText != null) ((Component)skyCountText).transform.localScale = skyScale * k;
+            if (skyCountBack != null) ((Component)skyCountBack).transform.localScale = skyScale * k;
         }
     }
 }

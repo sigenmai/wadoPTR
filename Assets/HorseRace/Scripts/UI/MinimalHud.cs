@@ -617,7 +617,7 @@ namespace HorseRace
         private void UpdatePunch()
         {
             if (rankText == null) return;
-            Transform rt = rankText.transform;
+            Transform rt = ((Component)rankText).transform;
             if (!scaleCaptured) { rankBaseScale = rt.localScale; scaleCaptured = true; }
             float s = HudMath.PunchScale(Time.time - punchAt, punchFrom);
             rt.localScale = rankBaseScale * s;

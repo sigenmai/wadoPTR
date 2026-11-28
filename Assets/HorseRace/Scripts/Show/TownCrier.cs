@@ -75,7 +75,7 @@ namespace HorseRace
             if (callAudio != null && c != null) callAudio.PlayOneShot(c);
             if (pickPaper != null)
             {
-                if (!pickScaleCaptured) { pickBaseScale = pickPaper.transform.localScale; pickScaleCaptured = true; }
+                if (!pickScaleCaptured) { pickBaseScale = ((Component)pickPaper).transform.localScale; pickScaleCaptured = true; }
                 pickPaper.color = hit ? new Color(0.48f, 0.30f, 0.02f) : new Color(0.23f, 0.15f, 0.08f);   // 紙の上で読める濃い金（明るさの比 ≥ 4.5）
                 pickPunchAt = Time.time;
             }
@@ -87,7 +87,7 @@ namespace HorseRace
             float t = Time.time - pickPunchAt;
             if (t > 4f && t < 4.5f) pickPaper.color = new Color(0.23f, 0.15f, 0.08f);   // 4 秒で焦げ茶のインクへ戻す
             if (t > 1.5f) return;
-            pickPaper.transform.localScale = pickBaseScale * HudMath.PunchScale(t, 1.4f);
+            ((Component)pickPaper).transform.localScale = pickBaseScale * HudMath.PunchScale(t, 1.4f);
         }
 
         private void AnimatePaper()

@@ -62,7 +62,7 @@ namespace HorseRace
         private void Update()
         {
             if (!punching || choiceText == null) return;
-            Transform t = choiceText.transform;
+            Transform t = ((Component)choiceText).transform;
             if (!scaleCaptured) { choiceScale = t.localScale; scaleCaptured = true; }
             float e = Time.time - punchAt;
             if (e >= 0.4f) { punching = false; t.localScale = choiceScale; return; }

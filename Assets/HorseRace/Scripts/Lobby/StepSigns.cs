@@ -35,7 +35,7 @@ namespace HorseRace
         {
             int n = stepTexts != null ? stepTexts.Length : 0;
             baseScale = new Vector3[n];
-            for (int i = 0; i < n; i++) baseScale[i] = stepTexts[i] != null ? stepTexts[i].transform.localScale : Vector3.one;
+            for (int i = 0; i < n; i++) baseScale[i] = stepTexts[i] != null ? ((Component)stepTexts[i]).transform.localScale : Vector3.one;
         }
 
         private void Update()
@@ -51,7 +51,7 @@ namespace HorseRace
             if (nextStep >= 0 && nextStep < stepTexts.Length && stepTexts[nextStep] != null)
             {
                 if (now - punchAt >= PUNCH_EVERY) punchAt = now;
-                stepTexts[nextStep].transform.localScale = baseScale[nextStep] * HudMath.PunchScale(now - punchAt, 1.25f);
+                ((Component)stepTexts[nextStep]).transform.localScale = baseScale[nextStep] * HudMath.PunchScale(now - punchAt, 1.25f);
             }
         }
 
@@ -73,7 +73,7 @@ namespace HorseRace
             if (mask == lastMask) return;
             lastMask = mask;
             int nx = HudMath.LobbyNextStep(mask);
-            if (nextStep >= 0 && nextStep < stepTexts.Length && stepTexts[nextStep] != null) stepTexts[nextStep].transform.localScale = baseScale[nextStep];
+            if (nextStep >= 0 && nextStep < stepTexts.Length && stepTexts[nextStep] != null) ((Component)stepTexts[nextStep]).transform.localScale = baseScale[nextStep];
             nextStep = nx < HudMath.LOBBY_STEPS ? nx : -1;
             punchAt = Time.time;
             for (int i = 0; i < stepTexts.Length; i++)
