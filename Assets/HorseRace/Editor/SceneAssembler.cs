@@ -549,8 +549,11 @@ namespace HorseRace.EditorTools
             {
                 // スクリプトを更新したあと、U# のプログラムがまだ古いまま Build World が走ると
                 // 「outdated behaviour version」「Field for System.Boolean does not exist」で途中で止まる（オーナーの Console、2026-11-28）。
-                // CompileAllCsPrograms は U# 1.x では CompileSync（同期）なので、ここで必ず最新にしてから進む。
-                UdonSharpProgramAsset.CompileAllCsPrograms(false);
+                // UdonSharpProgramAsset.CompileAllCsPrograms は U# 1.1.9 では非同期の UdonSharpCompilerV1.Compile を
+                // 始めるだけで、戻った時点ではまだ古いプログラムのまま（AnyUdonSharpScriptHasError も古い結果を見る）。
+                // 公開 API の CompileSync（前の仕事を待つ→コンパイル→終わるまで待つ）で、必ず最新にしてから進む。
+                UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(
+                    new UdonSharp.Compiler.UdonSharpCompileOptions { IsEditorBuild = true });
                 if (UdonSharpProgramAsset.AnyUdonSharpScriptHasError())
                 {
                     LastError = "UdonSharp のコンパイルエラーがあります。Console の UdonSharp の赤い行を Claude に送ってください。";
@@ -562,9 +565,8 @@ namespace HorseRace.EditorTools
             }
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            // UdonSharp 1.x の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める。
-            // API 名は記憶によるもので未検証。この名前が無い U# の版ではこの行がエディタのコンパイルエラーになるので、その場合は
-            // この 1 行を消せばよい（Refresh の後、U# はプログラムアセットを自動でコンパイルする）。
+            // UdonSharp 1.1.9 の UdonSharpProgramAsset.CompileAllCsPrograms(forceCompile, editorBuild) でコンパイルを始める
+            // （U# のソースで確認済み。非同期なので、終わりは下のダイアログの手順でオーナーが確かめる）。
             UdonSharpProgramAsset.CompileAllCsPrograms(true);
             if (showDialog) EditorUtility.DisplayDialog("HorseRace/Build World",
                 "UdonSharp のプログラムアセットを " + created + " 個作り、コンパイルを始めました。\n\n"

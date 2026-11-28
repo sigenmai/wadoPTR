@@ -14,6 +14,21 @@ namespace UdonSharp
     }
 }
 
+namespace UdonSharp.Compiler
+{
+    /// <summary>Real (U# 1.1.9): UdonSharp.Compiler.UdonSharpCompileOptions / UdonSharpCompilerV1.Compile (async) and CompileSync.</summary>
+    public class UdonSharpCompileOptions
+    {
+        public bool IsEditorBuild { get; set; } = true;
+    }
+
+    public class UdonSharpCompilerV1
+    {
+        public static void Compile(UdonSharpCompileOptions options = null) { }
+        public static void CompileSync(UdonSharpCompileOptions options = null) { }
+    }
+}
+
 namespace UdonSharpEditor
 {
     /// <summary>Real: UdonSharpEditor.UdonSharpUndo (U# 1.x) — adds the proxy behaviour and its backing UdonBehaviour.</summary>
