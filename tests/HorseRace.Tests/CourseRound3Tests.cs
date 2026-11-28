@@ -105,7 +105,8 @@ namespace HorseRace.Tests
             for (float lat = SetPieces.SPINE_HALF + 2.5f; lat < SetPieces.LIP_THIN_LAT; lat += SetPieces.LIP_ROCK_STEP, li++) { all++; if (SetPieces.LipRockKept(lat, li)) kept++; }
             Assert.LessOrEqual(kept, (all + 1) / 2);
             Assert.AreEqual(4, SetPieces.SpineEdgeLamps().Length);
-            foreach (var m in SetPieces.SpineEdgeLamps()) Assert.Less(Mathf.Abs(m.y), SetPieces.SPINE_HALF);
+            // art-r6-13：灯りは背の上ではなく両端の橋台（背の端より先）
+            foreach (var m in SetPieces.SpineEdgeLamps()) Assert.Greater(Mathf.Abs(m.x), SetPieces.TRENCH_HALF_WIDTH + SetPieces.TRENCH_BLEND);
         }
 
         // ---- course-r3-05：近い柵は途切れない（当たる壁は必ず見える）----
@@ -181,7 +182,7 @@ namespace HorseRace.Tests
                 Assert.Greater(parts.Count(p => p.kind == CourseMarks.CHUTE_RAIL && p.side == sd) * DressingPlan.RAIL_LEN, 120f, "レールの長さ side " + sd);
             }
             Assert.GreaterOrEqual(parts.Count(p => p.kind == CourseMarks.CHUTE_LAMP), 8);
-            Assert.GreaterOrEqual(parts.Count(p => p.kind == CourseMarks.CHUTE_FLAG), 16);
+            Assert.GreaterOrEqual(parts.Count(p => p.kind == CourseMarks.CHUTE_FLAG), 8);   // art-r6-12：旗は 2 本に 1 本
             Assert.AreEqual(1, parts.Count(p => p.kind == CourseMarks.CHUTE_SIGN));
             if (b.def.kind != HeightmapGen.KIND_MESA) Assert.GreaterOrEqual(parts.Count(p => p.kind == CourseMarks.CHUTE_HAY), 20);
             foreach (var p in parts)
@@ -269,15 +270,16 @@ namespace HorseRace.Tests
                 {
                     float v = m[z, x];
                     if (v <= 0.05f) continue;
-                    if (bridge >= 0f && Mathf.Abs(v - SetPieces.SPINE_LINE_W) < 0.02f) { spine++; continue; }
+                    if (bridge >= 0f && SetPieces.SPINE_LINE_W > 0f && Mathf.Abs(v - SetPieces.SPINE_LINE_W) < 0.02f) { spine++; continue; }
                     on++;
                 }
             float cell = StageDefinitions.SIZE / (res - 1);
             Assert.Less(on * cell * cell, 2f * 2f * StageDefinitions.START_HALF_M * (HeightmapGen.LINE_BAND_M + 2f * HeightmapGen.LINE_BAND_FADE_M + 2f * cell));
             if (bridge >= 0f)
             {
-                Assert.Greater(spine, 20, "岩の橋の背は明るい道");
-                Assert.AreEqual(SetPieces.SPINE_LINE_W, W(WorldLayout.PointAtArc(b.local, bridge)), 0.02f);
+                // art-r6-13：背は道の色のまま（線の明るさで塗らない）
+                Assert.AreEqual(0, spine);
+                Assert.AreEqual(0f, W(WorldLayout.PointAtArc(b.local, bridge)), 0.02f);
             }
         }
     }

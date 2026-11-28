@@ -100,7 +100,8 @@ namespace HorseRace.EditorTools
         /// <summary>道の縁の幅（art-r3-06）：平らな道の縁 ±0.6m（1.2m）の smoothstep で切る。前の 6m のぼかしは見えない物の影のように見えた。</summary>
         public const float TRAIL_EDGE_M = 1.2f;
         /// <summary>轍（わだち、art-r3-06）：道の中心から ±1.8m に幅 0.6m の 2 本の線（ToonTerrain が道の色 ×0.85 で描く）。</summary>
-        public const float RUT_OFFSET_M = 1.8f, RUT_WIDTH_M = 0.6f;
+        /// art-r6-04：±0.9m・幅 0.35m（車輪・蹄の跡の幅。前の ±1.8m・0.6m は 2m の格子で丸いしみの列に見えた）。
+        public const float RUT_OFFSET_M = 0.9f, RUT_WIDTH_M = 0.35f;
         /// <summary>道の中心からの距離を道のマスクの G に入れるときの最大（m）：G = 距離 / TRAIL_DIST_MAX_M。</summary>
         public const float TRAIL_DIST_MAX_M = 16f;
 
@@ -130,6 +131,9 @@ namespace HorseRace.EditorTools
 
         /// <summary>art-r5-01：符号付きの距離 sd（m）の轍の重み（ToonTerrain と同じ式：1 − smoothstep(w·0.35, w·0.65, ||d| − offset|)）。</summary>
         public static float RutWeightSigned(float sd) => RutWeight(Mathf.Abs(sd));
+
+        /// <summary>art-r6-04：轍の暗さ（0〜RUT_SHADE_MAX_DARKEN）= (1 − RUT_SHADE) × 重み。ノイズで揺らさない（しみにしない）。</summary>
+        public static float RutDarken(float sd) => Mathf.Min(1f - ArtPalette.RUT_SHADE, ArtPalette.RUT_SHADE_MAX_DARKEN) * RutWeightSigned(sd);
 
         /// <summary>格子 a（[z, x]）の (x, z)（格子の番号）の双線形補間（TerrainBuilder の道のテクスチャとテスト用）。</summary>
         public static float SampleBilinear(float[,] a, float x, float z)
@@ -562,7 +566,9 @@ namespace HorseRace.EditorTools
                 for (int x = 0; x < n; x++)
                 {
                     float px = x * cell, pz = z * cell;
-                    float d = RimDistance(px, pz, terrainSizeM);
+                    // art-r6-05：尾根の内側の縁を低い周波数で ±RIM_EDGE_WOBBLE_M 揺らす（上から見て四角い板の縁にしない）
+                    float d0 = RimDistance(px, pz, terrainSizeM);
+                    float d = d0 + RIM_EDGE_WOBBLE_M * (2f * Noise(px / 300f, pz / 300f, seed, 24) - 1f) * Mathf.Clamp01(d0 / 45f);   // 縁そのもの（外の地面との継ぎ目）は動かさない
                     if (d >= rimWidthM) continue;
                     float w = Smooth(0f, 1f, 1f - d / rimWidthM);
                     if (course != null)
@@ -585,6 +591,95 @@ namespace HorseRace.EditorTools
                     h[z, x] = Mathf.Clamp01(h[z, x] + w * rise / heightM);
                 }
             SmoothSteep(h, terrainSizeM, heightM, course);
+        }
+
+        public const float RIM_EDGE_WOBBLE_M = 15f;
+
+        // ---- art-r6-06：見どころを掘った後の斜面のゆるめ（60° より急な段をなくす）と 45° 以上の 3×3 のぼかし ----
+        /// <summary>隣のマスとの高さの差の上限（m）：1.95m のマスで 60°。</summary>
+        public const float RELAX_MAX_STEP_M = 3.4f;
+        public const int RELAX_PASSES = 4, RELAX_MAX_PASSES = 600;
+        /// <summary>art-r6-06：外周のこのマス数は動かさない（外の地面との継ぎ目の高さを変えない）。</summary>
+        public const int RELAX_EDGE_KEEP_CELLS = 6;
+
+        /// <summary>
+        /// 隣（上下左右）との差が maxStepM（m）を超える所を、両方から近づけて差を maxStepM にする（RELAX_PASSES 回）。keep が true のマス（道の帯・岩の橋の背・踏み切り）は動かさず、
+        /// 相手のマスだけを動かす。その後、45° 以上の所（keep の外）だけ 3×3 の平均を 1 回。峡谷の縁・切り通しの壁ののこぎりの歯・段をなくす。
+        /// </summary>
+        public static void RelaxSlopes(float[,] h, float sizeM, float heightM, bool[,] keep, float maxStepM = RELAX_MAX_STEP_M, int passes = RELAX_PASSES)
+        {
+            int n = h.GetLength(0);
+            RelaxPasses(h, keep, maxStepM / heightM, passes);
+            float cell = sizeM / (n - 1), tan = Mathf.Tan(STEEP_BLUR_SLOPE_DEG * Mathf.Deg2Rad);
+            var src = (float[,])h.Clone();
+            for (int z = 1; z < n - 1; z++)
+                for (int x = 1; x < n - 1; x++)
+                {
+                    if (keep != null && keep[z, x]) continue;
+                    float gx = (src[z, x + 1] - src[z, x - 1]) * heightM / (2f * cell), gz = (src[z + 1, x] - src[z - 1, x]) * heightM / (2f * cell);
+                    if (gx * gx + gz * gz < tan * tan) continue;
+                    float sum = 0f;
+                    for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) sum += src[z + dz, x + dx];
+                    h[z, x] = sum / 9f;
+                }
+            // ぼかした所とぼかさない所の境に段ができるので、もう一度ゆるめる
+            RelaxPasses(h, keep, maxStepM / heightM, 1);
+        }
+
+        static void RelaxPasses(float[,] h, bool[,] keep, float mx, int minPasses)
+        {
+            int n = h.GetLength(0);
+            for (int pass = 0; pass < RELAX_MAX_PASSES; pass++)
+            {
+                bool changed = false;
+                for (int z = 0; z < n; z++)
+                    for (int x = 0; x < n; x++)
+                        for (int k = 0; k < 2; k++)
+                        {
+                            int z2 = k == 0 ? z : z + 1, x2 = k == 0 ? x + 1 : x;
+                            if (z2 >= n || x2 >= n) continue;
+                            float a = h[z, x], b = h[z2, x2], d = a - b, ad = Mathf.Abs(d);
+                            if (ad <= mx * 1.0001f) continue;
+                            bool ka = keep != null && keep[z, x], kb = keep != null && keep[z2, x2];
+                            if (ka && kb) continue;
+                            float ex = ad - mx, sg = d >= 0f ? 1f : -1f;
+                            if (ka) h[z2, x2] = b + sg * ex;
+                            else if (kb) h[z, x] = a - sg * ex;
+                            else { h[z, x] = a - sg * ex * 0.5f; h[z2, x2] = b + sg * ex * 0.5f; }
+                            changed = true;
+                        }
+                if (!changed && pass + 1 >= minPasses) break;
+            }
+        }
+
+        /// <summary>高さマップ h のマスの中で、隣との差の最大（m）。keep のマスから margin マス以内は数えない（動かさないマスに挟まれた所）。</summary>
+        public static float MaxNeighbourStep(float[,] h, float heightM, bool[,] keep, int margin = 0)
+        {
+            int n = h.GetLength(0);
+            bool[,] near = keep;
+            if (keep != null && margin > 0)
+            {
+                near = new bool[n, n];
+                for (int z = 0; z < n; z++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        if (!keep[z, x]) continue;
+                        for (int dz = -margin; dz <= margin; dz++)
+                            for (int dx = -margin; dx <= margin; dx++)
+                            {
+                                int zz = z + dz, xx = x + dx;
+                                if (zz >= 0 && xx >= 0 && zz < n && xx < n) near[zz, xx] = true;
+                            }
+                    }
+            }
+            float best = 0f;
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    if (x + 1 < n && !(near != null && (near[z, x] || near[z, x + 1]))) best = Mathf.Max(best, Mathf.Abs(h[z, x] - h[z, x + 1]) * heightM);
+                    if (z + 1 < n && !(near != null && (near[z, x] || near[z + 1, x]))) best = Mathf.Max(best, Mathf.Abs(h[z, x] - h[z + 1, x]) * heightM);
+                }
+            return best;
         }
 
         // ---- art-r4-17：急な壁ののこぎりの歯（高さマップの段）をならす ----

@@ -131,6 +131,8 @@ namespace HorseRace.EditorTools
                 }
                 else if (q.lamp)
                     GenUtil.PointLight(air, "PostLamp", w + Vector3.up * (q.height * 0.5f + 0.2f), SetPieceBuilder.LampWarm, 12f, 1.5f);   // art-r4-14：野の灯りの柱
+                else if (q.part == "FarmProps_02" && q.group == "TownLamp")   // art-r6-17：境目の町の正面の灯り（暖色 8m・1.0）
+                    GenUtil.PointLight(air, "TownLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, DressingPlan.TOWN_LAMP_RANGE, DressingPlan.TOWN_LAMP_INTENSITY);
                 else if (q.part == "FarmProps_02" && (q.group == "MinersCamp" || q.group == "WaterStop" || q.group == "GoalOutpost"
                     || q.group == "StreetDressing" || q.group == "RailHalt" || q.group == "GoalTown" || q.group == "PassLamp"))   // course-r3-02：切り通しの中の灯り
                     GenUtil.PointLight(air, "CampLamp", w + Vector3.up * (2.9f * q.scale), SetPieceBuilder.LampWarm, 12f, 1.5f);   // 見どころ・出張所の街灯（art-r2-05/06）
@@ -173,8 +175,12 @@ namespace HorseRace.EditorTools
             {
                 if (q.group != "GuideLine" || q.part != DressingPlan.POST_PART || Mathf.Abs(q.height - DressingPlan.POST_H) > 0.01f) continue;
                 Vector3 top = o + new Vector3(q.position.x, q.position.y + q.height * 0.5f - 1.15f, q.position.z);
-                var holder = GenUtil.World(g, "GuideSheet_" + (k++), top, q.yawDeg);
-                var sheet = GenUtil.PaperSheet(holder.transform, "Paper", "WantedPosters_02", new Vector3(0f, 0f, -0.2f), null, 0.8f, 1.0f);
+                int gk = k++;
+                float jy, jr, js;
+                CourseMarks.PosterJitter(gk, out jy, out jr, out js);   // art-r6-12：5 種類の紙を順に・少し揺らす
+                var holder = GenUtil.World(g, "GuideSheet_" + gk, top, q.yawDeg + jy);
+                var sheet = GenUtil.PaperSheet(holder.transform, "Paper", CourseMarks.PosterPart(gk, gk & 1), new Vector3(0f, 0f, -0.2f), null, 0.8f * js, 1.0f * js);
+                sheet.transform.localRotation = Quaternion.Euler(0f, 0f, jr);
                 foreach (var r in sheet.GetComponentsInChildren<Renderer>(true)) r.sharedMaterial = mat;
                 SetStatic(holder);
             }

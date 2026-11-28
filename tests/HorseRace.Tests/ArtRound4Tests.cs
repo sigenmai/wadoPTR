@@ -202,7 +202,7 @@ namespace HorseRace.Tests
             {
                 float a = g.x * Mathf.Deg2Rad;
                 Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
-                var mesa = v.Where(p => p.group == "VistaHero" && p.asset == DressingPlan.MESA && Mathf.Abs(Mathf.DeltaAngle(g.x, WorldLayout.YawDeg((p.position - LobbyLayout.SPAWN).normalized))) < 20f).ToList();
+                var mesa = v.Where(p => p.group == "VistaHero" && p.asset == DressingPlan.MESA && Mathf.Abs(Mathf.DeltaAngle(g.x + LobbyLayout.VISTA_HERO_TURN_DEG, WorldLayout.YawDeg((p.position - LobbyLayout.SPAWN).normalized))) < 3f).ToList();   // art-r6-16：真ん中から +22°
                 Assert.AreEqual(1, mesa.Count);
                 float d = WorldLayout.DistXZ(mesa[0].position, LobbyLayout.SPAWN);
                 Assert.That(d, Is.InRange(450f, 700f));
@@ -213,7 +213,7 @@ namespace HorseRace.Tests
                 Vector3 fenceHit = LobbyLayout.SPAWN + dir * Mathf.Min(tx, tz);
                 Assert.AreEqual(LobbyLayout.FENCE_GAP_SCALE_Y, LobbyLayout.FenceScaleYAt(fenceHit), 1e-4f, "切れ目の柵は低い");
             }
-            Assert.AreEqual(4, v.Count(p => p.group == "VistaHero" && p.asset == DressingPlan.MESAB));
+            Assert.AreEqual(6, v.Count(p => p.group == "VistaHero" && p.asset == DressingPlan.MESAB));   // art-r6-16：切れ目の反対側の 700m に 3 つずつ
             Assert.IsFalse(v.Any(p => p.asset == DressingPlan.CLIFFS));
             Assert.Greater(v.Count(p => p.group == "ApproachRoad"), 15);
             Assert.AreEqual(LobbyLayout.FENCE_SCALE_Y, LobbyLayout.FenceScaleYAt(new Vector3(LobbyLayout.FENCE_RECT.x, 0f, 100f)), 1e-4f);
@@ -263,6 +263,7 @@ namespace HorseRace.Tests
             {
                 if (p.rollDeg == 90f && p.part == DressingPlan.POST_PART) continue;   // 立てた丸太の杭は中心が柱の真ん中
                 if (p.group == "GiantSkeleton" || p.asset == DressingPlan.SKELETON) continue;   // 横倒しの骨は原点が腰
+                if (p.group == "WallFace" && p.tint != Color.white) continue;   // art-r6-02：切り通しの段の岩は棚の上（中心の地面）に立てる。前の縁は下の段の岩が隠す
                 // art-r5-03：足元は 8 点・半径 fr（木・サボテンは幹の半径：Add が記録した GroundRadius）
                 DressingPlan.FootprintRange(b.h, StageDefinitions.SIZE, p.position, DressingPlan.GroundRadius(p), out float mn, out _, out float g0);
                 if (p.position.y > mn + 0.05f || p.position.y > g0 + 0.3f) { bad++; if (bad < 5) TestContext.WriteLine($"  floating {p.group} {p.asset} {p.part} y {p.position.y:F2} ground {mn:F2}"); }
@@ -327,7 +328,10 @@ namespace HorseRace.Tests
             Assert.GreaterOrEqual(SetPieces.SpineFlankDeg, 65f);
             Assert.AreEqual(14f, SetPieces.TRENCH_DEPTH, 1e-4f);
             Assert.AreEqual(3, SetPieces.TRENCH_SKELETONS);
-            Assert.Greater(SetPieces.SPINE_LINE_W * 1.6f + (1f - SetPieces.SPINE_LINE_W), 1.25f, "背は道の色 × 1.3");
+            // art-r6-13：背は道の色のまま（明るい線の塗りは黄色く光る板に見えた）。石の床と両端の板の床
+            Assert.AreEqual(0f, SetPieces.SPINE_LINE_W, 1e-5f);
+            Assert.Greater(SetPieces.BridgeDeckTiles().Count, 8);
+            Assert.AreEqual(2 * SetPieces.DECK_PLANKS_PER_END, SetPieces.BridgeDeckPlanks().Count);
         }
 
         // ---- art-r4-14 / 15：野に吊り下げの街灯を並べない・目印は 1 ステージ 1 つ ----

@@ -118,8 +118,8 @@ namespace HorseRace.EditorTools
             Transform beltT = GenUtil.FindDeep(root.transform, "LobbyTreeBelt");
             int fenceN = fenceT != null ? fenceT.childCount : 0, beltN = 0;
             if (beltT != null) foreach (Transform g in beltT) beltN += g.childCount;
-            int expectFence = LobbyLayout.FenceSegments(LobbyLayout.FENCE_RECT, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M).Count;
-            if (fenceN < expectFence) warn.Add("ロビーの柵が " + fenceN + " 区間しかありません（" + expectFence + " 区間以上で一周）。切れ目から外が見えます");
+            int expectFence = LobbyLayout.VisibleFenceCount(LobbyLayout.FENCE_RECT);   // art-r6-09：柵は 3〜4 本の区間（北は無し）。外へは LobbyBorder の見えない壁
+            if (fenceN < expectFence) warn.Add("ロビーの柵が " + fenceN + " 区間しかありません（見える柵は " + expectFence + " 区間）");
             // 実際の町（WesternTown）が柵の中に 8m 以上の余白で入っているか
             Transform townT = GenUtil.FindDeep(root.transform, "WesternTown");
             if (fenceT != null && townT != null && fenceN > 0)
@@ -137,6 +137,7 @@ namespace HorseRace.EditorTools
             CheckWiring(root, warn, info);
             CheckAudio(root, warn, info);
             CheckLook(warn, info);
+            CheckPartUse(root, info);
             foreach (string m in GenUtil.Missing) if (!warn.Contains(m)) warn.Add("Build World の警告: " + m);
 
             var sb = new StringBuilder();
@@ -580,6 +581,33 @@ namespace HorseRace.EditorTools
         ///     実際の環境光（RenderSettings）と太陽（RenderSettings.sun）で数える。
         ///   ・岩のトゥーンのマテリアルのうち、平均の色相が暖色（0〜60°）の外のもの（青い灰色の岩など）を一覧にする（情報）。
         /// </summary>
+        /// <summary>
+        /// art-r6-14：パックごとに、シーンに 1 つも置いていない部品（*.parts.json の名前）を info に出す（素材をもっと使うための一覧）。
+        /// </summary>
+        static void CheckPartUse(GameObject root, List<string> info)
+        {
+            if (root == null) return;
+            var used = new HashSet<string>();
+            foreach (var t in root.GetComponentsInChildren<Transform>(true)) used.Add(LayoutOverrides.StripId(t.name));
+            string dir = Application.dataPath + "/HorseRace/Models";
+            if (!System.IO.Directory.Exists(dir)) return;
+            var rx = new System.Text.RegularExpressions.Regex("\"name\"\\s*:\\s*\"([^\"]+)\"");
+            foreach (string f in System.IO.Directory.GetFiles(dir, "*.parts.json", System.IO.SearchOption.AllDirectories))
+            {
+                var unused = new List<string>();
+                int total = 0;
+                foreach (System.Text.RegularExpressions.Match m in rx.Matches(System.IO.File.ReadAllText(f)))
+                {
+                    total++;
+                    if (!used.Contains(m.Groups[1].Value)) unused.Add(m.Groups[1].Value);
+                }
+                if (total == 0) continue;
+                string pack = System.IO.Path.GetFileName(f).Replace(".parts.json", "");
+                if (unused.Count == 0) info.Add("素材：" + pack + " の部品 " + total + " 個をすべて使っています");
+                else info.Add("素材：" + pack + " の部品 " + total + " 個のうち未使用 " + unused.Count + " 個: " + string.Join("、", unused.ToArray()));
+            }
+        }
+
         static void CheckLook(List<string> warn, List<string> info)
         {
             Color amb = RenderSettings.ambientGroundColor;
@@ -597,6 +625,7 @@ namespace HorseRace.EditorTools
             else info.Add("光：峡谷の底の影の段の輝度 " + worst.ToString("F2") + "（" + LightingPlan.MIN_SHADOW_LUMINANCE + " 以上）");
 
             var cool = new List<string>();
+            var loud = new List<string>();
             foreach (string g in AssetDatabase.FindAssets("t:Material", new[] { GenUtil.GEN_MATERIALS }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(g);
@@ -604,9 +633,20 @@ namespace HorseRace.EditorTools
                 if (!ArtPalette.IsRockAsset(name)) continue;
                 var m = AssetDatabase.LoadAssetAtPath<Material>(path);
                 if (m == null || m.shader == null || m.shader.name != GenUtil.TOON_SHADER) continue;
-                Color mean = MeanColor(m.GetTexture("_MainTex") as Texture2D);
+                Texture2D mainTex = m.GetTexture("_MainTex") as Texture2D;
+                Color mean = MeanColor(mainTex);
                 Color tint = m.GetColor("_Tint");
                 Color c = ArtPalette.Multiply(mean, tint);
+                // art-r6-01：メサの岩（MesaRock / MesaRockB）は画像が必ずあり、平均色 × 掛け色が真っ黒の板にならない
+                if (name.Contains("MesaRock"))
+                {
+                    if (mainTex == null) warn.Add("色：" + name + " に _MainTex がありません（メサが真っ黒の板に見えます。GenUtil.MainTextureOf を確認）");
+                    else if (LightingPlan.Luminance(c) < ArtPalette.MESA_MIN_LUMINANCE)
+                        warn.Add("色：" + name + " の平均色 × 掛け色の輝度 " + LightingPlan.Luminance(c).ToString("F2") + "（" + ArtPalette.MESA_MIN_LUMINANCE + " 以上）");
+                }
+                // art-r6-10：岩は鮮やかにしない（彩度 0.65 以下。鮮やかさは青緑のブースト・赤の危険・金のゴールだけ）
+                if (ArtPalette.Saturation(c) > ArtPalette.ROCK_MAX_SATURATION)
+                    loud.Add(name + "（彩度 " + ArtPalette.Saturation(c).ToString("F2") + "）");
                 if (!ArtPalette.IsWarmRock(c))
                 {
                     float h, sat, v;
@@ -614,6 +654,7 @@ namespace HorseRace.EditorTools
                     cool.Add(name + "（色相 " + h.ToString("F0") + "°・彩度 " + sat.ToString("F2") + "）");
                 }
             }
+            if (loud.Count > 0) warn.Add("色：彩度 " + ArtPalette.ROCK_MAX_SATURATION + " を超える岩のマテリアル " + loud.Count + " 個: " + string.Join("、", loud.ToArray()));
             if (cool.Count > 0) info.Add("色：暖色（0〜60°）の外の岩のマテリアル " + cool.Count + " 個: " + string.Join("、", cool.ToArray()));
             else info.Add("色：岩のマテリアルはすべて暖色（0〜60°）");
             CheckCliffDistance(warn, info);

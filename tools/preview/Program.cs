@@ -13,7 +13,10 @@ class P {
   static string Post(Vector3 g,float yaw,float h,float t){ return X("Packs/WoodLogs/WoodLogs.fbx","WoodLogs_01",g+Vector3.up*(h*0.5f),yaw,1f,90f,CourseMarks.PostScale(h,t)); }
   // 手配書の紙 WantedPosters_02（Blender で測った外形：厚さ X 0.11・高さ Y 0.63・幅 Z 0.45、原点は下の辺の真ん中、面の向き = ローカル X）。
   // 迫ってくる騎手（向き faceYaw）に面を向ける：ローカル X を faceYaw へ（yaw − 90）。色は素材ごとのまま（下見）
-  static string Sheet(Vector3 bottom,float faceYaw,float w,float hgt){ return X("Packs/WantedPosters/WantedPosters.fbx","WantedPosters_02",bottom,faceYaw-90f,1f,0f,new Vector3(1f,hgt/0.63f,w/0.45f)); }
+  static string Sheet(Vector3 bottom,float faceYaw,float w,float hgt,string part="WantedPosters_02",float roll=0f){ return X("Packs/WantedPosters/WantedPosters.fbx",part,bottom,faceYaw-90f,1f,roll,new Vector3(1f,hgt/0.63f,w/0.45f)); }
+  // art-r6-12：5 種類の紙を順に・向き ±8°・傾き ±4°・大きさ 0.9〜1.15（CourseMarks.PosterPart / PosterJitter）
+  static int SheetK;
+  static string SheetVar(Vector3 bottom,float faceYaw,float w,float hgt,int side){ int k=SheetK++; float jy,jr,js; CourseMarks.PosterJitter(k,out jy,out jr,out js); return Sheet(bottom,faceYaw+jy,w*js,hgt*js,CourseMarks.PosterPart(k,side),jr); }
   // 立て札（SetPieceBuilder.SignPost と同じ：丸太の柱 2.6m + 0.7 × (拡大 − 1)、紙 1.7 × 0.7 × 拡大を 1.55m の高さ、柱の手前 0.18m）
   static void SignP(System.Collections.Generic.List<string> l,Vector3 g,float yaw,float scale=1f){ float ph=2.6f+0.7f*(scale-1f); float a=yaw*Mathf.Deg2Rad; Vector3 f=new Vector3(Mathf.Sin(a),0f,Mathf.Cos(a));
     l.Add(X("Packs/WoodLogs/WoodLogs.fbx","WoodLogs_01",g+Vector3.up*(ph*0.5f),yaw,1f,90f,new Vector3(ph/1.5f,1.1f,1.1f))); l.Add(Sheet(g+Vector3.up*1.55f-f*0.18f,yaw,1.7f*scale,0.7f*scale)); }
@@ -45,6 +48,10 @@ class P {
        for(int s=-1;s<=1;s+=2){ for(float a=-half;a<=half+0.01f;a+=SetPieces.SPINE_ROCK_STEP_M,k2++){ Vector3 q=c+t*a+r*(s*(SetPieces.SPINE_HALF+0.6f)); float hh=1.6f*SetPieces.SPINE_ROCK_SCALE; l.Add(X(DR,"DesertRocks_08",new Vector3(q.x,c.y+SetPieces.SPINE_ROCK_TOP_M-hh,q.z),yaw+90f+k2*47f,SetPieces.SPINE_ROCK_SCALE)); }
          Vector3 prev=Vector3.zero; for(float a=-half;a<=half+0.01f;a+=SetPieces.SPINE_RAIL_POST_STEP_M){ Vector3 gp=GP(h,c+t*a+r*(s*(SetPieces.SPINE_HALF-0.4f))); l.Add(Post(gp,yaw,1.1f,0.2f));
            if(a>-half+0.01f){ Vector3 mid=(prev+gp)*0.5f+Vector3.up*SetPieces.SPINE_RAIL_H; l.Add(X(WL,"WoodLogs_01",mid,yaw+90f,1f,0f,CourseMarks.PostScale(Vector3.Distance(prev,gp)+0.1f,0.22f))); } prev=gp; } }
+       // art-r6-13：背の上の石の床と両端の板の床（SetPieceBuilder.SpineEdge と同じ）
+       foreach(var tl in SetPieces.BridgeDeckTiles()){ float th=SetPieces.DECK_TILE_H*SetPieces.DECK_TILE_SCALE*SetPieces.DECK_TILE_SCALE_Y; Vector3 q=c+t*tl.x+r*tl.y; float s0=SetPieces.DECK_TILE_SCALE;
+         l.Add(X(DR,"DesertRocks_08",new Vector3(q.x,c.y-SetPieces.DECK_TILE_SINK*th,q.z),yaw+90f+tl.z,s0,0f,new Vector3(s0,s0*SetPieces.DECK_TILE_SCALE_Y,s0))); }
+       foreach(float pa in SetPieces.BridgeDeckPlanks()) l.Add(X(WL,"WoodLogs_01",c+t*pa+Vector3.up*(SetPieces.DECK_PLANK_THICK*0.3f),yaw,1f,0f,CourseMarks.PostScale(SetPieces.SPINE_HALF*2f-0.6f,SetPieces.DECK_PLANK_THICK)));
        for(int i=0;i<SetPieces.TRENCH_SKELETONS;i++){ float s=i%2==0?1f:-1f; Vector3 q=GP(h,c+t*((i-1)*4f)+r*(s*(13f+i*6f))); l.Add(X("SkeletonHorse.fbx",null,q-Vector3.up*0.15f,yaw+i*70f,1f,85f)); l.Add(X(DP,"DesertProps_07",q+new Vector3(2f,0f,1f),i*50f,1.1f)); l.Add(X(DP,"DesertProps_08",q+new Vector3(-2f,0f,1.5f),i*80f,1.1f)); }
        for(int e=-1;e<=1;e+=2) for(int s=-1;s<=1;s+=2) l.Add(X("Packs/Campfire/Campfire.fbx","Campfire_01",GP(h,c+t*(e*(half+6f))+r*(s*(SetPieces.SPINE_HALF+3f))),s*40f,1f)); }
       {float wa=br-SetPieces.BRIDGE_WARN_BEFORE; Vector3 wt=WorldLayout.TangentAtArc(local,wa); SignP(l,GP(h,WorldLayout.PointAtArc(local,wa)+WorldLayout.RightOf(wt)*(hw0(wa)+CourseMarks.CORNER_BOARD_OUT_M)),WorldLayout.YawDeg(wt));}
@@ -78,7 +85,7 @@ class P {
     foreach(var cn in StageDefinitions.TightCorners(d,local)){ var m=CourseMarks.CornerApexMarks(d,local,cn,goal); float cy=WorldLayout.YawDeg(WorldLayout.TangentAtArc(local,cn.apexArc));
       l.Add(Post(GP(h,m[1]),cy,DressingPlan.LAMP_POST_H,DressingPlan.LAMP_POST_THICK));   // art-r4-11/14：頂点の内側の干し草はやめ、灯りは丸太の柱
       foreach(var wb in CourseMarks.CornerWall(d,local,cn)){ Vector3 hp=GP(h,wb.position); l.Add(X(HB,wb.part,hp-Vector3.up*0.08f,wb.yaw,wb.scale)); if(wb.cap) l.Add(X(HB,"HayBales_01",hp+Vector3.up*(CourseMarks.HAY_BLOCK_H*wb.scale-0.12f),wb.yaw+37f,CourseMarks.CORNER_WALL_CAP_SCALE)); }
-      foreach(var ch in CourseMarks.CornerWallChevrons(d,local,cn)){ Vector3 top=GP(h,ch.position)+Vector3.up*(ch.position.y-0.1f); l.Add(Post(top,ch.yaw,1.3f,0.2f)); float a2=ch.yaw*Mathf.Deg2Rad; Vector3 f2=new Vector3(Mathf.Sin(a2),0f,Mathf.Cos(a2)); l.Add(Sheet(top+Vector3.up*0.55f-f2*0.18f,ch.yaw,1.2f,0.6f)); } }
+      foreach(var ch in CourseMarks.CornerWallChevrons(d,local,cn)){ Vector3 top=GP(h,ch.position)+Vector3.up*(ch.position.y-0.1f); l.Add(Post(top,ch.yaw,1.3f,0.2f)); float a2=ch.yaw*Mathf.Deg2Rad; Vector3 f2=new Vector3(Mathf.Sin(a2),0f,Mathf.Cos(a2)); l.Add(SheetVar(top+Vector3.up*0.55f-f2*0.18f,ch.yaw,1.2f,0.6f,ch.side)); } }
     // course-r3-01/11：区間の門は柱・細い横木（CourseMarks.SectorBeamPieces、CourseBuilder と同じ）・残りの距離の紙
     {var arcs=CourseMarks.SectorGateArcs(goal); var posts=CourseMarks.SectorGatePosts(d,local,goal);
      for(int k=0;k<arcs.Count;k++){ Vector3 t=WorldLayout.TangentAtArc(local,arcs[k]); t=new Vector3(t.x,0f,t.z).normalized; Vector3 rt=WorldLayout.RightOf(t); float yaw=WorldLayout.YawDeg(t);
@@ -93,7 +100,7 @@ class P {
       if(cp.kind==CourseMarks.CHUTE_SIGN){ SignP(l,g,cp.yaw,1.4f); continue; }
       if(cp.kind==CourseMarks.CHUTE_LAMP&&d.kind!=HeightmapGen.KIND_MESA){ l.Add(Post(g,cp.yaw,DressingPlan.LAMP_POST_H,DressingPlan.LAMP_POST_THICK)); continue; }   // art-r4-14
       if(cp.kind==CourseMarks.CHUTE_FLAG){ float H=CourseMarks.CHUTE_POST_H; l.Add(Post(g,cp.yaw,H,CourseMarks.CHUTE_POST_THICK));
-        float a=cp.yaw*Mathf.Deg2Rad; Vector3 rr=new Vector3(Mathf.Cos(a),0f,-Mathf.Sin(a)); l.Add(Sheet(g+Vector3.up*(H-1.25f)-rr*(cp.side*0.55f),cp.yaw,0.9f,1.1f)); continue; }
+        float a=cp.yaw*Mathf.Deg2Rad; Vector3 rr=new Vector3(Mathf.Cos(a),0f,-Mathf.Sin(a)); l.Add(SheetVar(g+Vector3.up*(H-1.25f)-rr*(cp.side*0.55f),cp.yaw,0.9f,1.1f,cp.side)); continue; }
       l.Add(X(cp.asset,cp.part,g-Vector3.up*0.03f,cp.yaw,cp.scale.x,0f,(cp.scale.x==1f&&cp.scale.y==1f&&cp.scale.z==1f)?(Vector3?)null:cp.scale)); }
     return string.Join(",",l);
   }
@@ -105,8 +112,11 @@ class P {
     Vector3 up=Vector3.up;
     foreach(var q in LobbyLayout.LotFill()) l.Add(X(q.asset,q.part,q.position,q.yawDeg,q.scale));   // art-r5-11：埋めた敷地
     // 柵（LobbyLayout.FenceSegments、FarmProps_03 を高さ ×1.6）
-    foreach(var sg in fence){ Vector3 dd=sg[1]-sg[0]; float len=new Vector3(dd.x,0f,dd.z).magnitude; if(len<0.1f) continue;
-      l.Add(X(FP,"FarmProps_03",(sg[0]+sg[1])*0.5f,WorldLayout.YawDeg(new Vector3(dd.x,0f,dd.z).normalized)+90f,1f,0f,new Vector3(len/2.74f,LobbyLayout.FenceScaleYAt((sg[0]+sg[1])*0.5f),1f))); }   // art-r4-09：切れ目の柵は低い
+    int fsi=-1;
+    foreach(var sg in fence){ fsi++; Vector3 dd=sg[1]-sg[0]; float len=new Vector3(dd.x,0f,dd.z).magnitude; if(len<0.1f) continue;
+      if(!LobbyLayout.FenceVisible(LobbyLayout.FENCE_RECT,(sg[0]+sg[1])*0.5f)) continue;   // art-r6-09：区間と切れ目、北は無し
+      float fjy,fsag; LobbyLayout.FenceJitter(fsi,out fjy,out fsag);
+      l.Add(X(FP,"FarmProps_03",(sg[0]+sg[1])*0.5f-Vector3.up*fsag,WorldLayout.YawDeg(new Vector3(dd.x,0f,dd.z).normalized)+90f+fjy,1f,0f,new Vector3(len/2.74f,LobbyLayout.FenceScaleYAt((sg[0]+sg[1])*0.5f),1f))); }   // art-r4-09：切れ目の柵は低い
     // 広場：受付の机・樽・木箱・街灯・札の板、操作の紙の杭、手配書の壁
     Vector3 desk=LobbyLayout.LEDGER_DESK;
     l.Add(X(FP,"FarmProps_05",desk,180f,1f)); l.Add(X(FP,"FarmProps_15",desk+new Vector3(2.4f,0f,1.2f),0f,1f)); l.Add(X(FP,"FarmProps_12",desk+new Vector3(1.2f,0f,2.2f),20f,1f));
@@ -197,7 +207,7 @@ class P {
       string pass= ps<0? "null" : "{\"p\":"+V(WorldLayout.PointAtArc(ch,ps))+",\"t\":"+V(WorldLayout.TangentAtArc(local,ps))+"}";
       string lm="null"; if(DressingPlan.LandmarkSpot(d,local,goal,h,out Vector3 lmp,out float lma)) lm=V(GP(h,lmp));
       var li=LightingPlan.ForStage(d.index);
-      js.Append("{\"index\":"+d.index+",\"trail\":"+C(ArtPalette.Trail(d.index))+",\"dirt\":"+C(ArtPalette.Dirt(d.index))+",\"sand\":"+C(ArtPalette.Sand(d.index))+",\"strata\":["+C(ArtPalette.StrataLightFor(d.index))+","+C(ArtPalette.StrataDarkFor(d.index))+"]"+",\"sky\":"+C(LightingPlan.SkyTint(d.index))+",\"rutShade\":"+F(ArtPalette.RUT_SHADE)+",\"rutOffset\":"+F(HeightmapGen.RUT_OFFSET_M)+",\"rutWidth\":"+F(HeightmapGen.RUT_WIDTH_M)+",\"trailDistMax\":"+F(HeightmapGen.TRAIL_DIST_MAX_M)+",\"fog\":"+C(li.fogColor)+",\"sun\":"+V(li.sunEuler)+",\"sunColor\":"+C(li.sunColor)+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"goalK\":"+goalK+",\"scEntryK\":"+scEntryK+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"pass\":"+pass+",\"landmark\":"+lm+",\"shortcut\":"+sc+",\"dress\":["+sbD+"],\"extras\":["+Extras(d,local,h0,h,goal,plan)+"]}");
+      js.Append("{\"index\":"+d.index+",\"trail\":"+C(ArtPalette.Trail(d.index))+",\"dirt\":"+C(ArtPalette.Dirt(d.index))+",\"sand\":"+C(ArtPalette.Sand(d.index))+",\"strata\":["+C(ArtPalette.StrataLightFor(d.index))+","+C(ArtPalette.StrataDarkFor(d.index))+"]"+",\"sky\":"+C(LightingPlan.SkyTint(d.index))+",\"rutShade\":"+F(ArtPalette.RUT_SHADE)+",\"rutOffset\":"+F(HeightmapGen.RUT_OFFSET_M)+",\"rutWidth\":"+F(HeightmapGen.RUT_WIDTH_M)+",\"trailDistMax\":"+F(HeightmapGen.TRAIL_DIST_MAX_M)+",\"fog\":"+C(li.fogColor)+",\"sun\":"+V(li.sunEuler)+",\"sunColor\":"+C(li.sunColor)+",\"sunIntensity\":"+F(li.sunIntensity)+",\"label\":\""+d.label+"\",\"center\":"+V(d.center)+",\"goal\":"+F(goal)+",\"goalK\":"+goalK+",\"scEntryK\":"+scEntryK+",\"course\":["+sbC+"],\"cps\":["+sbP+"],\"relics\":["+sbR+"],\"bridge\":"+bridge+",\"jump\":"+jump+",\"pass\":"+pass+",\"landmark\":"+lm+",\"shortcut\":"+sc+",\"dress\":["+sbD+"],\"extras\":["+Extras(d,local,h0,h,goal,plan)+"]}");
       Console.WriteLine($"stage {d.index} {d.label} goal {goal:0} m, cps {cps.Length}, dress {dp.Count}");
     }
     js.Append("],\"lobby\":[");

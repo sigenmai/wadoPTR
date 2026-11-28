@@ -124,9 +124,9 @@ namespace HorseRace.Tests
             Assert.Greater(t, 0.45f, "アスファルトの暗さにしない");
             Assert.AreEqual(1f, HeightmapGen.TrailWeight(11.4f, 12f), 1e-3f);
             Assert.AreEqual(0f, HeightmapGen.TrailWeight(12.6f, 12f), 1e-3f);
-            Assert.Greater(HeightmapGen.RutWeight(1.8f), 0.99f);
-            Assert.Greater(HeightmapGen.RutWeight(-0f + 1.8f + 0.15f), 0.5f);
-            Assert.Less(HeightmapGen.RutWeight(0.6f), 0.01f);
+            Assert.Greater(HeightmapGen.RutWeight(HeightmapGen.RUT_OFFSET_M), 0.99f);   // art-r6-04：±0.9m・幅 0.35m
+            Assert.Greater(HeightmapGen.RutWeight(HeightmapGen.RUT_OFFSET_M + 0.08f), 0.5f);
+            Assert.Less(HeightmapGen.RutWeight(0.4f), 0.01f);
             Assert.Less(HeightmapGen.RutWeight(3.0f), 0.01f);
         }
 

@@ -14,6 +14,19 @@ namespace HorseRace.EditorTools
         // ---- 太陽：高め（62°）で東西に走る峡谷の行を照らし、壁の影を短く ----
         public static readonly Vector3 SUN_EULER = new Vector3(62f, -20f, 0f);
         public const float SUN_INTENSITY = 1.25f;
+        /// <summary>art-r6-11：砂漠だけ太陽を弱く（明るい砂 × 1.25 × トゥーンの床で道が (255,250,150) に飛んだ）。</summary>
+        public const float DUNES_SUN_INTENSITY = 1.05f;
+        /// <summary>art-r6-11：トゥーンの日なたで上を向いた面の環境光の分（太陽に対する割合の目安）。</summary>
+        public const float AMBIENT_TOON_SHARE = 0.2f;
+        /// <summary>art-r6-11：日なたの道の色の輝度の上限（道は明るく、でも白く飛ばさない）。</summary>
+        public const float MAX_LIT_TRAIL_LUMINANCE = 0.95f;
+
+        /// <summary>art-r6-11：日なたの面の輝度の目安 = 輝度(色 × 太陽の色) × 強さ × (1 + 環境光の分)。</summary>
+        public static float LitLuminance(Color albedo, int stage)
+        {
+            var l = ForStage(stage);
+            return Luminance(new Color(albedo.r * l.sunColor.r, albedo.g * l.sunColor.g, albedo.b * l.sunColor.b)) * l.sunIntensity * (1f + AMBIENT_TOON_SHARE);
+        }
         public static readonly Color SunColor = new Color(1f, 0.93f, 0.8f);
 
         // ---- 環境光（Trilight）----
@@ -124,7 +137,7 @@ namespace HorseRace.EditorTools
                 // 砂漠：少し低い午後の太陽（48°）、金色の霧、影は砂色に近い暖かい茶
                 l.sunEuler = new Vector3(48f, -35f, 0f);
                 l.sunColor = new Color(1f, 0.90f, 0.70f);
-                l.sunIntensity = 1.3f;
+                l.sunIntensity = DUNES_SUN_INTENSITY;   // art-r6-11：1.3 → 1.05（明るい砂の道が白く飛んだ）
                 l.fogColor = new Color(0.92f, 0.80f, 0.60f);
                 l.ambientSky = new Color(0.84f, 0.76f, 0.60f);
                 l.ambientEquator = new Color(0.86f, 0.70f, 0.50f);

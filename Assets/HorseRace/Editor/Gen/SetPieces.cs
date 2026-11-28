@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace HorseRace.EditorTools
@@ -38,7 +39,8 @@ namespace HorseRace.EditorTools
         // art-r4-12：背の縁を縁取る平たい岩（DesertRocks_08 ×1.3、2.4m ごと、上の面が道 + 0.35m）と、丸太の手すり（3m ごとの立てた丸太の柱）
         public const float SPINE_ROCK_STEP_M = 2.4f, SPINE_ROCK_SCALE = 1.3f, SPINE_ROCK_TOP_M = 0.35f, SPINE_RAIL_POST_STEP_M = 3f, SPINE_RAIL_H = 0.95f;
         /// <summary>art-r4-12：背の道の塗り（道のマスクの B の重み）。_LineBoost 1.6 で道の色 × 1.3 の明るさ（溝の底より明るい）。</summary>
-        public const float SPINE_LINE_W = 0.5f;
+        /// art-r6-13：0（背は道の色 TrailCanyon のまま。明るい線の塗りは黄色く光る板に見えた）。
+        public const float SPINE_LINE_W = 0f;
         public const int TRENCH_SKELETONS = 3;
         public const float DETOUR_FROM = 38f;          // ここから外は掘らない（溝の両端を回る遠回り）
         public const float DETOUR_TO = 54f;            // 遠回りの外の縁（平らにならす範囲）
@@ -55,8 +57,40 @@ namespace HorseRace.EditorTools
         /// <summary>背の縁の街灯（course-r3-04、橋の中心からの (コース方向, 横)）：片側 2 本、縁から 0.4m 内側。</summary>
         public static Vector2[] SpineEdgeLamps()
         {
-            float a = (TRENCH_HALF_WIDTH + TRENCH_BLEND) * 0.5f, lat = SPINE_HALF - 0.4f;
+            // art-r6-13：灯りは背の上（真ん中に白い光の溜まり）ではなく、両端の橋台（背の端の 2m 先・背の縁の外 1.5m）
+            float a = TRENCH_HALF_WIDTH + TRENCH_BLEND + BRIDGE_LAMP_BEYOND_M, lat = SPINE_HALF + 1.5f;
             return new[] { new Vector2(-a, -lat), new Vector2(a, -lat), new Vector2(-a, lat), new Vector2(a, lat) };
+        }
+
+        // ---- art-r6-13：岩の橋の背の見た目（石の床と板の床、明るく光る板にしない） ----
+        public const float BRIDGE_LAMP_BEYOND_M = 2f, BRIDGE_LAMP_INTENSITY = 0.8f, BRIDGE_LAMP_RANGE = 8f, BRIDGE_LAMP_MIN_H = 3.5f;
+        /// <summary>背の上の平たい岩（DesertRocks_08）の床：3m ごと・2 列（±DECK_TILE_LAT_M、互い違い）、高さの 60% を沈める。飾りだけ（当たりは地形）。</summary>
+        public const float DECK_TILE_STEP_M = 3f, DECK_TILE_LAT_M = 2.6f, DECK_TILE_SINK = 0.6f, DECK_TILE_SCALE = 0.7f, DECK_TILE_SCALE_Y = 0.35f, DECK_TILE_YAW_JITTER = 10f;
+        public const float DECK_TILE_H = 1.6f;   // DesertRocks_08 の高さ
+        /// <summary>両端の板の床：WoodLogs を道を横切る向きに、端から DECK_PLANK_STEP_M ごとに 2 本ずつ。</summary>
+        public const float DECK_PLANK_STEP_M = 1.2f, DECK_PLANK_THICK = 0.2f;
+        public const int DECK_PLANKS_PER_END = 2;
+
+        /// <summary>背の上の床の岩：(along, lat, 向きの揺れ °)。along/lat は橋の中心から。</summary>
+        public static List<Vector3> BridgeDeckTiles()
+        {
+            var r = new List<Vector3>();
+            float half = TRENCH_HALF_WIDTH + TRENCH_BLEND - DECK_PLANKS_PER_END * DECK_PLANK_STEP_M - 1f;
+            int k = 0;
+            for (int row = -1; row <= 1; row += 2)
+                for (float a = -half + (row > 0 ? DECK_TILE_STEP_M * 0.5f : 0f); a <= half + 0.01f; a += DECK_TILE_STEP_M, k++)
+                    r.Add(new Vector3(a, row * DECK_TILE_LAT_M, ((k * 37) % 21 - 10) * DECK_TILE_YAW_JITTER / 10f));
+            return r;
+        }
+
+        /// <summary>両端の板（橋の中心からの along）。</summary>
+        public static List<float> BridgeDeckPlanks()
+        {
+            var r = new List<float>();
+            float half = TRENCH_HALF_WIDTH + TRENCH_BLEND;
+            for (int e = -1; e <= 1; e += 2)
+                for (int i = 0; i < DECK_PLANKS_PER_END; i++) r.Add(e * (half - 0.6f - i * DECK_PLANK_STEP_M));
+            return r;
         }
 
         // 踏み切り（地形だけ。course-r1-08）
@@ -111,8 +145,11 @@ namespace HorseRace.EditorTools
         public const float PASS_TAPER_M = 80f;         // 深さいっぱいの区間の前後 80m でまっすぐ下げる（道の高さはその間で単調）
         public const float PASS_PROFILE_BEFORE = 120f, PASS_PROFILE_AFTER = 120f;  // 道の高さを弦より上に出さない範囲（切り通しの中心から。下げ終わる 105m より外）
         public const float PASS_CREST_CHECK_M = 80f, PASS_MAX_CREST_M = 1f;        // course-r3-02：切り通しの 80m 手前から、弦より 1m 以上の背（こぶ）を作らない
-        public const float PASS_BENCH1_FROM = 16f, PASS_BENCH1_H = 11f;            // 1 段目の壁（道の縁 13m の外 16〜20m で 11m 上る）
-        public const float PASS_BENCH2_FROM = 25f, PASS_BENCH2_H = 11f;            // 2 段目（25〜29m でさらに 11m：上の開きは 50m）
+        // art-r6-02：11m → 7m。地形は低い棚の段（16〜20m で 7m 上り、20〜25m は平らな棚、25〜29m でさらに 7m）にして、上のシルエットは岩の段が作る
+        public const float PASS_BENCH1_FROM = 16f, PASS_BENCH1_H = 7f;             // 1 段目の壁（道の縁 13m の外 16〜20m で 7m 上る）
+        public const float PASS_BENCH2_FROM = 25f, PASS_BENCH2_H = 7f;             // 2 段目（25〜29m でさらに 7m：上の開きは 50m）
+        /// <summary>art-r6-02：棚の奥行き（m）。岩は棚の内側の縁（次の段の立ち上がりの前）に立つ。</summary>
+        public const float PASS_SHELF_DEPTH_M = 4f;
         public const float PASS_BENCH_RISE_M = 4f;
         public const float PASS_CREST_FROM = 29f;      // 尾根（2 段目の上）の始まり：メサの門と焚き火はここから外
         public const float PASS_ROAD_BLEND = 4f;       // 道の帯（PASS_ROAD_HALF）の外 4m で下げ幅を 0 へ
@@ -278,7 +315,59 @@ namespace HorseRace.EditorTools
                 float gh = WorldLayout.SampleHeight(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g.x, g.z);
                 CarveGoalNotch(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, g, WorldLayout.TangentAtArc(local, goalArc), gh);
             }
+            // art-r6-06：掘った後に 60° より急な段をゆるめ、45° 以上を 3×3 でぼかす（道の帯・岩の橋・踏み切り・近道は動かさない）
+            HeightmapGen.RelaxSlopes(heights, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, KeepMask(def, local, heights.GetLength(0), goalArc, plan));
             return plan;
+        }
+
+        /// <summary>art-r6-06：斜面のゆるめで動かさないマス：道の帯（半幅 + KEEP_ROAD_EXTRA_M）、岩の橋の溝のまわり、踏み切り、近道の通路。</summary>
+        public const float KEEP_ROAD_EXTRA_M = 3f;
+        public static bool[,] KeepMask(StageDef def, Vector3[] local, int n, float goalArc, ShortcutPlan plan)
+        {
+            var keep = new bool[n, n];
+            float cell = StageDefinitions.SIZE / (n - 1);
+            int ek = HeightmapGen.RELAX_EDGE_KEEP_CELLS;
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                    if (x < ek || z < ek || x >= n - ek || z >= n - ek) keep[z, x] = true;
+            System.Action<Vector3, float> disc = (c, rad) =>
+            {
+                int r = Mathf.CeilToInt(rad / cell);
+                int cx = Mathf.RoundToInt(c.x / cell), cz = Mathf.RoundToInt(c.z / cell);
+                for (int z = Mathf.Max(0, cz - r); z <= Mathf.Min(n - 1, cz + r); z++)
+                    for (int x = Mathf.Max(0, cx - r); x <= Mathf.Min(n - 1, cx + r); x++)
+                    {
+                        float dx = x * cell - c.x, dz = z * cell - c.z;
+                        if (dx * dx + dz * dz <= rad * rad) keep[z, x] = true;
+                    }
+            };
+            float total = 0f;
+            for (int i = 1; i < local.Length; i++) total += WorldLayout.DistXZ(local[i - 1], local[i]);
+            for (float a = 0f; a <= total; a += cell)
+                disc(WorldLayout.PointAtArc(local, a), StageDefinitions.HalfWidthAt(def, a) + KEEP_ROAD_EXTRA_M);
+            float bridge = BridgeArc(def, goalArc);
+            if (bridge >= 0f)
+            {
+                Vector3 c = WorldLayout.PointAtArc(local, bridge);
+                Vector3 t = WorldLayout.TangentAtArc(local, bridge);
+                Vector3 r = WorldLayout.RightOf(new Vector3(t.x, 0f, t.z).normalized);
+                for (float lat = -(DETOUR_TO + 6f); lat <= DETOUR_TO + 6f; lat += cell * 0.5f)
+                    disc(c + r * lat, TRENCH_HALF_WIDTH + TRENCH_BLEND + 6f);
+            }
+            float jump = JumpArc(def, goalArc);
+            if (jump >= 0f)
+            {
+                Vector3 t = WorldLayout.TangentAtArc(local, jump);
+                for (float al = -JUMP_LENGTH - 4f; al <= KICKER_TROUGH_END + KICKER_TROUGH_EXIT + 4f; al += cell * 0.5f)
+                    disc(WorldLayout.PointAtArc(local, jump) + new Vector3(t.x, 0f, t.z).normalized * al, KICKER_HALF_WIDTH + KICKER_SHOULDER + 2f);
+            }
+            if (plan != null)
+            {
+                float len = WorldLayout.DistXZ(plan.a, plan.b);
+                for (float u = 0f; u <= len; u += cell * 0.5f)
+                    disc(Vector3.Lerp(plan.a, plan.b, u / Mathf.Max(len, 1e-3f)), SHORTCUT_HALF_WIDTH + SHORTCUT_BLEND + 2f);
+            }
+            return keep;
         }
 
         // ---- ゴールの先の尾根の切れ込み（art-r2-06 → course-r2-05：3 ステージとも）----

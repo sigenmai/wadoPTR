@@ -77,7 +77,7 @@ def terrain(stage):
     gy, gx = np.gradient(h, size / (h.shape[0] - 1))
     slope = np.degrees(np.arctan(np.hypot(gx, gy)))
     from PIL import Image
-    S = np.asarray(Image.fromarray((np.clip(s, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32) / 255
+    S = np.asarray(Image.fromarray((np.clip(s, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1], Image.BILINEAR), np.float32) / 255   # art-r6-04：どのマスクも同じ双線形
     rock = np.clip((slope - 28) / 12, 0, 1) * (1 - S)
     dirt = stage.get("dirt", DIRT)
     sand_c = stage.get("sand", SAND)   # art-r4-06：ステージの主色の砂
@@ -98,7 +98,18 @@ def terrain(stage):
         return (a + (b - a) * u[0]) * (1 - u[1]) + (c + (d - c) * u[0]) * u[1]
     def noise2(px, pz, sc, seed): return (vnoise(px, pz, sc, seed) * 0.65 + vnoise(px * 2.03 + 17, pz * 2.03 + 17, sc, seed + 1) * 0.35) * 2 - 1
     # art-r5-13：粒 0.13・細かい擦れ 0.11（道の重み < 0.5 の所だけ）
-    grain = noise2(xx, yy, 3.5, 1) * 0.13 + noise2(xx + 311, yy + 311, 45.0, 2) * 0.05 + noise2(xx + 517, yy + 517, 1.2, 4) * 0.11
+    gamp = 0.03 if i == 2 else 0.13   # art-r6-17：境目の細かい粒は ±0.03
+    grain = noise2(xx, yy, 3.5, 1) * gamp + noise2(xx + 311, yy + 311, 45.0, 2) * 0.05 + noise2(xx + 517, yy + 517, 1.2, 4) * 0.11
+    grain = grain * (1 - 0.5 * S)   # art-r6-11：砂の上の粒は半分（ToonTerrain と同じ）
+    if i == 2 and stage.get("strata"):
+        # art-r6-17：境目の土の色は高さの帯（6m ごとに明・暗、±1.5m のゆらぎ、混ぜる割合 0.7）
+        yb = h + noise2(xx + 913, yy + 913, 60.0, 9) * 1.5
+        ph = np.mod(yb / 12.0, 1.0)
+        def _ss(a, b, x): t_ = np.clip((x - a) / (b - a), 0, 1); return t_ * t_ * (3 - 2 * t_)
+        band = (_ss(0.42, 0.58, ph) * (1 - _ss(0.92, 1.0, ph)))[..., None]
+        bcol = np.array(stage["strata"][0])[None, None] * (1 - band) + np.array(stage["strata"][1])[None, None] * band
+        wd = (1 - S[..., None] - rock[..., None]).clip(0, 1)
+        col = col + (bcol - dirt_c) * 0.7 * wd
     # 道の踏み固めた土（HeightmapGen.TrailMask、ステージごとの ArtPalette.Trail：art-r2-02）
     tp = os.path.join(ex, f"t{i}.bin")
     if os.path.exists(tp) and stage.get("trail"):
@@ -113,16 +124,18 @@ def terrain(stage):
             # art-r5-01：G = 0.5 + 符号付きの横の距離 / (2·TRAIL_DIST_MAX)。d = (G − 0.5)·2·MAX、rut = 1 − smoothstep(w·0.35, w·0.65, ||d| − offset|)
             Gd = (read_grid(gp_) - 0.5) * 2.0 * stage.get("trailDistMax", 16.0)
             Gd = np.asarray(Image.fromarray(Gd.astype(np.float32), mode="F").resize(slope.shape[::-1], Image.BILINEAR), np.float32)
-            w_ = stage.get("rutWidth", 0.6); e_ = np.abs(np.abs(Gd) - stage.get("rutOffset", 1.8))
-            k_ = np.clip((e_ - w_ * 0.35) / (w_ * 0.3), 0, 1); rut = 1 - k_ * k_ * (3 - 2 * k_)
-            tc = tc * (1 - (1 - stage.get("rutShade", 0.86)) * rut)[..., None]
+            # art-r6-04：ToonTerrain と同じ fwidth の考え方：1 画素（≈ 2m）より細い轍は覆う割合で薄める（2m の格子で丸いしみの列にしない）
+            w_ = stage.get("rutWidth", 0.35); e_ = np.abs(np.abs(Gd) - stage.get("rutOffset", 0.9))
+            fw_ = size / (Gd.shape[0] - 1)
+            k_ = np.clip((e_ - (w_ * 0.35 - fw_)) / (w_ * 0.3 + 2 * fw_), 0, 1); rut = (1 - k_ * k_ * (3 - 2 * k_)) * min(1.0, w_ / (w_ + 2 * fw_))
+            tc = tc * (1 - min(0.06, 1 - stage.get("rutShade", 0.94)) * rut)[..., None]
         tc = tc * (1 + noise2(xx + 77, yy + 77, 1.2, 3) * 0.11 * 0.3)[..., None]
         col = col * (1 - T) + tc * T
     # スタート・ゴールの線（course-r3-14、HeightmapGen.LineMask）：道の色 × 1.6（ToonTerrain の _LineBoost）
     lp_ = os.path.join(ex, f"l{i}.bin")
     if os.path.exists(lp_) and stage.get("trail"):
         L = read_grid(lp_)
-        L = np.asarray(Image.fromarray((np.clip(L, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1]), np.float32)[..., None] / 255
+        L = np.asarray(Image.fromarray((np.clip(L, 0, 1) * 255).astype(np.uint8)).resize(slope.shape[::-1], Image.BILINEAR), np.float32)[..., None] / 255
         col = col * (1 - L) + np.clip(np.array(stage["trail"]) * 1.6, 0, 1)[None, None] * L
     # 等高線をうっすら（立体感）
     band = (np.mod(h, 10.0) < 0.6)[..., None] * 0.06
@@ -178,6 +191,7 @@ def import_part(path, part_prefix=None, index=None):
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
+    fix_images(meshes, path)
     if part_prefix is None:
         return [join_whole(meshes, new)]
     keep = meshes
@@ -298,10 +312,47 @@ def apply_style(obj, asset, part):
     for slot in obj.material_slots:
         slot.material = styled(slot.material, asset, tint, name)
 
+def fix_images(meshes, path):
+    """art-r6-01：取り込んだ画像を読み直す（ヘッドレスの EGL では大きな画像が GPU に載らず「Texture Not Loaded」で真っ黒になった：MesaRockB）。
+    アルファは使わない（不透明の岩・建物）、1024 より大きい画像は 1024 に縮める。読めなければ止める。"""
+    seen = set()
+    for o in meshes:
+        for slot in o.material_slots:
+            m = slot.material
+            if m is None or not m.use_nodes: continue
+            # art-r6-01：画像のない法線マップ（MesaRockB の Normal Map ノード）は接線が無く NaN の法線 → 霧も効かない真っ黒になった。トゥーンに法線マップは無いので外す
+            for lk in list(m.node_tree.links):
+                if lk.to_socket.name == "Normal" or lk.from_node.type == "NORMAL_MAP":
+                    m.node_tree.links.remove(lk)
+            for nd in m.node_tree.nodes:
+                if nd.type != "TEX_IMAGE" or nd.image is None or nd.image.name in seen: continue
+                img = nd.image; seen.add(img.name)
+                if img.source == "FILE" and not img.packed_file:
+                    fp = bpy.path.abspath(img.filepath)
+                    if not os.path.exists(fp):   # .fbm の中に無ければ FBX の隣の同じ名前
+                        alt = os.path.join(os.path.dirname(path), os.path.basename(fp))
+                        if os.path.exists(alt): img.filepath = alt
+                img.reload()
+                img.alpha_mode = "NONE"
+                _sz = tuple(img.size)   # 読み込み直しの後は使うまで読まれない（大きさで読ませる）
+                if not img.has_data or _sz[0] == 0:
+                    # GenUtil.MainTextureOf と同じ：FBX の隣（または .fbm）にある画像が 1 枚だけならそれを使う
+                    d_ = os.path.dirname(path)
+                    cands = [os.path.join(d_, f) for f in sorted(os.listdir(d_)) if f.lower().endswith((".png", ".jpg"))]
+                    if len(cands) == 1:
+                        img.filepath = cands[0]; img.reload(); _sz = tuple(img.size)
+                if not img.has_data or _sz[0] == 0:
+                    raise SystemExit(f"preview: texture not loaded {img.name} ({img.filepath}) for {path}")
+                if img.size[0] > 1024 or img.size[1] > 1024:
+                    img.scale(1024, 1024)
+                # 画像の色（Base Color）だけを使う：アルファの線はつながない（CLIP で抜けた・黒く抜けた面を出さない）
+                for lk in list(nd.outputs["Alpha"].links): m.node_tree.links.remove(lk)
+
 # Build World と同じ配置計画（DressingPlan）で素材を置く
 A = lambda *p: os.path.join(assets, *p)
 CACHE = {}
 PARTS = {}
+TINT_CACHE = {}
 def proto(asset, part):
     key = (asset, part)
     if key in CACHE:
@@ -335,6 +386,7 @@ def proto(asset, part):
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
+    fix_images(meshes, path)
     if part:
         for o in meshes:
             o.hide_render = True
@@ -392,8 +444,15 @@ def place(plan, origin, ground=None):
             if q.get("t"):   # art-r5-04：置き物ごとの色（切り通しの段の明暗）
                 tt = q["t"]
                 for slot in o.material_slots:
-                    if slot.material is None or not slot.material.use_nodes: continue
-                    m2 = slot.material.copy(); bs2 = m2.node_tree.nodes.get("Principled BSDF")
+                    base = slot.material
+                    if base is None or not base.use_nodes: continue
+                    # art-r6-01：スロットはメッシュに付いている（複製した物どうしで共有）。そのまま差し替えると同じメッシュの全部の物の色が
+                    # 掛け算で重なり（メサ B は 21 回 × 0.5 = 真っ黒）になった。物ごと（OBJECT）のスロットにしてから、（マテリアル, 色）ごとに 1 つのマテリアルを付ける
+                    slot.link = "OBJECT"
+                    tkey = (base.name, tuple(round(x, 3) for x in tt))
+                    if tkey in TINT_CACHE:
+                        slot.material = TINT_CACHE[tkey]; continue
+                    m2 = base.copy(); bs2 = m2.node_tree.nodes.get("Principled BSDF")
                     if bs2 is not None and not bs2.inputs["Base Color"].is_linked:
                         c2 = list(bs2.inputs["Base Color"].default_value)
                         bs2.inputs["Base Color"].default_value = (c2[0] * tt[0], c2[1] * tt[1], c2[2] * tt[2], 1)
@@ -402,6 +461,7 @@ def place(plan, origin, ground=None):
                         src_ = bs2.inputs["Base Color"].links[0].from_socket
                         m2.node_tree.links.new(src_, mix.inputs[1]); mix.inputs[2].default_value = (*tt, 1)
                         m2.node_tree.links.new(mix.outputs[0], bs2.inputs["Base Color"])
+                    TINT_CACHE[tkey] = m2
                     slot.material = m2
             n += 1
     return n
@@ -438,6 +498,7 @@ _before = set(bpy.data.objects)
 bpy.ops.import_scene.fbx(filepath=A("Models/Packs/WesternTown/WesternTown.fbx"))
 _new = [o for o in bpy.data.objects if o not in _before]
 _meshes = [o for o in _new if o.type == "MESH"]
+fix_images(_meshes, A("Models/Packs/WesternTown/WesternTown.fbx"))
 for o in _meshes: apply_style(o, "Packs/WesternTown/WesternTown.fbx", None)
 for o in [join_whole(_meshes, _new)]:
     o.location = lob + Vector((0, 107, -13.7))   # 町の南端をロビー中心 +25m（LobbyBuilder と同じ）
@@ -552,11 +613,25 @@ def sky_at(x, y):
         c_ = st_["center"]
         if abs(x - c_[0]) <= 600 and abs(y - c_[2]) <= 600: return st_.get("sky", (0.42, 0.58, 0.78))
     return W["stages"][0].get("sky", (0.42, 0.58, 0.78))
+def debug_mat(prefix):
+    for o in bpy.data.objects:
+        if not o.name.startswith(prefix) or o.type != "MESH": continue
+        print("DBG", o.name, o.hide_render, "uv", o.data.uv_layers.keys(), "mats", [sl.material.name if sl.material else None for sl in o.material_slots])
+        for sl in o.material_slots:
+            m = sl.material
+            if m is None: continue
+            print("DBG  mat", m.name, m.blend_method, [(n.type, getattr(n, "image", None) and (n.image.name, tuple(n.image.size), n.image.has_data, n.image.filepath)) for n in m.node_tree.nodes])
+            print("DBG  links", [(l.from_node.type, l.from_socket.name, l.to_node.type, l.to_socket.name) for l in m.node_tree.links])
+        break
 def shot(name, loc, target, lens=35):
     if SHOTS and not any(name.startswith(x) for x in SHOTS):
         return
+    if os.environ.get("DEBUG_MAT"): debug_mat(os.environ["DEBUG_MAT"])
     for g_ in GUIDES:   # art-r4-03：空撮だけ目印を描く（NO_GUIDE=1 なら最初から作らない）
         g_.hide_render = not name.startswith(("00_", "1_", "2_", "3_"))
+    # art-r6-11：ステージごとの太陽の強さ（LightingPlan：砂漠 1.05、ほか 1.25）。5.0 = 1.25 のとき
+    _st = next((st_ for st_ in W["stages"] if abs(loc[0] - st_["center"][0]) <= 600 and abs(loc[1] - st_["center"][2]) <= 600), None)
+    sun.data.energy = 5.0 * (_st.get("sunIntensity", 1.25) if _st else 1.25) / 1.25
     fc = srgb2lin(fog_at(loc[0], loc[1]))
     world.node_tree.nodes["Background"].inputs[0].default_value = (*fc, 1)
     mix.inputs[2].default_value = (*fc, 1)
@@ -572,6 +647,34 @@ def shot(name, loc, target, lens=35):
     sc.render.filepath = os.path.join(out, name + ".png")
     bpy.ops.render.render(write_still=True)
     print("SHOT", name)
+    check_black(name, sc.render.filepath)
+
+def check_black(name, fp):
+    """art-r6-01：真っ黒（全部の色 < 3/255）の画素が 0.3% を超えたら、その画素へカメラから光線を飛ばして物の名前を出して止める（BLACK_OK=1 で止めない）。"""
+    try:
+        img = bpy.data.images.load(fp, check_existing=False)
+    except Exception:
+        return
+    W_, H_ = img.size
+    px = np.empty(W_ * H_ * 4, np.float32); img.pixels.foreach_get(px); px = px.reshape(H_, W_, 4)
+    bpy.data.images.remove(img)
+    blk = np.all(px[..., :3] < 3.0 / 255.0, axis=-1)
+    frac = float(blk.mean())
+    if frac <= 0.003:
+        return
+    ys, xs = np.nonzero(blk)
+    names = {}
+    fr = [cam.matrix_world @ v for v in cam.data.view_frame(scene=sc)]   # 右上・右下・左下・左上
+    dg = bpy.context.evaluated_depsgraph_get()
+    for k in np.linspace(0, len(xs) - 1, min(40, len(xs))).astype(int):
+        u, v = (xs[k] + 0.5) / W_, (ys[k] + 0.5) / H_
+        pt = fr[2] + (fr[1] - fr[2]) * u + (fr[3] - fr[2]) * v
+        hit, loc, nrm, idx, obj, mat = sc.ray_cast(dg, cam.location, (pt - cam.location).normalized())
+        if hit: names[obj.name.split(".")[0]] = names.get(obj.name.split(".")[0], 0) + 1
+    msg = f"BLACK {name}: {frac * 100:.2f}% pure-black pixels; objects: {sorted(names.items(), key=lambda t: -t[1])}"
+    print(msg)
+    if not os.environ.get("BLACK_OK"):
+        raise SystemExit(msg)
 
 world.mist_settings.start = 3000
 if os.environ.get("LOBBY_ONLY"):

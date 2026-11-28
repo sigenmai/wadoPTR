@@ -138,7 +138,7 @@ namespace HorseRace.EditorTools
                 Layer(dirtName, NoiseTexture(dirt, 0.05f, 11 + variant), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
                 Layer("TL_Rock", NoiseTexture(ArtPalette.RockLayer, 0.08f, 12), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
                 // art-r4-06：砂はステージの主色（荒野 = 赤錆の砂、境目 = ばら色）。ロビー・外の地面は荒野の砂
-                Layer(variant == 1 ? "TL_Sand" : (variant == 2 ? "TL_Sand_S3" : "TL_Sand_Rust"), NoiseTexture(ArtPalette.Sand(variant), 0.03f, 13), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
+                Layer(variant == 1 ? "TL_Sand" : (variant == 2 ? "TL_Sand_S3" : "TL_Sand_Rust"), NoiseTexture(ArtPalette.Sand(variant), ArtPalette.SAND_NOISE_AMOUNT, 13), new Vector2(LAYER_TILE_M, LAYER_TILE_M)),
                 // art-r4-04：境目の縞は明暗を強く、帯の高さ 4m（切り通しの壁の段）
                 variant == 2 ? Layer("TL_Strata_S3", StrataTexture(2), new Vector2(LAYER_TILE_M, STRATA_BAND_BORDER_M))
                              : Layer("TL_Strata", StrataTexture(0), new Vector2(LAYER_TILE_M, STRATA_BAND_M)),
@@ -338,7 +338,17 @@ namespace HorseRace.EditorTools
             m.SetFloat("_RutOffset", HeightmapGen.RUT_OFFSET_M / HeightmapGen.TRAIL_DIST_MAX_M);
             m.SetFloat("_RutWidth", HeightmapGen.RUT_WIDTH_M / HeightmapGen.TRAIL_DIST_MAX_M);
             m.SetFloat("_RutDarken", 1f - ArtPalette.RUT_SHADE);
-            if (stage == 2) m.SetFloat("_StrataScale", STRATA_BAND_BORDER_M);   // art-r4-04
+            if (stage == 2)
+            {
+                m.SetFloat("_StrataScale", STRATA_BAND_BORDER_M);   // art-r4-04
+                // art-r6-17：境目の土の色は高さの帯（6m ごとに明・暗、±1.5m のゆらぎ）から。細かい粒は ±0.03
+                m.SetFloat("_BandMix", ArtPalette.BORDER_BAND_MIX);
+                m.SetFloat("_BandHeight", ArtPalette.BORDER_BAND_M);
+                m.SetFloat("_BandWobble", ArtPalette.BORDER_BAND_WOBBLE_M);
+                m.SetColor("_BandLight", ArtPalette.StrataLightBorder);
+                m.SetColor("_BandDark", ArtPalette.StrataDarkBorder);
+                m.SetFloat("_GrainAmp", ArtPalette.BORDER_GRAIN_AMP);
+            }
             m.SetFloat("_StrataSlope", stage == 1 ? 0f : STRATA_SLOPE_NY);       // art-r4-04：急な面（n.y < 0.6）は地層の縞を濃く（砂丘の崩れ面は除く）
             // art-r4-12：岩の橋の背は線の明るさ（道の色 × _LineBoost）で溝の底より明るく（SetPieceBuilder が B に塗る）
             EditorUtility.SetDirty(m);
@@ -372,6 +382,15 @@ namespace HorseRace.EditorTools
             m.SetFloat("_ScuffScale", ArtPalette.SCUFF_SCALE_M);
             m.SetFloat("_ScuffAmp", ArtPalette.SCUFF_AMP);
             m.SetFloat("_StrataSlope", 0f);   // 縞の傾きの強調は荒野・境目のマテリアルだけ（下の ApplyToonMaterial(t, trail, …)）
+            // art-r6-06/07/11：三面投影の大きさ・道の脇の擦れ・砂のさざ波
+            m.SetFloat("_LayerTileM", LAYER_TILE_M);
+            m.SetFloat("_TriplanarBelowNY", STRATA_SLOPE_NY);
+            m.SetFloat("_NearScuffScale", ArtPalette.NEAR_SCUFF_SCALE_M);
+            m.SetFloat("_NearScuffAmp", ArtPalette.NEAR_SCUFF_AMP);
+            m.SetVector("_RippleDir", new Vector4(ArtPalette.SandWindDir.x, 0f, ArtPalette.SandWindDir.y, 0f));
+            m.SetFloat("_RippleWave", ArtPalette.SAND_RIPPLE_WAVE_M);
+            m.SetFloat("_RippleAmp", ArtPalette.SAND_RIPPLE_AMP);
+            m.SetFloat("_BandMix", 0f);
             EditorUtility.SetDirty(m);
             t.materialTemplate = m;
             t.drawInstanced = false;      // 自前の地形シェーダーはインスタンス描画に対応していない

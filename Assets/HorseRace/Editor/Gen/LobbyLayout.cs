@@ -233,7 +233,9 @@ namespace HorseRace.EditorTools
         {
             float w = rect.z - rect.x, d = rect.w - rect.y;
             float rows = BELT_ROWS * (w + 2f * d) + BELT_ROWS_SOUTH * w;
-            return Mathf.FloorToInt(0.8f * (rows - BELT_ROWS_SOUTH * 40f) / BELT_SPACING_M);
+            // art-r6-09：まとまり（平均 29m）と空き（平均 45m）の繰り返しなので、帯の約 4 割
+            float fill = (BELT_CLUSTER_MIN_M + BELT_CLUSTER_MAX_M) / (BELT_CLUSTER_MIN_M + BELT_CLUSTER_MAX_M + BELT_OPEN_MIN_M + BELT_OPEN_MAX_M);
+            return Mathf.FloorToInt(0.7f * fill * (rows - BELT_ROWS_SOUTH * 40f) / BELT_SPACING_M);
         }
 
         public struct Gate
@@ -275,6 +277,59 @@ namespace HorseRace.EditorTools
                 }
             }
             return r;
+        }
+
+        // ---- art-r6-09：柵は 3〜4 本の区間（6〜15m の切れ目）、北の土手には立てない。外へは柵の 6m 外の見えない壁（LobbyBuilder の LobbyBorder）が止める ----
+        /// <summary>北の辺を除いた柵の線（南 → 東 → 西の順の長さ）の割合と切れ目の幅（m）。</summary>
+        public static readonly Vector2[] FENCE_BREAKS = { new Vector2(0.18f, 8f), new Vector2(0.46f, 15f), new Vector2(0.74f, 6f) };
+        public const float FENCE_YAW_JITTER = 4f, FENCE_SAG_M = 0.3f;
+
+        /// <summary>柵の 1 区間（中点 mid）が見える柵か（北の辺は無し、FENCE_BREAKS の切れ目は無し）。</summary>
+        public static bool FenceVisible(Vector4 rect, Vector3 mid)
+        {
+            float w = rect.z - rect.x, d = rect.w - rect.y;
+            float e = 0.5f;
+            if (Mathf.Abs(mid.z - rect.w) < e) return false;   // 北の辺
+            float s;
+            if (Mathf.Abs(mid.z - rect.y) < e) s = mid.x - rect.x;                 // 南（西 → 東）
+            else if (Mathf.Abs(mid.x - rect.z) < e) s = w + (mid.z - rect.y);      // 東（南 → 北）
+            else s = w + d + (rect.w - mid.z);                                     // 西（北 → 南）
+            float total = w + 2f * d;
+            foreach (var b in FENCE_BREAKS)
+                if (Mathf.Abs(s - b.x * total) < b.y * 0.5f) return false;
+            return true;
+        }
+
+        /// <summary>見える柵の区間の数（Validator）。</summary>
+        public static int VisibleFenceCount(Vector4 rect)
+        {
+            int n = 0;
+            foreach (var sg in FenceSegments(rect, Gates, FENCE_PIECE_M)) if (FenceVisible(rect, (sg[0] + sg[1]) * 0.5f)) n++;
+            return n;
+        }
+
+        /// <summary>柵の板 i の向きの揺れ（±FENCE_YAW_JITTER）と垂れ（0〜FENCE_SAG_M 沈める）。</summary>
+        public static void FenceJitter(int i, out float yaw, out float sag)
+        {
+            yaw = Mathf.Sin(i * 2.3f + 0.7f) * FENCE_YAW_JITTER;
+            sag = Mathf.Abs(Mathf.Sin(i * 0.9f)) * FENCE_SAG_M;
+        }
+
+        // ---- art-r6-09：町の地面の色を外の土へ 25m でにじませる（8m のゆらぎ）----
+        public const float TOWN_FEATHER_M = 25f, TOWN_FEATHER_NOISE_M = 8f;
+        /// <summary>町の地面の板の外 plateOut m の、町の地面の色の重み（1 → 0）。</summary>
+        public static float TownGroundWeight(float plateOut, Vector3 rel)
+        {
+            float n = (2f * HeightmapGen.Noise01(rel.x / 30f + 7.1f, rel.z / 30f - 3.3f, 77, 5) - 1f) * TOWN_FEATHER_NOISE_M;
+            float u = Mathf.Clamp01((plateOut + n) / TOWN_FEATHER_M);
+            return 1f - u * u * (3f - 2f * u);
+        }
+        /// <summary>ロビーの地面の土の色（町の地面の色 → 外の土 DirtOuter）。</summary>
+        public static Color LobbyGroundTint(float plateOut, Vector3 rel)
+        {
+            float t = TownGroundWeight(plateOut, rel);
+            Color a = ArtPalette.DirtOuter, b = ArtPalette.TownGroundTint;
+            return new Color(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1f);
         }
 
         /// <summary>柵を広げてよい最大（ロビーの地面の端から 14m：木の帯 3 列が尾根の斜面に乗り、地面の端より内側に収まる）。
@@ -398,6 +453,23 @@ namespace HorseRace.EditorTools
             }
         }
 
+        /// <summary>art-r6-09：木の帯のまとまりの長さ（外周に沿って、3〜7 本 × 3 列）と空き（30〜60m）の繰り返し。</summary>
+        public const float BELT_CLUSTER_MIN_M = 18f, BELT_CLUSTER_MAX_M = 40f, BELT_OPEN_MIN_M = 30f, BELT_OPEN_MAX_M = 60f;
+        /// <summary>外周の位置 s（m）が空き（木を置かない）か。まとまりと空きの長さは決まった値で揺らす。</summary>
+        public static bool BeltOpen(float s)
+        {
+            float pos = 0f;
+            for (int i = 0; i < 64; i++)
+            {
+                float u = Mathf.Abs(Mathf.Sin(i * 12.9898f + 4.1f)), v = Mathf.Abs(Mathf.Sin(i * 78.233f + 1.3f));
+                float cl = Mathf.Lerp(BELT_CLUSTER_MIN_M, BELT_CLUSTER_MAX_M, u), op = Mathf.Lerp(BELT_OPEN_MIN_M, BELT_OPEN_MAX_M, v);
+                if (s < pos + cl) return false;
+                if (s < pos + cl + op) return true;
+                pos += cl + op;
+            }
+            return false;
+        }
+
         /// <summary>柵の外の木の帯（3 列・互い違い、拡大 1.0〜1.5、Collider なし＝柵の外で届かない）。</summary>
         public static List<Placement> TreeBelt(Vector4 rect, int seed)
         {
@@ -410,6 +482,8 @@ namespace HorseRace.EditorTools
                 float w = outer.z - outer.x, d = outer.w - outer.y, perim = 2f * (w + d);
                 for (float s = row * BELT_SPACING_M / BELT_ROWS; s < perim && list.Count < MAX_BELT; s += BELT_SPACING_M)
                 {
+                    // art-r6-09：一重の輪ではなく 3〜7 本のまとまり（BELT_CLUSTER_M）と 30〜60m の空き（BeltOpen）。外周の位置はどの列も同じ（まとまりは列をまたいで厚い）
+                    if (BeltOpen(s)) continue;
                     float t = s + (float)rng.NextDouble() * 2f - 1f;
                     Vector3 p;
                     bool south = false;
@@ -627,8 +701,11 @@ namespace HorseRace.EditorTools
         /// 線路（x ≈ 19.2〜21.9）と、線路の東の通り道（x ≥ 23.4 の建物・小物の箱の手前）の間に収まる小さな物だけ。
         /// </summary>
         // ---- 見晴らしの切れ目の目印（art-r2-15）----
-        public const float VISTA_HERO_DIST_M = 560f;     // art-r4-09：切れ目の真ん中の方位、スポーンから 450〜700m（前は 320m）
-        public const float VISTA_HERO_MESA_SCALE = 5f, VISTA_HERO_MESAB_SCALE = 3f, VISTA_TOWER_DIST_M = 250f;
+        public const float VISTA_HERO_DIST_M = 640f;     // art-r4-09：切れ目の真ん中の方位、スポーンから 450〜700m（前は 320m）
+        public const float VISTA_HERO_MESA_SCALE = 2.5f, VISTA_HERO_MESAB_SCALE = 1.8f, VISTA_TOWER_DIST_M = 190f;   // art-r6-16：5 → 2.5、メサ B 3 → 1.8、塔は手前の 1/3
+        public const float VISTA_HERO_TURN_DEG = 22f, VISTA_MESAB_TURN_DEG = 18f, VISTA_MESAB_DIST_M = 700f, VISTA_HERO_SINK = 0.45f, VISTA_ROCK_EXCLUDE_DEG = 12f;
+        /// <summary>art-r6-16：切れ目の扇の中の物の地平線からの高さ（°）の上限（塔は大きさの物差しなので除く）。</summary>
+        public const float VISTA_MAX_ELEV_DEG = 3f;
         public const float VISTA_SCATTER_FROM = 40f, VISTA_SCATTER_TO = 200f, VISTA_SCATTER_STEP = 15f;
 
         /// <summary>
@@ -648,16 +725,30 @@ namespace HorseRace.EditorTools
                     radius = sz.r * scale, height = sz.h * scale, collider = false, shape = DressingPlan.SHAPE_NONE, background = true,
                 });
             }
+            void AddSunk(string group, string asset, string part, Vector3 p, float scale, float yaw, float sink)
+            {
+                Add(group, asset, part, p, scale, yaw);
+                var q = list[list.Count - 1];
+                q.position = new Vector3(q.position.x, -sink * q.height, q.position.z);
+            }
             string[] small = { "DesertRocks_10", "DesertRocks_11", "DesertRocks_12", "DesertRocks_13", "DesertRocks_14", "DesertRocks_15" };
             foreach (var g in VistaGaps)
             {
                 float a = g.x * Mathf.Deg2Rad;
                 Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), right = new Vector3(dir.z, 0f, -dir.x);
                 // art-r4-09：切れ目の真ん中の方位 450〜700m に 1 つの組んだ目印（メサ ×5 と両脇のメサ B ×3）、手前 250m に大きさの物差しの風車の塔
-                Vector3 hero = SPAWN + dir * VISTA_HERO_DIST_M;
-                Add("VistaHero", DressingPlan.MESA, null, hero, VISTA_HERO_MESA_SCALE, (float)rng.NextDouble() * 360f);
-                Add("VistaHero", DressingPlan.MESAB, null, hero - right * 150f - dir * 40f, VISTA_HERO_MESAB_SCALE, (float)rng.NextDouble() * 360f);
-                Add("VistaHero", DressingPlan.MESAB, null, hero + right * 160f + dir * 30f, VISTA_HERO_MESAB_SCALE * 0.9f, (float)rng.NextDouble() * 360f);
+                // art-r6-16：主役のメサは ×2.5 で切れ目の真ん中から +22° へ（切れ目は低い遠くの地平線を見せる：空を背に脇に立つ）、
+                // メサ B ×3 は反対側の 700m、給水塔は手前の 1/3（大きさの物差し）。切れ目の扇の中は地平線から 3° 以下
+                float ha = (g.x + VISTA_HERO_TURN_DEG) * Mathf.Deg2Rad;
+                Vector3 hdir = new Vector3(Mathf.Sin(ha), 0f, Mathf.Cos(ha));
+                Vector3 hero = SPAWN + hdir * VISTA_HERO_DIST_M;
+                AddSunk("VistaHero", DressingPlan.MESA, null, hero, VISTA_HERO_MESA_SCALE, (float)rng.NextDouble() * 360f, VISTA_HERO_SINK);
+                for (int m = 0; m < 3; m++)
+                {
+                    float ba = (g.x - VISTA_MESAB_TURN_DEG - m * 6f) * Mathf.Deg2Rad;
+                    AddSunk("VistaHero", DressingPlan.MESAB, null, SPAWN + new Vector3(Mathf.Sin(ba), 0f, Mathf.Cos(ba)) * (VISTA_MESAB_DIST_M + m * 40f),
+                        VISTA_HERO_MESAB_SCALE * (1f - 0.12f * m), (float)rng.NextDouble() * 360f, VISTA_HERO_SINK);
+                }
                 Add("VistaHero", DressingPlan.RANCH, DressingPlan.RANCH_TOWER, SPAWN + dir * VISTA_TOWER_DIST_M + right * 25f, 1.2f, g.x + 180f);
                 int k = 0;
                 for (float d = VISTA_SCATTER_FROM; d <= VISTA_SCATTER_TO; d += VISTA_SCATTER_STEP, k++)
@@ -670,7 +761,9 @@ namespace HorseRace.EditorTools
                     if (Mathf.Abs(p.x - SPAWN.x) < APPROACH_HALF_M + 3f && p.z < FENCE_RECT.y) continue;   // art-r4-13：近づく道の上は空ける
                     int kind = k % 3;
                     if (kind == 0) Add("VistaScatter", DressingPlan.RCOLL, "RockCollection_" + (8 * (1 + rng.Next(23))), p, 2.5f, (float)rng.NextDouble() * 360f);
-                    else if (kind == 1) Add("VistaScatter", DressingPlan.DROCKS, small[rng.Next(small.Length)], p, 1.4f, (float)rng.NextDouble() * 360f);
+                    // art-r6-16：切れ目の扇（±12°）の中に橙の砂漠の岩の山は置かない（岩のセットの小石に）
+                    else if (kind == 1 && Mathf.Abs(off) * Mathf.Rad2Deg > VISTA_ROCK_EXCLUDE_DEG) Add("VistaScatter", DressingPlan.DROCKS, small[rng.Next(small.Length)], p, 1.4f, (float)rng.NextDouble() * 360f);
+                    else if (kind == 1) Add("VistaScatter", DressingPlan.RCOLL, "RockCollection_" + (8 * (1 + rng.Next(23))), p, 1.8f, (float)rng.NextDouble() * 360f);
                     else Add("VistaScatter", DressingPlan.CACTI, "Cacti_0" + (1 + rng.Next(9)), p, 1f, (float)rng.NextDouble() * 360f);
                 }
             }
@@ -714,7 +807,7 @@ namespace HorseRace.EditorTools
         }
 
         // ---- 町の地面の板の縁（art-r2-11）----
-        public const float PLATE_LIP_M = 2f, PLATE_BLEND_M = 8f, PLATE_TOP_OFFSET_M = 0.02f;
+        public const float PLATE_LIP_M = 2f, PLATE_BLEND_M = 12f, PLATE_TOP_OFFSET_M = 0.02f;   // art-r6-09：8 → 12m（板の縁の段を見せない）
 
         /// <summary>
         /// 町の模型の地面の板（WesternTown_001_Ground）の外側 dOut m の地形の高さ：板の外 PLATE_LIP_M までは板の上面 + 0.02m、
@@ -791,8 +884,69 @@ namespace HorseRace.EditorTools
             l.Add(Lot(R, DressingPlan.FARM, "FarmProps_11", RAIL_END + new Vector3(2.6f, 0f, 1.4f), 40f, 1f));
             foreach (var q in l) if (q.part != null && q.part.StartsWith("WoodLogs")) { q.collider = false; q.shape = DressingPlan.SHAPE_NONE; }
             foreach (var q in l) if (q.asset == DressingPlan.HORSE || q.asset == DressingPlan.CAMPFIRE) { q.collider = false; q.shape = DressingPlan.SHAPE_NONE; }
+            l.AddRange(Outskirts());
             return l;
         }
+
+        // ---- art-r6-09：町の外れ（柵の外 60〜200m）：テントの野営地・囲い・南東へ延びる線路・牧場の建物・低い丘 ----
+        public static readonly Vector3 OUT_CAMP = new Vector3(-118f, 0f, 70f), OUT_CORRAL = new Vector3(112f, 0f, 150f), OUT_RANCH = new Vector3(-160f, 0f, 175f),
+            OUT_HILL = new Vector3(175f, 0f, 330f);
+        public const float OUT_RAIL_FROM_M = 70f, OUT_RAIL_SIDE_M = 18f;
+        public const int OUT_RAIL_PIECES = 2;   // 2 本 ≈ 190m（その先はロビーの地面の外）
+        public const float OUT_HILL_SINK = 0.45f;
+
+        /// <summary>
+        /// 町の外れ（ロビー中心からの相対、y = 0 → LobbyBuilder が地形の高さへ）：西のテントの野営地（Tent ×3・焚き火 Campfire_01 の煙）、
+        /// 東の囲い（厩舎 Stable と FarmProps_03 の柵 4 辺）、南東の切れ目へ延びる線路（WesternTown_049_Track ×3 ≈ 290m、切れ目の線の 18m 東）、
+        /// 北西の牧場の建物（RanchCompound_08）、北東の低い丘（WesternTown_002_Hill、半分沈める）。柵の外で届かないので当たりなし。
+        /// </summary>
+        public static List<Placement> Outskirts()
+        {
+            var l = new List<Placement>();
+            void O(string g, string asset, string part, Vector3 p, float yaw, float scale, float sinkH = 0.05f)
+            {
+                var q = Lot(g, asset, part, p, yaw, scale);
+                q.position = new Vector3(q.position.x, -sinkH * q.height - 0.05f, q.position.z);
+                q.collider = false; q.shape = DressingPlan.SHAPE_NONE;
+                l.Add(q);
+            }
+            const string CAMP = "OutCamp";
+            O(CAMP, DressingPlan.CAMPFIRE, "Campfire_01", OUT_CAMP, 0f, 1.1f);
+            for (int i = 0; i < 3; i++)
+            {
+                float a = (i * 120f + 20f) * Mathf.Deg2Rad;
+                O(CAMP, DressingPlan.TENT, null, OUT_CAMP + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 7f, i * 120f + 200f, 0.9f);
+            }
+            O(CAMP, DressingPlan.LOGS, "WoodLogs_02", OUT_CAMP + new Vector3(2.2f, 0f, -1.5f), 30f, 1.4f);
+            O(CAMP, DressingPlan.LOGS, "WoodLogs_03", OUT_CAMP + new Vector3(-2.0f, 0f, 1.8f), 110f, 1.4f);
+            O(CAMP, DressingPlan.HAY, "HayBales_02", OUT_CAMP + new Vector3(9f, 0f, -6f), 15f, 1f);
+            const string COR = "OutCorral";
+            O(COR, DressingPlan.STABLE, null, OUT_CORRAL + new Vector3(0f, 0f, 16f), 180f, 0.9f);
+            for (int i = 0; i < 5; i++)
+            {
+                O(COR, DressingPlan.FARM, "FarmProps_03", OUT_CORRAL + new Vector3(-6.85f + 1.37f + i * FENCE_PIECE_M, 0f, -6.85f), 0f, 1f);
+                if (i != 2) O(COR, DressingPlan.FARM, "FarmProps_03", OUT_CORRAL + new Vector3(-6.85f + 1.37f + i * FENCE_PIECE_M, 0f, 6.85f), 0f, 1f);
+                O(COR, DressingPlan.FARM, "FarmProps_03", OUT_CORRAL + new Vector3(-6.85f, 0f, -6.85f + 1.37f + i * FENCE_PIECE_M), 90f, 1f);
+                O(COR, DressingPlan.FARM, "FarmProps_03", OUT_CORRAL + new Vector3(6.85f, 0f, -6.85f + 1.37f + i * FENCE_PIECE_M), 90f, 1f);
+            }
+            O(COR, DressingPlan.HORSE, null, OUT_CORRAL + new Vector3(-1.5f, 0f, 0.5f), 60f, 1f);
+            O(COR, DressingPlan.HORSE, null, OUT_CORRAL + new Vector3(2.5f, 0f, -2f), 250f, 1f);
+            O(COR, DressingPlan.HAY, "HayBales_04", OUT_CORRAL + new Vector3(4f, 0f, 4f), 0f, 1f);
+            // 南東の切れ目（VistaGaps[1]）へ延びる線路
+            {
+                float a = VistaGaps[1].x * Mathf.Deg2Rad;
+                Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)), right = new Vector3(dir.z, 0f, -dir.x);
+                for (int i = 0; i < OUT_RAIL_PIECES; i++)
+                {
+                    Vector3 c = SPAWN + dir * (OUT_RAIL_FROM_M + (i + 0.5f) * SetPieces.RAIL_LENGTH) + right * OUT_RAIL_SIDE_M;
+                    O("OutRail", DressingPlan.WTOWN, DressingPlan.RAIL_TRACK, c, VistaGaps[1].x, 1f, 0.3f);
+                }
+            }
+            O("OutRanch", DressingPlan.RANCH, OUT_RANCH_PART, OUT_RANCH, 35f, 1f);
+            O("OutHill", DressingPlan.WTOWN, OUT_HILL_PART, OUT_HILL, 200f, 1f, OUT_HILL_SINK);
+            return l;
+        }
+        public const string OUT_RANCH_PART = "RanchCompound_08_Building", OUT_HILL_PART = "WesternTown_002_Hill";
 
         public const float BACKLOT_X = 22.6f;
         public static List<Vector3> BacklotSpots()

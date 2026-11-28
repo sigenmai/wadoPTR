@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
 
 namespace HorseRace.EditorTools
 {
@@ -106,12 +107,18 @@ namespace HorseRace.EditorTools
             var fence = GenUtil.World(root, "LobbyFence", CENTER).transform;
             var segs = LobbyLayout.FenceSegments(fenceRect, LobbyLayout.Gates, LobbyLayout.FENCE_PIECE_M);
             int fi = 0;
+            int si = -1;
             foreach (var sg in segs)
             {
+                si++;
+                // art-r6-09：柵は 3〜4 本の区間（切れ目 6〜15m）、北の土手には立てない。外へは柵の 6m 外の見えない壁（LobbyBorder）が止める
+                if (!LobbyLayout.FenceVisible(fenceRect, (sg[0] + sg[1]) * 0.5f)) continue;
                 Vector3 a = CENTER + sg[0], b = CENTER + sg[1];
                 Vector3 d = b - a;
                 float len = d.magnitude;
-                var piece = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), Fence.PART, fence, (a + b) * 0.5f, WorldLayout.YawDeg(d / len) - 90f, 1f,
+                float jy, sag;
+                LobbyLayout.FenceJitter(si, out jy, out sag);   // art-r6-09：±4° の揺れと 0.3m までの垂れ（定規で引いた輪にしない）
+                var piece = GenUtil.InstantiatePart(GenUtil.Pack("FarmProps"), Fence.PART, fence, (a + b) * 0.5f - Vector3.up * sag, WorldLayout.YawDeg(d / len) - 90f + jy, 1f,
                     new Vector3(Fence.PIECE, 1f, 0.15f), Wood);
                 float sy = LobbyLayout.FenceScaleYAt((sg[0] + sg[1]) * 0.5f);   // art-r4-09：見晴らしの切れ目の中は低い柵
                 piece.transform.localScale = new Vector3(len / Fence.PIECE, sy, 1f);
@@ -380,6 +387,25 @@ namespace HorseRace.EditorTools
             var streetW = new Vector3[street.Length];
             for (int i = 0; i < street.Length; i++) streetW[i] = CENTER + street[i];
             TerrainBuilder.ApplyToonMaterial(lobbyTerrain, TerrainBuilder.PathTrailTexture("Lobby", origin, sizeX, sizeZ, 512, streetW, LobbyLayout.APPROACH_HALF_M), "Lobby", 0);
+            // art-r6-09：町の地面の色を外の土（DirtOuter）へ 25m でにじませる（8m のゆらぎ）。オレンジの長方形の敷物にしない
+            {
+                const int TN = 256;
+                var tex = new Texture2D(TN, TN, TextureFormat.RGBA32, false);
+                var px = new Color[TN * TN];
+                for (int z = 0; z < TN; z++)
+                    for (int x = 0; x < TN; x++)
+                    {
+                        float wx = origin.x + x / (float)(TN - 1) * sizeX, wz = origin.z + z / (float)(TN - 1) * sizeZ;
+                        px[z * TN + x] = LobbyLayout.LobbyGroundTint(PlateOut(wx, wz), new Vector3(wx - CENTER.x, 0f, wz - CENTER.z));
+                    }
+                tex.SetPixels(px); tex.Apply();
+                tex.wrapMode = TextureWrapMode.Clamp; tex.filterMode = FilterMode.Bilinear;
+                GenUtil.EnsureFolder(GenUtil.GEN_TERRAIN);
+                string tpath = GenUtil.GEN_TERRAIN + "/Lobby_Tint.asset";
+                if (AssetDatabase.LoadAssetAtPath<Texture2D>(tpath) != null) AssetDatabase.DeleteAsset(tpath);
+                AssetDatabase.CreateAsset(tex, tpath);
+                TerrainBuilder.ApplyGroundTint(lobbyTerrain, tex, ArtPalette.Dirt(TerrainBuilder.VARIANT_LOBBY));
+            }
             ctxLobbyTerrain = lobbyTerrain;
 
             // 外周の見えない壁は柵の 6m 外（柵が広がっても柵の外側。尾根の手前〜斜面）

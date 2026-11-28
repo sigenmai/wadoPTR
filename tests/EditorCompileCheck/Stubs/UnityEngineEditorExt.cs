@@ -236,6 +236,7 @@ namespace UnityEngine
         public Shader shader { get; set; }
         public Color color { get; set; }
         public Texture mainTexture { get; set; }
+        public void SetVector(string name, Vector4 value) { }
         public bool enableInstancing { get; set; }
         public bool HasProperty(string name) => false;
         public void SetTexture(string name, Texture value) { }

@@ -100,7 +100,8 @@ namespace HorseRace.Tests
             }
             foreach (var q in seam)
             {
-                Assert.IsFalse(q.asset == DressingPlan.CLIFFS, "継ぎ目の輪に崖の板は使わない");
+                // art-r6-05：継ぎ目の崖の板（Cliffs_01〜13 のまとまり）は道から 260m 以上・霧の 70% より遠い所だけ
+                if (q.asset == DressingPlan.CLIFFS) Assert.IsTrue(DressingPlan.CliffFarEnough(q.position) && DressingPlan.CourseDistWorld(q.position) >= DressingPlan.CLIFF_FAR_M, "継ぎ目の崖の板は遠くだけ");
                 Assert.IsFalse(q.collider);
             }
         }

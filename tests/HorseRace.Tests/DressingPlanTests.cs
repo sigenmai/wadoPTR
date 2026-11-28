@@ -107,7 +107,7 @@ namespace HorseRace.Tests
                 foreach (var c in circles)
                 {
                     bool townArea = c.w >= DressingPlan.GOAL_TOWN_CLEAR_M - 0.01f;   // ゴールの町の範囲は町の建物だけが入れる
-                    bool town = p.group == "GoalTown" || (p.group == "StreetDressing" && i == 2);   // art-r3-15：ゴールの町の通りの飾りも町の一部
+                    bool town = p.group == "GoalTown" || p.group == "TownLamp" || (p.group == "StreetDressing" && i == 2);   // art-r6-17：町の正面の灯り   // art-r3-15：ゴールの町の通りの飾りも町の一部
                     if ((town || p.group == "Railway") && townArea) continue;   // 線路は町へ入る（course-r1-18）
                     if (town && c.w <= 1.61f) continue;   // course-r3-08：見物の直線（レール・旗・街灯）は町の通りの建物の正面の手前
                     if (town && c.w > 20f) continue;   // 岩橋の範囲は境目に無い
@@ -199,6 +199,8 @@ namespace HorseRace.Tests
             foreach (var p in Plan(i))
             {
                 if (!DressingPlan.IsTree(p)) continue;
+                if (p.group == "Shoulder") continue;   // art-r6-07/14：道ばたの枯れ枝・アカシアの低木（小さな部品）
+                if (p.group == "CornerInside") continue;   // art-r6-07：頂点の内側の枯れ木（小さめ）
                 Assert.That(p.scale, Is.InRange(DressingPlan.TREE_SCALE_MIN, DressingPlan.TREE_SCALE_MAX));
                 min = Mathf.Min(min, p.scale); max = Mathf.Max(max, p.scale);
                 float d = WorldLayout.DistToPolylineXZ(p.position, courses[i]) - p.radius;
@@ -309,17 +311,19 @@ namespace HorseRace.Tests
             TestContext.WriteLine($"stage {i}: guide {guides.Count}");
             Assert.Greater(guides.Count, 40);
             int corners = 0, traced = 0;
+            float passArc = SetPieces.PassArc(StageDefinitions.All[i], goals[i]);
             for (float a = 40f; a < goals[i] - 40f; a += 12f)
             {
                 float k = DressingPlan.Curvature(course, a);
                 if (Mathf.Abs(k) <= DressingPlan.GUIDE_CURVATURE * 1.2f) continue;
+                if (passArc >= 0f && Mathf.Abs(a - passArc) < DressingPlan.PASS_GUIDE_SKIP_M) continue;   // art-r6-03：切り通しは灯りの列と小石の線
                 corners++;
                 Vector3 outside = WorldLayout.PointAtArc(course, a) + WorldLayout.RightOf(WorldLayout.TangentAtArc(course, a)) * (k > 0f ? 1f : -1f) * DressingPlan.GUIDE_LATERAL;
                 if (guides.Any(g => WorldLayout.DistXZ(g.position, outside) < 9f)) traced++;
             }
             TestContext.WriteLine($"corners {corners}, traced {traced}");
             Assert.Greater(corners, 5);
-            Assert.GreaterOrEqual(traced, corners * 0.7f);
+            Assert.GreaterOrEqual(traced, corners * 0.65f);   // art-r6-03：25° より急な斜面には柵・杭を立てない
             Assert.Greater(guides.Count(g => g.part == DressingPlan.POST_PART && g.rollDeg == 90f && g.height > 2f), 5);   // 直線の標柱（立てた丸太、art-r3-02）
         }
 
@@ -413,7 +417,7 @@ namespace HorseRace.Tests
             var f = LobbyLayout.FENCE_RECT;
             foreach (var p in l)
             {
-                if (p.group == "StreetDressing" || p.group == "PlateEdge" || p.group == "PlazaApron" || p.group == "Boardwalk")   // art-r4-07：広場の手前も町の中。art-r5-12：建物の正面の板張り
+                if (p.group == "StreetDressing" || p.group == "PlateEdge" || p.group == "PlazaApron" || p.group == "Boardwalk" || p.group == "SpawnStreet" || p.group == "SpawnBoardwalk")   // art-r4-07：広場の手前も町の中。art-r5-12：建物の正面の板張り
                 {
                     // art-r3-09：大通りの飾りと地面の板の縁は町の中。遊びに使う物から離す
                     foreach (var kv in LobbyLayout.FunctionalSpots())

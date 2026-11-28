@@ -52,7 +52,7 @@ namespace HorseRace.Tests
                 checkedLines++;
             }
             Assert.Greater(checkedLines, 5);
-            Assert.AreEqual(0.86f, ArtPalette.RUT_SHADE, 1e-4f);
+            Assert.AreEqual(0.94f, ArtPalette.RUT_SHADE, 1e-4f);   // art-r6-04
         }
 
         [Test] public void SignedDistanceHasOppositeSignsOnEachSide()
@@ -314,7 +314,7 @@ namespace HorseRace.Tests
         // ---- art-r5-11：低木の原と埋めた敷地 ----
         [Test] public void LobbyLotsAreFilledWithoutBlockingPlay()
         {
-            var lots = LobbyLayout.LotFill();
+            var lots = LobbyLayout.LotFill().Where(q => !q.group.StartsWith("Out")).ToList();   // art-r6-09：町の外れ（柵の外）は別に調べる
             var f = LobbyLayout.FENCE_RECT;
             Assert.AreEqual(2, lots.Count(q => q.asset == DressingPlan.TOWNBLOCK), "建物の区画");
             Assert.AreEqual(1, lots.Count(q => q.asset == DressingPlan.STABLE));

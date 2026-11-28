@@ -201,9 +201,15 @@ namespace HorseRace.EditorTools
         /// 町・ゲートの外では使わない（急カーブの頂点・全力の合図・岩の橋の背・近道の入口・踏み切り・見物の直線・区間の門）。
         /// </summary>
         public static GameObject PostLamp(Transform parent, Vector3 ground, float yaw, Color light, float range)
+            => PostLamp(parent, ground, yaw, light, range, 1.6f, float.MinValue);
+
+        /// <summary>灯りの強さと、灯りの高さの下限（ワールドの y、art-r6-13）を指定する版。</summary>
+        public static GameObject PostLamp(Transform parent, Vector3 ground, float yaw, Color light, float range, float intensity, float minLightY)
         {
             var post = UprightLog(parent, "WoodLogs_01", ground, yaw, DressingPlan.LAMP_POST_H, 0.9f);
-            GenUtil.PointLight(parent, "PostLampLight", ground + Vector3.up * (DressingPlan.LAMP_POST_H + 0.2f), light, range, 1.6f);
+            Vector3 lp = ground + Vector3.up * (DressingPlan.LAMP_POST_H + 0.2f);
+            lp.y = Mathf.Max(lp.y, minLightY);
+            GenUtil.PointLight(parent, "PostLampLight", lp, light, range, intensity);
             return post;
         }
 
@@ -356,7 +362,8 @@ namespace HorseRace.EditorTools
                 // 手すり：柱と横木
                 float lat = SetPieces.SPINE_HALF - 0.4f;
                 Vector3 prev = Vector3.zero;
-                for (float a = -half; a <= half + 0.01f; a += SetPieces.SPINE_RAIL_POST_STEP_M)
+                int ri = 0;
+                for (float a = -half; a <= half + 0.01f; a += SetPieces.SPINE_RAIL_POST_STEP_M, ri++)
                 {
                     Vector3 gp = sb.GroundWorld(center + t * a + r * (s * lat));
                     UprightLog(g, "WoodLogs_01", gp, yaw, 1.1f, 0.7f);
@@ -365,12 +372,33 @@ namespace HorseRace.EditorTools
                         Vector3 mid = (prev + gp) * 0.5f + Vector3.up * SetPieces.SPINE_RAIL_H;
                         float len = Vector3.Distance(prev, gp);
                         var rail = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", g, mid, yaw, 1f, new Vector3(1.5f, 0.3f, 0.3f), Wood);
-                        rail.transform.rotation = Quaternion.LookRotation(gp - prev, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+                        // art-r6-13：横木は水平（前は地面の高さの差で傾いた）、ねじれは ±3° まで
+                        Vector3 flat = new Vector3(gp.x - prev.x, 0f, gp.z - prev.z);
+                        rail.transform.rotation = Quaternion.LookRotation(flat, Vector3.up) * Quaternion.Euler(0f, 90f, ((ri * 7) % 7 - 3) * 1f);
                         rail.transform.localScale = CourseMarks.PostScale(len + 0.1f, 0.22f);
                         DressingBuilder.SetStatic(rail);
                     }
                     prev = gp;
                 }
+            }
+            // art-r6-13：背の上の石の床（DesertRocks_08 を 2 列互い違いに、高さの 60% を沈めて上の面だけ出す）と両端の板の床（丸太を道を横切る向きに）
+            foreach (var tl in SetPieces.BridgeDeckTiles())
+            {
+                float th = SetPieces.DECK_TILE_H * SetPieces.DECK_TILE_SCALE * SetPieces.DECK_TILE_SCALE_Y;
+                Vector3 tp = center + t * tl.x + r * tl.y;
+                var tile = GenUtil.InstantiatePart(GenUtil.Pack("DesertRocks"), "DesertRocks_08", g, new Vector3(tp.x, road - SetPieces.DECK_TILE_SINK * th, tp.z),
+                    yaw + 90f + tl.z, SetPieces.DECK_TILE_SCALE, new Vector3(3f, th, 3f), Rock);
+                tile.transform.localScale = new Vector3(SetPieces.DECK_TILE_SCALE, SetPieces.DECK_TILE_SCALE * SetPieces.DECK_TILE_SCALE_Y, SetPieces.DECK_TILE_SCALE);
+                DressingBuilder.SetStatic(tile);
+                GenUtil.Tag(tile, "S" + st + "/SetPieceDecor/deckTile#" + (decorIndex++));
+            }
+            foreach (float pa in SetPieces.BridgeDeckPlanks())
+            {
+                Vector3 pc = center + t * pa + Vector3.up * (SetPieces.DECK_PLANK_THICK * 0.3f);
+                var plank = GenUtil.InstantiatePart(GenUtil.Pack("WoodLogs"), "WoodLogs_01", g, pc, yaw, 1f, new Vector3(1.5f, 0.3f, 0.3f), Wood);
+                plank.transform.rotation = Quaternion.LookRotation(r, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+                plank.transform.localScale = CourseMarks.PostScale(SetPieces.SPINE_HALF * 2f - 0.6f, SetPieces.DECK_PLANK_THICK);
+                DressingBuilder.SetStatic(plank);
             }
             // 溝の底の骨（危ない線の結果を見せる）
             for (int i = 0; i < SetPieces.TRENCH_SKELETONS; i++)
@@ -502,8 +530,8 @@ namespace HorseRace.EditorTools
                     SetPieces.TRENCH_LIGHT_RANGE, SetPieces.TRENCH_LIGHT_INTENSITY);
             // course-r3-04：背の縁の街灯（危険 = 橙の灯り、片側 2 本）と、70m 手前の赤インクの札「落ちるな」（急カーブの札と同じ丸太の柱）
             float yaw = WorldLayout.YawDeg(t);
-            foreach (var m in SetPieces.SpineEdgeLamps())
-                PostLamp(sig, sb.GroundWorld(center + t * m.x + r * m.y), yaw, SignalOrange, 10f);   // art-r4-14
+            foreach (var m in SetPieces.SpineEdgeLamps())   // art-r4-14 → art-r6-13：橋台に弱い灯り（0.8・8m、背から 3.5m 以上の高さ）
+                PostLamp(sig, sb.GroundWorld(center + t * m.x + r * m.y), yaw, SignalOrange, SetPieces.BRIDGE_LAMP_RANGE, SetPieces.BRIDGE_LAMP_INTENSITY, center.y + SetPieces.BRIDGE_LAMP_MIN_H);
             float wa = sb.bridgeArc - SetPieces.BRIDGE_WARN_BEFORE;
             Vector3 wt = WorldLayout.TangentAtArc(sb.courseWorld, wa);
             wt = new Vector3(wt.x, 0f, wt.z).normalized;

@@ -101,7 +101,8 @@ namespace HorseRace.Tests
                 // art-r4-05：砂漠の道は砂 × 約 0.92 の明るさの踏み固めた砂（暗い帯にしない：砂の 85% 以上、砂よりは暗い）
                 // art-r5-07：砂漠の道は砂より明るさで 0.08 以上明るい（同じ明るさでは道が見えなかった）
                 if (i == 1) Assert.GreaterOrEqual(t - sand, ArtPalette.TRAIL_DUNES_ABOVE_SAND, "砂漠の道は砂より明るい");
-                else Assert.GreaterOrEqual(Mathf.Abs(t - sand), 0.10f, "砂 " + i);
+                // art-r6-11：砂漠の砂を暗くした（道を白く飛ばさない）ので、荒野・境目の道（砂漠の砂の上には無い）は 0.03 以上離れていればよい。主な読みは土との 0.15
+                else Assert.GreaterOrEqual(Mathf.Abs(t - sand), 0.03f, "砂 " + i);
             }
             Assert.AreNotEqual(ArtPalette.Trail(0), ArtPalette.Trail(1));
         }

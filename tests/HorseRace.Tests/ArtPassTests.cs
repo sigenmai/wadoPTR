@@ -43,7 +43,8 @@ namespace HorseRace.Tests
             Assert.AreEqual(ArtPalette.ROCK_FLATTEN_MIP, c.flattenMip, 1e-5);
             Assert.AreEqual(0.82f, c.tint.g, 1e-5);
             Assert.AreEqual(ArtPalette.ROCK_FLATTEN, ArtPalette.StyleFor("Packs/DesertRocks/DesertRocks.fbx", "DesertRocks_02").flatten, 1e-5);
-            Assert.AreEqual(ArtPalette.DEFAULT_FLATTEN, ArtPalette.StyleFor("Packs/DesertRocks/DesertRocks.fbx", "DesertRocks_09").flatten, 1e-5);
+            Assert.AreEqual(ArtPalette.ROCK_FLATTEN, ArtPalette.StyleFor("Packs/DesertRocks/DesertRocks.fbx", "DesertRocks_09").flatten, 1e-5);   // art-r6-10：01〜09 は大岩と同じ決まり
+            Assert.AreEqual(ArtPalette.DEFAULT_FLATTEN, ArtPalette.StyleFor("Packs/DesertRocks/DesertRocks.fbx", "DesertRocks_12").flatten, 1e-5);
             Assert.AreEqual(ArtPalette.ROCK_FLATTEN, ArtPalette.StyleFor("ThirdParty/MesaRockB/MesaRockB.fbx", null).flatten, 1e-5);
             Assert.AreEqual(ArtPalette.DEFAULT_FLATTEN, ArtPalette.StyleFor("Packs/Cacti/Cacti.fbx", "Cacti_01").flatten, 1e-5);
             Assert.AreNotEqual(c.key, ArtPalette.StyleFor("Packs/Cacti/Cacti.fbx", "Cacti_01").key);
@@ -147,8 +148,10 @@ namespace HorseRace.Tests
             Vector3 r = WorldLayout.RightOf(WorldLayout.TangentAtArc(local, pass));
             float H(float[,] a, Vector3 p) => WorldLayout.SampleHeight(a, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, p.x, p.z);
             Assert.LessOrEqual(H(h, c0) - H(h0, c0), -SetPieces.PASS_DEPTH + 0.6f);   // art-r3-08：弦より下げるので PASS_DEPTH 以上
-            Assert.Greater(H(h, c0 + r * 30f) - H(h0, c0 + r * 30f), 15f);
-            Assert.Greater(H(h, c0 - r * 30f) - H(h0, c0 - r * 30f), 15f);
+            // art-r6-02：地形の段は 7m + 7m（上のシルエットは段の岩が作る）
+            TestContext.WriteLine($"pass walls above road at 30 m: {H(h, c0 + r * 30f) - H(h, c0):F1} / {H(h, c0 - r * 30f) - H(h, c0):F1} m, raised {H(h, c0 + r * 30f) - H(h0, c0 + r * 30f):F1} / {H(h, c0 - r * 30f) - H(h0, c0 - r * 30f):F1} m");
+            Assert.Greater(H(h, c0 + r * 30f) - H(h, c0), 12f);
+            Assert.Greater(H(h, c0 - r * 30f) - H(h, c0), 12f);
             float slope = HeightmapGen.MaxSlopeDegAlong(h, StageDefinitions.SIZE, HeightmapGen.HEIGHT_M, StageDefinitions.Normalize(local));
             TestContext.WriteLine($"border max slope after pass {slope:F1}");
             Assert.LessOrEqual(slope, StageDefinitions.MAX_SLOPE_DEG);

@@ -141,12 +141,15 @@ namespace HorseRace.EditorTools
                 }
                 if (cp.kind == CourseMarks.CHUTE_FLAG)
                 {
-                    var flag = GenUtil.World(g, "ChuteFlag_" + (k++), w, cp.yaw).transform;
+                    int fk = k++;
+                    var flag = GenUtil.World(g, "ChuteFlag_" + fk, w, cp.yaw).transform;
                     DressingBuilder.SetStatic(GenUtil.WoodPost(flag, w, cp.yaw, CourseMarks.CHUTE_POST_H, CourseMarks.CHUTE_POST_THICK));   // 細い丸太の旗竿
+                    float jy, jr, js;
+                    CourseMarks.PosterJitter(fk, out jy, out jr, out js);   // art-r6-12：5 種類の紙を順に・少し揺らす
                     for (int side = 0; side < 2; side++)
                     {
-                        var sheet = GenUtil.PaperSheet(flag, side == 0 ? "Flag" : "FlagBack", "WantedPosters_02", new Vector3(cp.side * -0.55f, CourseMarks.CHUTE_POST_H - 1.25f, side == 0 ? -0.08f : 0.08f), null, 0.9f, 1.1f);
-                        if (side == 1) sheet.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                        var sheet = GenUtil.PaperSheet(flag, side == 0 ? "Flag" : "FlagBack", CourseMarks.PosterPart(fk, cp.side), new Vector3(cp.side * -0.55f, CourseMarks.CHUTE_POST_H - 1.25f, side == 0 ? -0.08f : 0.08f), null, 0.9f * js, 1.1f * js);
+                        sheet.transform.localRotation = Quaternion.Euler(0f, (side == 1 ? 180f : 0f) + jy, jr);
                         foreach (var rr in sheet.GetComponentsInChildren<Renderer>(true)) rr.sharedMaterial = redMat;
                     }
                     DressingBuilder.SetStatic(flag.gameObject);
@@ -201,7 +204,10 @@ namespace HorseRace.EditorTools
                     Vector3 top = sb.Ground(ch.position.x, ch.position.z) + Vector3.up * (ch.position.y - 0.1f);
                     var sign = GenUtil.World(g, "WallChevron_" + k + "_" + (ci++), top, ch.yaw);
                     SetPieceBuilder.UprightLog(sign.transform, "WoodLogs_01", top, ch.yaw, 1.3f, 0.9f);
-                    GenUtil.PaperSheet(sign.transform, "Board", "WantedPosters_02", new Vector3(0f, 0.55f, -0.18f), null, 1.2f, 0.6f);
+                    float jy, jr, js;
+                    CourseMarks.PosterJitter(ci + k * 31, out jy, out jr, out js);   // art-r6-12
+                    var board = GenUtil.PaperSheet(sign.transform, "Board", CourseMarks.PosterPart(ci + k * 7, ch.side), new Vector3(0f, 0.55f, -0.18f), null, 1.2f, 0.6f);
+                    board.transform.localRotation = Quaternion.Euler(0f, jy * 0.5f, jr);
                     GenUtil.Text(sign.transform, "Text", new Vector3(0f, 0.85f, -0.22f), Quaternion.identity, "<b><size=170%>" + CourseMarks.Chevrons(2, ch.side) + "</size></b>",
                         1.3f, UiStyle.RedInk, new Vector2(1.1f, 0.5f), TextStyle.Sign, true);
                     DressingBuilder.SetStatic(sign);
